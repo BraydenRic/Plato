@@ -62,7 +62,7 @@ interface MuscleMapProps {
 // Seams between muscles show the layer behind the shapes, so it's a hair
 // darker than the fill rather than near-black.
 const BODY_GREY = "#3f3f3f";
-const SEAM = "#33333b";
+const SEAM = "#37373c";
 
 // The library's figures are 200pt wide each at scale 1 — too wide for two
 // side by side on a phone, so scale is derived from the measured card width.
