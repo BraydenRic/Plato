@@ -1,0 +1,50 @@
+import { Stack } from "expo-router";
+import { StatusBar } from "expo-status-bar";
+import * as SplashScreen from "expo-splash-screen";
+import { useEffect } from "react";
+import { View } from "react-native";
+
+import { AuthProvider, useAuth } from "@/context/AuthContext";
+import { Palette } from "@/constants/theme";
+
+SplashScreen.preventAutoHideAsync();
+
+function RootNavigator() {
+  const { user, loading } = useAuth();
+
+  useEffect(() => {
+    if (!loading) SplashScreen.hideAsync();
+  }, [loading]);
+
+  // Keep the splash visible until Firebase restores the session,
+  // so signed-in users never flash the sign-in screen.
+  if (loading) return <View style={{ flex: 1, backgroundColor: Palette.bg }} />;
+
+  return (
+    <Stack
+      screenOptions={{
+        headerShown: false,
+        contentStyle: { backgroundColor: Palette.bg },
+      }}>
+      <Stack.Protected guard={!!user}>
+        <Stack.Screen name="(tabs)" />
+        <Stack.Screen name="workout/[id]" />
+        <Stack.Screen name="history" />
+        <Stack.Screen name="add-exercise" options={{ presentation: "modal" }} />
+        <Stack.Screen name="exercise/[id]" options={{ presentation: "modal" }} />
+      </Stack.Protected>
+      <Stack.Protected guard={!user}>
+        <Stack.Screen name="sign-in" />
+      </Stack.Protected>
+    </Stack>
+  );
+}
+
+export default function RootLayout() {
+  return (
+    <AuthProvider>
+      <StatusBar style="light" />
+      <RootNavigator />
+    </AuthProvider>
+  );
+}
