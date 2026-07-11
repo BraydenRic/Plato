@@ -63,6 +63,11 @@ export function muscleGroupsFor(musclesWorked: string[]): Set<MuscleGroupId> {
   return groups;
 }
 
+// One gray for every non-worked shape (body and muscles alike); thin dark
+// seams separate the muscle groups.
+const BODY_GREY = "#4a4a56";
+const SEAM = "#22222a";
+
 interface MuscleMapProps {
   musclesWorked: string[];
 }
@@ -75,16 +80,17 @@ export function MuscleMap({ musclesWorked }: MuscleMapProps) {
   return (
     <View style={{ width: "100%", aspectRatio: vbWidth / vbHeight }}>
       <Svg width="100%" height="100%" viewBox={MUSCLE_MAP_VIEW_BOX}>
-        {/* Body silhouette sits under the muscle shapes; regions with no
-            muscle path (shins, hands, head) show this fill, so it must stay
-            close to the muscle tone or they read as dark holes. */}
+        {/* Body silhouette sits under the muscle shapes and must be the SAME
+            gray — regions with no muscle path (shins, hands, head) and the
+            seams between shapes show this fill, and any tone difference reads
+            as dark patches. Boundaries come from thin dark strokes instead. */}
         {BODY_OUTLINE.map((d, i) => (
           <Path
             key={`outline-${i}`}
             d={d}
-            fill="#3d3d47"
-            stroke="rgba(255,255,255,0.14)"
-            strokeWidth={0.5}
+            fill={BODY_GREY}
+            stroke={SEAM}
+            strokeWidth={0.4}
           />
         ))}
         {MUSCLE_PATHS.map(({ group, d }, i) => {
@@ -93,9 +99,9 @@ export function MuscleMap({ musclesWorked }: MuscleMapProps) {
             <Path
               key={i}
               d={d}
-              fill={active ? Palette.accent : "#454550"}
-              stroke={active ? "#ddd3ff" : "rgba(255,255,255,0.28)"}
-              strokeWidth={active ? 0.9 : 0.5}
+              fill={active ? Palette.accent : BODY_GREY}
+              stroke={active ? "#ddd3ff" : SEAM}
+              strokeWidth={active ? 0.6 : 0.4}
             />
           );
         })}
