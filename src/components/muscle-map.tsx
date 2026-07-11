@@ -57,10 +57,12 @@ interface MuscleMapProps {
   musclesWorked: string[];
 }
 
-// One gray for the whole body; seams between muscles show the layer behind
-// the shapes, so it's a hair darker than the fill rather than near-black.
-const BODY_GREY = "#4a4a56";
-const SEAM = "#3a3a44";
+// The library hardcodes #3f3f3f on most body parts, so the default fill must
+// match it exactly or reset parts (like the head) come out a different tone.
+// Seams between muscles show the layer behind the shapes, so it's a hair
+// darker than the fill rather than near-black.
+const BODY_GREY = "#3f3f3f";
+const SEAM = "#33333b";
 
 // The library's figures are 200pt wide each at scale 1 — too wide for two
 // side by side on a phone, so scale is derived from the measured card width.
