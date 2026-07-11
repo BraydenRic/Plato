@@ -75,8 +75,17 @@ export function MuscleMap({ musclesWorked }: MuscleMapProps) {
   return (
     <View style={{ width: "100%", aspectRatio: vbWidth / vbHeight }}>
       <Svg width="100%" height="100%" viewBox={MUSCLE_MAP_VIEW_BOX}>
+        {/* Body silhouette sits under the muscle shapes; regions with no
+            muscle path (shins, hands, head) show this fill, so it must stay
+            close to the muscle tone or they read as dark holes. */}
         {BODY_OUTLINE.map((d, i) => (
-          <Path key={`outline-${i}`} d={d} fill={Palette.surfaceRaised} />
+          <Path
+            key={`outline-${i}`}
+            d={d}
+            fill="#3d3d47"
+            stroke="rgba(255,255,255,0.14)"
+            strokeWidth={0.5}
+          />
         ))}
         {MUSCLE_PATHS.map(({ group, d }, i) => {
           const active = highlighted.has(group);
