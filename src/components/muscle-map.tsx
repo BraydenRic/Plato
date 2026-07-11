@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { StyleSheet, Text, View } from "react-native";
 import Body, { type ExtendedBodyPart } from "react-native-body-highlighter";
 
@@ -56,28 +57,44 @@ interface MuscleMapProps {
   musclesWorked: string[];
 }
 
+// One gray for the whole body; seams between muscles show the layer behind
+// the shapes, so it's a hair darker than the fill rather than near-black.
+const BODY_GREY = "#4a4a56";
+const SEAM = "#3a3a44";
+
+// The library's figures are 200pt wide each at scale 1 — too wide for two
+// side by side on a phone, so scale is derived from the measured card width.
+const FIGURE_BASE_WIDTH = 200;
+
 // Front and back body figures, side by side, with worked muscles lit violet.
 export function MuscleMap({ musclesWorked }: MuscleMapProps) {
-  const data: ExtendedBodyPart[] = muscleSlugsFor(musclesWorked).map((slug) => ({
-    slug,
-    intensity: 1,
-  }));
+  const [rowWidth, setRowWidth] = useState(0);
+  const scale = rowWidth > 0 ? Math.min((rowWidth / 2 - 8) / FIGURE_BASE_WIDTH, 1) : 0;
+
+  const data: ExtendedBodyPart[] = [
+    ...muscleSlugsFor(musclesWorked).map((slug) => ({ slug, intensity: 1 })),
+    // The head ships with a hardcoded light color; listing it here with no
+    // color of its own resets it to the default body gray.
+    { slug: "head" as const },
+  ];
 
   return (
-    <View style={styles.row}>
-      {(["front", "back"] as const).map((side) => (
-        <View key={side} style={styles.figure}>
-          <Body
-            data={data}
-            side={side}
-            gender="male"
-            scale={1}
-            colors={[Palette.accent]}
-            border={Palette.border}
-          />
-          <Text style={styles.label}>{side}</Text>
-        </View>
-      ))}
+    <View style={styles.row} onLayout={(e) => setRowWidth(e.nativeEvent.layout.width)}>
+      {scale > 0 &&
+        (["front", "back"] as const).map((side) => (
+          <View key={side} style={styles.figure}>
+            <Body
+              data={data}
+              side={side}
+              gender="male"
+              scale={scale}
+              colors={[Palette.accent]}
+              border={SEAM}
+              defaultFill={BODY_GREY}
+            />
+            <Text style={styles.label}>{side}</Text>
+          </View>
+        ))}
     </View>
   );
 }
