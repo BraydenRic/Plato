@@ -46,10 +46,6 @@ export default function ExerciseDetailScreen() {
           <SectionLabel>Muscles worked</SectionLabel>
           <View style={styles.mapCard}>
             <MuscleMap musclesWorked={exercise.musclesWorked} />
-            <View style={styles.mapLabels}>
-              <Text style={styles.mapLabel}>Front</Text>
-              <Text style={styles.mapLabel}>Back</Text>
-            </View>
           </View>
         </View>
       </ScrollView>
