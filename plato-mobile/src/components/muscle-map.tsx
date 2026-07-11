@@ -29,20 +29,25 @@ const MUSCLE_NAME_TO_GROUPS: Record<string, MuscleGroupId[]> = {
   abs: ["abs"],
   obliques: ["obliques"],
   core: ["abs", "obliques"],
-  quads: ["quadriceps"],
-  quadriceps: ["quadriceps"],
+  // The diagram splits the thigh into three shapes: quadriceps is only the
+  // outer strip, adductors the big inner-front mass, abductors the hip. Quad
+  // work hits the adductors too, and lighting both keeps the thigh from
+  // looking half-off.
+  quads: ["quadriceps", "adductors"],
+  quadriceps: ["quadriceps", "adductors"],
   hamstrings: ["hamstrings"],
-  glutes: ["glutes"],
+  // The outer-hip "abductor" shapes are mostly glute medius on this map.
+  glutes: ["glutes", "abductors"],
   calves: ["calves"],
   // No dedicated hip-flexor region in the diagram; the outer-hip shapes are
   // the closest visual match.
   "hip flexors": ["abductors"],
-  legs: ["quadriceps", "hamstrings", "glutes", "calves"],
+  legs: ["quadriceps", "adductors", "abductors", "hamstrings", "glutes", "calves"],
   arms: ["biceps", "triceps", "forearms"],
   "full body": [
     "chest", "shoulders", "biceps", "triceps", "forearms",
     "abs", "obliques", "lats", "upper_back", "lower_back", "trapezius",
-    "quadriceps", "hamstrings", "glutes", "calves",
+    "quadriceps", "adductors", "abductors", "hamstrings", "glutes", "calves",
   ],
   // Cardio doesn't map to a visible muscle region.
   cardio: [],
@@ -79,8 +84,8 @@ export function MuscleMap({ musclesWorked }: MuscleMapProps) {
             <Path
               key={i}
               d={d}
-              fill={active ? Palette.accent : "#2e2e36"}
-              stroke={active ? "#ddd3ff" : "rgba(255,255,255,0.18)"}
+              fill={active ? Palette.accent : "#454550"}
+              stroke={active ? "#ddd3ff" : "rgba(255,255,255,0.28)"}
               strokeWidth={active ? 0.9 : 0.5}
             />
           );
