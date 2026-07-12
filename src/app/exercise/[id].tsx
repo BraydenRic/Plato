@@ -1,15 +1,37 @@
-import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { router, useLocalSearchParams } from "expo-router";
 import Ionicons from "@expo/vector-icons/Ionicons";
 
 import { MuscleMap } from "@/components/muscle-map";
 import { SectionLabel } from "@/components/ui";
 import { Palette, Radius, Spacing } from "@/constants/theme";
-import { EXERCISES } from "@/lib/exercises";
+import { useExerciseLibrary } from "@/hooks/use-exercise-library";
 
 export default function ExerciseDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
-  const exercise = EXERCISES.find((e) => e.id === id);
+  const { exercises, deleteExercise } = useExerciseLibrary();
+  const exercise = exercises.find((e) => e.id === id);
+
+  function confirmDelete() {
+    if (!exercise) return;
+    Alert.alert(
+      "Delete exercise?",
+      exercise.isCustom
+        ? `"${exercise.name}" will be removed from your library. Logged workouts keep it.`
+        : `"${exercise.name}" will be hidden from your library. Reset brings it back.`,
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Delete",
+          style: "destructive",
+          onPress: async () => {
+            await deleteExercise(exercise);
+            router.back();
+          },
+        },
+      ]
+    );
+  }
 
   if (!exercise) {
     return (
@@ -26,6 +48,9 @@ export default function ExerciseDetailScreen() {
           <Text style={styles.title}>{exercise.name}</Text>
           <Text style={styles.meta}>{exercise.category}</Text>
         </View>
+        <Pressable onPress={confirmDelete} hitSlop={12} style={styles.closeButton}>
+          <Ionicons name="trash-outline" size={18} color={Palette.textSecondary} />
+        </Pressable>
         <Pressable onPress={() => router.back()} hitSlop={12} style={styles.closeButton}>
           <Ionicons name="close" size={20} color={Palette.textSecondary} />
         </Pressable>

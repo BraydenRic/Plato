@@ -18,7 +18,7 @@ import {
 } from "firebase/firestore";
 import { db } from "./firebase";
 import { sameDay } from "./workout-utils";
-import type { Workout, UserStatistics, WorkoutExercise } from "@/types";
+import type { Exercise, Workout, UserStatistics, WorkoutExercise } from "@/types";
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -90,6 +90,33 @@ export async function updateWorkout(id: string, updates: Partial<Workout>): Prom
 
 export async function deleteWorkout(id: string): Promise<void> {
   await deleteDoc(doc(db, "workouts", id));
+}
+
+// ── Exercise library ─────────────────────────────────────────────────────────
+// Per-user customization of the built-in exercise list: custom exercises the
+// user created plus ids of defaults they removed. The 61 defaults live in the
+// app bundle, so resetting is just clearing this doc.
+
+export interface ExerciseLibrary {
+  custom: Exercise[];
+  removedIds: string[];
+}
+
+export function subscribeExerciseLibrary(
+  userId: string,
+  onChange: (library: ExerciseLibrary) => void
+): () => void {
+  return onSnapshot(doc(db, "exerciseLibrary", userId), (snap) => {
+    const d = snap.data();
+    onChange({
+      custom: (d?.custom as Exercise[]) ?? [],
+      removedIds: (d?.removedIds as string[]) ?? [],
+    });
+  });
+}
+
+export async function updateExerciseLibrary(userId: string, library: ExerciseLibrary): Promise<void> {
+  await setDoc(doc(db, "exerciseLibrary", userId), { userId, ...library }, { merge: true });
 }
 
 // Reopen a finished workout so an accidental finish can be undone or missed

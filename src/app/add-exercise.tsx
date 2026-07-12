@@ -15,31 +15,35 @@ import Ionicons from "@expo/vector-icons/Ionicons";
 import { Chip, Field } from "@/components/ui";
 import { Palette, Radius, Spacing } from "@/constants/theme";
 import { useWeightUnit } from "@/context/UnitContext";
-import { EXERCISES } from "@/lib/exercises";
 import { getWorkout, stripUndefined, updateWorkout } from "@/lib/firestore";
+import { useExerciseLibrary } from "@/hooks/use-exercise-library";
 import { newId } from "@/lib/workout-utils";
 import type { Exercise, Workout, WorkoutSet } from "@/types";
-
-const CATEGORIES = ["All", ...new Set(EXERCISES.map((e) => e.category))];
 
 export default function AddExerciseModal() {
   const { workoutId } = useLocalSearchParams<{ workoutId: string }>();
   const router = useRouter();
+  const { exercises } = useExerciseLibrary();
   const [search, setSearch] = useState("");
   const [category, setCategory] = useState("All");
   const [addedIds, setAddedIds] = useState<Set<string>>(new Set());
   const { unit } = useWeightUnit();
 
+  const categories = useMemo(
+    () => ["All", ...new Set(exercises.map((e) => e.category))],
+    [exercises]
+  );
+
   const filtered = useMemo(() => {
     const term = search.trim().toLowerCase();
-    return EXERCISES.filter(
+    return exercises.filter(
       (e) =>
         (category === "All" || e.category === category) &&
         (term === "" ||
           e.name.toLowerCase().includes(term) ||
           e.musclesWorked.some((m) => m.toLowerCase().includes(term)))
     );
-  }, [search, category]);
+  }, [exercises, search, category]);
 
   async function add(exercise: Exercise) {
     if (!workoutId || addedIds.has(exercise.id)) return;
@@ -98,7 +102,7 @@ export default function AddExerciseModal() {
           horizontal
           showsHorizontalScrollIndicator={false}
           contentContainerStyle={styles.chips}>
-          {CATEGORIES.map((c) => (
+          {categories.map((c) => (
             <Chip key={c} label={c} active={c === category} onPress={() => setCategory(c)} />
           ))}
         </ScrollView>

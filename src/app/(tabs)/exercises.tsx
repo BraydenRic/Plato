@@ -1,36 +1,79 @@
 import { useMemo, useState } from "react";
-import { FlatList, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Alert, FlatList, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { router } from "expo-router";
 import Ionicons from "@expo/vector-icons/Ionicons";
 
 import { Chip, Field } from "@/components/ui";
 import { Palette, Radius, Spacing } from "@/constants/theme";
-import { EXERCISES } from "@/lib/exercises";
+import { useExerciseLibrary } from "@/hooks/use-exercise-library";
 import type { Exercise } from "@/types";
 
-const CATEGORIES = ["All", ...new Set(EXERCISES.map((e) => e.category))];
-
 export default function ExercisesScreen() {
+  const { exercises, isModified, deleteExercise, resetLibrary } = useExerciseLibrary();
   const [search, setSearch] = useState("");
   const [category, setCategory] = useState("All");
 
+  const categories = useMemo(
+    () => ["All", ...new Set(exercises.map((e) => e.category))],
+    [exercises]
+  );
+
   const filtered = useMemo(() => {
     const term = search.trim().toLowerCase();
-    return EXERCISES.filter(
+    return exercises.filter(
       (e) =>
         (category === "All" || e.category === category) &&
         (term === "" ||
           e.name.toLowerCase().includes(term) ||
           e.musclesWorked.some((m) => m.toLowerCase().includes(term)))
     );
-  }, [search, category]);
+  }, [exercises, search, category]);
+
+  function confirmDelete(exercise: Exercise) {
+    Alert.alert(
+      "Delete exercise?",
+      exercise.isCustom
+        ? `"${exercise.name}" will be removed from your library. Logged workouts keep it.`
+        : `"${exercise.name}" will be hidden from your library. Reset brings it back.`,
+      [
+        { text: "Cancel", style: "cancel" },
+        { text: "Delete", style: "destructive", onPress: () => deleteExercise(exercise) },
+      ]
+    );
+  }
+
+  function confirmReset() {
+    Alert.alert(
+      "Reset library?",
+      "Restores all default exercises and deletes your custom ones.",
+      [
+        { text: "Cancel", style: "cancel" },
+        { text: "Reset", style: "destructive", onPress: () => resetLibrary() },
+      ]
+    );
+  }
 
   return (
     <SafeAreaView style={styles.safe} edges={["top"]}>
       <View style={styles.header}>
-        <Text style={styles.title}>Exercises</Text>
-        <Text style={styles.subtitle}>{EXERCISES.length} movements in the library</Text>
+        <View style={{ flex: 1, gap: 2 }}>
+          <Text style={styles.title}>Exercises</Text>
+          <Text style={styles.subtitle}>
+            {exercises.length} movements · hold one to delete
+          </Text>
+        </View>
+        {isModified && (
+          <Pressable onPress={confirmReset} hitSlop={8} style={styles.headerButton}>
+            <Ionicons name="refresh" size={18} color={Palette.textSecondary} />
+          </Pressable>
+        )}
+        <Pressable
+          onPress={() => router.push("/create-exercise")}
+          hitSlop={8}
+          style={[styles.headerButton, styles.headerButtonAccent]}>
+          <Ionicons name="add" size={22} color="#fff" />
+        </Pressable>
       </View>
 
       <View style={styles.searchWrap}>
@@ -39,7 +82,7 @@ export default function ExercisesScreen() {
 
       <View>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chips}>
-          {CATEGORIES.map((c) => (
+          {categories.map((c) => (
             <Chip key={c} label={c} active={c === category} onPress={() => setCategory(c)} />
           ))}
         </ScrollView>
@@ -50,21 +93,38 @@ export default function ExercisesScreen() {
         keyExtractor={(e) => e.id}
         contentContainerStyle={styles.list}
         renderItem={({ item }) => (
-          <ExerciseRow exercise={item} onPress={() => router.push(`/exercise/${item.id}`)} />
+          <ExerciseRow
+            exercise={item}
+            onPress={() => router.push(`/exercise/${item.id}`)}
+            onLongPress={() => confirmDelete(item)}
+          />
         )}
       />
     </SafeAreaView>
   );
 }
 
-function ExerciseRow({ exercise, onPress }: { exercise: Exercise; onPress: () => void }) {
+function ExerciseRow({
+  exercise,
+  onPress,
+  onLongPress,
+}: {
+  exercise: Exercise;
+  onPress: () => void;
+  onLongPress: () => void;
+}) {
   return (
-    <Pressable onPress={onPress} style={styles.row}>
+    <Pressable onPress={onPress} onLongPress={onLongPress} style={styles.row}>
       <View style={styles.rowHeader}>
         <View style={{ flex: 1, gap: 2 }}>
           <Text style={styles.rowName}>{exercise.name}</Text>
           <Text style={styles.rowMeta}>{exercise.musclesWorked.join(" · ")}</Text>
         </View>
+        {exercise.isCustom && (
+          <View style={[styles.categoryBadge, styles.customBadge]}>
+            <Text style={styles.categoryText}>Custom</Text>
+          </View>
+        )}
         <View style={styles.categoryBadge}>
           <Text style={styles.categoryText}>{exercise.category}</Text>
         </View>
@@ -80,9 +140,22 @@ const styles = StyleSheet.create({
     backgroundColor: Palette.bg,
   },
   header: {
+    flexDirection: "row",
+    alignItems: "center",
     paddingHorizontal: Spacing.three,
     paddingTop: Spacing.three,
-    gap: 2,
+    gap: Spacing.two,
+  },
+  headerButton: {
+    width: 36,
+    height: 36,
+    borderRadius: Radius.full,
+    backgroundColor: Palette.surfaceRaised,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  headerButtonAccent: {
+    backgroundColor: Palette.accent,
   },
   title: {
     fontSize: 28,
@@ -135,6 +208,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
     paddingVertical: 3,
     borderRadius: Radius.full,
+  },
+  customBadge: {
+    backgroundColor: Palette.surfaceRaised,
   },
   categoryText: {
     fontSize: 11,
