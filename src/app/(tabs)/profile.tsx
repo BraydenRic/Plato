@@ -5,11 +5,21 @@ import Ionicons from "@expo/vector-icons/Ionicons";
 import { Button, Card, SectionLabel } from "@/components/ui";
 import { Palette, Radius, Spacing } from "@/constants/theme";
 import { useAuth } from "@/context/AuthContext";
+import { useRestTimer } from "@/context/RestTimerContext";
 import { useWeightUnit } from "@/context/UnitContext";
+
+const REST_OPTIONS = [
+  { label: "Off", seconds: 0 },
+  { label: "1:00", seconds: 60 },
+  { label: "1:30", seconds: 90 },
+  { label: "2:00", seconds: 120 },
+  { label: "3:00", seconds: 180 },
+];
 
 export default function ProfileScreen() {
   const { user, signOut } = useAuth();
   const { unit, setUnit } = useWeightUnit();
+  const { restSeconds, setRestSeconds } = useRestTimer();
 
   function confirmSignOut() {
     Alert.alert("Sign out?", "Your data stays synced to your account.", [
@@ -51,6 +61,28 @@ export default function ProfileScreen() {
                   onPress={() => setUnit(u)}
                   style={[styles.segmentItem, unit === u && styles.segmentActive]}>
                   <Text style={[styles.segmentText, unit === u && styles.segmentTextActive]}>{u}</Text>
+                </Pressable>
+              ))}
+            </View>
+          </Card>
+          <Card style={styles.restCard}>
+            <View>
+              <Text style={styles.prefTitle}>Rest timer</Text>
+              <Text style={styles.prefHint}>Countdown after checking off a set</Text>
+            </View>
+            <View style={[styles.segment, { alignSelf: "flex-start" }]}>
+              {REST_OPTIONS.map((o) => (
+                <Pressable
+                  key={o.seconds}
+                  onPress={() => setRestSeconds(o.seconds)}
+                  style={[styles.segmentItem, restSeconds === o.seconds && styles.segmentActive]}>
+                  <Text
+                    style={[
+                      styles.segmentText,
+                      restSeconds === o.seconds && styles.segmentTextActive,
+                    ]}>
+                    {o.label}
+                  </Text>
                 </Pressable>
               ))}
             </View>
@@ -126,6 +158,10 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: Spacing.three,
   },
+  restCard: {
+    gap: Spacing.two,
+    marginTop: Spacing.two,
+  },
   prefTitle: {
     fontSize: 15,
     fontWeight: "600",
@@ -146,7 +182,7 @@ const styles = StyleSheet.create({
     gap: 3,
   },
   segmentItem: {
-    paddingHorizontal: 14,
+    paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: Radius.sm - 2,
   },

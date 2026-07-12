@@ -23,11 +23,11 @@ import { Palette, Radius, Spacing } from "@/constants/theme";
 import { db } from "@/lib/firebase";
 import { getCompletedWorkouts, reopenWorkout, saveAsTemplate, stripUndefined, updateWorkout, upsertUserStats, computeStats, deleteWorkout } from "@/lib/firestore";
 import { useWorkouts } from "@/hooks/use-workouts";
+import { useRestTimer } from "@/context/RestTimerContext";
 import { useWeightUnit } from "@/context/UnitContext";
 import { convertWeight, displayVolume, formatClock, newId, relativeDay, sameDay, startOfDay, workoutVolumeLbs, completedSetCount, totalSetCount } from "@/lib/workout-utils";
 import type { Workout, WorkoutExercise, WorkoutSet } from "@/types";
 
-const REST_SECONDS = 90;
 
 function toDate(val: unknown): Date | undefined {
   if (!val) return undefined;
@@ -50,6 +50,7 @@ export default function WorkoutScreen() {
   const [restLeft, setRestLeft] = useState(0);
   const [elapsed, setElapsed] = useState(0);
   const { unit: weightUnit } = useWeightUnit();
+  const { restSeconds } = useRestTimer();
 
   // Live doc subscription: picks up exercises added from the modal instantly.
   useEffect(() => {
@@ -169,8 +170,11 @@ export default function WorkoutScreen() {
       isCompleted: completing,
       completedAt: completing ? new Date() : undefined,
     });
-    // No rest countdown while merely planning — only during a live session.
-    if (completing && !isDone && !isPlanned) setRestEndsAt(Date.now() + REST_SECONDS * 1000);
+    // No rest countdown while merely planning — only during a live session,
+    // and only if the user hasn't turned the timer off.
+    if (completing && !isDone && !isPlanned && restSeconds > 0) {
+      setRestEndsAt(Date.now() + restSeconds * 1000);
+    }
   }
 
   function addSet(exercise: WorkoutExercise) {
@@ -485,6 +489,9 @@ export default function WorkoutScreen() {
           <View style={styles.restBar}>
             <Ionicons name="timer-outline" size={18} color={Palette.accentText} />
             <Text style={styles.restText}>Rest {formatClock(restLeft)}</Text>
+            <Pressable onPress={() => setRestEndsAt(restEndsAt + 15_000)} hitSlop={8}>
+              <Text style={styles.restSkip}>+15s</Text>
+            </Pressable>
             <Pressable onPress={() => setRestEndsAt(null)} hitSlop={8}>
               <Text style={styles.restSkip}>Skip</Text>
             </Pressable>
