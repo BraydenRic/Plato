@@ -98,6 +98,15 @@ export async function deleteWorkout(workout: Workout): Promise<void> {
   }
 }
 
+// Wipes everything the user owns, for account deletion (App Store requires
+// in-app account deletion). The auth user itself is deleted afterwards.
+export async function deleteAllUserData(userId: string): Promise<void> {
+  const snap = await getDocs(query(collection(db, "workouts"), where("userId", "==", userId)));
+  await Promise.all(snap.docs.map((d) => deleteDoc(d.ref)));
+  await deleteDoc(doc(db, "exerciseLibrary", userId));
+  await deleteDoc(doc(db, "userStats", userId));
+}
+
 // ── Exercise library ─────────────────────────────────────────────────────────
 // Per-user customization of the built-in exercise list: custom exercises the
 // user created plus ids of defaults they removed. The 61 defaults live in the

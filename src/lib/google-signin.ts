@@ -8,7 +8,11 @@ import { auth } from "./firebase";
 // instead of crashing.
 export const isExpoGo = Constants.executionEnvironment === ExecutionEnvironment.StoreClient;
 
-export const googleSignInAvailable = !isExpoGo;
+// Also requires the app to be configured for Google (client ID present and
+// the config plugin added back to app.json) — until then the button stays
+// hidden so store builds ship cleanly with email/password only.
+export const googleSignInAvailable =
+  !isExpoGo && !!process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID;
 
 let configured = false;
 

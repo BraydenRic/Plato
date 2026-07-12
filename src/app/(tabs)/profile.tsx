@@ -16,7 +16,7 @@ const REST_OPTIONS = [
 ];
 
 export default function ProfileScreen() {
-  const { user, signOut } = useAuth();
+  const { user, signOut, deleteAccount } = useAuth();
   const { unit, setUnit } = useWeightUnit();
   const { restSeconds, setRestSeconds } = useRestTimer();
 
@@ -25,6 +25,45 @@ export default function ProfileScreen() {
       { text: "Cancel", style: "cancel" },
       { text: "Sign out", style: "destructive", onPress: () => signOut() },
     ]);
+  }
+
+  // App Store guideline 5.1.1: apps with account creation must offer in-app
+  // account deletion. Password re-entry guards against a stolen unlocked phone.
+  function confirmDeleteAccount() {
+    Alert.alert(
+      "Delete account?",
+      "Your account and every workout, template, and custom exercise will be permanently erased. This cannot be undone.",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Continue",
+          style: "destructive",
+          onPress: () =>
+            Alert.prompt(
+              "Confirm your password",
+              "Enter your password to permanently delete your account.",
+              [
+                { text: "Cancel", style: "cancel" },
+                {
+                  text: "Delete forever",
+                  style: "destructive",
+                  onPress: async (password?: string) => {
+                    try {
+                      await deleteAccount(password ?? "");
+                    } catch {
+                      Alert.alert(
+                        "Couldn't delete account",
+                        "Check your password and connection, then try again."
+                      );
+                    }
+                  },
+                },
+              ],
+              "secure-text"
+            ),
+        },
+      ]
+    );
   }
 
   const initial = (user?.displayName ?? user?.email ?? "?").charAt(0).toUpperCase();
@@ -89,6 +128,10 @@ export default function ProfileScreen() {
         </View>
 
         <Button title="Sign out" variant="danger" onPress={confirmSignOut} />
+
+        <Pressable onPress={confirmDeleteAccount} hitSlop={8}>
+          <Text style={styles.deleteAccount}>Delete account</Text>
+        </Pressable>
       </ScrollView>
     </SafeAreaView>
   );
@@ -150,6 +193,12 @@ const styles = StyleSheet.create({
   restCard: {
     gap: Spacing.two,
     marginTop: Spacing.two,
+  },
+  deleteAccount: {
+    fontSize: 13,
+    color: Palette.textTertiary,
+    textAlign: "center",
+    textDecorationLine: "underline",
   },
   prefTitle: {
     fontSize: 15,

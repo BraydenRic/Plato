@@ -8,7 +8,12 @@
     "scheme": "plato",
     "userInterfaceStyle": "dark",
     "ios": {
-      "bundleIdentifier": "com.plato.workouts"
+      "bundleIdentifier": "com.plato.workouts",
+      "buildNumber": "1",
+      "supportsTablet": false,
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
     },
     "android": {
       "adaptiveIcon": {
@@ -32,12 +37,6 @@
           "backgroundColor": "#09090b",
           "image": "./assets/images/splash-icon.png",
           "imageWidth": 76
-        }
-      ],
-      [
-        "@react-native-google-signin/google-signin",
-        {
-          "iosUrlScheme": "com.googleusercontent.apps.REPLACE-WITH-REVERSED-IOS-CLIENT-ID"
         }
       ]
     ],

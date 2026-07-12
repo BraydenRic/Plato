@@ -1,13 +1,17 @@
 import { createContext, useContext, useEffect, useState } from "react";
 import {
   type User,
+  EmailAuthProvider,
+  deleteUser,
   onAuthStateChanged,
+  reauthenticateWithCredential,
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
   updateProfile,
   signOut as firebaseSignOut,
 } from "firebase/auth";
 import { auth } from "@/lib/firebase";
+import { deleteAllUserData } from "@/lib/firestore";
 import { googleSignInAvailable, signInWithGoogle as googleSignIn } from "@/lib/google-signin";
 
 interface AuthContextType {
@@ -20,6 +24,8 @@ interface AuthContextType {
   /** False in Expo Go, where the native Google module doesn't exist. */
   canUseGoogle: boolean;
   signOut: () => Promise<void>;
+  /** Permanently removes the user's data and auth account. Needs their password. */
+  deleteAccount: (password: string) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType>({
@@ -30,6 +36,7 @@ const AuthContext = createContext<AuthContextType>({
   signInWithGoogle: async () => false,
   canUseGoogle: false,
   signOut: async () => {},
+  deleteAccount: async () => {},
 });
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
@@ -66,6 +73,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     await firebaseSignOut(auth);
   }
 
+  async function deleteAccount(password: string) {
+    const current = auth.currentUser;
+    if (!current?.email) throw new Error("No signed-in account.");
+    // Firebase refuses to delete stale sessions; re-verify the password first
+    // so the data wipe never runs unless the account deletion can follow.
+    await reauthenticateWithCredential(
+      current,
+      EmailAuthProvider.credential(current.email, password)
+    );
+    await deleteAllUserData(current.uid);
+    await deleteUser(current);
+  }
+
   return (
     <AuthContext.Provider
       value={{
@@ -76,6 +96,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         signInWithGoogle,
         canUseGoogle: googleSignInAvailable,
         signOut,
+        deleteAccount,
       }}>
       {children}
     </AuthContext.Provider>
