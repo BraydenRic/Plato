@@ -13,6 +13,7 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import DraggableFlatList, { ScaleDecorator } from "react-native-draggable-flatlist";
+import ReanimatedSwipeable from "react-native-gesture-handler/ReanimatedSwipeable";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { doc, onSnapshot } from "firebase/firestore";
 import Ionicons from "@expo/vector-icons/Ionicons";
@@ -673,15 +674,21 @@ function SetRow({
     });
   }
 
-  function confirmRemove() {
-    Alert.alert(`Remove set ${index}?`, undefined, [
-      { text: "Cancel", style: "cancel" },
-      { text: "Remove", style: "destructive", onPress: onRemove },
-    ]);
-  }
-
   return (
-    <Pressable onLongPress={readOnly ? undefined : confirmRemove} style={[styles.setRow, set.isCompleted && styles.setRowDone]}>
+    // Swipe a row left to delete it — no confirmation, mirroring big fitness
+    // apps. Long-press still works as a fallback gesture.
+    <ReanimatedSwipeable
+      enabled={!readOnly}
+      friction={2}
+      rightThreshold={36}
+      overshootRight={false}
+      renderRightActions={() => (
+        <View style={styles.setDeleteAction}>
+          <Ionicons name="trash-outline" size={16} color="#fff" />
+        </View>
+      )}
+      onSwipeableWillOpen={onRemove}>
+      <Pressable onLongPress={readOnly ? undefined : onRemove} style={[styles.setRow, set.isCompleted && styles.setRowDone]}>
       <Text style={[styles.setNum, styles.setNumCol]}>{index}</Text>
       <TextInput
         style={[styles.setInput, styles.inputCol]}
@@ -715,7 +722,8 @@ function SetRow({
           color={set.isCompleted ? "#fff" : Palette.textTertiary}
         />
       </Pressable>
-    </Pressable>
+      </Pressable>
+    </ReanimatedSwipeable>
   );
 }
 
@@ -819,6 +827,15 @@ const styles = StyleSheet.create({
     gap: Spacing.two,
     paddingVertical: 3,
     borderRadius: Radius.sm,
+    // Opaque so the delete action stays hidden behind the row until swiped.
+    backgroundColor: Palette.surface,
+  },
+  setDeleteAction: {
+    width: 56,
+    borderRadius: Radius.sm,
+    backgroundColor: Palette.danger,
+    alignItems: "center",
+    justifyContent: "center",
   },
   setRowDone: {
     opacity: 0.85,
