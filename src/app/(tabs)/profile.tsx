@@ -1,29 +1,15 @@
-import { useEffect, useState } from "react";
 import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import AsyncStorage from "@react-native-async-storage/async-storage";
 import Ionicons from "@expo/vector-icons/Ionicons";
 
 import { Button, Card, SectionLabel } from "@/components/ui";
 import { Palette, Radius, Spacing } from "@/constants/theme";
 import { useAuth } from "@/context/AuthContext";
-
-type WeightUnit = "lbs" | "kg";
+import { useWeightUnit } from "@/context/UnitContext";
 
 export default function ProfileScreen() {
   const { user, signOut } = useAuth();
-  const [unit, setUnit] = useState<WeightUnit>("lbs");
-
-  useEffect(() => {
-    AsyncStorage.getItem("weight_unit").then((u) => {
-      if (u === "kg" || u === "lbs") setUnit(u);
-    });
-  }, []);
-
-  function changeUnit(next: WeightUnit) {
-    setUnit(next);
-    AsyncStorage.setItem("weight_unit", next);
-  }
+  const { unit, setUnit } = useWeightUnit();
 
   function confirmSignOut() {
     Alert.alert("Sign out?", "Your data stays synced to your account.", [
@@ -55,14 +41,14 @@ export default function ProfileScreen() {
           <SectionLabel>Preferences</SectionLabel>
           <Card style={styles.prefCard}>
             <View style={{ flex: 1 }}>
-              <Text style={styles.prefTitle}>Default weight unit</Text>
-              <Text style={styles.prefHint}>Used for new sets</Text>
+              <Text style={styles.prefTitle}>Weight unit</Text>
+              <Text style={styles.prefHint}>Used for new sets and displayed volumes</Text>
             </View>
             <View style={styles.segment}>
               {(["lbs", "kg"] as const).map((u) => (
                 <Pressable
                   key={u}
-                  onPress={() => changeUnit(u)}
+                  onPress={() => setUnit(u)}
                   style={[styles.segmentItem, unit === u && styles.segmentActive]}>
                   <Text style={[styles.segmentText, unit === u && styles.segmentTextActive]}>{u}</Text>
                 </Pressable>

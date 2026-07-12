@@ -8,7 +8,8 @@ import { Card, EmptyState } from "@/components/ui";
 import { Palette, Radius, Spacing } from "@/constants/theme";
 import { useWorkouts } from "@/hooks/use-workouts";
 import { deleteWorkout } from "@/lib/firestore";
-import { completedSetCount, formatVolume, workoutVolumeLbs } from "@/lib/workout-utils";
+import { useWeightUnit } from "@/context/UnitContext";
+import { completedSetCount, displayVolume, workoutVolumeLbs } from "@/lib/workout-utils";
 import type { Workout } from "@/types";
 
 export default function HistoryScreen() {
@@ -79,6 +80,7 @@ function HistoryRow({
   onPress: () => void;
   onLongPress: () => void;
 }) {
+  const { unit } = useWeightUnit();
   const volume = workout.totalVolume ?? workoutVolumeLbs(workout);
   return (
     <Pressable onPress={onPress} onLongPress={onLongPress}>
@@ -93,7 +95,7 @@ function HistoryRow({
             </Text>
           </View>
           {volume > 0 ? (
-            <Text style={styles.volume}>{formatVolume(volume)} lbs</Text>
+            <Text style={styles.volume}>{displayVolume(volume, unit)}</Text>
           ) : (
             <Ionicons name="chevron-forward" size={16} color={Palette.textTertiary} />
           )}

@@ -7,12 +7,14 @@ import { Card, EmptyState, SectionLabel } from "@/components/ui";
 import { Palette, Radius, Spacing } from "@/constants/theme";
 import { useWorkouts } from "@/hooks/use-workouts";
 import { computeStats } from "@/lib/firestore";
-import { formatDuration, formatVolume, workoutVolumeLbs } from "@/lib/workout-utils";
+import { useWeightUnit } from "@/context/UnitContext";
+import { displayVolume, formatDuration, workoutVolumeLbs } from "@/lib/workout-utils";
 
 const CHART_DAYS = 14;
 
 export default function StatsScreen() {
   const { completed, loading } = useWorkouts();
+  const { unit } = useWeightUnit();
 
   // Lifetime stats are always derived from real workout history — never
   // incremented counters (the old app corrupted stats that way).
@@ -69,7 +71,7 @@ export default function StatsScreen() {
 
         <View style={styles.grid}>
           <StatCard label="Workouts" value={String(stats.totalCompletedWorkouts)} />
-          <StatCard label="Volume" value={`${formatVolume(stats.totalVolumeLbs)} lbs`} />
+          <StatCard label="Volume" value={displayVolume(stats.totalVolumeLbs, unit)} />
           <StatCard label="Sets" value={String(stats.totalSetsCompleted)} />
           <StatCard label="Time" value={formatDuration(stats.totalWorkoutTimeMinutes)} />
         </View>

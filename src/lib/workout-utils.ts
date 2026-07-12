@@ -34,6 +34,12 @@ export function formatVolume(lbs: number): string {
   return `${Math.round(lbs)}`;
 }
 
+// Volumes are stored in lbs; convert only at display time.
+export function displayVolume(lbs: number, unit: "lbs" | "kg"): string {
+  if (unit === "kg") return `${formatVolume(lbs / KG_TO_LBS)} kg`;
+  return `${formatVolume(lbs)} lbs`;
+}
+
 export function formatDuration(totalMinutes: number): string {
   const h = Math.floor(totalMinutes / 60);
   const m = Math.round(totalMinutes % 60);

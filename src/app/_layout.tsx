@@ -5,6 +5,7 @@ import { useEffect } from "react";
 import { View } from "react-native";
 
 import { AuthProvider, useAuth } from "@/context/AuthContext";
+import { UnitProvider } from "@/context/UnitContext";
 import { Palette } from "@/constants/theme";
 
 SplashScreen.preventAutoHideAsync();
@@ -43,8 +44,10 @@ function RootNavigator() {
 export default function RootLayout() {
   return (
     <AuthProvider>
-      <StatusBar style="light" />
-      <RootNavigator />
+      <UnitProvider>
+        <StatusBar style="light" />
+        <RootNavigator />
+      </UnitProvider>
     </AuthProvider>
   );
 }

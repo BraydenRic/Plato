@@ -17,10 +17,11 @@ import { Palette, Radius, Spacing } from "@/constants/theme";
 import { useAuth } from "@/context/AuthContext";
 import { useWorkouts } from "@/hooks/use-workouts";
 import { createWorkout, deleteWorkout, startFromTemplate, stripUndefined } from "@/lib/firestore";
+import { useWeightUnit } from "@/context/UnitContext";
 import {
   addDays,
   completedSetCount,
-  formatVolume,
+  displayVolume,
   relativeDay,
   sameDay,
   startOfDay,
@@ -360,6 +361,7 @@ function WorkoutRow({
   onPress: () => void;
   onLongPress: () => void;
 }) {
+  const { unit } = useWeightUnit();
   const volume = workout.totalVolume ?? workoutVolumeLbs(workout);
   const done = completedSetCount(workout);
   const total = totalSetCount(workout);
@@ -389,7 +391,7 @@ function WorkoutRow({
               <Text style={styles.plannedText}>PLANNED</Text>
             </View>
           ) : volume > 0 ? (
-            <Text style={styles.volume}>{formatVolume(volume)} lbs</Text>
+            <Text style={styles.volume}>{displayVolume(volume, unit)}</Text>
           ) : (
             <Ionicons name="chevron-forward" size={16} color={Palette.textTertiary} />
           )}

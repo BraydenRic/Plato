@@ -15,13 +15,13 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { doc, onSnapshot } from "firebase/firestore";
 import Ionicons from "@expo/vector-icons/Ionicons";
-import AsyncStorage from "@react-native-async-storage/async-storage";
 
 import { Button, Card, EmptyState } from "@/components/ui";
 import { Palette, Radius, Spacing } from "@/constants/theme";
 import { db } from "@/lib/firebase";
 import { getCompletedWorkouts, saveAsTemplate, stripUndefined, updateWorkout, upsertUserStats, computeStats, deleteWorkout } from "@/lib/firestore";
-import { formatClock, formatVolume, newId, relativeDay, startOfDay, workoutVolumeLbs, completedSetCount, totalSetCount } from "@/lib/workout-utils";
+import { useWeightUnit } from "@/context/UnitContext";
+import { displayVolume, formatClock, newId, relativeDay, startOfDay, workoutVolumeLbs, completedSetCount, totalSetCount } from "@/lib/workout-utils";
 import type { Workout, WorkoutExercise, WorkoutSet } from "@/types";
 
 const REST_SECONDS = 90;
@@ -45,7 +45,7 @@ export default function WorkoutScreen() {
   const [restEndsAt, setRestEndsAt] = useState<number | null>(null);
   const [restLeft, setRestLeft] = useState(0);
   const [elapsed, setElapsed] = useState(0);
-  const [weightUnit, setWeightUnit] = useState<"lbs" | "kg">("lbs");
+  const { unit: weightUnit } = useWeightUnit();
 
   // Live doc subscription: picks up exercises added from the modal instantly.
   useEffect(() => {
@@ -74,12 +74,6 @@ export default function WorkoutScreen() {
     });
     return unsubscribe;
   }, [id]);
-
-  useEffect(() => {
-    AsyncStorage.getItem("weight_unit").then((u) => {
-      if (u === "kg" || u === "lbs") setWeightUnit(u);
-    });
-  }, []);
 
   // Elapsed workout clock (only while in progress).
   const startedAtMs = workout?.startedAt?.getTime();
@@ -323,7 +317,7 @@ export default function WorkoutScreen() {
 
           <View style={styles.summaryRow}>
             <Text style={styles.summaryText}>
-              {formatVolume(workout.totalVolume ?? liveVolume)} lbs
+              {displayVolume(workout.totalVolume ?? liveVolume, weightUnit)}
             </Text>
             <Text style={styles.summaryDot}>·</Text>
             <Text style={styles.summaryText}>
