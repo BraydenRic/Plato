@@ -19,9 +19,9 @@ import Ionicons from "@expo/vector-icons/Ionicons";
 import { Button, Card, EmptyState } from "@/components/ui";
 import { Palette, Radius, Spacing } from "@/constants/theme";
 import { db } from "@/lib/firebase";
-import { getCompletedWorkouts, saveAsTemplate, stripUndefined, updateWorkout, upsertUserStats, computeStats, deleteWorkout } from "@/lib/firestore";
+import { getCompletedWorkouts, reopenWorkout, saveAsTemplate, stripUndefined, updateWorkout, upsertUserStats, computeStats, deleteWorkout } from "@/lib/firestore";
 import { useWeightUnit } from "@/context/UnitContext";
-import { convertWeight, displayVolume, formatClock, newId, relativeDay, startOfDay, workoutVolumeLbs, completedSetCount, totalSetCount } from "@/lib/workout-utils";
+import { convertWeight, displayVolume, formatClock, newId, relativeDay, sameDay, startOfDay, workoutVolumeLbs, completedSetCount, totalSetCount } from "@/lib/workout-utils";
 import type { Workout, WorkoutExercise, WorkoutSet } from "@/types";
 
 const REST_SECONDS = 90;
@@ -42,6 +42,7 @@ export default function WorkoutScreen() {
   const [workout, setWorkout] = useState<Workout | null>(null);
   const [loading, setLoading] = useState(true);
   const [finishing, setFinishing] = useState(false);
+  const [resuming, setResuming] = useState(false);
   const [restEndsAt, setRestEndsAt] = useState<number | null>(null);
   const [restLeft, setRestLeft] = useState(0);
   const [elapsed, setElapsed] = useState(0);
@@ -254,6 +255,35 @@ export default function WorkoutScreen() {
     );
   }
 
+  function resumeWorkout() {
+    const finishedToday = !!workout?.completedAt && sameDay(workout.completedAt, new Date());
+    Alert.alert(
+      "Resume workout?",
+      finishedToday
+        ? "It goes back to in progress so you can add or fix sets."
+        : "It reopens for editing and stays on its original day when you finish again.",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Resume",
+          onPress: async () => {
+            setResuming(true);
+            try {
+              await reopenWorkout(workout!);
+              // The workout left history, so re-derive the synced lifetime stats.
+              const completedWorkouts = await getCompletedWorkouts(workout!.userId);
+              await upsertUserStats({ userId: workout!.userId, ...computeStats(completedWorkouts) });
+            } catch {
+              Alert.alert("Couldn't resume workout", "Check your connection and try again.");
+            } finally {
+              setResuming(false);
+            }
+          },
+        },
+      ]
+    );
+  }
+
   function openMenu() {
     Alert.alert(workout!.name, undefined, [
       { text: "Cancel", style: "cancel" },
@@ -367,20 +397,20 @@ export default function WorkoutScreen() {
           </View>
         )}
 
-        {!isDone && (
-          <View style={styles.footer}>
-            {isBacklog ? (
-              <Button title="Log workout" onPress={finishWorkout} loading={finishing} />
-            ) : isPlanned ? (
-              <Button
-                title="Start workout"
-                onPress={() => updateWorkout(workout.id, { startedAt: new Date() })}
-              />
-            ) : (
-              <Button title="Finish workout" onPress={finishWorkout} loading={finishing} />
-            )}
-          </View>
-        )}
+        <View style={styles.footer}>
+          {isDone ? (
+            <Button title="Resume workout" variant="secondary" onPress={resumeWorkout} loading={resuming} />
+          ) : isBacklog ? (
+            <Button title="Log workout" onPress={finishWorkout} loading={finishing} />
+          ) : isPlanned ? (
+            <Button
+              title="Start workout"
+              onPress={() => updateWorkout(workout.id, { startedAt: new Date() })}
+            />
+          ) : (
+            <Button title="Finish workout" onPress={finishWorkout} loading={finishing} />
+          )}
+        </View>
       </KeyboardAvoidingView>
     </SafeAreaView>
   );

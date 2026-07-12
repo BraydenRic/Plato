@@ -7,6 +7,7 @@ import {
   addDoc,
   updateDoc,
   deleteDoc,
+  deleteField,
   query,
   where,
   orderBy,
@@ -16,6 +17,7 @@ import {
   Timestamp,
 } from "firebase/firestore";
 import { db } from "./firebase";
+import { sameDay } from "./workout-utils";
 import type { Workout, UserStatistics, WorkoutExercise } from "@/types";
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -88,6 +90,23 @@ export async function updateWorkout(id: string, updates: Partial<Workout>): Prom
 
 export async function deleteWorkout(id: string): Promise<void> {
   await deleteDoc(doc(db, "workouts", id));
+}
+
+// Reopen a finished workout so an accidental finish can be undone or missed
+// sets filled in. A workout finished today resumes as a live session; one from
+// a past day becomes a backlog edit anchored to its original calendar day, so
+// re-finishing it doesn't silently move it to today.
+export async function reopenWorkout(workout: Workout): Promise<void> {
+  const updates: Record<string, unknown> = {
+    completedAt: deleteField(),
+    durationMinutes: deleteField(),
+    totalVolume: deleteField(),
+  };
+  if (workout.completedAt && !sameDay(workout.completedAt, new Date())) {
+    updates.startedAt = deleteField();
+    updates.scheduledFor = workout.completedAt;
+  }
+  await updateDoc(doc(db, "workouts", workout.id), updates);
 }
 
 // Live subscription for the workouts list — keeps the UI in sync while a
