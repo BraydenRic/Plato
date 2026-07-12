@@ -1,6 +1,5 @@
 import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import Ionicons from "@expo/vector-icons/Ionicons";
 
 import { Button, Card, SectionLabel } from "@/components/ui";
 import { Palette, Radius, Spacing } from "@/constants/theme";
@@ -86,16 +85,6 @@ export default function ProfileScreen() {
                 </Pressable>
               ))}
             </View>
-          </Card>
-        </View>
-
-        <View>
-          <SectionLabel>Sync</SectionLabel>
-          <Card style={styles.syncCard}>
-            <Ionicons name="cloud-done-outline" size={20} color={Palette.success} />
-            <Text style={styles.syncText}>
-              Workouts sync to your account. The same data appears in Plato on the web.
-            </Text>
           </Card>
         </View>
 
@@ -196,16 +185,5 @@ const styles = StyleSheet.create({
   },
   segmentTextActive: {
     color: "#fff",
-  },
-  syncCard: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: Spacing.three,
-  },
-  syncText: {
-    flex: 1,
-    fontSize: 13,
-    lineHeight: 19,
-    color: Palette.textSecondary,
   },
 });
