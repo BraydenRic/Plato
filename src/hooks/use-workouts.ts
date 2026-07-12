@@ -37,6 +37,10 @@ export function useWorkouts() {
     active: workouts.filter((w) => !w.isTemplate && !w.completedAt && !!w.startedAt),
     // Created for a future (or past) day but never begun.
     planned: workouts.filter((w) => !w.isTemplate && !w.completedAt && !w.startedAt),
-    completed: workouts.filter((w) => !w.isTemplate && !!w.completedAt),
+    // Sorted by when they happened, not when they were created — a backdated
+    // log belongs with its day, and history reads newest-first.
+    completed: workouts
+      .filter((w) => !w.isTemplate && !!w.completedAt)
+      .sort((a, b) => b.completedAt!.getTime() - a.completedAt!.getTime()),
   };
 }
