@@ -195,6 +195,16 @@ export default function WorkoutScreen() {
     );
   }
 
+  function moveExercise(exerciseId: string, direction: -1 | 1) {
+    const list = [...workout!.exercises];
+    const from = list.findIndex((ex) => ex.id === exerciseId);
+    const to = from + direction;
+    if (from < 0 || to < 0 || to >= list.length) return;
+    [list[from], list[to]] = [list[to], list[from]];
+    // orderIndex keeps other readers (like plato-web) agreeing on the order.
+    saveExercises(list.map((ex, i) => ({ ...ex, orderIndex: i })));
+  }
+
   function removeExercise(exerciseId: string) {
     Alert.alert("Remove exercise?", "Its sets will be removed from this workout.", [
       { text: "Cancel", style: "cancel" },
@@ -401,12 +411,18 @@ export default function WorkoutScreen() {
             <EmptyState title="No exercises yet" message="Add your first exercise to start logging sets." />
           )}
 
-          {workout.exercises.map((exercise) => (
+          {workout.exercises.map((exercise, index) => (
             <ExerciseCard
               key={exercise.id}
               exercise={exercise}
               prevSets={previousSets.get(exercise.exerciseId)}
               templateMode={isTemplate}
+              onMoveUp={index > 0 ? () => moveExercise(exercise.id, -1) : undefined}
+              onMoveDown={
+                index < workout.exercises.length - 1
+                  ? () => moveExercise(exercise.id, 1)
+                  : undefined
+              }
               readOnly={isDone}
               onToggleSet={(set) => toggleSetComplete(exercise.id, set)}
               onPatchSet={(setId, patch) => mutateSet(exercise.id, setId, patch)}
@@ -462,6 +478,8 @@ function ExerciseCard({
   exercise,
   prevSets,
   templateMode,
+  onMoveUp,
+  onMoveDown,
   readOnly,
   onToggleSet,
   onPatchSet,
@@ -472,6 +490,8 @@ function ExerciseCard({
   exercise: WorkoutExercise;
   prevSets?: WorkoutSet[];
   templateMode?: boolean;
+  onMoveUp?: () => void;
+  onMoveDown?: () => void;
   readOnly: boolean;
   onToggleSet: (set: WorkoutSet) => void;
   onPatchSet: (setId: string, patch: Partial<WorkoutSet>) => void;
@@ -487,6 +507,24 @@ function ExerciseCard({
           <Text style={styles.exerciseName}>{exercise.exercise.name}</Text>
           <Text style={styles.exerciseCategory}>{exercise.exercise.category}</Text>
         </View>
+        {templateMode && (
+          <>
+            <Pressable
+              onPress={onMoveUp}
+              disabled={!onMoveUp}
+              hitSlop={6}
+              style={[styles.moveButton, !onMoveUp && { opacity: 0.3 }]}>
+              <Ionicons name="chevron-up" size={16} color={Palette.textSecondary} />
+            </Pressable>
+            <Pressable
+              onPress={onMoveDown}
+              disabled={!onMoveDown}
+              hitSlop={6}
+              style={[styles.moveButton, !onMoveDown && { opacity: 0.3 }]}>
+              <Ionicons name="chevron-down" size={16} color={Palette.textSecondary} />
+            </Pressable>
+          </>
+        )}
         {!readOnly && (
           <Pressable onPress={onRemove} hitSlop={8}>
             <Ionicons name="close" size={18} color={Palette.textTertiary} />
@@ -825,6 +863,14 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: "600",
     color: Palette.textSecondary,
+  },
+  moveButton: {
+    width: 28,
+    height: 28,
+    borderRadius: Radius.full,
+    backgroundColor: Palette.surfaceRaised,
+    alignItems: "center",
+    justifyContent: "center",
   },
   stepperRow: {
     flexDirection: "row",
