@@ -55,6 +55,10 @@ export function muscleSlugsFor(musclesWorked: string[]): Slug[] {
 
 interface MuscleMapProps {
   musclesWorked: string[];
+  // When provided, every name in musclesWorked gets the primary shade and
+  // these get the secondary one — used by aggregate views like the weekly
+  // recap. Without it, the first name in musclesWorked is the primary.
+  secondaryMuscles?: string[];
 }
 
 // The library hardcodes #3f3f3f on most body parts, so the default fill must
@@ -74,12 +78,13 @@ const SECONDARY_VIOLET = "#c4b5fd";
 // Front and back body figures, side by side. The exercise library lists the
 // primary target muscle first, so it gets the full violet and the rest of the
 // list gets the lighter secondary shade.
-export function MuscleMap({ musclesWorked }: MuscleMapProps) {
+export function MuscleMap({ musclesWorked, secondaryMuscles }: MuscleMapProps) {
   const [rowWidth, setRowWidth] = useState(0);
   const scale = rowWidth > 0 ? Math.min((rowWidth / 2 - 8) / FIGURE_BASE_WIDTH, 1) : 0;
 
-  const [primaryName, ...secondaryNames] = musclesWorked;
-  const primarySlugs = muscleSlugsFor(primaryName ? [primaryName] : []);
+  const primaryNames = secondaryMuscles ? musclesWorked : musclesWorked.slice(0, 1);
+  const secondaryNames = secondaryMuscles ?? musclesWorked.slice(1);
+  const primarySlugs = muscleSlugsFor(primaryNames);
   const secondarySlugs = muscleSlugsFor(secondaryNames).filter(
     (s) => !primarySlugs.includes(s)
   );
@@ -112,8 +117,12 @@ export function MuscleMap({ musclesWorked }: MuscleMapProps) {
           ))}
       </View>
       <View style={styles.legend}>
-        <View style={[styles.legendDot, { backgroundColor: Palette.accent }]} />
-        <Text style={styles.legendText}>Primary</Text>
+        {primarySlugs.length > 0 && (
+          <>
+            <View style={[styles.legendDot, { backgroundColor: Palette.accent }]} />
+            <Text style={styles.legendText}>Primary</Text>
+          </>
+        )}
         {secondarySlugs.length > 0 && (
           <>
             <View style={[styles.legendDot, { backgroundColor: SECONDARY_VIOLET }]} />

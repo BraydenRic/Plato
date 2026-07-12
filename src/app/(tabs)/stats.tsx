@@ -4,11 +4,12 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import Ionicons from "@expo/vector-icons/Ionicons";
 
 import { Card, EmptyState, SectionLabel } from "@/components/ui";
+import { MuscleMap } from "@/components/muscle-map";
 import { Palette, Spacing } from "@/constants/theme";
 import { useWorkouts } from "@/hooks/use-workouts";
 import { computeStats } from "@/lib/firestore";
 import { useWeightUnit } from "@/context/UnitContext";
-import { displayVolume, formatDuration, workoutVolumeLbs } from "@/lib/workout-utils";
+import { addDays, displayVolume, formatDuration, startOfWeek, workoutVolumeLbs } from "@/lib/workout-utils";
 
 const CHART_DAYS = 14;
 
@@ -44,6 +45,30 @@ export default function StatsScreen() {
 
   const maxVolume = Math.max(...chart.map((d) => d.volume), 1);
 
+  // Weekly muscle recap: a muscle is "primary" if any exercise this week
+  // targeted it first; muscles hit only in passing get the secondary shade.
+  const weekMuscles = useMemo(() => {
+    const start = startOfWeek(new Date());
+    const end = addDays(start, 7);
+    const primaries = new Set<string>();
+    const secondaries = new Set<string>();
+    let workoutCount = 0;
+    for (const w of completed) {
+      const d = w.completedAt!;
+      if (d < start || d >= end) continue;
+      workoutCount++;
+      for (const ex of w.exercises) {
+        if (!ex.sets.some((s) => s.isCompleted)) continue;
+        ex.exercise.musclesWorked.forEach((m, i) => (i === 0 ? primaries : secondaries).add(m));
+      }
+    }
+    return {
+      primary: [...primaries],
+      secondary: [...secondaries].filter((m) => !primaries.has(m)),
+      workoutCount,
+    };
+  }, [completed]);
+
   return (
     <SafeAreaView style={styles.safe} edges={["top"]}>
       <ScrollView contentContainerStyle={styles.scroll}>
@@ -74,6 +99,21 @@ export default function StatsScreen() {
           <StatCard label="Volume" value={displayVolume(stats.totalVolumeLbs, unit)} />
           <StatCard label="Sets" value={String(stats.totalSetsCompleted)} />
           <StatCard label="Time" value={formatDuration(stats.totalWorkoutTimeMinutes)} />
+        </View>
+
+        <View>
+          <SectionLabel>Muscles this week</SectionLabel>
+          <Card style={styles.muscleCard}>
+            <MuscleMap
+              musclesWorked={weekMuscles.primary}
+              secondaryMuscles={weekMuscles.secondary}
+            />
+            <Text style={styles.muscleCaption}>
+              {weekMuscles.workoutCount === 0
+                ? "Nothing logged yet this week — the body fills in as you train."
+                : `From ${weekMuscles.workoutCount} workout${weekMuscles.workoutCount === 1 ? "" : "s"} since Monday`}
+            </Text>
+          </Card>
         </View>
 
         <View>
@@ -185,6 +225,14 @@ const styles = StyleSheet.create({
   },
   chartCard: {
     paddingVertical: Spacing.three,
+  },
+  muscleCard: {
+    gap: Spacing.two,
+  },
+  muscleCaption: {
+    fontSize: 12,
+    color: Palette.textTertiary,
+    textAlign: "center",
   },
   chart: {
     flexDirection: "row",
