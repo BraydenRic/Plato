@@ -105,6 +105,11 @@ export async function reopenWorkout(workout: Workout): Promise<void> {
   if (workout.completedAt && !sameDay(workout.completedAt, new Date())) {
     updates.startedAt = deleteField();
     updates.scheduledFor = workout.completedAt;
+  } else if (workout.completedAt && workout.startedAt) {
+    // The clock was stopped while the workout sat finished — shift startedAt
+    // forward by that gap so elapsed time resumes where it left off.
+    const pausedMs = Date.now() - workout.completedAt.getTime();
+    updates.startedAt = new Date(workout.startedAt.getTime() + pausedMs);
   }
   await updateDoc(doc(db, "workouts", workout.id), updates);
 }
