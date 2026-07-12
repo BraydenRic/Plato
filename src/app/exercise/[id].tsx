@@ -2,6 +2,7 @@ import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from "react-nati
 import { router, useLocalSearchParams } from "expo-router";
 import Ionicons from "@expo/vector-icons/Ionicons";
 
+import { ExerciseProgress } from "@/components/exercise-progress";
 import { MuscleMap } from "@/components/muscle-map";
 import { SectionLabel } from "@/components/ui";
 import { Palette, Radius, Spacing } from "@/constants/theme";
@@ -72,6 +73,11 @@ export default function ExerciseDetailScreen() {
         </View>
 
         <Text style={styles.description}>{exercise.description}</Text>
+
+        <View>
+          <SectionLabel>Your progress</SectionLabel>
+          <ExerciseProgress exerciseId={exercise.id} />
+        </View>
 
         <View>
           <SectionLabel>Muscles worked</SectionLabel>
