@@ -2,7 +2,8 @@ import { createContext, useContext, useEffect, useState } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
 const STORAGE_KEY = "rest_seconds";
-const DEFAULT_SECONDS = 90;
+// Off by default — the countdown is opt-in from Profile.
+const DEFAULT_SECONDS = 0;
 
 // 0 means the auto rest countdown is off.
 const RestTimerContext = createContext<{
