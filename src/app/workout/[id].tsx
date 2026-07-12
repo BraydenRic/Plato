@@ -80,8 +80,10 @@ export default function WorkoutScreen() {
   // Elapsed workout clock (only while in progress).
   const startedAtMs = workout?.startedAt?.getTime();
   const isDone = !!workout?.completedAt;
+  // Templates open in a structure editor: exercises and set counts, no logging.
+  const isTemplate = !!workout?.isTemplate;
   // Scheduled ahead of time and not yet begun: editable as a plan, no clock.
-  const isPlanned = !!workout && !workout.startedAt && !workout.completedAt;
+  const isPlanned = !!workout && !isTemplate && !workout.startedAt && !workout.completedAt;
   // A plan whose day already passed = backfilling a forgotten session. It gets
   // logged directly (no live clock) and finish backdates it to that day.
   const isBacklog =
@@ -306,20 +308,25 @@ export default function WorkoutScreen() {
   function openMenu() {
     Alert.alert(workout!.name, undefined, [
       { text: "Cancel", style: "cancel" },
+      // A template can't be re-saved as one — hide the option there.
+      ...(isTemplate
+        ? []
+        : [
+            {
+              text: "Save as template",
+              onPress: async () => {
+                try {
+                  await saveAsTemplate(workout!, workout!.name);
+                  Alert.alert("Template saved", "Find it on the Workouts tab.");
+                } catch {
+                  Alert.alert("Couldn't save template", "Check your connection and try again.");
+                }
+              },
+            },
+          ]),
       {
-        text: "Save as template",
-        onPress: async () => {
-          try {
-            await saveAsTemplate(workout!, workout!.name);
-            Alert.alert("Template saved", "Find it on the Workouts tab.");
-          } catch {
-            Alert.alert("Couldn't save template", "Check your connection and try again.");
-          }
-        },
-      },
-      {
-        text: "Delete workout",
-        style: "destructive",
+        text: isTemplate ? "Delete template" : "Delete workout",
+        style: "destructive" as const,
         onPress: async () => {
           await deleteWorkout(workout!.id);
           router.back();
@@ -336,7 +343,9 @@ export default function WorkoutScreen() {
             <Ionicons name="chevron-down" size={26} color={Palette.textSecondary} />
           </Pressable>
           <View style={styles.topCenter}>
-            {isDone ? (
+            {isTemplate ? (
+              <Text style={styles.plannedLabel}>Template</Text>
+            ) : isDone ? (
               <Text style={styles.doneLabel}>Completed</Text>
             ) : isPlanned ? (
               <Text style={styles.plannedLabel}>
@@ -365,13 +374,21 @@ export default function WorkoutScreen() {
           />
 
           <View style={styles.summaryRow}>
-            <Text style={styles.summaryText}>
-              {displayVolume(workout.totalVolume ?? liveVolume, weightUnit)}
-            </Text>
-            <Text style={styles.summaryDot}>·</Text>
-            <Text style={styles.summaryText}>
-              {completedSetCount(workout)}/{totalSetCount(workout)} sets
-            </Text>
+            {isTemplate ? (
+              <Text style={styles.summaryText}>
+                {workout.exercises.length} exercise{workout.exercises.length === 1 ? "" : "s"} · {totalSetCount(workout)} sets
+              </Text>
+            ) : (
+              <>
+                <Text style={styles.summaryText}>
+                  {displayVolume(workout.totalVolume ?? liveVolume, weightUnit)}
+                </Text>
+                <Text style={styles.summaryDot}>·</Text>
+                <Text style={styles.summaryText}>
+                  {completedSetCount(workout)}/{totalSetCount(workout)} sets
+                </Text>
+              </>
+            )}
             {isDone && workout.durationMinutes ? (
               <>
                 <Text style={styles.summaryDot}>·</Text>
@@ -389,6 +406,7 @@ export default function WorkoutScreen() {
               key={exercise.id}
               exercise={exercise}
               prevSets={previousSets.get(exercise.exerciseId)}
+              templateMode={isTemplate}
               readOnly={isDone}
               onToggleSet={(set) => toggleSetComplete(exercise.id, set)}
               onPatchSet={(setId, patch) => mutateSet(exercise.id, setId, patch)}
@@ -418,7 +436,9 @@ export default function WorkoutScreen() {
         )}
 
         <View style={styles.footer}>
-          {isDone ? (
+          {isTemplate ? (
+            <Button title="Done" variant="secondary" onPress={() => router.back()} />
+          ) : isDone ? (
             <Button title="Resume workout" variant="secondary" onPress={resumeWorkout} loading={resuming} />
           ) : isBacklog ? (
             <Button title="Log workout" onPress={finishWorkout} loading={finishing} />
@@ -441,6 +461,7 @@ export default function WorkoutScreen() {
 function ExerciseCard({
   exercise,
   prevSets,
+  templateMode,
   readOnly,
   onToggleSet,
   onPatchSet,
@@ -450,6 +471,7 @@ function ExerciseCard({
 }: {
   exercise: WorkoutExercise;
   prevSets?: WorkoutSet[];
+  templateMode?: boolean;
   readOnly: boolean;
   onToggleSet: (set: WorkoutSet) => void;
   onPatchSet: (setId: string, patch: Partial<WorkoutSet>) => void;
@@ -472,30 +494,51 @@ function ExerciseCard({
         )}
       </View>
 
-      <View style={styles.setHeaderRow}>
-        <Text style={[styles.setHeaderCell, styles.setNumCol]}>SET</Text>
-        <Text style={[styles.setHeaderCell, styles.inputCol]}>WEIGHT ({unit.toUpperCase()})</Text>
-        <Text style={[styles.setHeaderCell, styles.inputCol]}>REPS</Text>
-        <View style={styles.checkCol} />
-      </View>
+      {templateMode ? (
+        // Templates only carry structure, so sets are just a count here.
+        <View style={styles.stepperRow}>
+          <Text style={styles.stepperLabel}>
+            {exercise.sets.length} set{exercise.sets.length === 1 ? "" : "s"}
+          </Text>
+          <Pressable
+            onPress={() => onRemoveSet(exercise.sets[exercise.sets.length - 1].id)}
+            disabled={exercise.sets.length <= 1}
+            hitSlop={8}
+            style={[styles.stepperButton, exercise.sets.length <= 1 && { opacity: 0.4 }]}>
+            <Ionicons name="remove" size={18} color={Palette.text} />
+          </Pressable>
+          <Pressable onPress={onAddSet} hitSlop={8} style={styles.stepperButton}>
+            <Ionicons name="add" size={18} color={Palette.text} />
+          </Pressable>
+        </View>
+      ) : (
+        <>
+          <View style={styles.setHeaderRow}>
+            <Text style={[styles.setHeaderCell, styles.setNumCol]}>SET</Text>
+            <Text style={[styles.setHeaderCell, styles.inputCol]}>WEIGHT ({unit.toUpperCase()})</Text>
+            <Text style={[styles.setHeaderCell, styles.inputCol]}>REPS</Text>
+            <View style={styles.checkCol} />
+          </View>
 
-      {exercise.sets.map((set, i) => (
-        <SetRow
-          key={set.id}
-          index={i + 1}
-          set={set}
-          prev={prevSets?.[i] ?? prevSets?.[prevSets.length - 1]}
-          readOnly={readOnly}
-          onToggle={() => onToggleSet(set)}
-          onPatch={(patch) => onPatchSet(set.id, patch)}
-          onRemove={() => onRemoveSet(set.id)}
-        />
-      ))}
+          {exercise.sets.map((set, i) => (
+            <SetRow
+              key={set.id}
+              index={i + 1}
+              set={set}
+              prev={prevSets?.[i] ?? prevSets?.[prevSets.length - 1]}
+              readOnly={readOnly}
+              onToggle={() => onToggleSet(set)}
+              onPatch={(patch) => onPatchSet(set.id, patch)}
+              onRemove={() => onRemoveSet(set.id)}
+            />
+          ))}
 
-      {!readOnly && (
-        <Pressable onPress={onAddSet} style={styles.addSetButton}>
-          <Text style={styles.addSetText}>+ Add set</Text>
-        </Pressable>
+          {!readOnly && (
+            <Pressable onPress={onAddSet} style={styles.addSetButton}>
+              <Text style={styles.addSetText}>+ Add set</Text>
+            </Pressable>
+          )}
+        </>
       )}
     </Card>
   );
@@ -782,6 +825,28 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: "600",
     color: Palette.textSecondary,
+  },
+  stepperRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.two,
+  },
+  stepperLabel: {
+    flex: 1,
+    fontSize: 15,
+    fontWeight: "600",
+    color: Palette.text,
+    fontVariant: ["tabular-nums"],
+  },
+  stepperButton: {
+    width: 34,
+    height: 34,
+    borderRadius: Radius.full,
+    backgroundColor: Palette.surfaceRaised,
+    borderWidth: 1,
+    borderColor: Palette.border,
+    alignItems: "center",
+    justifyContent: "center",
   },
   footer: {
     padding: Spacing.three,

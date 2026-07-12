@@ -160,6 +160,24 @@ export default function WorkoutsScreen() {
     }
   }
 
+  async function newTemplate() {
+    if (!user) return;
+    try {
+      const id = await createWorkout(
+        stripUndefined({
+          userId: user.uid,
+          name: "New template",
+          isTemplate: true,
+          exercises: [],
+          createdAt: new Date(),
+        }) as Omit<Workout, "id">
+      );
+      router.push(`/workout/${id}`);
+    } catch {
+      Alert.alert("Couldn't create template", "Check your connection and try again.");
+    }
+  }
+
   function confirmDelete(workout: Workout) {
     Alert.alert(
       workout.isTemplate ? "Delete template?" : "Delete workout?",
@@ -306,12 +324,24 @@ export default function WorkoutsScreen() {
           </View>
         )}
 
-        {templates.length > 0 && (
-          <View style={styles.section}>
+        <View style={styles.section}>
+          <View style={styles.sectionHeader}>
             <SectionLabel>Templates</SectionLabel>
-            {templates.map((t) => (
+            <Pressable onPress={newTemplate} hitSlop={8}>
+              <Text style={styles.sectionAction}>+ New</Text>
+            </Pressable>
+          </View>
+          {templates.length === 0 ? (
+            <Text style={styles.templateEmpty}>
+              Build a reusable workout structure, or save one from a finished workout.
+            </Text>
+          ) : (
+            templates.map((t) => (
               <Card key={t.id} style={styles.templateRow}>
-                <Pressable style={styles.templateInfo} onLongPress={() => confirmDelete(t)}>
+                <Pressable
+                  style={styles.templateInfo}
+                  onPress={() => router.push(`/workout/${t.id}`)}
+                  onLongPress={() => confirmDelete(t)}>
                   <Text style={styles.rowTitle}>{t.name}</Text>
                   <Text style={styles.rowMeta}>
                     {t.exercises.length} exercise{t.exercises.length === 1 ? "" : "s"} · {totalSetCount(t)} sets
@@ -319,9 +349,9 @@ export default function WorkoutsScreen() {
                 </Pressable>
                 <Button title="Start" variant="secondary" compact onPress={() => beginTemplate(t)} />
               </Card>
-            ))}
-          </View>
-        )}
+            ))
+          )}
+        </View>
 
         <View style={styles.section}>
           <SectionLabel>History</SectionLabel>
@@ -529,6 +559,21 @@ const styles = StyleSheet.create({
   },
   section: {
     gap: Spacing.two,
+  },
+  sectionHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  sectionAction: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: Palette.accentText,
+  },
+  templateEmpty: {
+    fontSize: 13,
+    color: Palette.textTertiary,
+    lineHeight: 19,
   },
   workoutRow: {
     flexDirection: "row",
