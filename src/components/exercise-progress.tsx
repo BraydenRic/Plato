@@ -77,9 +77,6 @@ export function ExerciseProgress({ exerciseId }: { exerciseId: string }) {
           <Text style={styles.statLabel}>
             Best set{pr!.reps ? ` · ×${pr!.reps}` : ""}
           </Text>
-          <Text style={styles.statDate}>
-            {pr!.date.toLocaleDateString(undefined, { month: "short", day: "numeric" })}
-          </Text>
         </View>
         <View style={styles.statDivider} />
         <View style={styles.stat}>
@@ -88,13 +85,11 @@ export function ExerciseProgress({ exerciseId }: { exerciseId: string }) {
             <Text style={styles.statUnit}> {unit}</Text>
           </Text>
           <Text style={styles.statLabel}>Est. 1RM</Text>
-          <Text style={styles.statDate}>Epley formula</Text>
         </View>
         <View style={styles.statDivider} />
         <View style={styles.stat}>
           <Text style={styles.statValue}>{sessions.length}</Text>
           <Text style={styles.statLabel}>Session{sessions.length === 1 ? "" : "s"}</Text>
-          <Text style={styles.statDate}>all time</Text>
         </View>
       </View>
 
@@ -255,10 +250,6 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: "600",
     color: Palette.textSecondary,
-  },
-  statDate: {
-    fontSize: 11,
-    color: Palette.textTertiary,
   },
   gridLabel: {
     position: "absolute",
