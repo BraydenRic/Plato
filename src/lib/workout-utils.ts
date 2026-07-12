@@ -34,6 +34,14 @@ export function formatVolume(lbs: number): string {
   return `${Math.round(lbs)}`;
 }
 
+// Sets remember the unit they were logged in; convert for display so old
+// workouts follow the current preference. Rounded to 1 decimal for inputs.
+export function convertWeight(value: number, from: "lbs" | "kg", to: "lbs" | "kg"): number {
+  if (from === to) return value;
+  const converted = from === "lbs" ? value / KG_TO_LBS : value * KG_TO_LBS;
+  return Math.round(converted * 10) / 10;
+}
+
 // Volumes are stored in lbs; convert only at display time.
 export function displayVolume(lbs: number, unit: "lbs" | "kg"): string {
   if (unit === "kg") return `${formatVolume(lbs / KG_TO_LBS)} kg`;

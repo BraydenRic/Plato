@@ -14,6 +14,7 @@ import Ionicons from "@expo/vector-icons/Ionicons";
 
 import { Chip, Field } from "@/components/ui";
 import { Palette, Radius, Spacing } from "@/constants/theme";
+import { useWeightUnit } from "@/context/UnitContext";
 import { EXERCISES } from "@/lib/exercises";
 import { getWorkout, stripUndefined, updateWorkout } from "@/lib/firestore";
 import { newId } from "@/lib/workout-utils";
@@ -27,6 +28,7 @@ export default function AddExerciseModal() {
   const [search, setSearch] = useState("");
   const [category, setCategory] = useState("All");
   const [addedIds, setAddedIds] = useState<Set<string>>(new Set());
+  const { unit } = useWeightUnit();
 
   const filtered = useMemo(() => {
     const term = search.trim().toLowerCase();
@@ -48,9 +50,9 @@ export default function AddExerciseModal() {
       const workout = await getWorkout(workoutId);
       if (!workout) throw new Error("workout missing");
       const startingSets: WorkoutSet[] = [
-        { id: newId(), weightUnit: "lbs", isCompleted: false },
-        { id: newId(), weightUnit: "lbs", isCompleted: false },
-        { id: newId(), weightUnit: "lbs", isCompleted: false },
+        { id: newId(), weightUnit: unit, isCompleted: false },
+        { id: newId(), weightUnit: unit, isCompleted: false },
+        { id: newId(), weightUnit: unit, isCompleted: false },
       ];
       const exercises = [
         ...workout.exercises,

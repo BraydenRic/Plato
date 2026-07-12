@@ -21,7 +21,7 @@ import { Palette, Radius, Spacing } from "@/constants/theme";
 import { db } from "@/lib/firebase";
 import { getCompletedWorkouts, saveAsTemplate, stripUndefined, updateWorkout, upsertUserStats, computeStats, deleteWorkout } from "@/lib/firestore";
 import { useWeightUnit } from "@/context/UnitContext";
-import { displayVolume, formatClock, newId, relativeDay, startOfDay, workoutVolumeLbs, completedSetCount, totalSetCount } from "@/lib/workout-utils";
+import { convertWeight, displayVolume, formatClock, newId, relativeDay, startOfDay, workoutVolumeLbs, completedSetCount, totalSetCount } from "@/lib/workout-utils";
 import type { Workout, WorkoutExercise, WorkoutSet } from "@/types";
 
 const REST_SECONDS = 90;
@@ -405,6 +405,7 @@ function ExerciseCard({
   onRemoveSet: (setId: string) => void;
   onRemove: () => void;
 }) {
+  const { unit } = useWeightUnit();
   return (
     <Card style={styles.exerciseCard}>
       <View style={styles.exerciseHeader}>
@@ -421,7 +422,7 @@ function ExerciseCard({
 
       <View style={styles.setHeaderRow}>
         <Text style={[styles.setHeaderCell, styles.setNumCol]}>SET</Text>
-        <Text style={[styles.setHeaderCell, styles.inputCol]}>WEIGHT</Text>
+        <Text style={[styles.setHeaderCell, styles.inputCol]}>WEIGHT ({unit.toUpperCase()})</Text>
         <Text style={[styles.setHeaderCell, styles.inputCol]}>REPS</Text>
         <View style={styles.checkCol} />
       </View>
@@ -464,23 +465,41 @@ function SetRow({
   onPatch: (patch: Partial<WorkoutSet>) => void;
   onRemove: () => void;
 }) {
-  const [weightText, setWeightText] = useState(set.weight != null ? String(set.weight) : "");
+  const { unit } = useWeightUnit();
+
+  // Weights are stored with the unit they were logged in; show them converted
+  // to the current preference so switching lbs/kg updates old workouts too.
+  const shownWeight =
+    set.weight != null && (set.weightUnit === "lbs" || set.weightUnit === "kg")
+      ? convertWeight(set.weight, set.weightUnit, unit)
+      : set.weight;
+
+  const [weightText, setWeightText] = useState(shownWeight != null ? String(shownWeight) : "");
   const [repsText, setRepsText] = useState(set.reps != null ? String(set.reps) : "");
   const editing = useRef(false);
 
   // Sync remote changes into the inputs when not actively editing.
   useEffect(() => {
     if (editing.current) return;
-    setWeightText(set.weight != null ? String(set.weight) : "");
+    setWeightText(shownWeight != null ? String(shownWeight) : "");
     setRepsText(set.reps != null ? String(set.reps) : "");
-  }, [set.weight, set.reps]);
+  }, [shownWeight, set.reps]);
 
   function commit() {
     editing.current = false;
+    // Blur fires even with no edits — skip the write so an untouched set never
+    // gets re-stored as its rounded unit conversion.
+    const weightDirty = weightText !== (shownWeight != null ? String(shownWeight) : "");
+    const repsDirty = repsText !== (set.reps != null ? String(set.reps) : "");
+    if (!weightDirty && !repsDirty) return;
+
     const weight = weightText.trim() === "" ? undefined : Number(weightText.replace(",", "."));
     const reps = repsText.trim() === "" ? undefined : Math.round(Number(repsText));
+    const validWeight = Number.isFinite(weight!) ? weight : undefined;
     onPatch({
-      weight: Number.isFinite(weight!) ? weight : undefined,
+      // Typed values are in the currently displayed unit, so store that unit.
+      weight: validWeight,
+      ...(validWeight != null ? { weightUnit: unit } : {}),
       reps: Number.isFinite(reps!) ? reps : undefined,
     });
   }
