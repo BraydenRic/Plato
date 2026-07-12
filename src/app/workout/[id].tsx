@@ -20,6 +20,7 @@ import { Button, Card, EmptyState } from "@/components/ui";
 import { Palette, Radius, Spacing } from "@/constants/theme";
 import { db } from "@/lib/firebase";
 import { getCompletedWorkouts, reopenWorkout, saveAsTemplate, stripUndefined, updateWorkout, upsertUserStats, computeStats, deleteWorkout } from "@/lib/firestore";
+import { useWorkouts } from "@/hooks/use-workouts";
 import { useWeightUnit } from "@/context/UnitContext";
 import { convertWeight, displayVolume, formatClock, newId, relativeDay, sameDay, startOfDay, workoutVolumeLbs, completedSetCount, totalSetCount } from "@/lib/workout-utils";
 import type { Workout, WorkoutExercise, WorkoutSet } from "@/types";
@@ -109,6 +110,24 @@ export default function WorkoutScreen() {
   }, [restEndsAt]);
 
   const liveVolume = useMemo(() => (workout ? workoutVolumeLbs(workout) : 0), [workout]);
+
+  // Last completed numbers per exercise, shown as input placeholders so the
+  // user knows what they lifted last time without templates storing weights.
+  const { completed } = useWorkouts();
+  const previousSets = useMemo(() => {
+    const map = new Map<string, WorkoutSet[]>();
+    for (const w of completed) {
+      // `completed` is newest-first, so the first hit per exercise wins.
+      if (w.id === workout?.id) continue;
+      for (const ex of w.exercises) {
+        if (!map.has(ex.exerciseId)) {
+          const done = ex.sets.filter((s) => s.isCompleted && s.weight != null);
+          if (done.length > 0) map.set(ex.exerciseId, done);
+        }
+      }
+    }
+    return map;
+  }, [completed, workout?.id]);
 
   if (loading) {
     return (
@@ -369,6 +388,7 @@ export default function WorkoutScreen() {
             <ExerciseCard
               key={exercise.id}
               exercise={exercise}
+              prevSets={previousSets.get(exercise.exerciseId)}
               readOnly={isDone}
               onToggleSet={(set) => toggleSetComplete(exercise.id, set)}
               onPatchSet={(setId, patch) => mutateSet(exercise.id, setId, patch)}
@@ -420,6 +440,7 @@ export default function WorkoutScreen() {
 
 function ExerciseCard({
   exercise,
+  prevSets,
   readOnly,
   onToggleSet,
   onPatchSet,
@@ -428,6 +449,7 @@ function ExerciseCard({
   onRemove,
 }: {
   exercise: WorkoutExercise;
+  prevSets?: WorkoutSet[];
   readOnly: boolean;
   onToggleSet: (set: WorkoutSet) => void;
   onPatchSet: (setId: string, patch: Partial<WorkoutSet>) => void;
@@ -462,6 +484,7 @@ function ExerciseCard({
           key={set.id}
           index={i + 1}
           set={set}
+          prev={prevSets?.[i] ?? prevSets?.[prevSets.length - 1]}
           readOnly={readOnly}
           onToggle={() => onToggleSet(set)}
           onPatch={(patch) => onPatchSet(set.id, patch)}
@@ -483,6 +506,7 @@ function ExerciseCard({
 function SetRow({
   index,
   set,
+  prev,
   readOnly,
   onToggle,
   onPatch,
@@ -490,6 +514,7 @@ function SetRow({
 }: {
   index: number;
   set: WorkoutSet;
+  prev?: WorkoutSet;
   readOnly: boolean;
   onToggle: () => void;
   onPatch: (patch: Partial<WorkoutSet>) => void;
@@ -507,6 +532,12 @@ function SetRow({
   const [weightText, setWeightText] = useState(shownWeight != null ? String(shownWeight) : "");
   const [repsText, setRepsText] = useState(set.reps != null ? String(set.reps) : "");
   const editing = useRef(false);
+
+  // Last session's numbers for this exercise, ghosted in empty inputs.
+  const prevWeight =
+    prev?.weight != null && (prev.weightUnit === "lbs" || prev.weightUnit === "kg")
+      ? convertWeight(prev.weight, prev.weightUnit, unit)
+      : prev?.weight;
 
   // Sync remote changes into the inputs when not actively editing.
   useEffect(() => {
@@ -544,7 +575,7 @@ function SetRow({
         onChangeText={setWeightText}
         onEndEditing={commit}
         keyboardType="decimal-pad"
-        placeholder="—"
+        placeholder={prevWeight != null ? String(prevWeight) : "—"}
         placeholderTextColor={Palette.textTertiary}
         editable={!readOnly}
       />
@@ -555,7 +586,7 @@ function SetRow({
         onChangeText={setRepsText}
         onEndEditing={commit}
         keyboardType="number-pad"
-        placeholder="—"
+        placeholder={prev?.reps != null ? String(prev.reps) : "—"}
         placeholderTextColor={Palette.textTertiary}
         editable={!readOnly}
       />

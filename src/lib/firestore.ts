@@ -185,12 +185,15 @@ export async function startFromTemplate(
   userId: string,
   scheduledFor?: Date
 ): Promise<string> {
+  // Templates are pure structure — exercises in order with a set count. Strip
+  // weights/reps (older templates may still carry them) so users fill in each
+  // session fresh, guided by their previous numbers.
   const exercises: WorkoutExercise[] = template.exercises.map((ex) => ({
     ...ex,
     sets: ex.sets.map((s) => ({
-      ...s,
+      id: s.id,
+      weightUnit: s.weightUnit,
       isCompleted: false,
-      completedAt: undefined,
     })),
   }));
   return createWorkout(
@@ -209,7 +212,7 @@ export async function startFromTemplate(
 export async function saveAsTemplate(workout: Workout, name: string): Promise<string> {
   const exercises: WorkoutExercise[] = workout.exercises.map((ex) => ({
     ...ex,
-    sets: ex.sets.map((s) => ({ ...s, isCompleted: false, completedAt: undefined })),
+    sets: ex.sets.map((s) => ({ id: s.id, weightUnit: s.weightUnit, isCompleted: false })),
   }));
   return createWorkout(
     stripUndefined({
