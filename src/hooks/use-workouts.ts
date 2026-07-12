@@ -12,7 +12,13 @@ export function useWorkouts() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!user) return;
+    // Drop the previous user's data on sign-out/account switch so it can
+    // never flash on screen for the next session.
+    setWorkouts([]);
+    if (!user) {
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     const unsubscribe = subscribeWorkouts(
       user.uid,

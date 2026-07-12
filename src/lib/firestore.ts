@@ -17,7 +17,7 @@ import {
   Timestamp,
 } from "firebase/firestore";
 import { db } from "./firebase";
-import { sameDay } from "./workout-utils";
+import { sameDay, workoutVolumeLbs } from "./workout-utils";
 import type { Exercise, Workout, UserStatistics, WorkoutExercise } from "@/types";
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -88,8 +88,14 @@ export async function updateWorkout(id: string, updates: Partial<Workout>): Prom
   await updateDoc(doc(db, "workouts", id), updates);
 }
 
-export async function deleteWorkout(id: string): Promise<void> {
-  await deleteDoc(doc(db, "workouts", id));
+export async function deleteWorkout(workout: Workout): Promise<void> {
+  await deleteDoc(doc(db, "workouts", workout.id));
+  // Removing a finished workout changes lifetime stats — re-derive the synced
+  // doc so other readers (plato-web) don't see stale totals or streaks.
+  if (workout.completedAt && !workout.isTemplate) {
+    const remaining = await getCompletedWorkouts(workout.userId);
+    await upsertUserStats({ userId: workout.userId, ...computeStats(remaining) });
+  }
 }
 
 // ── Exercise library ─────────────────────────────────────────────────────────
@@ -231,22 +237,6 @@ export async function saveAsTemplate(workout: Workout, name: string): Promise<st
 
 // ── Statistics ────────────────────────────────────────────────────────────────
 
-export async function getUserStats(userId: string): Promise<UserStatistics | null> {
-  const snap = await getDoc(doc(db, "userStats", userId));
-  if (!snap.exists()) return null;
-  const d = snap.data() as Record<string, unknown>;
-  return {
-    userId,
-    totalCompletedWorkouts: (d.totalCompletedWorkouts as number) ?? 0,
-    totalWorkoutTimeMinutes: (d.totalWorkoutTimeMinutes as number) ?? 0,
-    totalVolumeLbs: (d.totalVolumeLbs as number) ?? 0,
-    totalSetsCompleted: (d.totalSetsCompleted as number) ?? 0,
-    currentStreak: (d.currentStreak as number) ?? 0,
-    longestStreak: (d.longestStreak as number) ?? 0,
-    lastWorkoutDate: toDate(d.lastWorkoutDate),
-  };
-}
-
 export async function upsertUserStats(stats: UserStatistics): Promise<void> {
   await setDoc(doc(db, "userStats", stats.userId), stats, { merge: true });
 }
@@ -256,11 +246,6 @@ export function computeStats(workouts: Workout[]): Omit<UserStatistics, "userId"
   const sortedDates = completed
     .map((w) => w.completedAt!)
     .sort((a, b) => b.getTime() - a.getTime());
-
-  let currentStreak = 0;
-  let longestStreak = 0;
-  let streak = 0;
-  let prevDay: Date | null = null;
 
   const today = new Date();
   today.setHours(0, 0, 0, 0);
@@ -273,25 +258,36 @@ export function computeStats(workouts: Workout[]): Omit<UserStatistics, "userId"
     })),
   ].sort((a, b) => b - a);
 
-  for (const dayTs of uniqueDays) {
-    const day = new Date(dayTs);
-    if (!prevDay) {
-      const diff = (today.getTime() - day.getTime()) / (1000 * 60 * 60 * 24);
-      if (diff <= 1) streak = 1;
-      else break;
-    } else {
-      const diff = (prevDay.getTime() - day.getTime()) / (1000 * 60 * 60 * 24);
-      if (diff === 1) streak++;
-      else break;
-    }
-    prevDay = day;
-    longestStreak = Math.max(longestStreak, streak);
-  }
-  currentStreak = streak;
+  // Rounded day gaps so DST's 23/25-hour days don't break streaks.
+  const dayGap = (laterTs: number, earlierTs: number) =>
+    Math.round((laterTs - earlierTs) / (1000 * 60 * 60 * 24));
 
-  const totalVolumeLbs = completed.reduce((sum, w) => sum + (w.totalVolume ?? 0), 0);
+  // Longest streak scans the full history — every chain counts, not just the
+  // most recent one.
+  let longestStreak = uniqueDays.length > 0 ? 1 : 0;
+  let chain = 1;
+  for (let i = 1; i < uniqueDays.length; i++) {
+    chain = dayGap(uniqueDays[i - 1], uniqueDays[i]) === 1 ? chain + 1 : 1;
+    longestStreak = Math.max(longestStreak, chain);
+  }
+
+  // Current streak is the newest chain, alive only if it reaches today or
+  // yesterday (a workout today extends it; missing yesterday breaks it).
+  let currentStreak = 0;
+  if (uniqueDays.length > 0 && dayGap(today.getTime(), uniqueDays[0]) <= 1) {
+    currentStreak = 1;
+    for (let i = 1; i < uniqueDays.length; i++) {
+      if (dayGap(uniqueDays[i - 1], uniqueDays[i]) !== 1) break;
+      currentStreak++;
+    }
+  }
+
+  const totalVolumeLbs = completed.reduce(
+    (sum, w) => sum + (w.totalVolume ?? workoutVolumeLbs(w)),
+    0
+  );
   const totalSetsCompleted = completed.reduce(
-    (sum, w) => sum + w.exercises.reduce((s, e) => s + e.sets.length, 0),
+    (sum, w) => sum + w.exercises.reduce((s, e) => s + e.sets.filter((x) => x.isCompleted).length, 0),
     0
   );
   const totalWorkoutTimeMinutes = completed.reduce((sum, w) => sum + (w.durationMinutes ?? 0), 0);

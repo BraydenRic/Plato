@@ -17,7 +17,13 @@ export function useExerciseLibrary() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (!user) return;
+    // Reset on sign-out/account switch so one user's customizations never
+    // leak into the next session.
+    setLibrary(EMPTY);
+    if (!user) {
+      setLoading(false);
+      return;
+    }
     const unsubscribe = subscribeExerciseLibrary(user.uid, (lib) => {
       setLibrary(lib);
       setLoading(false);

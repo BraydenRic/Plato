@@ -184,7 +184,7 @@ export default function WorkoutsScreen() {
       `"${workout.name}" will be permanently removed.`,
       [
         { text: "Cancel", style: "cancel" },
-        { text: "Delete", style: "destructive", onPress: () => deleteWorkout(workout.id) },
+        { text: "Delete", style: "destructive", onPress: () => deleteWorkout(workout) },
       ]
     );
   }

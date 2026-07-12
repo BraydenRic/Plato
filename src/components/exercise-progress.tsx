@@ -28,11 +28,12 @@ export function ExerciseProgress({ exerciseId }: { exerciseId: string }) {
     const points: SessionPoint[] = [];
     let record: SessionPoint | null = null;
     let bestEpley = 0;
-    // `completed` is newest-first; walk it and reverse for the chart.
+    // `completed` is newest-first; walk it and reverse for the chart. One
+    // point per workout, even if the exercise appears in it more than once.
     for (const w of completed) {
+      let top: SessionPoint | null = null;
       for (const ex of w.exercises) {
         if (ex.exerciseId !== exerciseId) continue;
-        let top: SessionPoint | null = null;
         for (const s of ex.sets) {
           if (!s.isCompleted || s.weight == null) continue;
           if (s.weightUnit !== "lbs" && s.weightUnit !== "kg") continue;
@@ -42,10 +43,10 @@ export function ExerciseProgress({ exerciseId }: { exerciseId: string }) {
           const epley = lbs * (1 + (s.reps ?? 1) / 30);
           if (epley > bestEpley) bestEpley = epley;
         }
-        if (top) {
-          points.push(top);
-          if (!record || top.topLbs > record.topLbs) record = top;
-        }
+      }
+      if (top) {
+        points.push(top);
+        if (!record || top.topLbs > record.topLbs) record = top;
       }
     }
     return { sessions: points.reverse(), pr: record, best1Rm: bestEpley };

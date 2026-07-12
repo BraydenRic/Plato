@@ -29,7 +29,7 @@ export default function HistoryScreen() {
   function confirmDelete(workout: Workout) {
     Alert.alert("Delete workout?", `"${workout.name}" will be permanently removed.`, [
       { text: "Cancel", style: "cancel" },
-      { text: "Delete", style: "destructive", onPress: () => deleteWorkout(workout.id) },
+      { text: "Delete", style: "destructive", onPress: () => deleteWorkout(workout) },
     ]);
   }
 

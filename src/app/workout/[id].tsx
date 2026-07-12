@@ -330,7 +330,7 @@ export default function WorkoutScreen() {
         text: isTemplate ? "Delete template" : "Delete workout",
         style: "destructive" as const,
         onPress: async () => {
-          await deleteWorkout(workout!.id);
+          await deleteWorkout(workout!);
           router.back();
         },
       },

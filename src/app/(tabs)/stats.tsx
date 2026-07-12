@@ -4,7 +4,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import Ionicons from "@expo/vector-icons/Ionicons";
 
 import { Card, EmptyState, SectionLabel } from "@/components/ui";
-import { Palette, Radius, Spacing } from "@/constants/theme";
+import { Palette, Spacing } from "@/constants/theme";
 import { useWorkouts } from "@/hooks/use-workouts";
 import { computeStats } from "@/lib/firestore";
 import { useWeightUnit } from "@/context/UnitContext";
