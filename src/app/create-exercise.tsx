@@ -1,6 +1,6 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
-import { router } from "expo-router";
+import { router, useLocalSearchParams } from "expo-router";
 import Ionicons from "@expo/vector-icons/Ionicons";
 
 import { Button, Field, SectionLabel } from "@/components/ui";
@@ -19,14 +19,30 @@ const MUSCLE_OPTIONS = [
 ];
 
 export default function CreateExerciseModal() {
-  const { createExercise } = useExerciseLibrary();
-  const [name, setName] = useState("");
-  const [category, setCategory] = useState<string | null>(null);
+  const { exerciseId } = useLocalSearchParams<{ exerciseId?: string }>();
+  const { exercises, createExercise, updateExercise } = useExerciseLibrary();
+  // Editing reuses this form: prefill from the existing exercise and save
+  // under the same id so workout history and last-weight lookups keep working.
+  const editing = exerciseId ? exercises.find((e) => e.id === exerciseId) : undefined;
+
+  const [name, setName] = useState(editing?.name ?? "");
+  const [category, setCategory] = useState<string | null>(editing?.category ?? null);
   // Selection order matters: the first muscle picked is the primary target,
   // which the diagram shows in the stronger violet.
-  const [muscles, setMuscles] = useState<string[]>([]);
-  const [description, setDescription] = useState("");
+  const [muscles, setMuscles] = useState<string[]>(editing?.musclesWorked ?? []);
+  const [description, setDescription] = useState(editing?.description ?? "");
   const [saving, setSaving] = useState(false);
+
+  // Some built-ins use muscle names outside the curated chips (e.g. "Upper
+  // Chest", "Core") — surface those too so an edit round-trips cleanly.
+  const muscleOptions = useMemo(
+    () => [...new Set([...MUSCLE_OPTIONS, ...(editing?.musclesWorked ?? [])])],
+    [editing]
+  );
+  const categoryOptions = useMemo(
+    () => [...new Set([...CATEGORIES, ...(editing?.category ? [editing.category] : [])])],
+    [editing]
+  );
 
   function toggleMuscle(m: string) {
     setMuscles((prev) => (prev.includes(m) ? prev.filter((x) => x !== m) : [...prev, m]));
@@ -38,12 +54,17 @@ export default function CreateExerciseModal() {
     if (!canSave || saving) return;
     setSaving(true);
     try {
-      await createExercise({
+      const fields = {
         name: name.trim(),
         category: category!,
         musclesWorked: muscles,
         description: description.trim() || `Custom exercise targeting ${muscles.join(", ").toLowerCase()}.`,
-      });
+      };
+      if (editing) {
+        await updateExercise({ ...editing, ...fields });
+      } else {
+        await createExercise(fields);
+      }
       router.back();
     } catch {
       Alert.alert("Couldn't save exercise", "Check your connection and try again.");
@@ -55,7 +76,7 @@ export default function CreateExerciseModal() {
   return (
     <View style={styles.safe}>
       <View style={styles.header}>
-        <Text style={styles.title}>New exercise</Text>
+        <Text style={styles.title}>{editing ? "Edit exercise" : "New exercise"}</Text>
         <Pressable onPress={() => router.back()} hitSlop={12} style={styles.closeButton}>
           <Ionicons name="close" size={20} color={Palette.textSecondary} />
         </Pressable>
@@ -76,7 +97,7 @@ export default function CreateExerciseModal() {
         <View>
           <SectionLabel>Category</SectionLabel>
           <View style={styles.chipWrap}>
-            {CATEGORIES.map((c) => (
+            {categoryOptions.map((c) => (
               <SelectChip key={c} label={c} active={category === c} onPress={() => setCategory(c)} />
             ))}
           </View>
@@ -86,7 +107,7 @@ export default function CreateExerciseModal() {
           <SectionLabel>Muscles worked</SectionLabel>
           <Text style={styles.hint}>Pick the primary target first — it shows brightest on the diagram.</Text>
           <View style={styles.chipWrap}>
-            {MUSCLE_OPTIONS.map((m) => {
+            {muscleOptions.map((m) => {
               const order = muscles.indexOf(m);
               return (
                 <SelectChip
@@ -111,7 +132,12 @@ export default function CreateExerciseModal() {
           />
         </View>
 
-        <Button title="Create exercise" onPress={save} loading={saving} disabled={!canSave} />
+        <Button
+          title={editing ? "Save changes" : "Create exercise"}
+          onPress={save}
+          loading={saving}
+          disabled={!canSave}
+        />
       </ScrollView>
     </View>
   );

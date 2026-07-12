@@ -100,6 +100,9 @@ export async function deleteWorkout(id: string): Promise<void> {
 export interface ExerciseLibrary {
   custom: Exercise[];
   removedIds: string[];
+  // Edited copies of default exercises, keeping the original id so workout
+  // history and last-weight tracking still line up.
+  overrides: Exercise[];
 }
 
 export function subscribeExerciseLibrary(
@@ -111,6 +114,7 @@ export function subscribeExerciseLibrary(
     onChange({
       custom: (d?.custom as Exercise[]) ?? [],
       removedIds: (d?.removedIds as string[]) ?? [],
+      overrides: (d?.overrides as Exercise[]) ?? [],
     });
   });
 }

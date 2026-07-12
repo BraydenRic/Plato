@@ -6,7 +6,7 @@ import { subscribeExerciseLibrary, updateExerciseLibrary, type ExerciseLibrary }
 import { newId } from "@/lib/workout-utils";
 import type { Exercise } from "@/types";
 
-const EMPTY: ExerciseLibrary = { custom: [], removedIds: [] };
+const EMPTY: ExerciseLibrary = { custom: [], removedIds: [], overrides: [] };
 
 // The user's effective exercise list: bundled defaults minus the ones they
 // removed, plus their custom exercises. Workouts embed exercise copies, so
@@ -27,13 +27,33 @@ export function useExerciseLibrary() {
 
   const exercises = useMemo(() => {
     const removed = new Set(library.removedIds);
-    return [...EXERCISES.filter((e) => !removed.has(e.id)), ...library.custom];
+    const overrideById = new Map(library.overrides.map((e) => [e.id, e]));
+    return [
+      ...EXERCISES.filter((e) => !removed.has(e.id)).map((e) => overrideById.get(e.id) ?? e),
+      ...library.custom,
+    ];
   }, [library]);
 
   async function createExercise(input: Omit<Exercise, "id" | "isCustom">): Promise<Exercise> {
     const exercise: Exercise = { ...input, id: `custom-${newId()}`, isCustom: true };
     await updateExerciseLibrary(user!.uid, { ...library, custom: [...library.custom, exercise] });
     return exercise;
+  }
+
+  // Works for defaults and customs alike: an edited default is stored as an
+  // override under the same id, so the merged list swaps it in transparently.
+  async function updateExercise(exercise: Exercise): Promise<void> {
+    if (exercise.isCustom) {
+      await updateExerciseLibrary(user!.uid, {
+        ...library,
+        custom: library.custom.map((e) => (e.id === exercise.id ? exercise : e)),
+      });
+    } else {
+      await updateExerciseLibrary(user!.uid, {
+        ...library,
+        overrides: [...library.overrides.filter((e) => e.id !== exercise.id), exercise],
+      });
+    }
   }
 
   async function deleteExercise(exercise: Exercise): Promise<void> {
@@ -46,6 +66,7 @@ export function useExerciseLibrary() {
       await updateExerciseLibrary(user!.uid, {
         ...library,
         removedIds: [...library.removedIds, exercise.id],
+        overrides: library.overrides.filter((e) => e.id !== exercise.id),
       });
     }
   }
@@ -58,8 +79,10 @@ export function useExerciseLibrary() {
     exercises,
     loading,
     // True when the library differs from the stock 61 — gates the reset action.
-    isModified: library.custom.length > 0 || library.removedIds.length > 0,
+    isModified:
+      library.custom.length > 0 || library.removedIds.length > 0 || library.overrides.length > 0,
     createExercise,
+    updateExercise,
     deleteExercise,
     resetLibrary,
   };

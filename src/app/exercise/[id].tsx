@@ -48,6 +48,12 @@ export default function ExerciseDetailScreen() {
           <Text style={styles.title}>{exercise.name}</Text>
           <Text style={styles.meta}>{exercise.category}</Text>
         </View>
+        <Pressable
+          onPress={() => router.push({ pathname: "/create-exercise", params: { exerciseId: exercise.id } })}
+          hitSlop={12}
+          style={styles.closeButton}>
+          <Ionicons name="pencil" size={16} color={Palette.textSecondary} />
+        </Pressable>
         <Pressable onPress={confirmDelete} hitSlop={12} style={styles.closeButton}>
           <Ionicons name="trash-outline" size={18} color={Palette.textSecondary} />
         </Pressable>
