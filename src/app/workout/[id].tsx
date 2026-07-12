@@ -12,6 +12,7 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import DraggableFlatList, { ScaleDecorator } from "react-native-draggable-flatlist";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { doc, onSnapshot } from "firebase/firestore";
 import Ionicons from "@expo/vector-icons/Ionicons";
@@ -195,16 +196,6 @@ export default function WorkoutScreen() {
     );
   }
 
-  function moveExercise(exerciseId: string, direction: -1 | 1) {
-    const list = [...workout!.exercises];
-    const from = list.findIndex((ex) => ex.id === exerciseId);
-    const to = from + direction;
-    if (from < 0 || to < 0 || to >= list.length) return;
-    [list[from], list[to]] = [list[to], list[from]];
-    // orderIndex keeps other readers (like plato-web) agreeing on the order.
-    saveExercises(list.map((ex, i) => ({ ...ex, orderIndex: i })));
-  }
-
   function removeExercise(exerciseId: string) {
     Alert.alert("Remove exercise?", "Its sets will be removed from this workout.", [
       { text: "Cancel", style: "cancel" },
@@ -371,75 +362,123 @@ export default function WorkoutScreen() {
           </Pressable>
         </View>
 
-        <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
-          <TextInput
-            style={styles.title}
-            value={workout.name}
-            onChangeText={(name) => setWorkout({ ...workout, name })}
-            onEndEditing={(e) => {
-              const name = e.nativeEvent.text.trim() || "Workout";
-              updateWorkout(workout.id, { name });
+        {isTemplate ? (
+          <DraggableFlatList
+            data={workout.exercises}
+            keyExtractor={(ex) => ex.id}
+            onDragEnd={({ data }) => {
+              // Apply the new order locally right away so the list doesn't
+              // snap back while the Firestore write round-trips.
+              setWorkout({ ...workout, exercises: data });
+              // orderIndex keeps other readers (like plato-web) in agreement.
+              saveExercises(data.map((ex, i) => ({ ...ex, orderIndex: i })));
             }}
-            editable={!isDone}
-          />
-
-          <View style={styles.summaryRow}>
-            {isTemplate ? (
-              <Text style={styles.summaryText}>
-                {workout.exercises.length} exercise{workout.exercises.length === 1 ? "" : "s"} · {totalSetCount(workout)} sets
-              </Text>
-            ) : (
-              <>
-                <Text style={styles.summaryText}>
-                  {displayVolume(workout.totalVolume ?? liveVolume, weightUnit)}
-                </Text>
-                <Text style={styles.summaryDot}>·</Text>
-                <Text style={styles.summaryText}>
-                  {completedSetCount(workout)}/{totalSetCount(workout)} sets
-                </Text>
-              </>
+            containerStyle={{ flex: 1 }}
+            contentContainerStyle={styles.dragScroll}
+            keyboardShouldPersistTaps="handled"
+            ListHeaderComponent={
+              <View style={styles.dragHeader}>
+                <TextInput
+                  style={styles.title}
+                  value={workout.name}
+                  onChangeText={(name) => setWorkout({ ...workout, name })}
+                  onEndEditing={(e) => {
+                    const name = e.nativeEvent.text.trim() || "Workout";
+                    updateWorkout(workout.id, { name });
+                  }}
+                />
+                <View style={styles.summaryRow}>
+                  <Text style={styles.summaryText}>
+                    {workout.exercises.length} exercise{workout.exercises.length === 1 ? "" : "s"} · {totalSetCount(workout)} sets
+                  </Text>
+                </View>
+                {workout.exercises.length === 0 && (
+                  <EmptyState title="No exercises yet" message="Add exercises to shape this template." />
+                )}
+              </View>
+            }
+            ListFooterComponent={
+              <Button
+                title="+ Add exercise"
+                variant="secondary"
+                onPress={() => router.push({ pathname: "/add-exercise", params: { workoutId: workout.id } })}
+              />
+            }
+            renderItem={({ item, drag, isActive }) => (
+              <ScaleDecorator>
+                <View style={styles.dragItem}>
+                  <ExerciseCard
+                    exercise={item}
+                    templateMode
+                    onDrag={drag}
+                    dragActive={isActive}
+                    readOnly={false}
+                    onToggleSet={(set) => toggleSetComplete(item.id, set)}
+                    onPatchSet={(setId, patch) => mutateSet(item.id, setId, patch)}
+                    onAddSet={() => addSet(item)}
+                    onRemoveSet={(setId) => removeSet(item.id, setId)}
+                    onRemove={() => removeExercise(item.id)}
+                  />
+                </View>
+              </ScaleDecorator>
             )}
-            {isDone && workout.durationMinutes ? (
-              <>
-                <Text style={styles.summaryDot}>·</Text>
-                <Text style={styles.summaryText}>{workout.durationMinutes}m</Text>
-              </>
-            ) : null}
-          </View>
-
-          {workout.exercises.length === 0 && (
-            <EmptyState title="No exercises yet" message="Add your first exercise to start logging sets." />
-          )}
-
-          {workout.exercises.map((exercise, index) => (
-            <ExerciseCard
-              key={exercise.id}
-              exercise={exercise}
-              prevSets={previousSets.get(exercise.exerciseId)}
-              templateMode={isTemplate}
-              onMoveUp={index > 0 ? () => moveExercise(exercise.id, -1) : undefined}
-              onMoveDown={
-                index < workout.exercises.length - 1
-                  ? () => moveExercise(exercise.id, 1)
-                  : undefined
-              }
-              readOnly={isDone}
-              onToggleSet={(set) => toggleSetComplete(exercise.id, set)}
-              onPatchSet={(setId, patch) => mutateSet(exercise.id, setId, patch)}
-              onAddSet={() => addSet(exercise)}
-              onRemoveSet={(setId) => removeSet(exercise.id, setId)}
-              onRemove={() => removeExercise(exercise.id)}
+          />
+        ) : (
+          <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
+            <TextInput
+              style={styles.title}
+              value={workout.name}
+              onChangeText={(name) => setWorkout({ ...workout, name })}
+              onEndEditing={(e) => {
+                const name = e.nativeEvent.text.trim() || "Workout";
+                updateWorkout(workout.id, { name });
+              }}
+              editable={!isDone}
             />
-          ))}
 
-          {!isDone && (
-            <Button
-              title="+ Add exercise"
-              variant="secondary"
-              onPress={() => router.push({ pathname: "/add-exercise", params: { workoutId: workout.id } })}
-            />
-          )}
-        </ScrollView>
+            <View style={styles.summaryRow}>
+              <Text style={styles.summaryText}>
+                {displayVolume(workout.totalVolume ?? liveVolume, weightUnit)}
+              </Text>
+              <Text style={styles.summaryDot}>·</Text>
+              <Text style={styles.summaryText}>
+                {completedSetCount(workout)}/{totalSetCount(workout)} sets
+              </Text>
+              {isDone && workout.durationMinutes ? (
+                <>
+                  <Text style={styles.summaryDot}>·</Text>
+                  <Text style={styles.summaryText}>{workout.durationMinutes}m</Text>
+                </>
+              ) : null}
+            </View>
+
+            {workout.exercises.length === 0 && (
+              <EmptyState title="No exercises yet" message="Add your first exercise to start logging sets." />
+            )}
+
+            {workout.exercises.map((exercise) => (
+              <ExerciseCard
+                key={exercise.id}
+                exercise={exercise}
+                prevSets={previousSets.get(exercise.exerciseId)}
+                readOnly={isDone}
+                onToggleSet={(set) => toggleSetComplete(exercise.id, set)}
+                onPatchSet={(setId, patch) => mutateSet(exercise.id, setId, patch)}
+                onAddSet={() => addSet(exercise)}
+                onRemoveSet={(setId) => removeSet(exercise.id, setId)}
+                onRemove={() => removeExercise(exercise.id)}
+              />
+            ))}
+
+            {!isDone && (
+              <Button
+                title="+ Add exercise"
+                variant="secondary"
+                onPress={() => router.push({ pathname: "/add-exercise", params: { workoutId: workout.id } })}
+              />
+            )}
+          </ScrollView>
+        )}
 
         {restEndsAt && !isDone && (
           <View style={styles.restBar}>
@@ -478,8 +517,8 @@ function ExerciseCard({
   exercise,
   prevSets,
   templateMode,
-  onMoveUp,
-  onMoveDown,
+  onDrag,
+  dragActive,
   readOnly,
   onToggleSet,
   onPatchSet,
@@ -490,8 +529,8 @@ function ExerciseCard({
   exercise: WorkoutExercise;
   prevSets?: WorkoutSet[];
   templateMode?: boolean;
-  onMoveUp?: () => void;
-  onMoveDown?: () => void;
+  onDrag?: () => void;
+  dragActive?: boolean;
   readOnly: boolean;
   onToggleSet: (set: WorkoutSet) => void;
   onPatchSet: (setId: string, patch: Partial<WorkoutSet>) => void;
@@ -501,29 +540,17 @@ function ExerciseCard({
 }) {
   const { unit } = useWeightUnit();
   return (
-    <Card style={styles.exerciseCard}>
+    <Card style={[styles.exerciseCard, dragActive && styles.exerciseCardDragging]}>
       <View style={styles.exerciseHeader}>
         <View style={{ flex: 1 }}>
           <Text style={styles.exerciseName}>{exercise.exercise.name}</Text>
           <Text style={styles.exerciseCategory}>{exercise.exercise.category}</Text>
         </View>
         {templateMode && (
-          <>
-            <Pressable
-              onPress={onMoveUp}
-              disabled={!onMoveUp}
-              hitSlop={6}
-              style={[styles.moveButton, !onMoveUp && { opacity: 0.3 }]}>
-              <Ionicons name="chevron-up" size={16} color={Palette.textSecondary} />
-            </Pressable>
-            <Pressable
-              onPress={onMoveDown}
-              disabled={!onMoveDown}
-              hitSlop={6}
-              style={[styles.moveButton, !onMoveDown && { opacity: 0.3 }]}>
-              <Ionicons name="chevron-down" size={16} color={Palette.textSecondary} />
-            </Pressable>
-          </>
+          // Touching the grip hands the gesture to the drag system immediately.
+          <Pressable onPressIn={onDrag} disabled={dragActive} hitSlop={8} style={styles.dragHandle}>
+            <Ionicons name="reorder-two" size={20} color={Palette.textSecondary} />
+          </Pressable>
         )}
         {!readOnly && (
           <Pressable onPress={onRemove} hitSlop={8}>
@@ -563,7 +590,7 @@ function ExerciseCard({
               key={set.id}
               index={i + 1}
               set={set}
-              prev={prevSets?.[i] ?? prevSets?.[prevSets.length - 1]}
+              prev={prevSets?.[i]}
               readOnly={readOnly}
               onToggle={() => onToggleSet(set)}
               onPatch={(patch) => onPatchSet(set.id, patch)}
@@ -646,8 +673,15 @@ function SetRow({
     });
   }
 
+  function confirmRemove() {
+    Alert.alert(`Remove set ${index}?`, undefined, [
+      { text: "Cancel", style: "cancel" },
+      { text: "Remove", style: "destructive", onPress: onRemove },
+    ]);
+  }
+
   return (
-    <Pressable onLongPress={readOnly ? undefined : onRemove} style={[styles.setRow, set.isCompleted && styles.setRowDone]}>
+    <Pressable onLongPress={readOnly ? undefined : confirmRemove} style={[styles.setRow, set.isCompleted && styles.setRowDone]}>
       <Text style={[styles.setNum, styles.setNumCol]}>{index}</Text>
       <TextInput
         style={[styles.setInput, styles.inputCol]}
@@ -748,6 +782,9 @@ const styles = StyleSheet.create({
   },
   exerciseCard: {
     gap: Spacing.two,
+  },
+  exerciseCardDragging: {
+    borderColor: Palette.accent,
   },
   exerciseHeader: {
     flexDirection: "row",
@@ -864,9 +901,20 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     color: Palette.textSecondary,
   },
-  moveButton: {
-    width: 28,
-    height: 28,
+  dragScroll: {
+    padding: Spacing.three,
+    paddingBottom: Spacing.six,
+  },
+  dragHeader: {
+    gap: Spacing.three,
+    marginBottom: Spacing.three,
+  },
+  dragItem: {
+    marginBottom: Spacing.three,
+  },
+  dragHandle: {
+    width: 30,
+    height: 30,
     borderRadius: Radius.full,
     backgroundColor: Palette.surfaceRaised,
     alignItems: "center",

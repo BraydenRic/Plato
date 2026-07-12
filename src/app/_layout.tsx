@@ -3,6 +3,7 @@ import { StatusBar } from "expo-status-bar";
 import * as SplashScreen from "expo-splash-screen";
 import { useEffect } from "react";
 import { View } from "react-native";
+import { GestureHandlerRootView } from "react-native-gesture-handler";
 
 import { AuthProvider, useAuth } from "@/context/AuthContext";
 import { UnitProvider } from "@/context/UnitContext";
@@ -44,11 +45,13 @@ function RootNavigator() {
 
 export default function RootLayout() {
   return (
-    <AuthProvider>
-      <UnitProvider>
-        <StatusBar style="light" />
-        <RootNavigator />
-      </UnitProvider>
-    </AuthProvider>
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <AuthProvider>
+        <UnitProvider>
+          <StatusBar style="light" />
+          <RootNavigator />
+        </UnitProvider>
+      </AuthProvider>
+    </GestureHandlerRootView>
   );
 }
