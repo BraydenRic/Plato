@@ -164,25 +164,28 @@ export default function WorkoutScreen() {
     saveExercises(exercises);
   }
 
-  function toggleSetComplete(exerciseId: string, set: WorkoutSet) {
-    const completing = !set.isCompleted;
-    mutateSet(exerciseId, set.id, {
-      isCompleted: completing,
-      completedAt: completing ? new Date() : undefined,
-    });
+  // Sets complete themselves once a weight or reps value is entered (in the
+  // SetRow's commit), so there's no checkbox — this just applies the patch and
+  // kicks off the rest timer the moment a set first flips to done.
+  function patchSet(exerciseId: string, setId: string, patch: Partial<WorkoutSet>) {
+    const wasCompleted =
+      workout!.exercises
+        .find((ex) => ex.id === exerciseId)
+        ?.sets.find((s) => s.id === setId)?.isCompleted ?? false;
+    mutateSet(exerciseId, setId, patch);
     // No rest countdown while merely planning — only during a live session,
-    // and only if the user hasn't turned the timer off.
-    if (completing && !isDone && !isPlanned && restSeconds > 0) {
+    // only on the incomplete→complete flip, and only if the timer is on.
+    if (patch.isCompleted && !wasCompleted && !isDone && !isPlanned && restSeconds > 0) {
       setRestEndsAt(Date.now() + restSeconds * 1000);
     }
   }
 
   function addSet(exercise: WorkoutExercise) {
     const last = exercise.sets[exercise.sets.length - 1];
+    // New sets start empty so they only count once you actually log them.
+    // Last session's numbers still show as ghosted placeholders for guidance.
     const fresh: WorkoutSet = {
       id: newId(),
-      reps: last?.reps,
-      weight: last?.weight,
       weightUnit: last?.weightUnit ?? weightUnit,
       isCompleted: false,
     };
@@ -418,8 +421,7 @@ export default function WorkoutScreen() {
                     onDrag={drag}
                     dragActive={isActive}
                     readOnly={false}
-                    onToggleSet={(set) => toggleSetComplete(item.id, set)}
-                    onPatchSet={(setId, patch) => mutateSet(item.id, setId, patch)}
+                    onPatchSet={(setId, patch) => patchSet(item.id, setId, patch)}
                     onAddSet={() => addSet(item)}
                     onRemoveSet={(setId) => removeSet(item.id, setId)}
                     onRemove={() => removeExercise(item.id)}
@@ -467,8 +469,7 @@ export default function WorkoutScreen() {
                 exercise={exercise}
                 prevSets={previousSets.get(exercise.exerciseId)}
                 readOnly={isDone}
-                onToggleSet={(set) => toggleSetComplete(exercise.id, set)}
-                onPatchSet={(setId, patch) => mutateSet(exercise.id, setId, patch)}
+                onPatchSet={(setId, patch) => patchSet(exercise.id, setId, patch)}
                 onAddSet={() => addSet(exercise)}
                 onRemoveSet={(setId) => removeSet(exercise.id, setId)}
                 onRemove={() => removeExercise(exercise.id)}
@@ -528,7 +529,6 @@ function ExerciseCard({
   onDrag,
   dragActive,
   readOnly,
-  onToggleSet,
   onPatchSet,
   onAddSet,
   onRemoveSet,
@@ -540,7 +540,6 @@ function ExerciseCard({
   onDrag?: () => void;
   dragActive?: boolean;
   readOnly: boolean;
-  onToggleSet: (set: WorkoutSet) => void;
   onPatchSet: (setId: string, patch: Partial<WorkoutSet>) => void;
   onAddSet: () => void;
   onRemoveSet: (setId: string) => void;
@@ -600,7 +599,6 @@ function ExerciseCard({
               set={set}
               prev={prevSets?.[i]}
               readOnly={readOnly}
-              onToggle={() => onToggleSet(set)}
               onPatch={(patch) => onPatchSet(set.id, patch)}
               onRemove={() => onRemoveSet(set.id)}
             />
@@ -624,7 +622,6 @@ function SetRow({
   set,
   prev,
   readOnly,
-  onToggle,
   onPatch,
   onRemove,
 }: {
@@ -632,7 +629,6 @@ function SetRow({
   set: WorkoutSet;
   prev?: WorkoutSet;
   readOnly: boolean;
-  onToggle: () => void;
   onPatch: (patch: Partial<WorkoutSet>) => void;
   onRemove: () => void;
 }) {
@@ -673,11 +669,17 @@ function SetRow({
     const weight = weightText.trim() === "" ? undefined : Number(weightText.replace(",", "."));
     const reps = repsText.trim() === "" ? undefined : Math.round(Number(repsText));
     const validWeight = Number.isFinite(weight!) ? weight : undefined;
+    const validReps = Number.isFinite(reps!) ? reps : undefined;
+    // A set counts as done the moment it holds a real value — no checkbox.
+    // Clearing both values un-completes it again.
+    const done = validWeight != null || validReps != null;
     onPatch({
       // Typed values are in the currently displayed unit, so store that unit.
       weight: validWeight,
       ...(validWeight != null ? { weightUnit: unit } : {}),
-      reps: Number.isFinite(reps!) ? reps : undefined,
+      reps: validReps,
+      isCompleted: done,
+      completedAt: done ? new Date() : undefined,
     });
   }
 
@@ -719,16 +721,11 @@ function SetRow({
         placeholderTextColor={Palette.textTertiary}
         editable={!readOnly}
       />
-      <Pressable
-        onPress={readOnly ? undefined : onToggle}
-        hitSlop={8}
-        style={[styles.check, styles.checkCol, set.isCompleted && styles.checkDone]}>
-        <Ionicons
-          name="checkmark"
-          size={16}
-          color={set.isCompleted ? "#fff" : Palette.textTertiary}
-        />
-      </Pressable>
+      <View style={[styles.checkCol, styles.doneMark]}>
+        {set.isCompleted && (
+          <Ionicons name="checkmark-circle" size={20} color={Palette.success} />
+        )}
+      </View>
       </Pressable>
     </ReanimatedSwipeable>
   );
@@ -845,7 +842,10 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   setRowDone: {
-    opacity: 0.85,
+    // Faint success tint marks a logged set without fading it out. Must stay
+    // opaque (successSoft over surface, pre-blended) so the swipe-delete action
+    // behind the row stays hidden until actually swiped.
+    backgroundColor: "#182e28",
   },
   setNumCol: {
     width: 28,
@@ -875,18 +875,10 @@ const styles = StyleSheet.create({
   checkCol: {
     width: 34,
   },
-  check: {
+  doneMark: {
     height: 30,
-    borderRadius: Radius.sm,
-    borderWidth: 1,
-    borderColor: Palette.border,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: Palette.surfaceRaised,
-  },
-  checkDone: {
-    backgroundColor: Palette.success,
-    borderColor: Palette.success,
   },
   addSetButton: {
     alignItems: "center",
