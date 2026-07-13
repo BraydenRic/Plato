@@ -82,6 +82,34 @@ export default function AddExerciseModal() {
     }
   }
 
+  // Tapping the check on an exercise you just added undoes it — handy for
+  // fixing an accidental tap without leaving this screen.
+  async function remove(exercise: Exercise) {
+    if (!workoutId) return;
+    setAddedIds((prev) => {
+      const next = new Set(prev);
+      next.delete(exercise.id);
+      return next;
+    });
+    try {
+      const workout = await getWorkout(workoutId);
+      if (!workout) throw new Error("workout missing");
+      // Drop only the copy we added this session (the last one with this id), so
+      // a pre-existing copy of the same exercise stays put. Reindex to keep
+      // orderIndex contiguous.
+      const exercises = [...workout.exercises];
+      const last = exercises.map((ex) => ex.exerciseId).lastIndexOf(exercise.id);
+      if (last === -1) return;
+      exercises.splice(last, 1);
+      const reindexed = exercises.map((ex, i) => ({ ...ex, orderIndex: i }));
+      await updateWorkout(workoutId, stripUndefined({ exercises: reindexed }) as Partial<Workout>);
+    } catch {
+      // Put the check back — the exercise is still on the template.
+      setAddedIds((prev) => new Set(prev).add(exercise.id));
+      Alert.alert("Couldn't remove exercise", "Check your connection and try again.");
+    }
+  }
+
   return (
     <SafeAreaView style={styles.safe} edges={["top", "bottom"]}>
       <View style={styles.header}>
@@ -126,7 +154,9 @@ export default function AddExerciseModal() {
         renderItem={({ item }) => {
           const added = addedIds.has(item.id);
           return (
-            <Pressable onPress={() => add(item)} style={[styles.row, added && styles.rowAdded]}>
+            <Pressable
+              onPress={() => (added ? remove(item) : add(item))}
+              style={[styles.row, added && styles.rowAdded]}>
               <View style={{ flex: 1, gap: 2 }}>
                 <Text style={styles.rowName}>{item.name}</Text>
                 <Text style={styles.rowMeta}>{item.musclesWorked.join(" · ")}</Text>
