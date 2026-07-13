@@ -1,5 +1,6 @@
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Image } from "expo-image";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { Button, Card, SectionLabel } from "@/components/ui";
@@ -98,8 +99,6 @@ export default function ProfileScreen() {
     );
   }
 
-  const initial = (user?.displayName ?? user?.email ?? "?").charAt(0).toUpperCase();
-
   return (
     <SafeAreaView style={styles.safe} edges={["top"]}>
       <ScrollView contentContainerStyle={styles.scroll}>
@@ -109,7 +108,12 @@ export default function ProfileScreen() {
 
         <Card style={styles.accountCard}>
           <View style={styles.avatar}>
-            <Text style={styles.avatarText}>{initial}</Text>
+            <Image
+              source={require("../../../assets/images/plato-logo.png")}
+              style={styles.avatarLogo}
+              contentFit="contain"
+              tintColor={Palette.accentText}
+            />
           </View>
           <View style={{ flex: 1, gap: 2 }}>
             <Text style={styles.name}>{user?.displayName ?? "Athlete"}</Text>
@@ -237,10 +241,9 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  avatarText: {
-    fontSize: 22,
-    fontWeight: "800",
-    color: Palette.accentText,
+  avatarLogo: {
+    width: 38,
+    height: 38,
   },
   name: {
     fontSize: 17,
