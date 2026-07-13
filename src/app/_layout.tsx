@@ -35,6 +35,7 @@ function RootNavigator() {
         <Stack.Screen name="history" />
         <Stack.Screen name="add-exercise" options={{ presentation: "modal" }} />
         <Stack.Screen name="create-exercise" options={{ presentation: "modal" }} />
+        <Stack.Screen name="reorder-templates" options={{ presentation: "modal" }} />
         <Stack.Screen name="exercise/[id]" options={{ presentation: "modal" }} />
       </Stack.Protected>
       <Stack.Protected guard={!user}>

@@ -41,6 +41,8 @@ export interface Workout {
   exercises: WorkoutExercise[];
   durationMinutes?: number;
   totalVolume?: number;
+  /** Manual sort position for templates. Absent until the user reorders them. */
+  orderIndex?: number;
 }
 
 export type WorkoutStatus = "none" | "inProgress" | "completed";

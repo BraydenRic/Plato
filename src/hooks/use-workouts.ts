@@ -38,7 +38,15 @@ export function useWorkouts() {
   return {
     loading,
     error,
-    templates: workouts.filter((w) => w.isTemplate),
+    // Manual order first (once the user has dragged them); anything without an
+    // orderIndex falls to the end, newest first — the pre-reorder default.
+    templates: workouts
+      .filter((w) => w.isTemplate)
+      .sort((a, b) => {
+        const ai = a.orderIndex ?? Number.MAX_SAFE_INTEGER;
+        const bi = b.orderIndex ?? Number.MAX_SAFE_INTEGER;
+        return ai !== bi ? ai - bi : b.createdAt.getTime() - a.createdAt.getTime();
+      }),
     // Started but unfinished — the live session(s).
     active: workouts.filter((w) => !w.isTemplate && !w.completedAt && !!w.startedAt),
     // Created for a future (or past) day but never begun.

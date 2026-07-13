@@ -83,7 +83,13 @@ export default function ExercisesScreen() {
       <View>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chips}>
           {categories.map((c) => (
-            <Chip key={c} label={c} active={c === category} onPress={() => setCategory(c)} />
+            <Chip
+              key={c}
+              label={c}
+              active={c === category}
+              // Tapping the active category again clears it back to "All".
+              onPress={() => setCategory((prev) => (prev === c ? "All" : c))}
+            />
           ))}
         </ScrollView>
       </View>

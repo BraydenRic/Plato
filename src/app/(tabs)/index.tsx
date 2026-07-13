@@ -327,9 +327,16 @@ export default function WorkoutsScreen() {
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
             <SectionLabel>Templates</SectionLabel>
-            <Pressable onPress={newTemplate} hitSlop={8}>
-              <Text style={styles.sectionAction}>+ New</Text>
-            </Pressable>
+            <View style={styles.sectionActions}>
+              {templates.length > 1 && (
+                <Pressable onPress={() => router.push("/reorder-templates")} hitSlop={8}>
+                  <Text style={styles.sectionAction}>Reorder</Text>
+                </Pressable>
+              )}
+              <Pressable onPress={newTemplate} hitSlop={8}>
+                <Text style={styles.sectionAction}>+ New</Text>
+              </Pressable>
+            </View>
           </View>
           {templates.length === 0 ? (
             <Text style={styles.templateEmpty}>
@@ -564,6 +571,11 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
+  },
+  sectionActions: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.three,
   },
   sectionAction: {
     fontSize: 13,

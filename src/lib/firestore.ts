@@ -43,6 +43,7 @@ function workoutFromDoc(id: string, data: Record<string, unknown>): Workout {
     completedAt: toDate(data.completedAt),
     durationMinutes: data.durationMinutes as number | undefined,
     totalVolume: data.totalVolume as number | undefined,
+    orderIndex: data.orderIndex as number | undefined,
   };
 }
 
