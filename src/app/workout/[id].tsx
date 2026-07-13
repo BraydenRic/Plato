@@ -2,6 +2,8 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
+  InputAccessoryView,
+  Keyboard,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -38,6 +40,11 @@ function toDate(val: unknown): Date | undefined {
   return undefined;
 }
 
+// Ties every set input to one keyboard toolbar (iOS) so its "Next" button can
+// jump weight → reps → next set's weight across the whole workout.
+const KEYPAD_ACCESSORY_ID = "workoutKeypad";
+const fieldKey = (setId: string, field: "weight" | "reps") => `${setId}:${field}`;
+
 export default function WorkoutScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
@@ -51,6 +58,15 @@ export default function WorkoutScreen() {
   const [elapsed, setElapsed] = useState(0);
   const { unit: weightUnit } = useWeightUnit();
   const { restSeconds } = useRestTimer();
+
+  // Registry of the live set inputs (keyed by set id + field) plus which one is
+  // focused, so the keyboard's "Next" button can advance to the following field.
+  const inputRefs = useRef(new Map<string, TextInput>());
+  const focusedField = useRef<string | null>(null);
+  const registerInput = (key: string, node: TextInput | null) => {
+    if (node) inputRefs.current.set(key, node);
+    else inputRefs.current.delete(key);
+  };
 
   // Live doc subscription: picks up exercises added from the modal instantly.
   useEffect(() => {
@@ -153,6 +169,25 @@ export default function WorkoutScreen() {
 
   async function saveExercises(exercises: WorkoutExercise[]) {
     await updateWorkout(workout!.id, stripUndefined({ exercises }) as Partial<Workout>);
+  }
+
+  // Move the keyboard to the next set input in reading order: within a set
+  // weight → reps, then on to the next set, then the next exercise. Focusing a
+  // new field blurs the current one, which commits its value automatically.
+  function focusNext() {
+    const order = workout!.exercises.flatMap((ex) =>
+      ex.sets.flatMap((s) => [fieldKey(s.id, "weight"), fieldKey(s.id, "reps")])
+    );
+    const start = focusedField.current ? order.indexOf(focusedField.current) : -1;
+    for (let i = start + 1; i < order.length; i++) {
+      const node = inputRefs.current.get(order[i]);
+      if (node) {
+        node.focus();
+        return;
+      }
+    }
+    // Nothing left to fill — close the keyboard.
+    Keyboard.dismiss();
   }
 
   function mutateSet(exerciseId: string, setId: string, patch: Partial<WorkoutSet>) {
@@ -451,6 +486,8 @@ export default function WorkoutScreen() {
                 exercise={exercise}
                 prevSets={previousSets.get(exercise.exerciseId)}
                 readOnly={isDone}
+                registerInput={registerInput}
+                onInputFocus={(key) => (focusedField.current = key)}
                 onPatchSet={(setId, patch) => patchSet(exercise.id, setId, patch)}
                 onAddSet={() => addSet(exercise)}
                 onRemoveSet={(setId) => removeSet(exercise.id, setId)}
@@ -497,6 +534,22 @@ export default function WorkoutScreen() {
             <Button title="Finish workout" onPress={finishWorkout} loading={finishing} />
           )}
         </View>
+
+        {/* Numeric keypads have no return key, so give the set inputs a toolbar
+            with Next (advance to the following field) and Done (dismiss). */}
+        {Platform.OS === "ios" && !isDone && !isTemplate && (
+          <InputAccessoryView nativeID={KEYPAD_ACCESSORY_ID}>
+            <View style={styles.keypadBar}>
+              <Pressable onPress={() => Keyboard.dismiss()} hitSlop={8}>
+                <Text style={styles.keypadDone}>Done</Text>
+              </Pressable>
+              <Pressable onPress={focusNext} hitSlop={8} style={styles.keypadNext}>
+                <Text style={styles.keypadNextText}>Next</Text>
+                <Ionicons name="arrow-forward" size={16} color={Palette.accentText} />
+              </Pressable>
+            </View>
+          </InputAccessoryView>
+        )}
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
@@ -511,6 +564,8 @@ function ExerciseCard({
   onDrag,
   dragActive,
   readOnly,
+  registerInput,
+  onInputFocus,
   onPatchSet,
   onAddSet,
   onRemoveSet,
@@ -522,6 +577,8 @@ function ExerciseCard({
   onDrag?: () => void;
   dragActive?: boolean;
   readOnly: boolean;
+  registerInput?: (key: string, node: TextInput | null) => void;
+  onInputFocus?: (key: string) => void;
   onPatchSet: (setId: string, patch: Partial<WorkoutSet>) => void;
   onAddSet: () => void;
   onRemoveSet: (setId: string) => void;
@@ -581,6 +638,8 @@ function ExerciseCard({
               set={set}
               prev={prevSets?.[i]}
               readOnly={readOnly}
+              registerInput={registerInput}
+              onInputFocus={onInputFocus}
               onPatch={(patch) => onPatchSet(set.id, patch)}
               onRemove={() => onRemoveSet(set.id)}
             />
@@ -604,6 +663,8 @@ function SetRow({
   set,
   prev,
   readOnly,
+  registerInput,
+  onInputFocus,
   onPatch,
   onRemove,
 }: {
@@ -611,6 +672,8 @@ function SetRow({
   set: WorkoutSet;
   prev?: WorkoutSet;
   readOnly: boolean;
+  registerInput?: (key: string, node: TextInput | null) => void;
+  onInputFocus?: (key: string) => void;
   onPatch: (patch: Partial<WorkoutSet>) => void;
   onRemove: () => void;
 }) {
@@ -684,23 +747,33 @@ function SetRow({
       <Pressable onLongPress={readOnly ? undefined : onRemove} style={styles.setRow}>
       <Text style={[styles.setNum, styles.setNumCol]}>{index}</Text>
       <TextInput
+        ref={(node) => registerInput?.(fieldKey(set.id, "weight"), node)}
         style={[styles.setInput, styles.inputCol]}
         value={weightText}
-        onFocus={() => (editing.current = true)}
+        onFocus={() => {
+          editing.current = true;
+          onInputFocus?.(fieldKey(set.id, "weight"));
+        }}
         onChangeText={setWeightText}
         onEndEditing={commit}
         keyboardType="decimal-pad"
+        inputAccessoryViewID={Platform.OS === "ios" ? KEYPAD_ACCESSORY_ID : undefined}
         placeholder={prevWeight != null ? String(prevWeight) : "—"}
         placeholderTextColor={Palette.textTertiary}
         editable={!readOnly}
       />
       <TextInput
+        ref={(node) => registerInput?.(fieldKey(set.id, "reps"), node)}
         style={[styles.setInput, styles.inputCol]}
         value={repsText}
-        onFocus={() => (editing.current = true)}
+        onFocus={() => {
+          editing.current = true;
+          onInputFocus?.(fieldKey(set.id, "reps"));
+        }}
         onChangeText={setRepsText}
         onEndEditing={commit}
         keyboardType="number-pad"
+        inputAccessoryViewID={Platform.OS === "ios" ? KEYPAD_ACCESSORY_ID : undefined}
         placeholder={prev?.reps != null ? String(prev.reps) : "—"}
         placeholderTextColor={Palette.textTertiary}
         editable={!readOnly}
@@ -853,6 +926,31 @@ const styles = StyleSheet.create({
     textAlign: "center",
     paddingVertical: 8,
     fontVariant: ["tabular-nums"],
+  },
+  keypadBar: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    backgroundColor: Palette.surfaceRaised,
+    borderTopWidth: 1,
+    borderTopColor: Palette.border,
+    paddingHorizontal: Spacing.three,
+    paddingVertical: Spacing.two,
+  },
+  keypadDone: {
+    fontSize: 15,
+    fontWeight: "600",
+    color: Palette.textSecondary,
+  },
+  keypadNext: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+  },
+  keypadNextText: {
+    fontSize: 15,
+    fontWeight: "700",
+    color: Palette.accentText,
   },
   checkCol: {
     width: 34,

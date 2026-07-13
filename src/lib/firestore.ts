@@ -248,7 +248,12 @@ export async function saveAsTemplate(workout: Workout, name: string): Promise<st
 // ── Statistics ────────────────────────────────────────────────────────────────
 
 export async function upsertUserStats(stats: UserStatistics): Promise<void> {
-  await setDoc(doc(db, "userStats", stats.userId), stats, { merge: true });
+  // Strip undefined before writing — Firestore rejects undefined field values
+  // with `invalid-argument`. This happens when the user has no completed
+  // workouts left (e.g. resuming or deleting their most recent one), which makes
+  // computeStats' `lastWorkoutDate` undefined. With merge:true the omitted field
+  // simply keeps its previous value rather than crashing the write.
+  await setDoc(doc(db, "userStats", stats.userId), stripUndefined(stats), { merge: true });
 }
 
 export function computeStats(workouts: Workout[]): Omit<UserStatistics, "userId"> {
