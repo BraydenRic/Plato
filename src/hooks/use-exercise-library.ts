@@ -84,7 +84,7 @@ export function useExerciseLibrary() {
   return {
     exercises,
     loading,
-    // True when the library differs from the stock 61 — gates the reset action.
+    // True when the library differs from the stock defaults — gates the reset action.
     isModified:
       library.custom.length > 0 || library.removedIds.length > 0 || library.overrides.length > 0,
     createExercise,

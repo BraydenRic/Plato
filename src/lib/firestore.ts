@@ -109,8 +109,8 @@ export async function deleteAllUserData(userId: string): Promise<void> {
 
 // ── Exercise library ─────────────────────────────────────────────────────────
 // Per-user customization of the built-in exercise list: custom exercises the
-// user created plus ids of defaults they removed. The 61 defaults live in the
-// app bundle, so resetting is just clearing this doc.
+// user created plus ids of defaults they removed. The default exercises live in
+// the app bundle, so resetting is just clearing this doc.
 
 export interface ExerciseLibrary {
   custom: Exercise[];
