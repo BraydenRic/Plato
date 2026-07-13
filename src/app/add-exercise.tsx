@@ -15,6 +15,7 @@ import Ionicons from "@expo/vector-icons/Ionicons";
 import { Chip, Field } from "@/components/ui";
 import { Palette, Radius, Spacing } from "@/constants/theme";
 import { useWeightUnit } from "@/context/UnitContext";
+import { useDefaultSets } from "@/context/DefaultSetsContext";
 import { getWorkout, stripUndefined, updateWorkout } from "@/lib/firestore";
 import { useExerciseLibrary } from "@/hooks/use-exercise-library";
 import { newId } from "@/lib/workout-utils";
@@ -28,6 +29,7 @@ export default function AddExerciseModal() {
   const [category, setCategory] = useState("All");
   const [addedIds, setAddedIds] = useState<Set<string>>(new Set());
   const { unit } = useWeightUnit();
+  const { defaultSets } = useDefaultSets();
 
   const categories = useMemo(
     () => ["All", ...new Set(exercises.map((e) => e.category))],
@@ -53,11 +55,12 @@ export default function AddExerciseModal() {
       // is subscribed to this doc, so it updates the moment this lands.
       const workout = await getWorkout(workoutId);
       if (!workout) throw new Error("workout missing");
-      const startingSets: WorkoutSet[] = [
-        { id: newId(), weightUnit: unit, isCompleted: false },
-        { id: newId(), weightUnit: unit, isCompleted: false },
-        { id: newId(), weightUnit: unit, isCompleted: false },
-      ];
+      // Start with the user's preferred number of empty sets (Profile → Default sets).
+      const startingSets: WorkoutSet[] = Array.from({ length: defaultSets }, () => ({
+        id: newId(),
+        weightUnit: unit,
+        isCompleted: false,
+      }));
       const exercises = [
         ...workout.exercises,
         {

@@ -6,7 +6,11 @@ import { Button, Card, SectionLabel } from "@/components/ui";
 import { Palette, Radius, Spacing } from "@/constants/theme";
 import { useAuth } from "@/context/AuthContext";
 import { useRestTimer } from "@/context/RestTimerContext";
+import { useDefaultSets, MIN_SETS, MAX_SETS } from "@/context/DefaultSetsContext";
 import { useWeightUnit } from "@/context/UnitContext";
+
+// 1–5 sets, the range offered for a newly added exercise.
+const SET_OPTIONS = Array.from({ length: MAX_SETS - MIN_SETS + 1 }, (_, i) => MIN_SETS + i);
 
 const REST_OPTIONS = [
   { label: "Off", seconds: 0 },
@@ -20,6 +24,7 @@ export default function ProfileScreen() {
   const { user, signOut, updateDisplayName, deleteAccount } = useAuth();
   const { unit, setUnit } = useWeightUnit();
   const { restSeconds, setRestSeconds } = useRestTimer();
+  const { defaultSets, setDefaultSets } = useDefaultSets();
 
   // Providers like Apple only surface a name once (and Hide My Email hides it),
   // so let people set the name that shows on their profile themselves.
@@ -152,6 +157,25 @@ export default function ProfileScreen() {
                       restSeconds === o.seconds && styles.segmentTextActive,
                     ]}>
                     {o.label}
+                  </Text>
+                </Pressable>
+              ))}
+            </View>
+          </Card>
+          <Card style={styles.restCard}>
+            <View>
+              <Text style={styles.prefTitle}>Default sets</Text>
+              <Text style={styles.prefHint}>Sets a new exercise starts with</Text>
+            </View>
+            <View style={[styles.segment, { alignSelf: "flex-start" }]}>
+              {SET_OPTIONS.map((n) => (
+                <Pressable
+                  key={n}
+                  onPress={() => setDefaultSets(n)}
+                  style={[styles.segmentItem, defaultSets === n && styles.segmentActive]}>
+                  <Text
+                    style={[styles.segmentText, defaultSets === n && styles.segmentTextActive]}>
+                    {n}
                   </Text>
                 </Pressable>
               ))}

@@ -7,6 +7,7 @@ import { GestureHandlerRootView } from "react-native-gesture-handler";
 
 import { AuthProvider, useAuth } from "@/context/AuthContext";
 import { RestTimerProvider } from "@/context/RestTimerContext";
+import { DefaultSetsProvider } from "@/context/DefaultSetsContext";
 import { UnitProvider } from "@/context/UnitContext";
 import { Palette } from "@/constants/theme";
 
@@ -51,8 +52,10 @@ export default function RootLayout() {
       <AuthProvider>
         <UnitProvider>
           <RestTimerProvider>
-            <StatusBar style="light" />
-            <RootNavigator />
+            <DefaultSetsProvider>
+              <StatusBar style="light" />
+              <RootNavigator />
+            </DefaultSetsProvider>
           </RestTimerProvider>
         </UnitProvider>
       </AuthProvider>
