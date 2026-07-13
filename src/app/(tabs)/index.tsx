@@ -230,11 +230,19 @@ export default function WorkoutsScreen() {
               const isToday = sameDay(day, today);
               const isSelected = sameDay(day, selectedDay);
               const dayItems = dated.filter((w) => sameDay(workoutDay(w), day));
+              // A finished workout gets a green box + glow so completed days read
+              // at a glance, not just from the small dot. The selected day keeps
+              // its accent highlight instead.
+              const hasDone = dayItems.some((w) => w.completedAt);
               return (
                 <Pressable
                   key={day.getTime()}
                   onPress={() => setSelectedDay(day)}
-                  style={[styles.dayCell, isSelected && styles.dayCellSelected]}>
+                  style={[
+                    styles.dayCell,
+                    hasDone && !isSelected && styles.dayCellDone,
+                    isSelected && styles.dayCellSelected,
+                  ]}>
                   <Text style={[styles.dayName, isSelected && styles.dayTextSelected]}>
                     {day.toLocaleDateString(undefined, { weekday: "narrow" })}
                   </Text>
@@ -505,6 +513,21 @@ const styles = StyleSheet.create({
     gap: 3,
     paddingVertical: Spacing.two,
     borderRadius: Radius.sm,
+    // Transparent border on every cell so the completed-day border below doesn't
+    // nudge the layout when it appears.
+    borderWidth: 1,
+    borderColor: "transparent",
+  },
+  dayCellDone: {
+    backgroundColor: Palette.successSoft,
+    borderColor: "rgba(52,211,153,0.4)",
+    // Soft green halo (iOS) so a finished day glows rather than just tinting.
+    shadowColor: Palette.success,
+    shadowOpacity: 0.45,
+    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 0 },
+    // Android has no shadow spread, so the tint + border carry it there.
+    elevation: 3,
   },
   dayCellSelected: {
     backgroundColor: Palette.accent,
