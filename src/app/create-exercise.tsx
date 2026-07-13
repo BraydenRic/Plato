@@ -15,7 +15,7 @@ const CATEGORIES = [...new Set(EXERCISES.map((e) => e.category))];
 const MUSCLE_OPTIONS = [
   "Chest", "Back", "Lats", "Traps", "Shoulders",
   "Biceps", "Triceps", "Forearms", "Abs", "Obliques",
-  "Quads", "Hamstrings", "Glutes", "Calves", "Hip Flexors",
+  "Quads", "Hamstrings", "Glutes", "Calves", "Tibialis", "Hip Flexors",
 ];
 
 export default function CreateExerciseModal() {

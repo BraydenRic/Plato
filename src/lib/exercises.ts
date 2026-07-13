@@ -143,7 +143,7 @@ export const EXERCISES: Exercise[] = [
   { id: "seated-calf-raise", name: "Seated Calf Raise", category: "Legs", musclesWorked: ["Calves"], description: "Knees bent to bias the soleus. Slow, full-range reps." },
   { id: "leg-press-calf-raise", name: "Leg Press Calf Raise", category: "Legs", musclesWorked: ["Calves"], description: "Push through the balls of the feet on the leg press. Heavy calf loading." },
   { id: "donkey-calf-raise", name: "Donkey Calf Raise", category: "Legs", musclesWorked: ["Calves"], description: "Hip-hinged calf raise for a huge stretch on the gastrocnemius." },
-  { id: "tibialis-raise", name: "Tibialis Raise", category: "Legs", musclesWorked: ["Calves"], description: "Heels down, pull the toes up toward the shins against a wall or plate. Builds the tibialis anterior (front of the shin) for knee health." },
+  { id: "tibialis-raise", name: "Tibialis Raise", category: "Legs", musclesWorked: ["Tibialis"], description: "Heels down, pull the toes up toward the shins against a wall or plate. Builds the tibialis anterior (front of the shin) for knee health." },
 
   // Glutes
   { id: "hip-thrust", name: "Hip Thrust", category: "Glutes", musclesWorked: ["Glutes", "Hamstrings"], description: "Bar over hips, drive upward. The premier glute exercise." },

@@ -31,13 +31,15 @@ const MUSCLE_NAME_TO_SLUGS: Record<string, Slug[]> = {
   hamstrings: ["hamstring"],
   glutes: ["gluteal"],
   calves: ["calves"],
+  tibialis: ["tibialis"],
+  shins: ["tibialis"],
   "hip flexors": ["adductors"],
-  legs: ["quadriceps", "adductors", "hamstring", "gluteal", "calves"],
+  legs: ["quadriceps", "adductors", "hamstring", "gluteal", "calves", "tibialis"],
   arms: ["biceps", "triceps", "forearm"],
   "full body": [
     "chest", "deltoids", "biceps", "triceps", "forearm",
     "abs", "obliques", "upper-back", "lower-back", "trapezius",
-    "quadriceps", "adductors", "hamstring", "gluteal", "calves",
+    "quadriceps", "adductors", "hamstring", "gluteal", "calves", "tibialis",
   ],
   // Cardio doesn't map to a visible muscle region.
   cardio: [],
