@@ -103,7 +103,14 @@ export default function AddExerciseModal() {
           showsHorizontalScrollIndicator={false}
           contentContainerStyle={styles.chips}>
           {categories.map((c) => (
-            <Chip key={c} label={c} active={c === category} onPress={() => setCategory(c)} />
+            <Chip
+              key={c}
+              label={c}
+              active={c === category}
+              // Tapping the active category again clears the filter back to "All",
+              // matching the toggle behavior on the Exercises tab.
+              onPress={() => setCategory((prev) => (prev === c ? "All" : c))}
+            />
           ))}
         </ScrollView>
       </View>
