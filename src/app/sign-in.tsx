@@ -94,30 +94,24 @@ export default function SignInScreen() {
             <Text style={styles.subtitle}>Log lifts. Build streaks. See progress.</Text>
           </View>
 
-          {canUseGoogle ? (
-            <Pressable
-              onPress={submitGoogle}
-              disabled={googleBusy}
-              style={({ pressed }) => [styles.googleButton, pressed && { opacity: 0.85 }]}>
-              <Ionicons name="logo-google" size={18} color="#111" />
-              <Text style={styles.googleButtonText}>
-                {googleBusy ? "Signing in…" : "Continue with Google"}
-              </Text>
-            </Pressable>
-          ) : (
-            <View style={styles.expoGoNote}>
-              <Ionicons name="information-circle-outline" size={16} color={Palette.textTertiary} />
-              <Text style={styles.expoGoNoteText}>
-                Google sign-in appears in the installed app. In Expo Go, use email below.
-              </Text>
-            </View>
+          {canUseGoogle && (
+            <>
+              <Pressable
+                onPress={submitGoogle}
+                disabled={googleBusy}
+                style={({ pressed }) => [styles.googleButton, pressed && { opacity: 0.85 }]}>
+                <Ionicons name="logo-google" size={18} color="#111" />
+                <Text style={styles.googleButtonText}>
+                  {googleBusy ? "Signing in…" : "Continue with Google"}
+                </Text>
+              </Pressable>
+              <View style={styles.dividerRow}>
+                <View style={styles.dividerLine} />
+                <Text style={styles.dividerText}>or</Text>
+                <View style={styles.dividerLine} />
+              </View>
+            </>
           )}
-
-          <View style={styles.dividerRow}>
-            <View style={styles.dividerLine} />
-            <Text style={styles.dividerText}>or</Text>
-            <View style={styles.dividerLine} />
-          </View>
 
           <View style={styles.form}>
             {isSignUp && (
@@ -218,23 +212,6 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: "700",
     color: "#111",
-  },
-  expoGoNote: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: Spacing.two,
-    backgroundColor: Palette.surface,
-    borderWidth: 1,
-    borderColor: Palette.border,
-    borderRadius: Radius.md,
-    paddingVertical: Spacing.two,
-    paddingHorizontal: Spacing.three,
-  },
-  expoGoNoteText: {
-    flex: 1,
-    fontSize: 12,
-    lineHeight: 17,
-    color: Palette.textTertiary,
   },
   dividerRow: {
     flexDirection: "row",
