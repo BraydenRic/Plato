@@ -303,8 +303,13 @@ export default function WorkoutScreen() {
               // The workout left history, so re-derive the synced lifetime stats.
               const completedWorkouts = await getCompletedWorkouts(workout!.userId);
               await upsertUserStats({ userId: workout!.userId, ...computeStats(completedWorkouts) });
-            } catch {
-              Alert.alert("Couldn't resume workout", "Check your connection and try again.");
+            } catch (e) {
+              // Surface the real Firebase reason (e.g. permission-denied) instead of
+              // masking every failure as a connection problem — makes resume issues
+              // diagnosable from the device.
+              const code = (e as { code?: string })?.code;
+              const detail = code ? `\n\n(${code})` : "";
+              Alert.alert("Couldn't resume workout", `Check your connection and try again.${detail}`);
             } finally {
               setResuming(false);
             }
