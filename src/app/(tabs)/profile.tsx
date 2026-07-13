@@ -1,3 +1,4 @@
+import Ionicons from "@expo/vector-icons/Ionicons";
 import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
@@ -16,9 +17,35 @@ const REST_OPTIONS = [
 ];
 
 export default function ProfileScreen() {
-  const { user, signOut, deleteAccount } = useAuth();
+  const { user, signOut, updateDisplayName, deleteAccount } = useAuth();
   const { unit, setUnit } = useWeightUnit();
   const { restSeconds, setRestSeconds } = useRestTimer();
+
+  // Providers like Apple only surface a name once (and Hide My Email hides it),
+  // so let people set the name that shows on their profile themselves.
+  function editName() {
+    Alert.prompt(
+      "Your name",
+      "This is the name shown on your profile.",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Save",
+          onPress: async (name?: string) => {
+            const trimmed = (name ?? "").trim();
+            if (!trimmed || trimmed === user?.displayName) return;
+            try {
+              await updateDisplayName(trimmed);
+            } catch {
+              Alert.alert("Couldn't update name", "Check your connection and try again.");
+            }
+          },
+        },
+      ],
+      "plain-text",
+      user?.displayName ?? ""
+    );
+  }
 
   function confirmSignOut() {
     Alert.alert("Sign out?", "Your data stays synced to your account.", [
@@ -81,8 +108,13 @@ export default function ProfileScreen() {
           </View>
           <View style={{ flex: 1, gap: 2 }}>
             <Text style={styles.name}>{user?.displayName ?? "Athlete"}</Text>
-            <Text style={styles.email}>{user?.email}</Text>
+            <Text style={styles.email} numberOfLines={1}>
+              {user?.email}
+            </Text>
           </View>
+          <Pressable onPress={editName} hitSlop={10} style={styles.editButton}>
+            <Ionicons name="pencil" size={16} color={Palette.textSecondary} />
+          </Pressable>
         </Card>
 
         <View>
@@ -160,6 +192,16 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: Spacing.three,
+  },
+  editButton: {
+    width: 34,
+    height: 34,
+    borderRadius: Radius.full,
+    backgroundColor: Palette.surfaceRaised,
+    borderWidth: 1,
+    borderColor: Palette.border,
+    alignItems: "center",
+    justifyContent: "center",
   },
   avatar: {
     width: 52,

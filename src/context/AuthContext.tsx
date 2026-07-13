@@ -29,6 +29,8 @@ interface AuthContextType {
   /** False outside real iOS builds (Android, Expo Go). */
   canUseApple: boolean;
   signOut: () => Promise<void>;
+  /** Updates the profile display name and refreshes it in the UI immediately. */
+  updateDisplayName: (name: string) => Promise<void>;
   /** Permanently removes the user's data and auth account. Needs their password. */
   deleteAccount: (password: string) => Promise<void>;
 }
@@ -43,6 +45,7 @@ const AuthContext = createContext<AuthContextType>({
   signInWithApple: async () => false,
   canUseApple: false,
   signOut: async () => {},
+  updateDisplayName: async () => {},
   deleteAccount: async () => {},
 });
 
@@ -85,6 +88,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     await firebaseSignOut(auth);
   }
 
+  async function updateDisplayName(name: string) {
+    const current = auth.currentUser;
+    if (!current) throw new Error("No signed-in account.");
+    const trimmed = name.trim();
+    await updateProfile(current, { displayName: trimmed });
+    // updateProfile mutates currentUser but doesn't re-emit onAuthStateChanged,
+    // so hand React a fresh object to trigger a re-render (same as signUp).
+    setUser({ ...current, displayName: trimmed } as User);
+  }
+
   async function deleteAccount(password: string) {
     const current = auth.currentUser;
     if (!current?.email) throw new Error("No signed-in account.");
@@ -110,6 +123,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         signInWithApple,
         canUseApple: appleSignInSupported,
         signOut,
+        updateDisplayName,
         deleteAccount,
       }}>
       {children}
