@@ -100,10 +100,15 @@ export function sameDay(a: Date, b: Date): boolean {
   return startOfDay(a).getTime() === startOfDay(b).getTime();
 }
 
-/** The calendar day a workout belongs to: when it happened, or when it's planned. */
+/**
+ * The calendar day a workout belongs to. A scheduled workout stays pinned to the
+ * day it was planned for — even after you start or finish it — so starting a
+ * workout planned for tomorrow never drags it onto today. Unscheduled workouts
+ * fall back to when they actually happened.
+ */
 export function workoutDay(workout: Workout): Date {
   return startOfDay(
-    workout.completedAt ?? workout.startedAt ?? workout.scheduledFor ?? workout.createdAt
+    workout.scheduledFor ?? workout.completedAt ?? workout.startedAt ?? workout.createdAt
   );
 }
 

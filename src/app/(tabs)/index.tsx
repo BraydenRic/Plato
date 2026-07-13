@@ -118,12 +118,14 @@ export default function WorkoutsScreen() {
     }
   }
 
-  async function planFromTemplate(template: Workout, day: Date) {
+  async function planFromTemplate(template: Workout, day: Date, navigate = true) {
     if (!user || starting) return;
     setStarting(true);
     try {
       const id = await startFromTemplate(template, user.uid, day);
-      router.push(`/workout/${id}`);
+      // Future plans just get scheduled and we stay on the calendar; logging a
+      // past day opens the workout so its sets can be filled in.
+      if (navigate) router.push(`/workout/${id}`);
     } catch {
       Alert.alert("Couldn't plan workout", "Check your connection and try again.");
     } finally {
@@ -370,7 +372,18 @@ export default function WorkoutsScreen() {
                     {t.exercises.length} exercise{t.exercises.length === 1 ? "" : "s"} · {totalSetCount(t)} sets
                   </Text>
                 </Pressable>
-                <Button title="Start" variant="secondary" compact onPress={() => beginTemplate(t)} />
+                <Button
+                  // The action follows the selected day: start now if it's today,
+                  // schedule ahead if it's future, or log onto a past day.
+                  title={selectedIsToday ? "Start" : selectedIsFuture ? "Plan" : "Log"}
+                  variant="secondary"
+                  compact
+                  onPress={() =>
+                    selectedIsToday
+                      ? beginTemplate(t)
+                      : planFromTemplate(t, selectedDay, !selectedIsFuture)
+                  }
+                />
               </Card>
             ))
           )}

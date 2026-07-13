@@ -103,12 +103,14 @@ export default function WorkoutScreen() {
   const isTemplate = !!workout?.isTemplate;
   // Scheduled ahead of time and not yet begun: editable as a plan, no clock.
   const isPlanned = !!workout && !isTemplate && !workout.startedAt && !workout.completedAt;
-  // A plan whose day already passed = backfilling a forgotten session. It gets
-  // logged directly (no live clock) and finish backdates it to that day.
-  const isBacklog =
-    isPlanned &&
-    !!workout.scheduledFor &&
-    startOfDay(workout.scheduledFor).getTime() < startOfDay(new Date()).getTime();
+  const scheduledDayMs = workout?.scheduledFor ? startOfDay(workout.scheduledFor).getTime() : null;
+  const todayMs = startOfDay(new Date()).getTime();
+  // A plan for a day that isn't today — a past one is backfilling a forgotten
+  // session, a future one is pre-logging. Either way it's logged directly onto
+  // its scheduled day (no live clock, no "start" step that would drag it onto
+  // today) and finishing stamps it on that day.
+  const isOffDayPlan = isPlanned && scheduledDayMs != null && scheduledDayMs !== todayMs;
+  const isPastPlan = isOffDayPlan && scheduledDayMs! < todayMs;
   useEffect(() => {
     if (!startedAtMs || isDone) return;
     const tick = () => setElapsed(Math.max(0, Math.floor((Date.now() - startedAtMs) / 1000)));
@@ -253,15 +255,15 @@ export default function WorkoutScreen() {
   async function finishWith(exercises: WorkoutExercise[]) {
     setFinishing(true);
     try {
-      // Backfilled sessions belong to the day they happened, not the day they
-      // were typed in — anchor completedAt to noon of the scheduled day so it
+      // A workout scheduled for another day belongs to that day, not the day it
+      // was typed in — anchor completedAt to noon of the scheduled day so it
       // lands on the right calendar day in every timezone. Duration is unknown
-      // for backfills, so it's omitted rather than invented.
-      const completedAt = isBacklog
+      // for these, so it's omitted rather than invented.
+      const completedAt = isOffDayPlan
         ? new Date(startOfDay(workout!.scheduledFor!).getTime() + 12 * 3_600_000)
         : new Date();
       const startedAt = workout!.startedAt ?? workout!.createdAt;
-      const durationMinutes = isBacklog
+      const durationMinutes = isOffDayPlan
         ? undefined
         : Math.max(1, Math.round((completedAt.getTime() - startedAt.getTime()) / 60_000));
       const totalVolume = workoutVolumeLbs({ ...workout!, exercises });
@@ -375,7 +377,7 @@ export default function WorkoutScreen() {
               <Text style={styles.doneLabel}>Completed</Text>
             ) : isPlanned ? (
               <Text style={styles.plannedLabel}>
-                {isBacklog ? "Logging" : "Planned"}
+                {isPastPlan ? "Logging" : "Planned"}
                 {workout.scheduledFor ? ` · ${relativeDay(workout.scheduledFor)}` : ""}
               </Text>
             ) : (
@@ -523,7 +525,7 @@ export default function WorkoutScreen() {
             <Button title="Done" variant="secondary" onPress={() => router.back()} />
           ) : isDone ? (
             <Button title="Resume workout" variant="secondary" onPress={resumeWorkout} loading={resuming} />
-          ) : isBacklog ? (
+          ) : isOffDayPlan ? (
             <Button title="Log workout" onPress={finishWorkout} loading={finishing} />
           ) : isPlanned ? (
             <Button
