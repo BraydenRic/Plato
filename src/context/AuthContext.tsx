@@ -10,6 +10,7 @@ import {
   updateProfile,
   signOut as firebaseSignOut,
 } from "firebase/auth";
+import { appleSignInSupported, signInWithApple as appleSignIn } from "@/lib/apple-signin";
 import { auth } from "@/lib/firebase";
 import { deleteAllUserData } from "@/lib/firestore";
 import { googleSignInAvailable, signInWithGoogle as googleSignIn } from "@/lib/google-signin";
@@ -23,6 +24,10 @@ interface AuthContextType {
   signInWithGoogle: () => Promise<boolean>;
   /** False in Expo Go, where the native Google module doesn't exist. */
   canUseGoogle: boolean;
+  /** Native Sign in with Apple flow. Resolves false if the user dismissed the sheet. */
+  signInWithApple: () => Promise<boolean>;
+  /** False outside real iOS builds (Android, Expo Go). */
+  canUseApple: boolean;
   signOut: () => Promise<void>;
   /** Permanently removes the user's data and auth account. Needs their password. */
   deleteAccount: (password: string) => Promise<void>;
@@ -35,6 +40,8 @@ const AuthContext = createContext<AuthContextType>({
   signUp: async () => {},
   signInWithGoogle: async () => false,
   canUseGoogle: false,
+  signInWithApple: async () => false,
+  canUseApple: false,
   signOut: async () => {},
   deleteAccount: async () => {},
 });
@@ -69,6 +76,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return credential !== null;
   }
 
+  async function signInWithApple() {
+    const credential = await appleSignIn();
+    return credential !== null;
+  }
+
   async function signOut() {
     await firebaseSignOut(auth);
   }
@@ -95,6 +107,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         signUp,
         signInWithGoogle,
         canUseGoogle: googleSignInAvailable,
+        signInWithApple,
+        canUseApple: appleSignInSupported,
         signOut,
         deleteAccount,
       }}>

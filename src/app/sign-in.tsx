@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   Alert,
   KeyboardAvoidingView,
@@ -12,6 +12,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { FirebaseError } from "firebase/app";
 import Ionicons from "@expo/vector-icons/Ionicons";
+import * as AppleAuthentication from "expo-apple-authentication";
 import { Image } from "expo-image";
 
 import { Button, Field } from "@/components/ui";
@@ -39,13 +40,24 @@ function friendlyAuthError(e: unknown): string {
 }
 
 export default function SignInScreen() {
-  const { signIn, signUp, signInWithGoogle, canUseGoogle } = useAuth();
+  const { signIn, signUp, signInWithGoogle, canUseGoogle, signInWithApple, canUseApple } =
+    useAuth();
   const [mode, setMode] = useState<"signIn" | "signUp">("signIn");
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
   const [googleBusy, setGoogleBusy] = useState(false);
+  const [appleBusy, setAppleBusy] = useState(false);
+  const [appleReady, setAppleReady] = useState(false);
+
+  // Sign in with Apple needs iOS 13+; the check is async so it can't gate render directly.
+  useEffect(() => {
+    if (!canUseApple) return;
+    AppleAuthentication.isAvailableAsync()
+      .then(setAppleReady)
+      .catch(() => setAppleReady(false));
+  }, [canUseApple]);
 
   async function submitGoogle() {
     setGoogleBusy(true);
@@ -57,6 +69,18 @@ export default function SignInScreen() {
       Alert.alert("Google sign-in failed", e instanceof Error ? e.message : friendlyAuthError(e));
     } finally {
       setGoogleBusy(false);
+    }
+  }
+
+  async function submitApple() {
+    setAppleBusy(true);
+    try {
+      // Same contract as Google: false means the user closed the Apple sheet.
+      await signInWithApple();
+    } catch (e) {
+      Alert.alert("Apple sign-in failed", e instanceof Error ? e.message : friendlyAuthError(e));
+    } finally {
+      setAppleBusy(false);
     }
   }
 
@@ -94,17 +118,30 @@ export default function SignInScreen() {
             <Text style={styles.subtitle}>Log lifts. Build streaks. See progress.</Text>
           </View>
 
-          {canUseGoogle && (
+          {(appleReady || canUseGoogle) && (
             <>
-              <Pressable
-                onPress={submitGoogle}
-                disabled={googleBusy}
-                style={({ pressed }) => [styles.googleButton, pressed && { opacity: 0.85 }]}>
-                <Ionicons name="logo-google" size={18} color="#111" />
-                <Text style={styles.googleButtonText}>
-                  {googleBusy ? "Signing in…" : "Continue with Google"}
-                </Text>
-              </Pressable>
+              <View style={styles.providers}>
+                {appleReady && (
+                  <AppleAuthentication.AppleAuthenticationButton
+                    buttonType={AppleAuthentication.AppleAuthenticationButtonType.SIGN_IN}
+                    buttonStyle={AppleAuthentication.AppleAuthenticationButtonStyle.WHITE}
+                    cornerRadius={Radius.md}
+                    style={styles.appleButton}
+                    onPress={() => !appleBusy && submitApple()}
+                  />
+                )}
+                {canUseGoogle && (
+                  <Pressable
+                    onPress={submitGoogle}
+                    disabled={googleBusy}
+                    style={({ pressed }) => [styles.googleButton, pressed && { opacity: 0.85 }]}>
+                    <Ionicons name="logo-google" size={18} color="#111" />
+                    <Text style={styles.googleButtonText}>
+                      {googleBusy ? "Signing in…" : "Continue with Google"}
+                    </Text>
+                  </Pressable>
+                )}
+              </View>
               <View style={styles.dividerRow}>
                 <View style={styles.dividerLine} />
                 <Text style={styles.dividerText}>or</Text>
@@ -198,6 +235,12 @@ const styles = StyleSheet.create({
   subtitle: {
     fontSize: 15,
     color: Palette.textTertiary,
+  },
+  providers: {
+    gap: Spacing.three,
+  },
+  appleButton: {
+    height: 48,
   },
   googleButton: {
     flexDirection: "row",
