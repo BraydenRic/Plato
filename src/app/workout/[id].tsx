@@ -249,40 +249,10 @@ export default function WorkoutScreen() {
   }
 
   function finishWorkout() {
-    const incomplete = totalSetCount(workout!) - completedSetCount(workout!);
-    if (incomplete === 0) {
-      finishWith(workout!.exercises);
-      return;
-    }
-    Alert.alert(
-      "Finish workout?",
-      `${incomplete} set${incomplete === 1 ? "" : "s"} not marked done.`,
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Discard them",
-          style: "destructive",
-          onPress: () =>
-            finishWith(
-              workout!.exercises
-                .map((ex) => ({ ...ex, sets: ex.sets.filter((s) => s.isCompleted) }))
-                .filter((ex) => ex.sets.length > 0)
-            ),
-        },
-        {
-          text: "Complete all",
-          onPress: () =>
-            finishWith(
-              workout!.exercises.map((ex) => ({
-                ...ex,
-                sets: ex.sets.map((s) =>
-                  s.isCompleted ? s : { ...s, isCompleted: true, completedAt: new Date() }
-                ),
-              }))
-            ),
-        },
-      ]
-    );
+    // Sets auto-complete as they're filled in, so there's no "mark done" step to
+    // nag about — finishing just saves the workout exactly as it stands. Each set
+    // shows its own green check / red X in the completed view.
+    finishWith(workout!.exercises);
   }
 
   function resumeWorkout() {
@@ -675,9 +645,11 @@ function SetRow({
     const reps = repsText.trim() === "" ? undefined : Math.round(Number(repsText));
     const validWeight = Number.isFinite(weight!) ? weight : undefined;
     const validReps = Number.isFinite(reps!) ? reps : undefined;
-    // A set counts as done the moment it holds a real value — no checkbox.
-    // Clearing both values un-completes it again.
-    const done = validWeight != null || validReps != null;
+    // A set is "done" (green check, counts toward volume, starts the rest timer)
+    // only when it has both a weight and a positive rep count. Partial entries are
+    // still stored so the row can flag them with a red X, but don't count as done.
+    // Weight 0 is valid (bodyweight moves), but 0 reps isn't a real set.
+    const done = validWeight != null && validReps != null && validReps > 0;
     onPatch({
       // Typed values are in the currently displayed unit, so store that unit.
       weight: validWeight,
@@ -702,7 +674,7 @@ function SetRow({
         </View>
       )}
       onSwipeableWillOpen={onRemove}>
-      <Pressable onLongPress={readOnly ? undefined : onRemove} style={[styles.setRow, set.isCompleted && styles.setRowDone]}>
+      <Pressable onLongPress={readOnly ? undefined : onRemove} style={styles.setRow}>
       <Text style={[styles.setNum, styles.setNumCol]}>{index}</Text>
       <TextInput
         style={[styles.setInput, styles.inputCol]}
@@ -727,9 +699,13 @@ function SetRow({
         editable={!readOnly}
       />
       <View style={[styles.checkCol, styles.doneMark]}>
-        {set.isCompleted && (
+        {set.isCompleted ? (
+          // Fully logged: weight + reps.
           <Ionicons name="checkmark-circle" size={20} color={Palette.success} />
-        )}
+        ) : set.weight != null || set.reps != null ? (
+          // Something was entered but it's missing a weight or valid reps.
+          <Ionicons name="close-circle" size={20} color={Palette.danger} />
+        ) : null}
       </View>
       </Pressable>
     </ReanimatedSwipeable>
@@ -845,12 +821,6 @@ const styles = StyleSheet.create({
     backgroundColor: Palette.danger,
     alignItems: "center",
     justifyContent: "center",
-  },
-  setRowDone: {
-    // Faint success tint marks a logged set without fading it out. Must stay
-    // opaque (successSoft over surface, pre-blended) so the swipe-delete action
-    // behind the row stays hidden until actually swiped.
-    backgroundColor: "#182e28",
   },
   setNumCol: {
     width: 28,
