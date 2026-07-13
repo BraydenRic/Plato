@@ -8,10 +8,14 @@ import { auth } from "./firebase";
 // instead of crashing.
 export const isExpoGo = Constants.executionEnvironment === ExecutionEnvironment.StoreClient;
 
-// Also requires the web client ID from the Google provider in Firebase —
-// until it's configured the button stays hidden.
+// Needs BOTH client IDs configured, or the button would appear but fail: the
+// web ID gets the Firebase idToken, and the iOS ID (plus its reversed form in
+// app.json's iosUrlScheme) is what the native flow actually authenticates with.
+// Until both are set the button stays hidden.
 export const googleSignInAvailable =
-  !isExpoGo && !!process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID;
+  !isExpoGo &&
+  !!process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID &&
+  !!process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID;
 
 let configured = false;
 
