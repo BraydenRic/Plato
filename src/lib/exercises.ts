@@ -104,8 +104,12 @@ export const EXERCISES: Exercise[] = [
   { id: "kickback", name: "Tricep Kickback", category: "Triceps", musclesWorked: ["Triceps"], description: "Hinge forward, extend arm back. Lateral head isolation." },
 
   // Forearms
-  { id: "wrist-curl", name: "Wrist Curl", category: "Forearms", musclesWorked: ["Forearms"], description: "Forearms on a bench, curl the wrists up. Builds the flexors." },
-  { id: "reverse-wrist-curl", name: "Reverse Wrist Curl", category: "Forearms", musclesWorked: ["Forearms"], description: "Palms-down wrist extension. Strengthens the forearm extensors." },
+  { id: "wrist-curl", name: "Barbell Wrist Curl", category: "Forearms", musclesWorked: ["Forearms"], description: "Barbell in both hands, forearms on a bench, palms up. Curl the wrists to build the flexors." },
+  { id: "dumbbell-wrist-curl", name: "Dumbbell Wrist Curl", category: "Forearms", musclesWorked: ["Forearms"], description: "One dumbbell per hand over a bench, palms up. Lets each wrist work through its full range." },
+  { id: "machine-wrist-curl", name: "Machine Wrist Curl", category: "Forearms", musclesWorked: ["Forearms"], description: "Seated at a wrist-curl or preacher-style machine, palms up. Constant tension on the flexors." },
+  { id: "reverse-wrist-curl", name: "Barbell Reverse Wrist Curl", category: "Forearms", musclesWorked: ["Forearms"], description: "Barbell with a palms-down grip on a bench. Wrist extension for the forearm extensors." },
+  { id: "dumbbell-reverse-wrist-curl", name: "Dumbbell Reverse Wrist Curl", category: "Forearms", musclesWorked: ["Forearms"], description: "Dumbbells palms-down over a bench. Independent extension for each forearm." },
+  { id: "machine-reverse-wrist-curl", name: "Machine Reverse Wrist Curl", category: "Forearms", musclesWorked: ["Forearms"], description: "Machine wrist extension, palms down. Steady tension on the extensors." },
   { id: "behind-back-wrist-curl", name: "Behind-the-Back Wrist Curl", category: "Forearms", musclesWorked: ["Forearms"], description: "Barbell held behind the body, curl at the wrists. Deep flexor work." },
   { id: "reverse-barbell-curl", name: "Reverse Barbell Curl", category: "Forearms", musclesWorked: ["Forearms", "Biceps"], description: "Overhand curl targeting the brachioradialis and forearms." },
   { id: "wrist-roller", name: "Wrist Roller", category: "Forearms", musclesWorked: ["Forearms"], description: "Roll a weighted cord up and down. Brutal forearm endurance." },

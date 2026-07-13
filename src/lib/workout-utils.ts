@@ -5,6 +5,11 @@ import type { Workout, WorkoutSet } from "@/types";
 // (most people keep 3–10) while stopping runaway creation.
 export const MAX_TEMPLATES = 20;
 
+// Cap simultaneously in-progress (started, unfinished) workouts. Nobody trains
+// more than a couple at once; the limit stops runaway "start and abandon" from
+// piling up live sessions. Finishing or deleting one frees a slot.
+export const MAX_ACTIVE_WORKOUTS = 5;
+
 const KG_TO_LBS = 2.20462;
 
 export function setVolumeLbs(set: WorkoutSet): number {

@@ -22,6 +22,7 @@ import {
   addDays,
   completedSetCount,
   displayVolume,
+  MAX_ACTIVE_WORKOUTS,
   MAX_TEMPLATES,
   relativeDay,
   sameDay,
@@ -74,8 +75,20 @@ export default function WorkoutsScreen() {
     setSelectedDay(today);
   }
 
+  // Guard the "start now" paths so abandoned live sessions can't pile up.
+  function atActiveLimit() {
+    if (active.length >= MAX_ACTIVE_WORKOUTS) {
+      Alert.alert(
+        "Too many workouts in progress",
+        `Finish or delete one of your ${MAX_ACTIVE_WORKOUTS} in-progress workouts before starting another.`
+      );
+      return true;
+    }
+    return false;
+  }
+
   async function quickStart() {
-    if (!user || starting) return;
+    if (!user || starting || atActiveLimit()) return;
     setStarting(true);
     try {
       const id = await createWorkout(
@@ -151,7 +164,7 @@ export default function WorkoutsScreen() {
   }
 
   async function beginTemplate(template: Workout) {
-    if (!user || starting) return;
+    if (!user || starting || atActiveLimit()) return;
     setStarting(true);
     try {
       const id = await startFromTemplate(template, user.uid);

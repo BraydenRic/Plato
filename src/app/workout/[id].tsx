@@ -27,7 +27,7 @@ import { getCompletedWorkouts, reopenWorkout, saveAsTemplate, stripUndefined, up
 import { useWorkouts } from "@/hooks/use-workouts";
 import { useRestTimer } from "@/context/RestTimerContext";
 import { useWeightUnit } from "@/context/UnitContext";
-import { convertWeight, displayVolume, formatClock, newId, relativeDay, sameDay, startOfDay, workoutVolumeLbs, completedSetCount, totalSetCount, MAX_TEMPLATES } from "@/lib/workout-utils";
+import { convertWeight, displayVolume, formatClock, newId, relativeDay, sameDay, startOfDay, workoutVolumeLbs, completedSetCount, totalSetCount, MAX_TEMPLATES, MAX_ACTIVE_WORKOUTS } from "@/lib/workout-utils";
 import type { Workout, WorkoutExercise, WorkoutSet } from "@/types";
 
 
@@ -136,7 +136,7 @@ export default function WorkoutScreen() {
 
   // Last completed numbers per exercise, shown as input placeholders so the
   // user knows what they lifted last time without templates storing weights.
-  const { completed, templates } = useWorkouts();
+  const { completed, templates, active } = useWorkouts();
   const previousSets = useMemo(() => {
     const map = new Map<string, WorkoutSet[]>();
     for (const w of completed) {
@@ -530,7 +530,18 @@ export default function WorkoutScreen() {
           ) : isPlanned ? (
             <Button
               title="Start workout"
-              onPress={() => updateWorkout(workout.id, { startedAt: new Date() })}
+              onPress={() => {
+                // Starting turns this plan into a live session — respect the
+                // same cap on simultaneously in-progress workouts.
+                if (active.length >= MAX_ACTIVE_WORKOUTS) {
+                  Alert.alert(
+                    "Too many workouts in progress",
+                    `Finish or delete one of your ${MAX_ACTIVE_WORKOUTS} in-progress workouts before starting another.`
+                  );
+                  return;
+                }
+                updateWorkout(workout.id, { startedAt: new Date() });
+              }}
             />
           ) : (
             <Button title="Finish workout" onPress={finishWorkout} loading={finishing} />
