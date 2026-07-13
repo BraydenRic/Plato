@@ -8,6 +8,11 @@ import type { Exercise } from "@/types";
 
 const EMPTY: ExerciseLibrary = { custom: [], removedIds: [], overrides: [] };
 
+// All of a user's custom exercises live in a single Firestore document, so cap
+// them to keep that doc well under Firestore's 1 MB limit. 200 is far more than
+// anyone builds by hand (the app ships ~177 defaults) while staying tiny on disk.
+export const MAX_CUSTOM_EXERCISES = 200;
+
 // The user's effective exercise list: bundled defaults minus the ones they
 // removed, plus their custom exercises. Workouts embed exercise copies, so
 // removing something here never touches logged history.
@@ -41,6 +46,10 @@ export function useExerciseLibrary() {
   }, [library]);
 
   async function createExercise(input: Omit<Exercise, "id" | "isCustom">): Promise<Exercise> {
+    // Backstop the UI's check so we can never overflow the library document.
+    if (library.custom.length >= MAX_CUSTOM_EXERCISES) {
+      throw new Error("custom exercise limit reached");
+    }
     const exercise: Exercise = { ...input, id: `custom-${newId()}`, isCustom: true };
     await updateExerciseLibrary(user!.uid, { ...library, custom: [...library.custom, exercise] });
     return exercise;
@@ -84,6 +93,7 @@ export function useExerciseLibrary() {
   return {
     exercises,
     loading,
+    customCount: library.custom.length,
     // True when the library differs from the stock defaults — gates the reset action.
     isModified:
       library.custom.length > 0 || library.removedIds.length > 0 || library.overrides.length > 0,

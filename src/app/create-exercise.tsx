@@ -5,7 +5,7 @@ import Ionicons from "@expo/vector-icons/Ionicons";
 
 import { Button, Field, SectionLabel } from "@/components/ui";
 import { Palette, Radius, Spacing } from "@/constants/theme";
-import { useExerciseLibrary } from "@/hooks/use-exercise-library";
+import { useExerciseLibrary, MAX_CUSTOM_EXERCISES } from "@/hooks/use-exercise-library";
 import { EXERCISES } from "@/lib/exercises";
 
 const CATEGORIES = [...new Set(EXERCISES.map((e) => e.category))];
@@ -20,7 +20,7 @@ const MUSCLE_OPTIONS = [
 
 export default function CreateExerciseModal() {
   const { exerciseId } = useLocalSearchParams<{ exerciseId?: string }>();
-  const { exercises, createExercise, updateExercise } = useExerciseLibrary();
+  const { exercises, customCount, createExercise, updateExercise } = useExerciseLibrary();
   // Editing reuses this form: prefill from the existing exercise and save
   // under the same id so workout history and last-weight lookups keep working.
   const editing = exerciseId ? exercises.find((e) => e.id === exerciseId) : undefined;
@@ -52,6 +52,14 @@ export default function CreateExerciseModal() {
 
   async function save() {
     if (!canSave || saving) return;
+    // Only new exercises count against the cap — editing an existing one is fine.
+    if (!editing && customCount >= MAX_CUSTOM_EXERCISES) {
+      Alert.alert(
+        "Custom exercise limit reached",
+        `You can create up to ${MAX_CUSTOM_EXERCISES} custom exercises. Delete one you no longer use to make room.`
+      );
+      return;
+    }
     setSaving(true);
     try {
       const fields = {

@@ -1,9 +1,9 @@
 import type { Workout, WorkoutSet } from "@/types";
 
 // Templates are reusable and never auto-expire, so cap them per account to keep
-// the collection from growing without bound. 50 is far above what a real routine
-// needs (most people keep 3–10) while still stopping runaway creation.
-export const MAX_TEMPLATES = 50;
+// the collection from growing without bound. 20 comfortably covers real routines
+// (most people keep 3–10) while stopping runaway creation.
+export const MAX_TEMPLATES = 20;
 
 const KG_TO_LBS = 2.20462;
 
