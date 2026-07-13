@@ -22,6 +22,7 @@ import {
   addDays,
   completedSetCount,
   displayVolume,
+  MAX_TEMPLATES,
   relativeDay,
   sameDay,
   startOfDay,
@@ -162,6 +163,13 @@ export default function WorkoutsScreen() {
 
   async function newTemplate() {
     if (!user) return;
+    if (templates.length >= MAX_TEMPLATES) {
+      Alert.alert(
+        "Template limit reached",
+        `You can keep up to ${MAX_TEMPLATES} templates. Delete one you no longer use to make room.`
+      );
+      return;
+    }
     try {
       const id = await createWorkout(
         stripUndefined({

@@ -25,7 +25,7 @@ import { getCompletedWorkouts, reopenWorkout, saveAsTemplate, stripUndefined, up
 import { useWorkouts } from "@/hooks/use-workouts";
 import { useRestTimer } from "@/context/RestTimerContext";
 import { useWeightUnit } from "@/context/UnitContext";
-import { convertWeight, displayVolume, formatClock, newId, relativeDay, sameDay, startOfDay, workoutVolumeLbs, completedSetCount, totalSetCount } from "@/lib/workout-utils";
+import { convertWeight, displayVolume, formatClock, newId, relativeDay, sameDay, startOfDay, workoutVolumeLbs, completedSetCount, totalSetCount, MAX_TEMPLATES } from "@/lib/workout-utils";
 import type { Workout, WorkoutExercise, WorkoutSet } from "@/types";
 
 
@@ -118,7 +118,7 @@ export default function WorkoutScreen() {
 
   // Last completed numbers per exercise, shown as input placeholders so the
   // user knows what they lifted last time without templates storing weights.
-  const { completed } = useWorkouts();
+  const { completed, templates } = useWorkouts();
   const previousSets = useMemo(() => {
     const map = new Map<string, WorkoutSet[]>();
     for (const w of completed) {
@@ -299,6 +299,13 @@ export default function WorkoutScreen() {
             {
               text: "Save as template",
               onPress: async () => {
+                if (templates.length >= MAX_TEMPLATES) {
+                  Alert.alert(
+                    "Template limit reached",
+                    `You can keep up to ${MAX_TEMPLATES} templates. Delete one you no longer use to make room.`
+                  );
+                  return;
+                }
                 try {
                   await saveAsTemplate(workout!, workout!.name);
                   Alert.alert("Template saved", "Find it on the Workouts tab.");
