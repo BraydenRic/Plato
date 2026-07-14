@@ -6,7 +6,7 @@ import Ionicons from "@expo/vector-icons/Ionicons";
 import { Button, Field, SectionLabel } from "@/components/ui";
 import { Palette, Radius, Spacing } from "@/constants/theme";
 import { useExerciseLibrary, MAX_CUSTOM_EXERCISES } from "@/hooks/use-exercise-library";
-import { EXERCISES } from "@/lib/exercises";
+import { EXERCISES, isTimedExercise } from "@/lib/exercises";
 
 const CATEGORIES = [...new Set(EXERCISES.map((e) => e.category))];
 
@@ -31,6 +31,8 @@ export default function CreateExerciseModal() {
   // which the diagram shows in the stronger violet.
   const [muscles, setMuscles] = useState<string[]>(editing?.musclesWorked ?? []);
   const [description, setDescription] = useState(editing?.description ?? "");
+  // Timed exercises (cardio, holds) log a stopwatch per set instead of weight × reps.
+  const [timed, setTimed] = useState(editing ? isTimedExercise(editing) : false);
   const [saving, setSaving] = useState(false);
 
   // Some built-ins use muscle names outside the curated chips (e.g. "Upper
@@ -67,6 +69,7 @@ export default function CreateExerciseModal() {
         category: category!,
         musclesWorked: muscles,
         description: description.trim() || `Custom exercise targeting ${muscles.join(", ").toLowerCase()}.`,
+        isTimed: timed,
       };
       if (editing) {
         await updateExercise({ ...editing, ...fields });
@@ -126,6 +129,15 @@ export default function CreateExerciseModal() {
                 />
               );
             })}
+          </View>
+        </View>
+
+        <View>
+          <SectionLabel>Tracking</SectionLabel>
+          <Text style={styles.hint}>Timed sets get a stopwatch instead of weight and reps.</Text>
+          <View style={styles.chipWrap}>
+            <SelectChip label="Weight × reps" active={!timed} onPress={() => setTimed(false)} />
+            <SelectChip label="Timed" active={timed} onPress={() => setTimed(true)} />
           </View>
         </View>
 

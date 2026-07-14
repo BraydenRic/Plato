@@ -5,6 +5,8 @@ export interface Exercise {
   musclesWorked: string[];
   description: string;
   isCustom?: boolean;
+  /** Logged as a start/stop timer per set (cardio, holds) instead of weight × reps. */
+  isTimed?: boolean;
 }
 
 export interface WorkoutSet {
@@ -12,6 +14,7 @@ export interface WorkoutSet {
   reps?: number;
   weight?: number;
   weightUnit: "lbs" | "kg" | "bodyweight";
+  /** Seconds, for timed exercises (see Exercise.isTimed) — replaces weight/reps. */
   duration?: number;
   restTime?: number;
   isCompleted: boolean;

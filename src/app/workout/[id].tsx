@@ -24,6 +24,7 @@ import { Palette, Radius, Spacing } from "@/constants/theme";
 import { db } from "@/lib/firebase";
 import { getCompletedWorkouts, reopenWorkout, saveAsTemplate, stripUndefined, updateWorkout, upsertUserStats, computeStats, deleteWorkout } from "@/lib/firestore";
 import { useWorkouts } from "@/hooks/use-workouts";
+import { isTimedExercise } from "@/lib/exercises";
 import { useRestTimer } from "@/context/RestTimerContext";
 import { useWeightUnit } from "@/context/UnitContext";
 import { convertWeight, displayVolume, formatClock, newId, relativeDay, sameDay, startOfDay, workoutVolumeLbs, completedSetCount, totalSetCount, MAX_TEMPLATES, MAX_ACTIVE_WORKOUTS } from "@/lib/workout-utils";
@@ -39,7 +40,22 @@ function toDate(val: unknown): Date | undefined {
   return undefined;
 }
 
-const fieldKey = (setId: string, field: "weight" | "reps") => `${setId}:${field}`;
+const fieldKey = (setId: string, field: "weight" | "reps" | "duration") => `${setId}:${field}`;
+
+// "1:30" → 90, "45" → 45 seconds. Undefined for blank/garbage input.
+function parseDurationText(text: string): number | undefined {
+  const t = text.trim();
+  if (!t) return undefined;
+  if (t.includes(":")) {
+    const [m, s] = t.split(":");
+    const mins = Number(m);
+    const secs = Number(s);
+    if (!Number.isFinite(mins) || !Number.isFinite(secs)) return undefined;
+    return Math.max(0, Math.round(mins * 60 + secs));
+  }
+  const n = Number(t.replace(",", "."));
+  return Number.isFinite(n) ? Math.max(0, Math.round(n)) : undefined;
+}
 
 export default function WorkoutScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -52,6 +68,9 @@ export default function WorkoutScreen() {
   const [restEndsAt, setRestEndsAt] = useState<number | null>(null);
   const [restLeft, setRestLeft] = useState(0);
   const [elapsed, setElapsed] = useState(0);
+  // The one set stopwatch that can run at a time (timed exercises). startedAt is
+  // backdated by any already-logged duration so start acts as resume.
+  const [timing, setTiming] = useState<{ exerciseId: string; setId: string; startedAt: number } | null>(null);
   const { unit: weightUnit } = useWeightUnit();
   const { restSeconds } = useRestTimer();
 
@@ -151,7 +170,7 @@ export default function WorkoutScreen() {
       if (w.id === workout?.id) continue;
       for (const ex of w.exercises) {
         if (!map.has(ex.exerciseId)) {
-          const done = ex.sets.filter((s) => s.isCompleted && s.weight != null);
+          const done = ex.sets.filter((s) => s.isCompleted && (s.weight != null || s.duration != null));
           if (done.length > 0) map.set(ex.exerciseId, done);
         }
       }
@@ -185,7 +204,9 @@ export default function WorkoutScreen() {
   // new field blurs the current one, which commits its value automatically.
   function focusNext() {
     const order = workout!.exercises.flatMap((ex) =>
-      ex.sets.flatMap((s) => [fieldKey(s.id, "weight"), fieldKey(s.id, "reps")])
+      isTimedExercise(ex.exercise)
+        ? ex.sets.map((s) => fieldKey(s.id, "duration"))
+        : ex.sets.flatMap((s) => [fieldKey(s.id, "weight"), fieldKey(s.id, "reps")])
     );
     const start = focusedField.current ? order.indexOf(focusedField.current) : -1;
     for (let i = start + 1; i < order.length; i++) {
@@ -222,6 +243,33 @@ export default function WorkoutScreen() {
     if (patch.isCompleted && !wasCompleted && !isDone && !isPlanned && restSeconds > 0) {
       setRestEndsAt(Date.now() + restSeconds * 1000);
     }
+  }
+
+  // The value a running stopwatch would commit right now.
+  function timedSeconds(t: { startedAt: number }): number {
+    return Math.max(0, Math.round((Date.now() - t.startedAt) / 1000));
+  }
+
+  function commitTimer(t: { exerciseId: string; setId: string; startedAt: number }) {
+    const secs = timedSeconds(t);
+    patchSet(t.exerciseId, t.setId, {
+      duration: secs > 0 ? secs : undefined,
+      isCompleted: secs > 0,
+      completedAt: secs > 0 ? new Date() : undefined,
+    });
+  }
+
+  // Play/stop on a timed set. Stopping logs the elapsed seconds and completes
+  // the set; starting a set that already has time continues from it.
+  function toggleSetTimer(exerciseId: string, setId: string, currentDuration?: number) {
+    if (timing?.setId === setId) {
+      commitTimer(timing);
+      setTiming(null);
+      return;
+    }
+    // Only one stopwatch at a time — starting another set banks the running one.
+    if (timing) commitTimer(timing);
+    setTiming({ exerciseId, setId, startedAt: Date.now() - (currentDuration ?? 0) * 1000 });
   }
 
   function addSet(exercise: WorkoutExercise) {
@@ -296,7 +344,30 @@ export default function WorkoutScreen() {
     // Sets auto-complete as they're filled in, so there's no "mark done" step to
     // nag about — finishing just saves the workout exactly as it stands. Each set
     // shows its own green check / red X in the completed view.
-    finishWith(workout!.exercises);
+    let exercises = workout!.exercises;
+    // A stopwatch still running gets banked into its set instead of lost.
+    if (timing) {
+      const secs = timedSeconds(timing);
+      exercises = exercises.map((ex) =>
+        ex.id !== timing.exerciseId
+          ? ex
+          : {
+              ...ex,
+              sets: ex.sets.map((s) =>
+                s.id !== timing.setId
+                  ? s
+                  : {
+                      ...s,
+                      duration: secs > 0 ? secs : undefined,
+                      isCompleted: secs > 0,
+                      completedAt: secs > 0 ? new Date() : undefined,
+                    }
+              ),
+            }
+      );
+      setTiming(null);
+    }
+    finishWith(exercises);
   }
 
   function resumeWorkout() {
@@ -507,6 +578,9 @@ export default function WorkoutScreen() {
                 onAddSet={() => addSet(exercise)}
                 onRemoveSet={(setId) => removeSet(exercise.id, setId)}
                 onRemove={() => removeExercise(exercise.id)}
+                timingSetId={timing?.exerciseId === exercise.id ? timing.setId : undefined}
+                timingStartedAt={timing?.exerciseId === exercise.id ? timing.startedAt : undefined}
+                onToggleTimer={(setId, duration) => toggleSetTimer(exercise.id, setId, duration)}
               />
             ))}
 
@@ -596,6 +670,9 @@ function ExerciseCard({
   onAddSet,
   onRemoveSet,
   onRemove,
+  timingSetId,
+  timingStartedAt,
+  onToggleTimer,
 }: {
   exercise: WorkoutExercise;
   prevSets?: WorkoutSet[];
@@ -609,8 +686,13 @@ function ExerciseCard({
   onAddSet: () => void;
   onRemoveSet: (setId: string) => void;
   onRemove: () => void;
+  timingSetId?: string;
+  timingStartedAt?: number;
+  onToggleTimer?: (setId: string, currentDuration?: number) => void;
 }) {
   const { unit } = useWeightUnit();
+  // Cardio and holds log a stopwatch per set instead of weight × reps.
+  const timed = isTimedExercise(exercise.exercise);
   return (
     <Card style={[styles.exerciseCard, dragActive && styles.exerciseCardDragging]}>
       <View style={styles.exerciseHeader}>
@@ -652,8 +734,17 @@ function ExerciseCard({
         <>
           <View style={styles.setHeaderRow}>
             <Text style={[styles.setHeaderCell, styles.setNumCol]}>SET</Text>
-            <Text style={[styles.setHeaderCell, styles.inputCol]}>WEIGHT ({unit.toUpperCase()})</Text>
-            <Text style={[styles.setHeaderCell, styles.inputCol]}>REPS</Text>
+            {timed ? (
+              <>
+                <Text style={[styles.setHeaderCell, styles.inputCol]}>TIME</Text>
+                <View style={styles.timerCol} />
+              </>
+            ) : (
+              <>
+                <Text style={[styles.setHeaderCell, styles.inputCol]}>WEIGHT ({unit.toUpperCase()})</Text>
+                <Text style={[styles.setHeaderCell, styles.inputCol]}>REPS</Text>
+              </>
+            )}
             <View style={styles.checkCol} />
           </View>
 
@@ -664,6 +755,9 @@ function ExerciseCard({
               set={set}
               prev={prevSets?.[i]}
               readOnly={readOnly}
+              timed={timed}
+              runningStartedAt={timingSetId === set.id ? timingStartedAt : undefined}
+              onToggleTimer={() => onToggleTimer?.(set.id, set.duration)}
               registerInput={registerInput}
               onInputFocus={onInputFocus}
               onPatch={(patch) => onPatchSet(set.id, patch)}
@@ -689,6 +783,9 @@ function SetRow({
   set,
   prev,
   readOnly,
+  timed,
+  runningStartedAt,
+  onToggleTimer,
   registerInput,
   onInputFocus,
   onPatch,
@@ -698,6 +795,10 @@ function SetRow({
   set: WorkoutSet;
   prev?: WorkoutSet;
   readOnly: boolean;
+  timed?: boolean;
+  /** Set when this row's stopwatch is running (backdated by prior duration). */
+  runningStartedAt?: number;
+  onToggleTimer?: () => void;
   registerInput?: (key: string, node: TextInput | null) => void;
   onInputFocus?: (key: string) => void;
   onPatch: (patch: Partial<WorkoutSet>) => void;
@@ -714,7 +815,19 @@ function SetRow({
 
   const [weightText, setWeightText] = useState(shownWeight != null ? String(shownWeight) : "");
   const [repsText, setRepsText] = useState(set.reps != null ? String(set.reps) : "");
+  const [durationText, setDurationText] = useState(set.duration != null ? formatClock(set.duration) : "");
   const editing = useRef(false);
+
+  // Live readout while this row's stopwatch runs.
+  const running = runningStartedAt != null;
+  const [nowMs, setNowMs] = useState(() => Date.now());
+  useEffect(() => {
+    if (!running) return;
+    setNowMs(Date.now());
+    const t = setInterval(() => setNowMs(Date.now()), 250);
+    return () => clearInterval(t);
+  }, [running]);
+  const liveSeconds = running ? Math.max(0, Math.floor((nowMs - runningStartedAt!) / 1000)) : 0;
 
   // Last session's numbers for this exercise, ghosted in empty inputs.
   const prevWeight =
@@ -727,7 +840,8 @@ function SetRow({
     if (editing.current) return;
     setWeightText(shownWeight != null ? String(shownWeight) : "");
     setRepsText(set.reps != null ? String(set.reps) : "");
-  }, [shownWeight, set.reps]);
+    setDurationText(set.duration != null ? formatClock(set.duration) : "");
+  }, [shownWeight, set.reps, set.duration]);
 
   function commit() {
     editing.current = false;
@@ -756,6 +870,22 @@ function SetRow({
     });
   }
 
+  // Manual time entry for timed sets ("1:30" or plain seconds) — an alternative
+  // to the stopwatch for logging after the fact.
+  function commitDuration() {
+    editing.current = false;
+    const baseline = set.duration != null ? formatClock(set.duration) : "";
+    if (durationText === baseline) return;
+
+    const seconds = parseDurationText(durationText);
+    const done = seconds != null && seconds > 0;
+    onPatch({
+      duration: done ? seconds : undefined,
+      isCompleted: done,
+      completedAt: done ? new Date() : undefined,
+    });
+  }
+
   return (
     // Swipe a row left to delete it — no confirmation, mirroring big fitness
     // apps. Long-press still works as a fallback gesture.
@@ -772,36 +902,72 @@ function SetRow({
       onSwipeableWillOpen={onRemove}>
       <Pressable onLongPress={readOnly ? undefined : onRemove} style={styles.setRow}>
       <Text style={[styles.setNum, styles.setNumCol]}>{index}</Text>
-      <TextInput
-        ref={(node) => registerInput?.(fieldKey(set.id, "weight"), node)}
-        style={[styles.setInput, styles.inputCol]}
-        value={weightText}
-        onFocus={() => {
-          editing.current = true;
-          onInputFocus?.(fieldKey(set.id, "weight"));
-        }}
-        onChangeText={setWeightText}
-        onEndEditing={commit}
-        keyboardType="decimal-pad"
-        placeholder={prevWeight != null ? String(prevWeight) : "—"}
-        placeholderTextColor={Palette.textTertiary}
-        editable={!readOnly}
-      />
-      <TextInput
-        ref={(node) => registerInput?.(fieldKey(set.id, "reps"), node)}
-        style={[styles.setInput, styles.inputCol]}
-        value={repsText}
-        onFocus={() => {
-          editing.current = true;
-          onInputFocus?.(fieldKey(set.id, "reps"));
-        }}
-        onChangeText={setRepsText}
-        onEndEditing={commit}
-        keyboardType="number-pad"
-        placeholder={prev?.reps != null ? String(prev.reps) : "—"}
-        placeholderTextColor={Palette.textTertiary}
-        editable={!readOnly}
-      />
+      {timed ? (
+        <>
+          {running ? (
+            <Text style={[styles.timerLive, styles.inputCol]}>{formatClock(liveSeconds)}</Text>
+          ) : (
+            <TextInput
+              ref={(node) => registerInput?.(fieldKey(set.id, "duration"), node)}
+              style={[styles.setInput, styles.inputCol]}
+              value={durationText}
+              onFocus={() => {
+                editing.current = true;
+                onInputFocus?.(fieldKey(set.id, "duration"));
+              }}
+              onChangeText={setDurationText}
+              onEndEditing={commitDuration}
+              keyboardType="numbers-and-punctuation"
+              placeholder={prev?.duration != null ? formatClock(prev.duration) : "0:00"}
+              placeholderTextColor={Palette.textTertiary}
+              editable={!readOnly}
+            />
+          )}
+          {readOnly ? (
+            <View style={styles.timerCol} />
+          ) : (
+            <Pressable
+              onPress={onToggleTimer}
+              hitSlop={6}
+              style={[styles.timerButton, running && styles.timerButtonActive]}>
+              <Ionicons name={running ? "stop" : "play"} size={15} color={running ? "#fff" : Palette.accentText} />
+            </Pressable>
+          )}
+        </>
+      ) : (
+        <>
+          <TextInput
+            ref={(node) => registerInput?.(fieldKey(set.id, "weight"), node)}
+            style={[styles.setInput, styles.inputCol]}
+            value={weightText}
+            onFocus={() => {
+              editing.current = true;
+              onInputFocus?.(fieldKey(set.id, "weight"));
+            }}
+            onChangeText={setWeightText}
+            onEndEditing={commit}
+            keyboardType="decimal-pad"
+            placeholder={prevWeight != null ? String(prevWeight) : "—"}
+            placeholderTextColor={Palette.textTertiary}
+            editable={!readOnly}
+          />
+          <TextInput
+            ref={(node) => registerInput?.(fieldKey(set.id, "reps"), node)}
+            style={[styles.setInput, styles.inputCol]}
+            value={repsText}
+            onFocus={() => {
+              editing.current = true;
+              onInputFocus?.(fieldKey(set.id, "reps"));
+            }}
+            onChangeText={setRepsText}
+            onEndEditing={commit}
+            keyboardType="number-pad"
+            placeholder={prev?.reps != null ? String(prev.reps) : "—"}
+            placeholderTextColor={Palette.textTertiary}
+            editable={!readOnly}
+          />
+        </>
+      )}
       <View style={[styles.checkCol, styles.doneMark]}>
         {set.isCompleted ? (
           // Fully logged: weight + reps.
@@ -980,6 +1146,37 @@ const styles = StyleSheet.create({
   },
   checkCol: {
     width: 34,
+  },
+  timerCol: {
+    width: 34,
+  },
+  // Same footprint as a set input, restyled as the live stopwatch readout.
+  timerLive: {
+    backgroundColor: Palette.accentSoft,
+    borderRadius: Radius.sm,
+    borderWidth: 1,
+    borderColor: Palette.accent,
+    color: Palette.accentText,
+    fontSize: 15,
+    fontWeight: "700",
+    textAlign: "center",
+    paddingVertical: 8,
+    fontVariant: ["tabular-nums"],
+    overflow: "hidden",
+  },
+  timerButton: {
+    width: 34,
+    height: 30,
+    borderRadius: Radius.sm,
+    backgroundColor: Palette.accentSoft,
+    borderWidth: 1,
+    borderColor: Palette.accent,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  timerButtonActive: {
+    backgroundColor: Palette.danger,
+    borderColor: Palette.danger,
   },
   doneMark: {
     height: 30,

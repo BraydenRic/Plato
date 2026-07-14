@@ -208,6 +208,21 @@ export const MUSCLE_GROUPS = [
   "All", "Chest", "Back", "Shoulders", "Biceps", "Triceps", "Forearms", "Legs", "Glutes", "Core", "Cardio"
 ] as const;
 
+// Built-in holds that are logged for time rather than weight × reps. Kept as an
+// id set (instead of editing every entry) because workouts embed copies of the
+// exercise object — old logs won't carry a flag, but their ids still match.
+const TIMED_EXERCISE_IDS = new Set([
+  "dead-hang", "plank", "side-plank", "hollow-hold", "farmers-carry", "plate-pinch",
+]);
+
+/** Timed exercises log a start/stop stopwatch per set: all cardio, the hold
+ *  built-ins above, and custom exercises created with the Timed option. An
+ *  explicit isTimed on the exercise (set when created/edited) wins over both. */
+export function isTimedExercise(exercise: Exercise): boolean {
+  if (exercise.isTimed != null) return exercise.isTimed;
+  return exercise.category === "Cardio" || TIMED_EXERCISE_IDS.has(exercise.id);
+}
+
 export const WORKOUT_TEMPLATES = [
   {
     name: "Push Day",
