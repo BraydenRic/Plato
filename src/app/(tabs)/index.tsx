@@ -32,13 +32,23 @@ import {
   workoutDay,
   workoutVolumeLbs,
 } from "@/lib/workout-utils";
+import { useWeeklyPlan } from "@/hooks/use-weekly-plan";
 import type { Workout } from "@/types";
 
 export default function WorkoutsScreen() {
   const router = useRouter();
   const { user } = useAuth();
   const { loading, error, active, planned, completed, templates } = useWorkouts();
+  const { plan, assignDay } = useWeeklyPlan();
   const [starting, setStarting] = useState(false);
+
+  // Quick lookup so weekday → template resolves by id, and stale ids (deleted
+  // templates) simply resolve to nothing.
+  const templateById = useMemo(() => new Map(templates.map((t) => [t.id, t])), [templates]);
+  const templateForDay = (day: Date) => {
+    const id = plan[day.getDay()];
+    return id ? templateById.get(id) : undefined;
+  };
 
   // 0 = this week; −1 last week; +1 next week. Any offset works — chevrons
   // just walk the calendar, so all history stays reachable from the strip too.
@@ -61,6 +71,9 @@ export default function WorkoutsScreen() {
         .sort((a, b) => workoutDay(a).getTime() - workoutDay(b).getTime()),
     [dated, selectedDay]
   );
+  // The weekly-split template for the selected day, shown as a ghost suggestion
+  // only when nothing real is on that day yet.
+  const daySuggestion = dayWorkouts.length === 0 ? templateForDay(selectedDay) : undefined;
 
   function shiftWeek(delta: number) {
     const next = weekOffset + delta;
@@ -201,6 +214,27 @@ export default function WorkoutsScreen() {
     }
   }
 
+  // Turn a weekly-split suggestion into a real workout for the selected day,
+  // following the same start-today / plan-ahead / log-past rule as templates.
+  function materializeSplit(template: Workout) {
+    if (selectedIsToday) beginTemplate(template);
+    else planFromTemplate(template, selectedDay, !selectedIsFuture);
+  }
+
+  function editSplitDay(day: Date) {
+    const weekday = day.getDay();
+    const label = day.toLocaleDateString(undefined, { weekday: "long" });
+    if (templates.length === 0) {
+      Alert.alert("No templates yet", "Create a template first, then assign it to a day.");
+      return;
+    }
+    Alert.alert(label, "Pick a template for this day, or set it as rest.", [
+      { text: "Cancel", style: "cancel" },
+      { text: "Rest (no workout)", onPress: () => assignDay(weekday, null) },
+      ...templates.map((t) => ({ text: t.name, onPress: () => assignDay(weekday, t.id) })),
+    ]);
+  }
+
   function confirmDelete(workout: Workout) {
     Alert.alert(
       workout.isTemplate ? "Delete template?" : "Delete workout?",
@@ -291,6 +325,9 @@ export default function WorkoutsScreen() {
                         ]}
                       />
                     ))}
+                    {/* Hollow dot marks a day the weekly split suggests but that
+                        has no real workout yet. */}
+                    {dayItems.length === 0 && templateForDay(day) && <View style={styles.dotGhost} />}
                   </View>
                 </Pressable>
               );
@@ -301,15 +338,31 @@ export default function WorkoutsScreen() {
           <View style={styles.dayPanel}>
             <Text style={styles.dayPanelTitle}>{relativeDay(selectedDay)}</Text>
 
-            {dayWorkouts.length === 0 && (
-              <Text style={styles.dayPanelEmpty}>
-                {selectedIsFuture
-                  ? "Nothing planned yet."
-                  : selectedIsToday
-                    ? "Nothing logged today."
-                    : "Rest day."}
-              </Text>
-            )}
+            {dayWorkouts.length === 0 &&
+              (daySuggestion ? (
+                <Pressable style={styles.ghostRow} onPress={() => materializeSplit(daySuggestion)}>
+                  <View style={styles.ghostBadge}>
+                    <Ionicons name="repeat" size={15} color={Palette.accentText} />
+                  </View>
+                  <View style={{ flex: 1, gap: 2 }}>
+                    <Text style={styles.rowTitle}>{daySuggestion.name}</Text>
+                    <Text style={styles.rowMeta}>
+                      From your weekly split · {totalSetCount(daySuggestion)} sets
+                    </Text>
+                  </View>
+                  <Text style={styles.ghostAction}>
+                    {selectedIsToday ? "Start" : selectedIsFuture ? "Plan" : "Log"}
+                  </Text>
+                </Pressable>
+              ) : (
+                <Text style={styles.dayPanelEmpty}>
+                  {selectedIsFuture
+                    ? "Nothing planned yet."
+                    : selectedIsToday
+                      ? "Nothing logged today."
+                      : "Rest day."}
+                </Text>
+              ))}
             {dayWorkouts.map((w) => (
               <WorkoutRow
                 key={w.id}
@@ -343,6 +396,34 @@ export default function WorkoutsScreen() {
 
         {loading && <ActivityIndicator color={Palette.accent} style={{ marginTop: Spacing.five }} />}
         {error && !loading && <EmptyState title="Couldn't load workouts" message={error} />}
+
+        {/* ── Weekly split: a recurring template per weekday, suggested on the
+            calendar above. Tap a day to assign a template or set it to rest. ── */}
+        <View style={styles.section}>
+          <View style={styles.sectionHeader}>
+            <SectionLabel>Weekly split</SectionLabel>
+            <Text style={styles.splitHint}>Repeats every week</Text>
+          </View>
+          <Card style={styles.splitCard}>
+            {weekDays.map((day, i) => {
+              const t = templateForDay(day);
+              return (
+                <Pressable
+                  key={day.getDay()}
+                  onPress={() => editSplitDay(day)}
+                  style={[styles.splitRow, i > 0 && styles.splitRowBorder]}>
+                  <Text style={styles.splitDay}>
+                    {day.toLocaleDateString(undefined, { weekday: "long" })}
+                  </Text>
+                  <Text style={[styles.splitTemplate, !t && styles.splitRest]} numberOfLines={1}>
+                    {t ? t.name : "Rest"}
+                  </Text>
+                  <Ionicons name="chevron-forward" size={16} color={Palette.textTertiary} />
+                </Pressable>
+              );
+            })}
+          </Card>
+        </View>
 
         {active.length > 0 && (
           <View style={styles.section}>
@@ -602,6 +683,70 @@ const styles = StyleSheet.create({
   dotPlanned: {
     borderWidth: 1,
     borderColor: Palette.accentText,
+  },
+  dotGhost: {
+    width: 5,
+    height: 5,
+    borderRadius: 3,
+    borderWidth: 1,
+    borderColor: Palette.textTertiary,
+  },
+  ghostRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.three,
+    backgroundColor: Palette.accentSoft,
+    borderWidth: 1,
+    borderColor: Palette.accent,
+    borderStyle: "dashed",
+    borderRadius: Radius.md,
+    padding: Spacing.three,
+  },
+  ghostBadge: {
+    width: 32,
+    height: 32,
+    borderRadius: Radius.full,
+    backgroundColor: Palette.surface,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  ghostAction: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: Palette.accentText,
+  },
+  splitHint: {
+    fontSize: 12,
+    color: Palette.textTertiary,
+  },
+  splitCard: {
+    paddingVertical: 0,
+  },
+  splitRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.three,
+    paddingVertical: Spacing.three,
+  },
+  splitRowBorder: {
+    borderTopWidth: 1,
+    borderTopColor: Palette.border,
+  },
+  splitDay: {
+    width: 88,
+    fontSize: 14,
+    fontWeight: "600",
+    color: Palette.textSecondary,
+  },
+  splitTemplate: {
+    flex: 1,
+    fontSize: 15,
+    fontWeight: "600",
+    color: Palette.text,
+  },
+  splitRest: {
+    color: Palette.textTertiary,
+    fontWeight: "500",
   },
   dayPanel: {
     gap: Spacing.two,

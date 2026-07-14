@@ -139,6 +139,33 @@ export async function updateExerciseLibrary(userId: string, library: ExerciseLib
   await setDoc(doc(db, "exerciseLibrary", userId), { userId, ...library }, { merge: true });
 }
 
+// ── Weekly split ────────────────────────────────────────────────────────────
+// A recurring weekday → template map. Purely a suggestion layer: it never
+// creates workout docs on its own, so it adds zero ongoing writes. Indexed by
+// JS getDay() (0 = Sunday … 6 = Saturday); null means a rest day.
+export type WeeklyPlan = (string | null)[];
+
+const EMPTY_WEEKLY_PLAN: WeeklyPlan = [null, null, null, null, null, null, null];
+
+export function subscribeWeeklyPlan(
+  userId: string,
+  onChange: (plan: WeeklyPlan) => void
+): () => void {
+  return onSnapshot(doc(db, "weeklyPlans", userId), (snap) => {
+    const stored = (snap.data()?.days as (string | null)[] | undefined) ?? [];
+    // Normalize to exactly 7 slots so callers can index by weekday safely.
+    onChange(Array.from({ length: 7 }, (_, i) => stored[i] ?? null));
+  });
+}
+
+export async function setWeeklyPlan(userId: string, days: WeeklyPlan): Promise<void> {
+  // Arrays are replaced wholesale on merge (not deep-merged), so writing the
+  // full 7-slot array both assigns and clears days in one call.
+  await setDoc(doc(db, "weeklyPlans", userId), { userId, days }, { merge: true });
+}
+
+export { EMPTY_WEEKLY_PLAN };
+
 // Reopen a finished workout so an accidental finish can be undone or missed
 // sets filled in. A workout finished today resumes as a live session; one from
 // a past day becomes a backlog edit anchored to its original calendar day, so
