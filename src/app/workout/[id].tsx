@@ -2,7 +2,6 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
-  InputAccessoryView,
   Keyboard,
   KeyboardAvoidingView,
   Platform,
@@ -40,9 +39,6 @@ function toDate(val: unknown): Date | undefined {
   return undefined;
 }
 
-// Ties every set input to one keyboard toolbar (iOS) so its "Next" button can
-// jump weight → reps → next set's weight across the whole workout.
-const KEYPAD_ACCESSORY_ID = "workoutKeypad";
 const fieldKey = (setId: string, field: "weight" | "reps") => `${setId}:${field}`;
 
 export default function WorkoutScreen() {
@@ -63,10 +59,21 @@ export default function WorkoutScreen() {
   // focused, so the keyboard's "Next" button can advance to the following field.
   const inputRefs = useRef(new Map<string, TextInput>());
   const focusedField = useRef<string | null>(null);
+  // Drives the Done/Next bar pinned above the numeric keypad. It's a plain view
+  // (not InputAccessoryView, which doesn't render on the new architecture) so it
+  // only appears while a set input is focused.
+  const [keypadOpen, setKeypadOpen] = useState(false);
   const registerInput = (key: string, node: TextInput | null) => {
     if (node) inputRefs.current.set(key, node);
     else inputRefs.current.delete(key);
   };
+
+  // The bar hides whenever the keyboard goes away, however it was dismissed.
+  useEffect(() => {
+    const event = Platform.OS === "ios" ? "keyboardWillHide" : "keyboardDidHide";
+    const sub = Keyboard.addListener(event, () => setKeypadOpen(false));
+    return () => sub.remove();
+  }, []);
 
   // Live doc subscription: picks up exercises added from the modal instantly.
   useEffect(() => {
@@ -454,6 +461,9 @@ export default function WorkoutScreen() {
             <TextInput
               style={styles.title}
               value={workout.name}
+              // The title uses the text keyboard — hopping here from a set input
+              // swaps keyboards without a hide event, so drop the bar manually.
+              onFocus={() => setKeypadOpen(false)}
               onChangeText={(name) => setWorkout({ ...workout, name })}
               onEndEditing={(e) => {
                 const name = e.nativeEvent.text.trim() || "Workout";
@@ -489,7 +499,10 @@ export default function WorkoutScreen() {
                 prevSets={previousSets.get(exercise.exerciseId)}
                 readOnly={isDone}
                 registerInput={registerInput}
-                onInputFocus={(key) => (focusedField.current = key)}
+                onInputFocus={(key) => {
+                  focusedField.current = key;
+                  setKeypadOpen(true);
+                }}
                 onPatchSet={(setId, patch) => patchSet(exercise.id, setId, patch)}
                 onAddSet={() => addSet(exercise)}
                 onRemoveSet={(setId) => removeSet(exercise.id, setId)}
@@ -548,20 +561,20 @@ export default function WorkoutScreen() {
           )}
         </View>
 
-        {/* Numeric keypads have no return key, so give the set inputs a toolbar
-            with Next (advance to the following field) and Done (dismiss). */}
-        {Platform.OS === "ios" && !isDone && !isTemplate && (
-          <InputAccessoryView nativeID={KEYPAD_ACCESSORY_ID}>
-            <View style={styles.keypadBar}>
-              <Pressable onPress={() => Keyboard.dismiss()} hitSlop={8}>
-                <Text style={styles.keypadDone}>Done</Text>
-              </Pressable>
-              <Pressable onPress={focusNext} hitSlop={8} style={styles.keypadNext}>
-                <Text style={styles.keypadNextText}>Next</Text>
-                <Ionicons name="arrow-forward" size={16} color={Palette.accentText} />
-              </Pressable>
-            </View>
-          </InputAccessoryView>
+        {/* Numeric keypads have no return key, so pin a toolbar above the
+            keyboard with Next (advance to the following field) and Done. This
+            is the last child of the KeyboardAvoidingView, so its padding keeps
+            the bar sitting directly on top of the keypad. */}
+        {keypadOpen && !isDone && !isTemplate && (
+          <View style={styles.keypadBar}>
+            <Pressable onPress={() => Keyboard.dismiss()} hitSlop={8}>
+              <Text style={styles.keypadDone}>Done</Text>
+            </Pressable>
+            <Pressable onPress={focusNext} hitSlop={8} style={styles.keypadNext}>
+              <Text style={styles.keypadNextText}>Next</Text>
+              <Ionicons name="arrow-forward" size={16} color={Palette.accentText} />
+            </Pressable>
+          </View>
         )}
       </KeyboardAvoidingView>
     </SafeAreaView>
@@ -770,7 +783,6 @@ function SetRow({
         onChangeText={setWeightText}
         onEndEditing={commit}
         keyboardType="decimal-pad"
-        inputAccessoryViewID={Platform.OS === "ios" ? KEYPAD_ACCESSORY_ID : undefined}
         placeholder={prevWeight != null ? String(prevWeight) : "—"}
         placeholderTextColor={Palette.textTertiary}
         editable={!readOnly}
@@ -786,7 +798,6 @@ function SetRow({
         onChangeText={setRepsText}
         onEndEditing={commit}
         keyboardType="number-pad"
-        inputAccessoryViewID={Platform.OS === "ios" ? KEYPAD_ACCESSORY_ID : undefined}
         placeholder={prev?.reps != null ? String(prev.reps) : "—"}
         placeholderTextColor={Palette.textTertiary}
         editable={!readOnly}
@@ -795,8 +806,10 @@ function SetRow({
         {set.isCompleted ? (
           // Fully logged: weight + reps.
           <Ionicons name="checkmark-circle" size={20} color={Palette.success} />
-        ) : set.weight != null || set.reps != null ? (
-          // Something was entered but it's missing a weight or valid reps.
+        ) : set.weight != null || set.reps != null || readOnly ? (
+          // Half-filled while logging, or any unfinished set once the workout
+          // is completed (readOnly). Resuming clears the X on empty sets since
+          // they're editable again.
           <Ionicons name="close-circle" size={20} color={Palette.danger} />
         ) : null}
       </View>
