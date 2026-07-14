@@ -754,6 +754,7 @@ function ExerciseCard({
               index={i + 1}
               set={set}
               prev={prevSets?.[i]}
+              before={i > 0 ? exercise.sets[i - 1] : undefined}
               readOnly={readOnly}
               timed={timed}
               runningStartedAt={timingSetId === set.id ? timingStartedAt : undefined}
@@ -782,6 +783,7 @@ function SetRow({
   index,
   set,
   prev,
+  before,
   readOnly,
   timed,
   runningStartedAt,
@@ -794,6 +796,8 @@ function SetRow({
   index: number;
   set: WorkoutSet;
   prev?: WorkoutSet;
+  /** The set directly above this one in the workout — the copy button's source. */
+  before?: WorkoutSet;
   readOnly: boolean;
   timed?: boolean;
   /** Set when this row's stopwatch is running (backdated by prior duration). */
@@ -868,6 +872,25 @@ function SetRow({
       isCompleted: done,
       completedAt: done ? new Date() : undefined,
     });
+  }
+
+  // Copy button: an untouched set right after a completed one repeats it in one
+  // tap — same weight and reps (or time), marked done.
+  const untouched = !set.isCompleted && set.weight == null && set.reps == null && set.duration == null;
+  const canCopyBefore = !readOnly && !running && untouched && !!before?.isCompleted;
+  function copyBefore() {
+    editing.current = false;
+    onPatch(
+      timed
+        ? { duration: before!.duration, isCompleted: true, completedAt: new Date() }
+        : {
+            weight: before!.weight,
+            weightUnit: before!.weightUnit,
+            reps: before!.reps,
+            isCompleted: true,
+            completedAt: new Date(),
+          }
+    );
   }
 
   // Manual time entry for timed sets ("1:30" or plain seconds) — an alternative
@@ -977,6 +1000,11 @@ function SetRow({
           // is completed (readOnly). Resuming clears the X on empty sets since
           // they're editable again.
           <Ionicons name="close-circle" size={20} color={Palette.danger} />
+        ) : canCopyBefore ? (
+          // One tap repeats the set above (same numbers, marked done).
+          <Pressable onPress={copyBefore} hitSlop={8}>
+            <Ionicons name="copy-outline" size={18} color={Palette.textSecondary} />
+          </Pressable>
         ) : null}
       </View>
       </Pressable>
