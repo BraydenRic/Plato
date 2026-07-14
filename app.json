@@ -57,7 +57,13 @@
           }
         }
       ],
-      "expo-apple-authentication"
+      "expo-apple-authentication",
+      [
+        "expo-live-activity",
+        {
+          "silentOnUnsupportedOS": true
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true,

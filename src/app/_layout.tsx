@@ -5,6 +5,7 @@ import { useEffect } from "react";
 import { View } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 
+import { LiveActivitySync } from "@/components/live-activity-sync";
 import { AuthProvider, useAuth } from "@/context/AuthContext";
 import { RestTimerProvider } from "@/context/RestTimerContext";
 import { DefaultSetsProvider } from "@/context/DefaultSetsContext";
@@ -54,6 +55,7 @@ export default function RootLayout() {
           <RestTimerProvider>
             <DefaultSetsProvider>
               <StatusBar style="light" />
+              <LiveActivitySync />
               <RootNavigator />
             </DefaultSetsProvider>
           </RestTimerProvider>
