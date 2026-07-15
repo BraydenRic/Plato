@@ -10,10 +10,18 @@ import {
   updateProfile,
   signOut as firebaseSignOut,
 } from "firebase/auth";
-import { appleSignInSupported, signInWithApple as appleSignIn } from "@/lib/apple-signin";
+import {
+  appleSignInSupported,
+  reauthenticateWithApple,
+  signInWithApple as appleSignIn,
+} from "@/lib/apple-signin";
 import { auth } from "@/lib/firebase";
 import { deleteAllUserData } from "@/lib/firestore";
-import { googleSignInAvailable, signInWithGoogle as googleSignIn } from "@/lib/google-signin";
+import {
+  googleSignInAvailable,
+  reauthenticateWithGoogle,
+  signInWithGoogle as googleSignIn,
+} from "@/lib/google-signin";
 
 interface AuthContextType {
   user: User | null;
@@ -31,8 +39,12 @@ interface AuthContextType {
   signOut: () => Promise<void>;
   /** Updates the profile display name and refreshes it in the UI immediately. */
   updateDisplayName: (name: string) => Promise<void>;
-  /** Permanently removes the user's data and auth account. Needs their password. */
-  deleteAccount: (password: string) => Promise<void>;
+  /**
+   * Permanently removes the user's data and auth account. Password users must
+   * pass their password; Apple/Google users re-run their native sign-in sheet
+   * instead. Resolves false if they dismissed that sheet (nothing deleted).
+   */
+  deleteAccount: (password?: string) => Promise<boolean>;
 }
 
 const AuthContext = createContext<AuthContextType>({
@@ -46,7 +58,7 @@ const AuthContext = createContext<AuthContextType>({
   canUseApple: false,
   signOut: async () => {},
   updateDisplayName: async () => {},
-  deleteAccount: async () => {},
+  deleteAccount: async () => false,
 });
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
@@ -98,17 +110,28 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setUser({ ...current, displayName: trimmed } as User);
   }
 
-  async function deleteAccount(password: string) {
+  async function deleteAccount(password?: string) {
     const current = auth.currentUser;
-    if (!current?.email) throw new Error("No signed-in account.");
-    // Firebase refuses to delete stale sessions; re-verify the password first
-    // so the data wipe never runs unless the account deletion can follow.
-    await reauthenticateWithCredential(
-      current,
-      EmailAuthProvider.credential(current.email, password)
-    );
+    if (!current) throw new Error("No signed-in account.");
+    // Firebase refuses to delete stale sessions; re-verify identity first so
+    // the data wipe never runs unless the account deletion can follow. How we
+    // re-verify depends on how they signed in — Apple/Google accounts have no
+    // password, so they confirm through their native sign-in sheet instead.
+    const providers = current.providerData.map((p) => p.providerId);
+    if (providers.includes("password")) {
+      if (!current.email) throw new Error("No email on this account.");
+      await reauthenticateWithCredential(
+        current,
+        EmailAuthProvider.credential(current.email, password ?? "")
+      );
+    } else if (providers.includes("apple.com")) {
+      if (!(await reauthenticateWithApple(current))) return false;
+    } else if (providers.includes("google.com")) {
+      if (!(await reauthenticateWithGoogle(current))) return false;
+    }
     await deleteAllUserData(current.uid);
     await deleteUser(current);
+    return true;
   }
 
   return (

@@ -61,7 +61,26 @@ export default function ProfileScreen() {
   }
 
   // App Store guideline 5.1.1: apps with account creation must offer in-app
-  // account deletion. Password re-entry guards against a stolen unlocked phone.
+  // account deletion. Re-verifying identity guards against a stolen unlocked
+  // phone — password users retype their password, but Apple/Google accounts
+  // have no password, so they confirm through their native sign-in sheet.
+  const providerIds = user?.providerData.map((p) => p.providerId) ?? [];
+  const hasPassword = providerIds.includes("password");
+  const socialName = providerIds.includes("apple.com") ? "Apple" : "Google";
+
+  async function runDeleteAccount(password?: string) {
+    try {
+      await deleteAccount(password);
+    } catch {
+      Alert.alert(
+        "Couldn't delete account",
+        hasPassword
+          ? "Check your password and connection, then try again."
+          : `We couldn't confirm it's you. Make sure you pick the same ${socialName} account you signed up with, then try again.`
+      );
+    }
+  }
+
   function confirmDeleteAccount() {
     Alert.alert(
       "Delete account?",
@@ -72,28 +91,32 @@ export default function ProfileScreen() {
           text: "Continue",
           style: "destructive",
           onPress: () =>
-            Alert.prompt(
-              "Confirm your password",
-              "Enter your password to permanently delete your account.",
-              [
-                { text: "Cancel", style: "cancel" },
-                {
-                  text: "Delete forever",
-                  style: "destructive",
-                  onPress: async (password?: string) => {
-                    try {
-                      await deleteAccount(password ?? "");
-                    } catch {
-                      Alert.alert(
-                        "Couldn't delete account",
-                        "Check your password and connection, then try again."
-                      );
-                    }
-                  },
-                },
-              ],
-              "secure-text"
-            ),
+            hasPassword
+              ? Alert.prompt(
+                  "Confirm your password",
+                  "Enter your password to permanently delete your account.",
+                  [
+                    { text: "Cancel", style: "cancel" },
+                    {
+                      text: "Delete forever",
+                      style: "destructive",
+                      onPress: (password?: string) => runDeleteAccount(password),
+                    },
+                  ],
+                  "secure-text"
+                )
+              : Alert.alert(
+                  "Confirm it's you",
+                  `You'll sign in with ${socialName} one more time to confirm, then your account is permanently deleted.`,
+                  [
+                    { text: "Cancel", style: "cancel" },
+                    {
+                      text: "Delete forever",
+                      style: "destructive",
+                      onPress: () => runDeleteAccount(),
+                    },
+                  ]
+                ),
         },
       ]
     );

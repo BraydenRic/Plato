@@ -1,5 +1,11 @@
 import Constants, { ExecutionEnvironment } from "expo-constants";
-import { GoogleAuthProvider, signInWithCredential, type UserCredential } from "firebase/auth";
+import {
+  GoogleAuthProvider,
+  reauthenticateWithCredential,
+  signInWithCredential,
+  type User,
+  type UserCredential,
+} from "firebase/auth";
 import { auth } from "./firebase";
 
 // Expo Go ships a fixed set of native modules, and Google Sign-In isn't one of
@@ -26,11 +32,11 @@ function nativeModule(): typeof import("@react-native-google-signin/google-signi
 }
 
 /**
- * Runs the native Google sign-in flow, then exchanges the Google ID token for
- * a Firebase session. Resolves to null if the user dismissed the Google sheet
- * (not an error — the caller should just do nothing).
+ * Runs the native Google picker and returns a fresh Firebase ID token, or
+ * null if the user dismissed the picker (not an error — callers should just
+ * do nothing).
  */
-export async function signInWithGoogle(): Promise<UserCredential | null> {
+async function getGoogleIdToken(): Promise<string | null> {
   if (!googleSignInAvailable) {
     throw new Error("Google sign-in needs a development build — it can't run inside Expo Go.");
   }
@@ -68,11 +74,34 @@ export async function signInWithGoogle(): Promise<UserCredential | null> {
       throw new Error("Google returned no ID token — check that the web client ID is correct.");
     }
 
-    return await signInWithCredential(auth, GoogleAuthProvider.credential(idToken));
+    return idToken;
   } catch (e) {
     if (isErrorWithCode(e) && e.code === statusCodes.SIGN_IN_CANCELLED) {
       return null;
     }
     throw e;
   }
+}
+
+/**
+ * Runs the native Google sign-in flow, then exchanges the Google ID token for
+ * a Firebase session. Resolves to null if the user dismissed the Google sheet
+ * (not an error — the caller should just do nothing).
+ */
+export async function signInWithGoogle(): Promise<UserCredential | null> {
+  const idToken = await getGoogleIdToken();
+  if (!idToken) return null;
+  return signInWithCredential(auth, GoogleAuthProvider.credential(idToken));
+}
+
+/**
+ * Re-verifies a Google-signed-in user before a sensitive operation (account
+ * deletion) by running the Google picker again — these users have no password
+ * to type. Resolves false if they dismissed the picker.
+ */
+export async function reauthenticateWithGoogle(user: User): Promise<boolean> {
+  const idToken = await getGoogleIdToken();
+  if (!idToken) return false;
+  await reauthenticateWithCredential(user, GoogleAuthProvider.credential(idToken));
+  return true;
 }
