@@ -15,7 +15,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import DraggableFlatList, { ScaleDecorator } from "react-native-draggable-flatlist";
 import ReanimatedSwipeable from "react-native-gesture-handler/ReanimatedSwipeable";
-import { useLocalSearchParams, useRouter } from "expo-router";
+import { useLocalSearchParams, useRouter, type ErrorBoundaryProps } from "expo-router";
 import { doc, onSnapshot } from "firebase/firestore";
 import Ionicons from "@expo/vector-icons/Ionicons";
 
@@ -55,6 +55,22 @@ function parseDurationText(text: string): number | undefined {
   }
   const n = Number(t.replace(",", "."));
   return Number.isFinite(n) ? Math.max(0, Math.round(n)) : undefined;
+}
+
+// A render error here used to hard-crash the whole app. Show the actual error
+// instead — recoverable for the user, and the message pinpoints the bug for us.
+export function ErrorBoundary({ error, retry }: ErrorBoundaryProps) {
+  return (
+    <SafeAreaView style={[styles.safe, { padding: Spacing.three, justifyContent: "center", gap: Spacing.three }]}>
+      <Text style={{ fontSize: 20, fontWeight: "800", color: Palette.text, textAlign: "center" }}>
+        Something went wrong
+      </Text>
+      <Text style={{ fontSize: 13, color: Palette.textSecondary, textAlign: "center" }} selectable>
+        {error.message}
+      </Text>
+      <Button title="Try again" variant="secondary" onPress={retry} />
+    </SafeAreaView>
+  );
 }
 
 export default function WorkoutScreen() {

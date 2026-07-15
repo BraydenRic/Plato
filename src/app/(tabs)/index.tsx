@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
+  Modal,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -35,12 +36,24 @@ import {
 import { useWeeklyPlan } from "@/hooks/use-weekly-plan";
 import type { Workout } from "@/types";
 
+// Bottom-sheet template picker. Alerts cap out fast with many templates — this
+// scrolls, shows exercise counts, and marks the current choice.
+type PickerOption = {
+  key: string;
+  label: string;
+  hint?: string;
+  active?: boolean;
+  onPress: () => void;
+};
+type PickerConfig = { title: string; subtitle?: string; options: PickerOption[] };
+
 export default function WorkoutsScreen() {
   const router = useRouter();
   const { user } = useAuth();
   const { loading, error, active, planned, completed, templates } = useWorkouts();
   const { plan, assignDay } = useWeeklyPlan();
   const [starting, setStarting] = useState(false);
+  const [picker, setPicker] = useState<PickerConfig | null>(null);
 
   // Quick lookup so weekday → template resolves by id, and stale ids (deleted
   // templates) simply resolve to nothing.
@@ -165,15 +178,19 @@ export default function WorkoutsScreen() {
       return;
     }
     const isPast = day.getTime() < today.getTime();
-    Alert.alert(
-      `${isPast ? "Log for" : "Plan for"} ${relativeDay(day)}`,
-      "Start from scratch or use a template.",
-      [
-        { text: "Cancel", style: "cancel" },
-        { text: "Empty workout", onPress: () => planEmpty(day) },
-        ...templates.map((t) => ({ text: t.name, onPress: () => planFromTemplate(t, day) })),
-      ]
-    );
+    setPicker({
+      title: `${isPast ? "Log for" : "Plan for"} ${relativeDay(day)}`,
+      subtitle: "Start from scratch or use a template.",
+      options: [
+        { key: "empty", label: "Empty workout", onPress: () => planEmpty(day) },
+        ...templates.map((t) => ({
+          key: t.id,
+          label: t.name,
+          hint: templateMeta(t),
+          onPress: () => planFromTemplate(t, day),
+        })),
+      ],
+    });
   }
 
   async function beginTemplate(template: Workout) {
@@ -223,16 +240,33 @@ export default function WorkoutsScreen() {
 
   function editSplitDay(day: Date) {
     const weekday = day.getDay();
-    const label = day.toLocaleDateString(undefined, { weekday: "long" });
     if (templates.length === 0) {
       Alert.alert("No templates yet", "Create a template first, then assign it to a day.");
       return;
     }
-    Alert.alert(label, "Pick a template for this day, or set it as rest.", [
-      { text: "Cancel", style: "cancel" },
-      { text: "Rest (no workout)", onPress: () => assignDay(weekday, null) },
-      ...templates.map((t) => ({ text: t.name, onPress: () => assignDay(weekday, t.id) })),
-    ]);
+    setPicker({
+      title: day.toLocaleDateString(undefined, { weekday: "long" }),
+      subtitle: "Pick a template for this day, or set it as rest.",
+      options: [
+        {
+          key: "rest",
+          label: "Rest (no workout)",
+          active: plan[weekday] == null,
+          onPress: () => assignDay(weekday, null),
+        },
+        ...templates.map((t) => ({
+          key: t.id,
+          label: t.name,
+          hint: templateMeta(t),
+          active: plan[weekday] === t.id,
+          onPress: () => assignDay(weekday, t.id),
+        })),
+      ],
+    });
+  }
+
+  function templateMeta(t: Workout): string {
+    return `${t.exercises.length} exercise${t.exercises.length === 1 ? "" : "s"} · ${totalSetCount(t)} sets`;
   }
 
   function confirmDelete(workout: Workout) {
@@ -397,34 +431,6 @@ export default function WorkoutsScreen() {
         {loading && <ActivityIndicator color={Palette.accent} style={{ marginTop: Spacing.five }} />}
         {error && !loading && <EmptyState title="Couldn't load workouts" message={error} />}
 
-        {/* ── Weekly split: a recurring template per weekday, suggested on the
-            calendar above. Tap a day to assign a template or set it to rest. ── */}
-        <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <SectionLabel>Weekly split</SectionLabel>
-            <Text style={styles.splitHint}>Repeats every week</Text>
-          </View>
-          <Card style={styles.splitCard}>
-            {weekDays.map((day, i) => {
-              const t = templateForDay(day);
-              return (
-                <Pressable
-                  key={day.getDay()}
-                  onPress={() => editSplitDay(day)}
-                  style={[styles.splitRow, i > 0 && styles.splitRowBorder]}>
-                  <Text style={styles.splitDay}>
-                    {day.toLocaleDateString(undefined, { weekday: "long" })}
-                  </Text>
-                  <Text style={[styles.splitTemplate, !t && styles.splitRest]} numberOfLines={1}>
-                    {t ? t.name : "Rest"}
-                  </Text>
-                  <Ionicons name="chevron-forward" size={16} color={Palette.textTertiary} />
-                </Pressable>
-              );
-            })}
-          </Card>
-        </View>
-
         {active.length > 0 && (
           <View style={styles.section}>
             <SectionLabel>In progress</SectionLabel>
@@ -483,6 +489,34 @@ export default function WorkoutsScreen() {
           )}
         </View>
 
+        {/* ── Weekly split: a recurring template per weekday, suggested on the
+            calendar above. Sits below Templates since those get daily use. ── */}
+        <View style={styles.section}>
+          <View style={styles.sectionHeader}>
+            <SectionLabel>Weekly split</SectionLabel>
+            <Text style={styles.splitHint}>Repeats every week</Text>
+          </View>
+          <Card style={styles.splitCard}>
+            {weekDays.map((day, i) => {
+              const t = templateForDay(day);
+              return (
+                <Pressable
+                  key={day.getDay()}
+                  onPress={() => editSplitDay(day)}
+                  style={[styles.splitRow, i > 0 && styles.splitRowBorder]}>
+                  <Text style={styles.splitDay}>
+                    {day.toLocaleDateString(undefined, { weekday: "long" })}
+                  </Text>
+                  <Text style={[styles.splitTemplate, !t && styles.splitRest]} numberOfLines={1}>
+                    {t ? t.name : "Rest"}
+                  </Text>
+                  <Ionicons name="chevron-forward" size={16} color={Palette.textTertiary} />
+                </Pressable>
+              );
+            })}
+          </Card>
+        </View>
+
         <View style={styles.section}>
           <SectionLabel>History</SectionLabel>
           {!loading && completed.length === 0 ? (
@@ -508,6 +542,39 @@ export default function WorkoutsScreen() {
           )}
         </View>
       </ScrollView>
+
+      {/* Template picker sheet — scrolls, so any number of templates fits. */}
+      <Modal
+        visible={picker != null}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setPicker(null)}>
+        <Pressable style={styles.sheetBackdrop} onPress={() => setPicker(null)} />
+        <View style={styles.sheet}>
+          <View style={styles.sheetHandle} />
+          <Text style={styles.sheetTitle}>{picker?.title}</Text>
+          {picker?.subtitle ? <Text style={styles.sheetSubtitle}>{picker.subtitle}</Text> : null}
+          <ScrollView contentContainerStyle={styles.sheetList} showsVerticalScrollIndicator>
+            {picker?.options.map((o) => (
+              <Pressable
+                key={o.key}
+                style={[styles.sheetOption, o.active && styles.sheetOptionActive]}
+                onPress={() => {
+                  setPicker(null);
+                  o.onPress();
+                }}>
+                <View style={{ flex: 1, gap: 2 }}>
+                  <Text style={[styles.sheetOptionLabel, o.active && styles.sheetOptionLabelActive]}>
+                    {o.label}
+                  </Text>
+                  {o.hint ? <Text style={styles.sheetOptionHint}>{o.hint}</Text> : null}
+                </View>
+                {o.active && <Ionicons name="checkmark" size={18} color={Palette.accentText} />}
+              </Pressable>
+            ))}
+          </ScrollView>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -859,5 +926,73 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     letterSpacing: 1,
     color: Palette.accentText,
+  },
+  sheetBackdrop: {
+    flex: 1,
+    backgroundColor: "rgba(0, 0, 0, 0.55)",
+  },
+  sheet: {
+    backgroundColor: Palette.surface,
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    borderWidth: 1,
+    borderBottomWidth: 0,
+    borderColor: Palette.border,
+    paddingTop: Spacing.two,
+    paddingHorizontal: Spacing.three,
+    // Clears the home indicator; the list scrolls once it outgrows the sheet.
+    paddingBottom: Spacing.five,
+    maxHeight: "70%",
+  },
+  sheetHandle: {
+    alignSelf: "center",
+    width: 36,
+    height: 4,
+    borderRadius: Radius.full,
+    backgroundColor: Palette.border,
+    marginBottom: Spacing.two,
+  },
+  sheetTitle: {
+    fontSize: 17,
+    fontWeight: "800",
+    color: Palette.text,
+    letterSpacing: -0.3,
+  },
+  sheetSubtitle: {
+    fontSize: 13,
+    color: Palette.textTertiary,
+    marginTop: 2,
+  },
+  sheetList: {
+    gap: Spacing.two,
+    paddingTop: Spacing.three,
+    paddingBottom: Spacing.two,
+  },
+  sheetOption: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.two,
+    backgroundColor: Palette.surfaceRaised,
+    borderWidth: 1,
+    borderColor: Palette.border,
+    borderRadius: Radius.md,
+    paddingHorizontal: Spacing.three,
+    paddingVertical: 12,
+  },
+  sheetOptionActive: {
+    backgroundColor: Palette.accentSoft,
+    borderColor: Palette.accent,
+  },
+  sheetOptionLabel: {
+    fontSize: 15,
+    fontWeight: "600",
+    color: Palette.text,
+  },
+  sheetOptionLabelActive: {
+    color: Palette.accentText,
+  },
+  sheetOptionHint: {
+    fontSize: 12,
+    color: Palette.textTertiary,
   },
 });
