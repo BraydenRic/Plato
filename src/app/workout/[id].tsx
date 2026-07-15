@@ -110,6 +110,18 @@ export default function WorkoutScreen() {
     return () => sub.remove();
   }, []);
 
+  // The bar opens on press-in (before the keyboard, so the footer never
+  // flashes upward), but a cancelled press — like a scroll that starts on an
+  // input — would strand it with no keyboard. Re-check once the keyboard has
+  // had time to appear and back out if it never did.
+  useEffect(() => {
+    if (!keypadOpen) return;
+    const check = setTimeout(() => {
+      if (!Keyboard.isVisible()) setKeypadOpen(false);
+    }, 600);
+    return () => clearTimeout(check);
+  }, [keypadOpen]);
+
   // Live doc subscription: picks up exercises added from the modal instantly.
   useEffect(() => {
     if (!id) return;
@@ -959,6 +971,7 @@ function SetRow({
               ref={(node) => registerInput?.(fieldKey(set.id, "duration"), node)}
               style={[styles.setInput, styles.inputCol]}
               value={durationText}
+              onPressIn={readOnly ? undefined : () => onInputFocus?.(fieldKey(set.id, "duration"))}
               onFocus={() => {
                 editing.current = true;
                 onInputFocus?.(fieldKey(set.id, "duration"));
@@ -988,6 +1001,7 @@ function SetRow({
             ref={(node) => registerInput?.(fieldKey(set.id, "weight"), node)}
             style={[styles.setInput, styles.inputCol]}
             value={weightText}
+            onPressIn={readOnly ? undefined : () => onInputFocus?.(fieldKey(set.id, "weight"))}
             onFocus={() => {
               editing.current = true;
               onInputFocus?.(fieldKey(set.id, "weight"));
@@ -1003,6 +1017,7 @@ function SetRow({
             ref={(node) => registerInput?.(fieldKey(set.id, "reps"), node)}
             style={[styles.setInput, styles.inputCol]}
             value={repsText}
+            onPressIn={readOnly ? undefined : () => onInputFocus?.(fieldKey(set.id, "reps"))}
             onFocus={() => {
               editing.current = true;
               onInputFocus?.(fieldKey(set.id, "reps"));
