@@ -86,7 +86,7 @@ export default function ProfileScreen() {
   async function resendVerification() {
     try {
       await resendVerificationEmail();
-      Alert.alert("Verification sent", `Check ${user?.email} for the link.`);
+      Alert.alert("Verification sent", `Check ${user?.email} for the link — spam folder too.`);
     } catch {
       Alert.alert("Couldn't send email", "Wait a minute, then try again.");
     }

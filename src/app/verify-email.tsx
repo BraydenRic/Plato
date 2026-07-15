@@ -44,7 +44,7 @@ export default function VerifyEmailScreen() {
     setResending(true);
     try {
       await resendVerificationEmail();
-      Alert.alert("Sent", `A fresh link is on its way to ${user?.email}.`);
+      Alert.alert("Sent", `A fresh link is on its way to ${user?.email}. Check spam if it doesn't show up.`);
     } catch {
       Alert.alert("Couldn't send", "Wait a minute, then try again.");
     } finally {
@@ -65,7 +65,7 @@ export default function VerifyEmailScreen() {
         </Text>
         <Text style={styles.hint}>
           Tap the link in that email, then come back — this screen moves on
-          automatically.
+          automatically. Not seeing it? Check your spam or junk folder.
         </Text>
 
         <View style={styles.actions}>

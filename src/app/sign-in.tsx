@@ -129,7 +129,10 @@ export default function SignInScreen() {
     }
     // Firebase deliberately doesn't reveal whether the account exists, so the
     // confirmation is phrased the same way.
-    Alert.alert("Check your inbox", `If an account exists for ${target}, a reset link is on its way.`);
+    Alert.alert(
+      "Check your inbox",
+      `If an account exists for ${target}, a reset link is on its way. Check spam if it doesn't show up.`
+    );
   }
 
   return (
