@@ -623,6 +623,9 @@ export default function WorkoutScreen() {
           </View>
         )}
 
+        {/* Hidden while the keypad toolbar is up: the footer button would sit
+            right above it, and a mis-tap mid-workout would finish the session. */}
+        {!keypadOpen && (
         <View style={styles.footer}>
           {isTemplate ? (
             <Button title="Done" variant="secondary" onPress={() => router.back()} />
@@ -650,6 +653,7 @@ export default function WorkoutScreen() {
             <Button title="Finish workout" onPress={finishWorkout} loading={finishing} />
           )}
         </View>
+        )}
 
         {/* Numeric keypads have no return key, so pin a toolbar above the
             keyboard with Next (advance to the following field) and Done. This
@@ -657,12 +661,12 @@ export default function WorkoutScreen() {
             the bar sitting directly on top of the keypad. */}
         {keypadOpen && !isDone && !isTemplate && (
           <View style={styles.keypadBar}>
-            <Pressable onPress={() => Keyboard.dismiss()} hitSlop={8}>
+            <Pressable onPress={() => Keyboard.dismiss()} hitSlop={8} style={styles.keypadDoneButton}>
               <Text style={styles.keypadDone}>Done</Text>
             </Pressable>
             <Pressable onPress={focusNext} hitSlop={8} style={styles.keypadNext}>
               <Text style={styles.keypadNextText}>Next</Text>
-              <Ionicons name="arrow-forward" size={16} color={Palette.accentText} />
+              <Ionicons name="arrow-forward" size={18} color={Palette.accentText} />
             </Pressable>
           </View>
         )}
@@ -1178,18 +1182,31 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.three,
     paddingVertical: Spacing.two,
   },
+  keypadDoneButton: {
+    paddingVertical: 10,
+    paddingHorizontal: Spacing.three,
+  },
   keypadDone: {
-    fontSize: 15,
+    fontSize: 16,
     fontWeight: "600",
     color: Palette.textSecondary,
   },
+  // Sized for gym hands: a wide 44pt-tall pill, not a bare text link.
   keypadNext: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 4,
+    justifyContent: "center",
+    gap: 6,
+    minHeight: 44,
+    minWidth: 132,
+    paddingHorizontal: Spacing.four,
+    borderRadius: Radius.full,
+    backgroundColor: Palette.accentSoft,
+    borderWidth: 1,
+    borderColor: Palette.accent,
   },
   keypadNextText: {
-    fontSize: 15,
+    fontSize: 16,
     fontWeight: "700",
     color: Palette.accentText,
   },
