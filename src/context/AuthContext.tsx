@@ -5,6 +5,8 @@ import {
   deleteUser,
   onAuthStateChanged,
   reauthenticateWithCredential,
+  sendEmailVerification,
+  sendPasswordResetEmail,
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
   updateProfile,
@@ -37,6 +39,12 @@ interface AuthContextType {
   /** False outside real iOS builds (Android, Expo Go). */
   canUseApple: boolean;
   signOut: () => Promise<void>;
+  /** Emails a password reset link. Never reveals whether the account exists. */
+  resetPassword: (email: string) => Promise<void>;
+  /** Re-sends the verification email for the signed-in account. */
+  resendVerificationEmail: () => Promise<void>;
+  /** Re-checks the account with the server (e.g. to pick up email verification). */
+  refreshUser: () => Promise<void>;
   /** Updates the profile display name and refreshes it in the UI immediately. */
   updateDisplayName: (name: string) => Promise<void>;
   /**
@@ -57,6 +65,9 @@ const AuthContext = createContext<AuthContextType>({
   signInWithApple: async () => false,
   canUseApple: false,
   signOut: async () => {},
+  resetPassword: async () => {},
+  resendVerificationEmail: async () => {},
+  refreshUser: async () => {},
   updateDisplayName: async () => {},
   deleteAccount: async () => false,
 });
@@ -79,6 +90,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   async function signUp(name: string, email: string, password: string) {
     const cred = await createUserWithEmailAndPassword(auth, email.trim(), password);
+    // Fire-and-forget: verification is encouraged, not required, so a failed
+    // send must never block a brand-new account from getting into the app.
+    sendEmailVerification(cred.user).catch(() => {});
     if (name.trim()) {
       await updateProfile(cred.user, { displayName: name.trim() });
       // updateProfile doesn't re-emit onAuthStateChanged; refresh local state
@@ -98,6 +112,25 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   async function signOut() {
     await firebaseSignOut(auth);
+  }
+
+  async function resetPassword(email: string) {
+    await sendPasswordResetEmail(auth, email.trim());
+  }
+
+  async function resendVerificationEmail() {
+    const current = auth.currentUser;
+    if (!current) throw new Error("No signed-in account.");
+    await sendEmailVerification(current);
+  }
+
+  async function refreshUser() {
+    const current = auth.currentUser;
+    if (!current) return;
+    await current.reload();
+    // reload() mutates currentUser in place without re-emitting
+    // onAuthStateChanged; hand React a fresh object so the UI updates.
+    setUser({ ...current } as User);
   }
 
   async function updateDisplayName(name: string) {
@@ -146,6 +179,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         signInWithApple,
         canUseApple: appleSignInSupported,
         signOut,
+        resetPassword,
+        resendVerificationEmail,
+        refreshUser,
         updateDisplayName,
         deleteAccount,
       }}>

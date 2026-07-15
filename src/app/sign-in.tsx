@@ -29,7 +29,9 @@ function friendlyAuthError(e: unknown): string {
       case "auth/email-already-in-use":
         return "An account with this email already exists.";
       case "auth/weak-password":
-        return "Password must be at least 6 characters.";
+        return "Password must be at least 8 characters, with a letter and a number.";
+      case "auth/too-many-requests":
+        return "Too many attempts — wait a bit and try again.";
       case "auth/invalid-email":
         return "That email address doesn't look right.";
       case "auth/network-request-failed":
@@ -40,8 +42,15 @@ function friendlyAuthError(e: unknown): string {
 }
 
 export default function SignInScreen() {
-  const { signIn, signUp, signInWithGoogle, canUseGoogle, signInWithApple, canUseApple } =
-    useAuth();
+  const {
+    signIn,
+    signUp,
+    signInWithGoogle,
+    canUseGoogle,
+    signInWithApple,
+    canUseApple,
+    resetPassword,
+  } = useAuth();
   const [mode, setMode] = useState<"signIn" | "signUp">("signIn");
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
@@ -85,7 +94,13 @@ export default function SignInScreen() {
   }
 
   const isSignUp = mode === "signUp";
-  const canSubmit = email.trim().length > 3 && password.length >= 6 && (!isSignUp || name.trim().length > 0);
+  // New accounts need a real password; sign-in stays at Firebase's 6-char
+  // minimum so accounts created before this rule can still get in.
+  const strongPassword =
+    password.length >= 8 && /[A-Za-z]/.test(password) && /\d/.test(password);
+  const canSubmit =
+    email.trim().length > 3 &&
+    (isSignUp ? strongPassword && name.trim().length > 0 : password.length >= 6);
 
   async function submit() {
     setBusy(true);
@@ -98,6 +113,23 @@ export default function SignInScreen() {
     } finally {
       setBusy(false);
     }
+  }
+
+  async function forgotPassword() {
+    const target = email.trim();
+    if (!target.includes("@")) {
+      Alert.alert("Enter your email", "Type your email above, then tap Forgot password again.");
+      return;
+    }
+    try {
+      await resetPassword(target);
+    } catch (e) {
+      Alert.alert("Couldn't send reset email", friendlyAuthError(e));
+      return;
+    }
+    // Firebase deliberately doesn't reveal whether the account exists, so the
+    // confirmation is phrased the same way.
+    Alert.alert("Check your inbox", `If an account exists for ${target}, a reset link is on its way.`);
   }
 
   return (
@@ -176,6 +208,16 @@ export default function SignInScreen() {
               onChangeText={setPassword}
               onSubmitEditing={() => canSubmit && submit()}
             />
+            {isSignUp && password.length > 0 && !strongPassword && (
+              <Text style={styles.passwordHint}>
+                At least 8 characters, with a letter and a number.
+              </Text>
+            )}
+            {!isSignUp && (
+              <Pressable onPress={forgotPassword} hitSlop={8} style={styles.forgotRow}>
+                <Text style={styles.forgotText}>Forgot password?</Text>
+              </Pressable>
+            )}
             <Button
               title={isSignUp ? "Create account" : "Sign in"}
               onPress={submit}
@@ -276,6 +318,21 @@ const styles = StyleSheet.create({
   },
   form: {
     gap: Spacing.three,
+  },
+  passwordHint: {
+    fontSize: 13,
+    color: Palette.textTertiary,
+    marginTop: -Spacing.one,
+    paddingHorizontal: Spacing.one,
+  },
+  forgotRow: {
+    alignSelf: "flex-end",
+    marginTop: -Spacing.one,
+  },
+  forgotText: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: Palette.accentText,
   },
   switchRow: {
     alignItems: "center",

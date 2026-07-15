@@ -1,4 +1,5 @@
 import Ionicons from "@expo/vector-icons/Ionicons";
+import { useEffect } from "react";
 import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { Image } from "expo-image";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -22,7 +23,14 @@ const REST_OPTIONS = [
 ];
 
 export default function ProfileScreen() {
-  const { user, signOut, updateDisplayName, deleteAccount } = useAuth();
+  const {
+    user,
+    signOut,
+    updateDisplayName,
+    deleteAccount,
+    refreshUser,
+    resendVerificationEmail,
+  } = useAuth();
   const { unit, setUnit } = useWeightUnit();
   const { restSeconds, setRestSeconds } = useRestTimer();
   const { defaultSets, setDefaultSets } = useDefaultSets();
@@ -67,6 +75,22 @@ export default function ProfileScreen() {
   const providerIds = user?.providerData.map((p) => p.providerId) ?? [];
   const hasPassword = providerIds.includes("password");
   const socialName = providerIds.includes("apple.com") ? "Apple" : "Google";
+
+  // emailVerified only updates server-side, so re-check once per visit —
+  // otherwise the "verify your email" nudge lingers after they've verified.
+  useEffect(() => {
+    if (hasPassword && !user?.emailVerified) refreshUser().catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  async function resendVerification() {
+    try {
+      await resendVerificationEmail();
+      Alert.alert("Verification sent", `Check ${user?.email} for the link.`);
+    } catch {
+      Alert.alert("Couldn't send email", "Wait a minute, then try again.");
+    }
+  }
 
   async function runDeleteAccount(password?: string) {
     try {
@@ -148,6 +172,15 @@ export default function ProfileScreen() {
             <Ionicons name="pencil" size={16} color={Palette.textSecondary} />
           </Pressable>
         </Card>
+
+        {hasPassword && user && !user.emailVerified && (
+          <Pressable onPress={resendVerification} style={styles.verifyRow} hitSlop={4}>
+            <Ionicons name="mail-unread-outline" size={16} color={Palette.accentText} />
+            <Text style={styles.verifyText}>
+              Verify your email — tap to resend the link
+            </Text>
+          </Pressable>
+        )}
 
         <View>
           <SectionLabel>Preferences</SectionLabel>
@@ -253,6 +286,18 @@ const styles = StyleSheet.create({
     borderColor: Palette.border,
     alignItems: "center",
     justifyContent: "center",
+  },
+  verifyRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.two,
+    marginTop: -Spacing.two,
+    paddingHorizontal: Spacing.one,
+  },
+  verifyText: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: Palette.accentText,
   },
   avatar: {
     width: 52,
