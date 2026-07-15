@@ -25,13 +25,21 @@ function RootNavigator() {
   // so signed-in users never flash the sign-in screen.
   if (loading) return <View style={{ flex: 1, backgroundColor: Palette.bg }} />;
 
+  // Email/password accounts stay locked out until the address is verified —
+  // otherwise anyone could claim someone else's email. Apple/Google emails
+  // arrive already verified, so those users never see the gate.
+  const needsVerification =
+    !!user &&
+    user.providerData.some((p) => p.providerId === "password") &&
+    !user.emailVerified;
+
   return (
     <Stack
       screenOptions={{
         headerShown: false,
         contentStyle: { backgroundColor: Palette.bg },
       }}>
-      <Stack.Protected guard={!!user}>
+      <Stack.Protected guard={!!user && !needsVerification}>
         <Stack.Screen name="(tabs)" />
         <Stack.Screen name="workout/[id]" />
         <Stack.Screen name="history" />
@@ -39,6 +47,9 @@ function RootNavigator() {
         <Stack.Screen name="create-exercise" options={{ presentation: "modal" }} />
         <Stack.Screen name="reorder-templates" options={{ presentation: "modal" }} />
         <Stack.Screen name="exercise/[id]" options={{ presentation: "modal" }} />
+      </Stack.Protected>
+      <Stack.Protected guard={needsVerification}>
+        <Stack.Screen name="verify-email" />
       </Stack.Protected>
       <Stack.Protected guard={!user}>
         <Stack.Screen name="sign-in" />
