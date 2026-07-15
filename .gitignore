@@ -41,3 +41,6 @@ example
 # generated native folders
 /ios
 /android
+
+# raw screenshot drop zone (resized copies live in store/screenshots)
+screenshots-inbox/
