@@ -895,14 +895,19 @@ function SetRow({
   const untouched = !set.isCompleted && set.weight == null && set.reps == null && set.duration == null;
   const canCopyBefore = !readOnly && !running && untouched && !!before?.isCompleted;
   function copyBefore() {
+    // Real guard, not a `!` assertion: the React Compiler turns unguarded
+    // `before!.x` reads in this closure into render-time dependency reads,
+    // which crashed every first set (where `before` is undefined) in build 9.
+    const src = before;
+    if (!src) return;
     editing.current = false;
     onPatch(
       timed
-        ? { duration: before!.duration, isCompleted: true, completedAt: new Date() }
+        ? { duration: src.duration, isCompleted: true, completedAt: new Date() }
         : {
-            weight: before!.weight,
-            weightUnit: before!.weightUnit,
-            reps: before!.reps,
+            weight: src.weight,
+            weightUnit: src.weightUnit,
+            reps: src.reps,
             isCompleted: true,
             completedAt: new Date(),
           }
