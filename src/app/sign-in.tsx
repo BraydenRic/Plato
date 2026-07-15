@@ -55,6 +55,7 @@ export default function SignInScreen() {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
   const [busy, setBusy] = useState(false);
   const [googleBusy, setGoogleBusy] = useState(false);
   const [appleBusy, setAppleBusy] = useState(false);
@@ -98,9 +99,12 @@ export default function SignInScreen() {
   // minimum so accounts created before this rule can still get in.
   const strongPassword =
     password.length >= 8 && /[A-Za-z]/.test(password) && /\d/.test(password);
+  const passwordsMatch = password === confirmPassword;
   const canSubmit =
     email.trim().length > 3 &&
-    (isSignUp ? strongPassword && name.trim().length > 0 : password.length >= 6);
+    (isSignUp
+      ? strongPassword && passwordsMatch && name.trim().length > 0
+      : password.length >= 6);
 
   async function submit() {
     setBusy(true);
@@ -215,6 +219,19 @@ export default function SignInScreen() {
               <Text style={styles.passwordHint}>
                 At least 8 characters, with a letter and a number.
               </Text>
+            )}
+            {isSignUp && (
+              <Field
+                placeholder="Confirm password"
+                secureTextEntry
+                autoComplete="new-password"
+                value={confirmPassword}
+                onChangeText={setConfirmPassword}
+                onSubmitEditing={() => canSubmit && submit()}
+              />
+            )}
+            {isSignUp && confirmPassword.length > 0 && !passwordsMatch && (
+              <Text style={styles.passwordHint}>Passwords don't match yet.</Text>
             )}
             {!isSignUp && (
               <Pressable onPress={forgotPassword} hitSlop={8} style={styles.forgotRow}>
