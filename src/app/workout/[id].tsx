@@ -22,7 +22,7 @@ import Ionicons from "@expo/vector-icons/Ionicons";
 import { Button, Card, EmptyState } from "@/components/ui";
 import { Palette, Radius, Spacing } from "@/constants/theme";
 import { db } from "@/lib/firebase";
-import { getCompletedWorkouts, reopenWorkout, saveAsTemplate, stripUndefined, updateWorkout, upsertUserStats, computeStats, deleteWorkout } from "@/lib/firestore";
+import { getCompletedWorkouts, reopenWorkout, sanitizeExercises, saveAsTemplate, stripUndefined, updateWorkout, upsertUserStats, computeStats, deleteWorkout } from "@/lib/firestore";
 import { useWorkouts } from "@/hooks/use-workouts";
 import { isTimedExercise } from "@/lib/exercises";
 import { useRestTimer } from "@/context/RestTimerContext";
@@ -125,7 +125,7 @@ export default function WorkoutScreen() {
         userId: d.userId as string,
         name: d.name as string,
         isTemplate: Boolean(d.isTemplate),
-        exercises: (d.exercises as Workout["exercises"]) ?? [],
+        exercises: sanitizeExercises(d.exercises, d.name),
         createdAt: toDate(d.createdAt) ?? new Date(),
         scheduledFor: toDate(d.scheduledFor),
         startedAt: toDate(d.startedAt),

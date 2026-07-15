@@ -29,6 +29,30 @@ function toDate(val: unknown): Date | undefined {
   return undefined;
 }
 
+// Some stored docs carry null/undefined holes in their exercises/sets arrays
+// (crashed build 9 the moment a set row rendered). Rendering, stats, and the
+// keypad all assume every entry exists, so drop the holes at the read boundary
+// and log them — writes should never produce these, so a warning here means a
+// bug (or legacy data) worth chasing.
+export function sanitizeExercises(raw: unknown, docName?: unknown): Workout["exercises"] {
+  const entries = (Array.isArray(raw) ? raw : []) as Workout["exercises"];
+  const exercises = entries.filter((ex) => ex && ex.exercise);
+  if (exercises.length !== entries.length) {
+    console.warn(`Dropped ${entries.length - exercises.length} corrupt exercise entries in "${String(docName ?? "?")}"`);
+  }
+  return exercises.map((ex) => {
+    const rawSets = Array.isArray(ex.sets) ? ex.sets : [];
+    const sets = rawSets.filter(Boolean);
+    if (sets.length !== rawSets.length) {
+      console.warn(
+        `Dropped ${rawSets.length - sets.length} corrupt set entries in "${String(docName ?? "?")}" / ${ex.exercise?.name ?? ex.exerciseId}:`,
+        JSON.stringify(rawSets)
+      );
+    }
+    return { ...ex, sets };
+  });
+}
+
 function workoutFromDoc(id: string, data: Record<string, unknown>): Workout {
   return {
     id,
@@ -36,7 +60,7 @@ function workoutFromDoc(id: string, data: Record<string, unknown>): Workout {
     name: data.name as string,
     isTemplate: Boolean(data.isTemplate),
     notes: data.notes as string | undefined,
-    exercises: (data.exercises as Workout["exercises"]) ?? [],
+    exercises: sanitizeExercises(data.exercises, data.name),
     createdAt: toDate(data.createdAt) ?? new Date(),
     scheduledFor: toDate(data.scheduledFor),
     startedAt: toDate(data.startedAt),
