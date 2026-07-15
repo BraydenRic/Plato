@@ -230,12 +230,16 @@ export default function WorkoutScreen() {
   // Move the keyboard to the next set input in reading order: within a set
   // weight → reps, then on to the next set, then the next exercise. Focusing a
   // new field blurs the current one, which commits its value automatically.
-  function focusNext() {
-    const order = workout!.exercises.flatMap((ex) =>
+  function inputOrder() {
+    return workout!.exercises.flatMap((ex) =>
       isTimedExercise(ex.exercise)
         ? ex.sets.map((s) => fieldKey(s.id, "duration"))
         : ex.sets.flatMap((s) => [fieldKey(s.id, "weight"), fieldKey(s.id, "reps")])
     );
+  }
+
+  function focusNext() {
+    const order = inputOrder();
     const start = focusedField.current ? order.indexOf(focusedField.current) : -1;
     for (let i = start + 1; i < order.length; i++) {
       const node = inputRefs.current.get(order[i]);
@@ -246,6 +250,20 @@ export default function WorkoutScreen() {
     }
     // Nothing left to fill — close the keyboard.
     Keyboard.dismiss();
+  }
+
+  // Mirror of focusNext, for stepping back to fix the previous entry.
+  function focusPrev() {
+    const order = inputOrder();
+    const start = focusedField.current ? order.indexOf(focusedField.current) : order.length;
+    for (let i = start - 1; i >= 0; i--) {
+      const node = inputRefs.current.get(order[i]);
+      if (node) {
+        node.focus();
+        return;
+      }
+    }
+    // Already at the first input — nowhere to go back to; keep the keyboard up.
   }
 
   function mutateSet(exerciseId: string, setId: string, patch: Partial<WorkoutSet>) {
@@ -673,11 +691,15 @@ export default function WorkoutScreen() {
             the bar sitting directly on top of the keypad. */}
         {keypadOpen && !isDone && !isTemplate && (
           <View style={styles.keypadBar}>
+            <Pressable onPress={focusPrev} hitSlop={8} style={styles.keypadPill}>
+              <Ionicons name="arrow-back" size={18} color={Palette.accentText} />
+              <Text style={styles.keypadPillText}>Back</Text>
+            </Pressable>
             <Pressable onPress={() => Keyboard.dismiss()} hitSlop={8} style={styles.keypadDoneButton}>
               <Text style={styles.keypadDone}>Done</Text>
             </Pressable>
-            <Pressable onPress={focusNext} hitSlop={8} style={styles.keypadNext}>
-              <Text style={styles.keypadNextText}>Next</Text>
+            <Pressable onPress={focusNext} hitSlop={8} style={styles.keypadPill}>
+              <Text style={styles.keypadPillText}>Next</Text>
               <Ionicons name="arrow-forward" size={18} color={Palette.accentText} />
             </Pressable>
           </View>
@@ -1190,7 +1212,7 @@ const styles = StyleSheet.create({
   keypadBar: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between",
+    gap: Spacing.two,
     backgroundColor: Palette.surfaceRaised,
     borderTopWidth: 1,
     borderTopColor: Palette.border,
@@ -1198,7 +1220,8 @@ const styles = StyleSheet.create({
     paddingVertical: Spacing.two,
   },
   keypadDoneButton: {
-    paddingVertical: 10,
+    minHeight: 44,
+    justifyContent: "center",
     paddingHorizontal: Spacing.three,
   },
   keypadDone: {
@@ -1206,21 +1229,21 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     color: Palette.textSecondary,
   },
-  // Sized for gym hands: a wide 44pt-tall pill, not a bare text link.
-  keypadNext: {
+  // Sized for gym hands: 44pt-tall pills that split the row evenly, so they
+  // stay comfortably tappable from an SE up to a Pro Max.
+  keypadPill: {
+    flex: 1,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
     gap: 6,
     minHeight: 44,
-    minWidth: 132,
-    paddingHorizontal: Spacing.four,
     borderRadius: Radius.full,
     backgroundColor: Palette.accentSoft,
     borderWidth: 1,
     borderColor: Palette.accent,
   },
-  keypadNextText: {
+  keypadPillText: {
     fontSize: 16,
     fontWeight: "700",
     color: Palette.accentText,
