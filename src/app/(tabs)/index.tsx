@@ -14,7 +14,7 @@ import { useRouter } from "expo-router";
 import Ionicons from "@expo/vector-icons/Ionicons";
 
 import { Button, Card, EmptyState, SectionLabel } from "@/components/ui";
-import { Palette, Radius, Spacing } from "@/constants/theme";
+import { FontScaleCap, Palette, Radius, Spacing } from "@/constants/theme";
 import { useAuth } from "@/context/AuthContext";
 import { useWorkouts } from "@/hooks/use-workouts";
 import { createWorkout, deleteWorkout, startFromTemplate, stripUndefined } from "@/lib/data";
@@ -335,7 +335,11 @@ export default function WorkoutsScreen() {
                     hasDone && !isSelected && styles.dayCellDone,
                     isSelected && styles.dayCellSelected,
                   ]}>
-                  <Text style={[styles.dayName, isSelected && styles.dayTextSelected]}>
+                  {/* Seven columns share one row, so the date text caps like the
+                      set grid does — past that it wraps out of its own cell. */}
+                  <Text
+                    style={[styles.dayName, isSelected && styles.dayTextSelected]}
+                    maxFontSizeMultiplier={FontScaleCap.grid}>
                     {day.toLocaleDateString(undefined, { weekday: "narrow" })}
                   </Text>
                   <Text
@@ -343,7 +347,8 @@ export default function WorkoutsScreen() {
                       styles.dayNum,
                       isToday && !isSelected && styles.dayNumToday,
                       isSelected && styles.dayTextSelected,
-                    ]}>
+                    ]}
+                    maxFontSizeMultiplier={FontScaleCap.grid}>
                     {day.getDate()}
                   </Text>
                   <View style={styles.dotRow}>

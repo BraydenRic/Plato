@@ -152,6 +152,18 @@ export function subscribeWorkouts(
   };
 }
 
+export function subscribeWorkout(
+  id: string,
+  onChange: (workout: Workout | null) => void
+): () => void {
+  const emit = () => onChange(cache?.workouts.find((w) => w.id === id) ?? null);
+  listeners.add(emit);
+  load().then(emit).catch(() => emit());
+  return () => {
+    listeners.delete(emit);
+  };
+}
+
 export async function getWorkout(id: string): Promise<Workout | null> {
   const data = await load();
   return data.workouts.find((w) => w.id === id) ?? null;

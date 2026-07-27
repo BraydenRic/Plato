@@ -1,11 +1,11 @@
 import { useMemo } from "react";
-import { ScrollView, StyleSheet, Text, View } from "react-native";
+import { ScrollView, StyleSheet, Text, View, useWindowDimensions } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import Ionicons from "@expo/vector-icons/Ionicons";
 
 import { Card, EmptyState, SectionLabel } from "@/components/ui";
 import { MuscleMap } from "@/components/muscle-map";
-import { Palette, Spacing } from "@/constants/theme";
+import { FontScaleCap, Palette, Spacing } from "@/constants/theme";
 import { useWorkouts } from "@/hooks/use-workouts";
 import { computeStats } from "@/lib/data";
 import { useWeightUnit } from "@/context/UnitContext";
@@ -135,7 +135,10 @@ export default function StatsScreen() {
                         ]}
                       />
                     </View>
-                    <Text style={styles.barLabel}>{d.label}</Text>
+                    {/* One label per bar in a fixed-width column. */}
+                    <Text style={styles.barLabel} maxFontSizeMultiplier={FontScaleCap.grid}>
+                      {d.label}
+                    </Text>
                   </View>
                 ))}
               </View>
@@ -148,8 +151,11 @@ export default function StatsScreen() {
 }
 
 function StatCard({ label, value }: { label: string; value: string }) {
+  // Two columns stop working once the numbers scale up — give each stat the
+  // whole row so a value like "1.2M lbs" isn't broken across three lines.
+  const { fontScale } = useWindowDimensions();
   return (
-    <Card style={styles.statCard}>
+    <Card style={[styles.statCard, fontScale > 1.3 && styles.statCardWide]}>
       <Text style={styles.statValue}>{value}</Text>
       <Text style={styles.statLabel}>{label}</Text>
     </Card>
@@ -212,6 +218,9 @@ const styles = StyleSheet.create({
     flexBasis: "48%",
     flexGrow: 1,
     gap: 2,
+  },
+  statCardWide: {
+    flexBasis: "100%",
   },
   statValue: {
     fontSize: 22,

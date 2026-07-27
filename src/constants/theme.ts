@@ -53,3 +53,23 @@ export const Fonts = Platform.select({
 });
 
 export const MaxContentWidth = 800;
+
+/**
+ * Dynamic Type ceilings for the handful of places text shares a fixed row with
+ * something else and has nowhere to wrap. Everything else — headings, body
+ * copy, buttons, empty states, card content — scales without a cap, so the app
+ * still grows with the reader's chosen text size.
+ */
+export const FontScaleCap = {
+  /** Keypad bar: Back/Done/Next have to stay on one row above the keyboard. */
+  keypad: 1.4,
+  /** Set grid: weights and reps must stay readable inside narrow columns. */
+  grid: 1.5,
+} as const;
+
+/**
+ * Past this scale the tab bar's labels clip mid-word, so the bar drops to
+ * icons only — full-size tap targets, nothing cut off. Matches how iOS itself
+ * sheds tab titles at accessibility text sizes.
+ */
+export const TabLabelMaxFontScale = 1.5;

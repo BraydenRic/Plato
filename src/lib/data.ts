@@ -30,6 +30,14 @@ export function subscribeWorkouts(
   return store.subscribeWorkouts(userId, onChange, onError);
 }
 
+export function subscribeWorkout(
+  id: string,
+  onChange: (workout: Workout | null) => void
+): () => void {
+  const store = isLocalWorkoutId(id) ? local : cloud;
+  return store.subscribeWorkout(id, onChange);
+}
+
 export function getWorkout(id: string): Promise<Workout | null> {
   return isLocalWorkoutId(id) ? local.getWorkout(id) : cloud.getWorkout(id);
 }

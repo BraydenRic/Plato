@@ -16,13 +16,11 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import DraggableFlatList, { ScaleDecorator } from "react-native-draggable-flatlist";
 import ReanimatedSwipeable from "react-native-gesture-handler/ReanimatedSwipeable";
 import { useLocalSearchParams, useRouter, type ErrorBoundaryProps } from "expo-router";
-import { doc, onSnapshot } from "firebase/firestore";
 import Ionicons from "@expo/vector-icons/Ionicons";
 
 import { Button, Card, EmptyState } from "@/components/ui";
-import { Palette, Radius, Spacing } from "@/constants/theme";
-import { db } from "@/lib/firebase";
-import { getCompletedWorkouts, reopenWorkout, sanitizeExercises, saveAsTemplate, stripUndefined, updateWorkout, upsertUserStats, computeStats, deleteWorkout } from "@/lib/data";
+import { FontScaleCap, Palette, Radius, Spacing } from "@/constants/theme";
+import { getCompletedWorkouts, reopenWorkout, saveAsTemplate, stripUndefined, subscribeWorkout, updateWorkout, upsertUserStats, computeStats, deleteWorkout } from "@/lib/data";
 import { useWorkouts } from "@/hooks/use-workouts";
 import { isTimedExercise } from "@/lib/exercises";
 import { useRestTimer } from "@/context/RestTimerContext";
@@ -30,15 +28,6 @@ import { useWeightUnit } from "@/context/UnitContext";
 import { convertWeight, displayVolume, formatClock, newId, relativeDay, sameDay, startOfDay, workoutVolumeLbs, completedSetCount, totalSetCount, MAX_TEMPLATES, MAX_ACTIVE_WORKOUTS } from "@/lib/workout-utils";
 import type { Workout, WorkoutExercise, WorkoutSet } from "@/types";
 
-
-function toDate(val: unknown): Date | undefined {
-  if (!val) return undefined;
-  if (val instanceof Date) return val;
-  if (typeof val === "object" && "toDate" in (val as object)) {
-    return (val as { toDate: () => Date }).toDate();
-  }
-  return undefined;
-}
 
 const fieldKey = (setId: string, field: "weight" | "reps" | "duration") => `${setId}:${field}`;
 
@@ -122,32 +111,14 @@ export default function WorkoutScreen() {
     return () => clearTimeout(check);
   }, [keypadOpen]);
 
-  // Live doc subscription: picks up exercises added from the modal instantly.
+  // Live subscription: picks up exercises added from the modal instantly, and
+  // reads from the device store instead of Firestore for a guest's workouts.
   useEffect(() => {
     if (!id) return;
-    const unsubscribe = onSnapshot(doc(db, "workouts", id), (snap) => {
-      if (!snap.exists()) {
-        setWorkout(null);
-        setLoading(false);
-        return;
-      }
-      const d = snap.data() as Record<string, unknown>;
-      setWorkout({
-        id: snap.id,
-        userId: d.userId as string,
-        name: d.name as string,
-        isTemplate: Boolean(d.isTemplate),
-        exercises: sanitizeExercises(d.exercises, d.name),
-        createdAt: toDate(d.createdAt) ?? new Date(),
-        scheduledFor: toDate(d.scheduledFor),
-        startedAt: toDate(d.startedAt),
-        completedAt: toDate(d.completedAt),
-        durationMinutes: d.durationMinutes as number | undefined,
-        totalVolume: d.totalVolume as number | undefined,
-      });
+    return subscribeWorkout(id, (next) => {
+      setWorkout(next);
       setLoading(false);
     });
-    return unsubscribe;
   }, [id]);
 
   // Elapsed workout clock (only while in progress).
@@ -693,13 +664,19 @@ export default function WorkoutScreen() {
           <View style={styles.keypadBar}>
             <Pressable onPress={focusPrev} hitSlop={8} style={styles.keypadPill}>
               <Ionicons name="arrow-back" size={18} color={Palette.accentText} />
-              <Text style={styles.keypadPillText}>Back</Text>
+              <Text style={styles.keypadPillText} maxFontSizeMultiplier={FontScaleCap.keypad}>
+                Back
+              </Text>
             </Pressable>
             <Pressable onPress={() => Keyboard.dismiss()} hitSlop={8} style={styles.keypadDoneButton}>
-              <Text style={styles.keypadDone}>Done</Text>
+              <Text style={styles.keypadDone} maxFontSizeMultiplier={FontScaleCap.keypad}>
+                Done
+              </Text>
             </Pressable>
             <Pressable onPress={focusNext} hitSlop={8} style={styles.keypadPill}>
-              <Text style={styles.keypadPillText}>Next</Text>
+              <Text style={styles.keypadPillText} maxFontSizeMultiplier={FontScaleCap.keypad}>
+                Next
+              </Text>
               <Ionicons name="arrow-forward" size={18} color={Palette.accentText} />
             </Pressable>
           </View>
@@ -786,17 +763,27 @@ function ExerciseCard({
         </View>
       ) : (
         <>
+          {/* Column headings label a fixed grid, so they cap with the numbers
+              they sit above rather than pushing the columns out of alignment. */}
           <View style={styles.setHeaderRow}>
-            <Text style={[styles.setHeaderCell, styles.setNumCol]}>SET</Text>
+            <Text style={[styles.setHeaderCell, styles.setNumCol]} maxFontSizeMultiplier={FontScaleCap.grid}>
+              SET
+            </Text>
             {timed ? (
               <>
-                <Text style={[styles.setHeaderCell, styles.inputCol]}>TIME</Text>
+                <Text style={[styles.setHeaderCell, styles.inputCol]} maxFontSizeMultiplier={FontScaleCap.grid}>
+                  TIME
+                </Text>
                 <View style={styles.timerCol} />
               </>
             ) : (
               <>
-                <Text style={[styles.setHeaderCell, styles.inputCol]}>WEIGHT ({unit.toUpperCase()})</Text>
-                <Text style={[styles.setHeaderCell, styles.inputCol]}>REPS</Text>
+                <Text style={[styles.setHeaderCell, styles.inputCol]} maxFontSizeMultiplier={FontScaleCap.grid}>
+                  WEIGHT ({unit.toUpperCase()})
+                </Text>
+                <Text style={[styles.setHeaderCell, styles.inputCol]} maxFontSizeMultiplier={FontScaleCap.grid}>
+                  REPS
+                </Text>
               </>
             )}
             <View style={styles.checkCol} />
@@ -983,15 +970,22 @@ function SetRow({
       )}
       onSwipeableWillOpen={onRemove}>
       <Pressable onLongPress={readOnly ? undefined : onRemove} style={styles.setRow}>
-      <Text style={[styles.setNum, styles.setNumCol]}>{index}</Text>
+      <Text style={[styles.setNum, styles.setNumCol]} maxFontSizeMultiplier={FontScaleCap.grid}>
+        {index}
+      </Text>
       {timed ? (
         <>
           {running ? (
-            <Text style={[styles.timerLive, styles.inputCol]}>{formatClock(liveSeconds)}</Text>
+            <Text
+              style={[styles.timerLive, styles.inputCol]}
+              maxFontSizeMultiplier={FontScaleCap.grid}>
+              {formatClock(liveSeconds)}
+            </Text>
           ) : (
             <TextInput
               ref={(node) => registerInput?.(fieldKey(set.id, "duration"), node)}
               style={[styles.setInput, styles.inputCol]}
+              maxFontSizeMultiplier={FontScaleCap.grid}
               value={durationText}
               onPressIn={readOnly ? undefined : () => onInputFocus?.(fieldKey(set.id, "duration"))}
               onFocus={() => {
@@ -1022,6 +1016,7 @@ function SetRow({
           <TextInput
             ref={(node) => registerInput?.(fieldKey(set.id, "weight"), node)}
             style={[styles.setInput, styles.inputCol]}
+            maxFontSizeMultiplier={FontScaleCap.grid}
             value={weightText}
             onPressIn={readOnly ? undefined : () => onInputFocus?.(fieldKey(set.id, "weight"))}
             onFocus={() => {
@@ -1038,6 +1033,7 @@ function SetRow({
           <TextInput
             ref={(node) => registerInput?.(fieldKey(set.id, "reps"), node)}
             style={[styles.setInput, styles.inputCol]}
+            maxFontSizeMultiplier={FontScaleCap.grid}
             value={repsText}
             onPressIn={readOnly ? undefined : () => onInputFocus?.(fieldKey(set.id, "reps"))}
             onFocus={() => {

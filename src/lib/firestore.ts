@@ -95,6 +95,20 @@ export async function getCompletedWorkouts(userId: string): Promise<Workout[]> {
     .sort((a, b) => b.completedAt!.getTime() - a.completedAt!.getTime());
 }
 
+/** Live subscription to one workout — the workout screen's source of truth. */
+export function subscribeWorkout(
+  id: string,
+  onChange: (workout: Workout | null) => void
+): () => void {
+  return onSnapshot(doc(db, "workouts", id), (snap) => {
+    if (!snap.exists()) {
+      onChange(null);
+      return;
+    }
+    onChange(workoutFromDoc(snap.id, snap.data() as Record<string, unknown>));
+  });
+}
+
 export async function getWorkout(id: string): Promise<Workout | null> {
   const snap = await getDoc(doc(db, "workouts", id));
   if (!snap.exists()) return null;

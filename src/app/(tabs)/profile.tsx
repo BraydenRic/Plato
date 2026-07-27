@@ -1,6 +1,6 @@
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { useEffect } from "react";
-import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Alert, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from "react-native";
 import { Image } from "expo-image";
 import { useRouter } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -35,6 +35,10 @@ export default function ProfileScreen() {
     resendVerificationEmail,
   } = useAuth();
   const router = useRouter();
+  // Label beside control only works while both fit. Past a mild text bump the
+  // label wins the space and the control drops beneath it.
+  const { fontScale } = useWindowDimensions();
+  const stackPrefs = fontScale > 1.3;
   const { unit, setUnit } = useWeightUnit();
   const { restSeconds, setRestSeconds } = useRestTimer();
   const { defaultSets, setDefaultSets } = useDefaultSets();
@@ -218,7 +222,7 @@ export default function ProfileScreen() {
 
         <View>
           <SectionLabel>Preferences</SectionLabel>
-          <Card style={styles.prefCard}>
+          <Card style={[styles.prefCard, stackPrefs && styles.prefCardStacked]}>
             <View style={{ flex: 1 }}>
               <Text style={styles.prefTitle}>Weight unit</Text>
               <Text style={styles.prefHint}>Used for new sets and displayed volumes</Text>
@@ -378,6 +382,11 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: Spacing.three,
   },
+  prefCardStacked: {
+    flexDirection: "column",
+    alignItems: "stretch",
+    gap: Spacing.two,
+  },
   restCard: {
     gap: Spacing.two,
     marginTop: Spacing.two,
@@ -398,8 +407,12 @@ const styles = StyleSheet.create({
     color: Palette.textTertiary,
     marginTop: 1,
   },
+  // Wraps rather than overflowing: at large text sizes five rest-timer options
+  // can't fit one row, so they flow onto a second line instead of being cut off.
   segment: {
     flexDirection: "row",
+    flexWrap: "wrap",
+    justifyContent: "center",
     backgroundColor: Palette.surfaceRaised,
     borderRadius: Radius.sm,
     borderWidth: 1,

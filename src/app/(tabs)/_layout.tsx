@@ -1,15 +1,21 @@
 import { Tabs } from "expo-router";
 import Ionicons from "@expo/vector-icons/Ionicons";
+import { useWindowDimensions } from "react-native";
 
-import { Palette } from "@/constants/theme";
+import { Palette, TabLabelMaxFontScale } from "@/constants/theme";
 
 export default function TabLayout() {
+  // The bar's height is fixed, so oversized labels get clipped rather than
+  // wrapped. Above the threshold the icons carry the meaning on their own.
+  const { fontScale } = useWindowDimensions();
+
   return (
     <Tabs
       screenOptions={{
         headerShown: false,
         tabBarActiveTintColor: Palette.accentText,
         tabBarInactiveTintColor: Palette.textTertiary,
+        tabBarShowLabel: fontScale <= TabLabelMaxFontScale,
         tabBarStyle: {
           backgroundColor: Palette.surface,
           borderTopColor: Palette.border,
