@@ -1,0 +1,61 @@
+# Builds the signed iOS .ipa on GitHub's macOS runner via `eas build --local`,
+# which doesn't consume EAS build credits. Signing credentials and the
+# EXPO_PUBLIC_* Firebase/Google env vars are pulled from EAS using the
+# EXPO_TOKEN repo secret, so nothing secret lives in this repo.
+#
+# Trigger manually: Actions tab → "iOS build" → Run workflow.
+# Leave "Upload to TestFlight" checked and the build lands in TestFlight on its
+# own; uncheck it to just download the .ipa artifact.
+name: iOS build
+
+on:
+  workflow_dispatch:
+    inputs:
+      submit:
+        description: Upload to TestFlight when the build succeeds
+        type: boolean
+        default: true
+
+jobs:
+  build:
+    runs-on: macos-15
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install dependencies
+        run: npm ci
+
+      # Apple rejects uploads built with SDKs older than iOS 26, but the
+      # runner's default Xcode is older — pick the newest Xcode 26 on the image.
+      - name: Select Xcode 26
+        run: |
+          ls -d /Applications/Xcode*.app
+          sudo xcode-select -s "$(ls -d /Applications/Xcode_26*.app | sort -V | tail -1)"
+          xcodebuild -version
+
+      # --local runs the build on this runner instead of EAS's build queue.
+      # The build number still comes from EAS (appVersionSource: remote), so it
+      # keeps counting up from the last TestFlight build.
+      - name: Build .ipa with EAS (local mode)
+        run: npx eas-cli build --platform ios --profile production --local --non-interactive --output ${{ github.workspace }}/plato.ipa
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+
+      - name: Upload .ipa artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: plato-ios-build
+          path: ${{ github.workspace }}/plato.ipa
+          retention-days: 7
+
+      # EAS Submit is free, so the .ipa can go straight to TestFlight from here.
+      - name: Submit to TestFlight
+        if: inputs.submit
+        run: npx eas-cli submit --platform ios --profile production --path ${{ github.workspace }}/plato.ipa --non-interactive
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
