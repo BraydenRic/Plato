@@ -10,6 +10,11 @@ export const MAX_TEMPLATES = 20;
 // piling up live sessions. Finishing or deleting one frees a slot.
 export const MAX_ACTIVE_WORKOUTS = 5;
 
+// All of a user's custom exercises live in a single document, so cap them to
+// keep it well under Firestore's 1 MB limit. 200 is far more than anyone builds
+// by hand (the app ships ~177 defaults) while staying tiny on disk.
+export const MAX_CUSTOM_EXERCISES = 200;
+
 const KG_TO_LBS = 2.20462;
 
 export function setVolumeLbs(set: WorkoutSet): number {

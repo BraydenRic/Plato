@@ -13,7 +13,7 @@ import {
   type ExerciseLibrary,
   type WeeklyPlan,
 } from "./firestore";
-import { MAX_CUSTOM_EXERCISES } from "@/hooks/use-exercise-library";
+import { MAX_CUSTOM_EXERCISES } from "./workout-utils";
 import {
   clearGuestData,
   hasContent,

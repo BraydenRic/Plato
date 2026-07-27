@@ -3,15 +3,15 @@ import { useEffect, useMemo, useState } from "react";
 import { useAuth } from "@/context/AuthContext";
 import { EXERCISES } from "@/lib/exercises";
 import { subscribeExerciseLibrary, updateExerciseLibrary, type ExerciseLibrary } from "@/lib/data";
-import { newId } from "@/lib/workout-utils";
+import { MAX_CUSTOM_EXERCISES, newId } from "@/lib/workout-utils";
 import type { Exercise } from "@/types";
 
 const EMPTY: ExerciseLibrary = { custom: [], removedIds: [], overrides: [] };
 
-// All of a user's custom exercises live in a single Firestore document, so cap
-// them to keep that doc well under Firestore's 1 MB limit. 200 is far more than
-// anyone builds by hand (the app ships ~177 defaults) while staying tiny on disk.
-export const MAX_CUSTOM_EXERCISES = 200;
+// Defined in workout-utils alongside the other caps so migration can reach it
+// without importing a hook (which would cycle back through AuthContext).
+// Re-exported here because screens have always imported it from this module.
+export { MAX_CUSTOM_EXERCISES };
 
 // The user's effective exercise list: bundled defaults minus the ones they
 // removed, plus their custom exercises. Workouts embed exercise copies, so
