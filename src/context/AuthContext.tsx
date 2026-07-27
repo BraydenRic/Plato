@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState } from "react";
+import { createContext, useContext, useEffect, useRef, useState } from "react";
 import { Alert } from "react-native";
 import {
   type User,
@@ -132,19 +132,27 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   // The moment an account exists, anything logged as a guest belongs to it.
   // This runs on every sign-in *and* every launch, so a migration interrupted
   // by a dead connection simply finishes the next time the app opens.
+  //
+  // Keyed on the uid, not the user object: refreshUser() hands React a new
+  // object every few seconds while the verify-email screen polls, and re-running
+  // on those would start a second upload of the same workouts. The ref closes
+  // the same door for any other path that remounts mid-migration.
+  const uid = user?.uid ?? null;
+  const migrationRunning = useRef(false);
   useEffect(() => {
-    if (!user) return;
+    if (!uid || migrationRunning.current) return;
     let cancelled = false;
+    migrationRunning.current = true;
     (async () => {
-      const guest = await readGuestData();
-      if (!hasContent(guest)) {
-        await writeGuestActive(false);
-        if (!cancelled) setIsGuest(false);
-        return;
-      }
-      if (!cancelled) setMigrating(true);
       try {
-        await migrateGuestDataTo(user.uid);
+        const guest = await readGuestData();
+        if (!hasContent(guest)) {
+          await writeGuestActive(false);
+          if (!cancelled) setIsGuest(false);
+          return;
+        }
+        if (!cancelled) setMigrating(true);
+        await migrateGuestDataTo(uid);
         if (!cancelled) setIsGuest(false);
       } catch (e) {
         console.warn("Couldn't move guest data into the account", e);
@@ -153,13 +161,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           "We couldn't finish moving them into your account. They're safe here and we'll try again next time you open Plato."
         );
       } finally {
+        migrationRunning.current = false;
         if (!cancelled) setMigrating(false);
       }
     })();
     return () => {
       cancelled = true;
     };
-  }, [user]);
+  }, [uid]);
 
   async function continueAsGuest() {
     await writeGuestActive(true);
