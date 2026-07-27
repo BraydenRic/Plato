@@ -17,8 +17,8 @@ import {
   Timestamp,
 } from "firebase/firestore";
 import { db } from "./firebase";
-import { sameDay, workoutVolumeLbs } from "./workout-utils";
-import type { Exercise, Workout, UserStatistics, WorkoutExercise } from "@/types";
+import { reopenTiming, workoutVolumeLbs } from "./workout-utils";
+import type { Exercise, Workout, UserStatistics } from "@/types";
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -101,10 +101,19 @@ export async function getWorkout(id: string): Promise<Workout | null> {
   return workoutFromDoc(snap.id, snap.data() as Record<string, unknown>);
 }
 
-export async function createWorkout(workout: Omit<Workout, "id">): Promise<string> {
+/**
+ * `preserveCreatedAt` keeps the date already on the workout instead of stamping
+ * it server-side. Only migration passes it: guest workouts were created days or
+ * weeks ago, and re-stamping them would drop the whole backlog onto today.
+ * Everything else prefers the server clock over a possibly-wrong device clock.
+ */
+export async function createWorkout(
+  workout: Omit<Workout, "id">,
+  preserveCreatedAt = false
+): Promise<string> {
   const ref = await addDoc(collection(db, "workouts"), {
     ...workout,
-    createdAt: serverTimestamp(),
+    createdAt: preserveCreatedAt && workout.createdAt ? workout.createdAt : serverTimestamp(),
   });
   return ref.id;
 }
@@ -163,6 +172,17 @@ export async function updateExerciseLibrary(userId: string, library: ExerciseLib
   await setDoc(doc(db, "exerciseLibrary", userId), { userId, ...library }, { merge: true });
 }
 
+/** One-shot read, for merging guest data into an account that may already have some. */
+export async function getExerciseLibrary(userId: string): Promise<ExerciseLibrary> {
+  const snap = await getDoc(doc(db, "exerciseLibrary", userId));
+  const d = snap.data();
+  return {
+    custom: (d?.custom as Exercise[]) ?? [],
+    removedIds: (d?.removedIds as string[]) ?? [],
+    overrides: (d?.overrides as Exercise[]) ?? [],
+  };
+}
+
 // ── Weekly split ────────────────────────────────────────────────────────────
 // A recurring weekday → template map. Purely a suggestion layer: it never
 // creates workout docs on its own, so it adds zero ongoing writes. Indexed by
@@ -180,6 +200,13 @@ export function subscribeWeeklyPlan(
     // Normalize to exactly 7 slots so callers can index by weekday safely.
     onChange(Array.from({ length: 7 }, (_, i) => stored[i] ?? null));
   });
+}
+
+/** One-shot read, so migration only fills weekdays the account left empty. */
+export async function getWeeklyPlan(userId: string): Promise<WeeklyPlan> {
+  const snap = await getDoc(doc(db, "weeklyPlans", userId));
+  const stored = (snap.data()?.days as (string | null)[] | undefined) ?? [];
+  return Array.from({ length: 7 }, (_, i) => stored[i] ?? null);
 }
 
 export async function setWeeklyPlan(userId: string, days: WeeklyPlan): Promise<void> {
@@ -200,14 +227,12 @@ export async function reopenWorkout(workout: Workout): Promise<void> {
     durationMinutes: deleteField(),
     totalVolume: deleteField(),
   };
-  if (workout.completedAt && !sameDay(workout.completedAt, new Date())) {
+  const timing = reopenTiming(workout);
+  if (timing.kind === "backlog") {
     updates.startedAt = deleteField();
-    updates.scheduledFor = workout.completedAt;
-  } else if (workout.completedAt && workout.startedAt) {
-    // The clock was stopped while the workout sat finished — shift startedAt
-    // forward by that gap so elapsed time resumes where it left off.
-    const pausedMs = Date.now() - workout.completedAt.getTime();
-    updates.startedAt = new Date(workout.startedAt.getTime() + pausedMs);
+    updates.scheduledFor = timing.scheduledFor;
+  } else if (timing.kind === "resume") {
+    updates.startedAt = timing.startedAt;
   }
   await updateDoc(doc(db, "workouts", workout.id), updates);
 }
@@ -247,53 +272,6 @@ export function stripUndefined<T>(value: T): T {
     if (v !== undefined) out[k] = stripUndefined(v);
   }
   return out as T;
-}
-
-// Without `scheduledFor` the workout starts immediately; with it, it becomes a
-// plan for that day — no startedAt until the user actually begins it.
-export async function startFromTemplate(
-  template: Workout,
-  userId: string,
-  scheduledFor?: Date
-): Promise<string> {
-  // Templates are pure structure — exercises in order with a set count. Strip
-  // weights/reps (older templates may still carry them) so users fill in each
-  // session fresh, guided by their previous numbers.
-  const exercises: WorkoutExercise[] = template.exercises.map((ex) => ({
-    ...ex,
-    sets: ex.sets.map((s) => ({
-      id: s.id,
-      weightUnit: s.weightUnit,
-      isCompleted: false,
-    })),
-  }));
-  return createWorkout(
-    stripUndefined({
-      userId,
-      name: template.name,
-      isTemplate: false,
-      exercises,
-      createdAt: new Date(),
-      scheduledFor,
-      startedAt: scheduledFor ? undefined : new Date(),
-    })
-  );
-}
-
-export async function saveAsTemplate(workout: Workout, name: string): Promise<string> {
-  const exercises: WorkoutExercise[] = workout.exercises.map((ex) => ({
-    ...ex,
-    sets: ex.sets.map((s) => ({ id: s.id, weightUnit: s.weightUnit, isCompleted: false })),
-  }));
-  return createWorkout(
-    stripUndefined({
-      userId: workout.userId,
-      name,
-      isTemplate: true,
-      exercises,
-      createdAt: new Date(),
-    })
-  );
 }
 
 // ── Statistics ────────────────────────────────────────────────────────────────

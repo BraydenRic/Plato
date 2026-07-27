@@ -7,7 +7,7 @@ import Ionicons from "@expo/vector-icons/Ionicons";
 import { Card, EmptyState } from "@/components/ui";
 import { Palette, Radius, Spacing } from "@/constants/theme";
 import { useWorkouts } from "@/hooks/use-workouts";
-import { deleteWorkout } from "@/lib/firestore";
+import { deleteWorkout } from "@/lib/data";
 import { useWeightUnit } from "@/context/UnitContext";
 import { completedSetCount, displayVolume, workoutVolumeLbs } from "@/lib/workout-utils";
 import type { Workout } from "@/types";

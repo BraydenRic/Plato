@@ -120,3 +120,28 @@ export function workoutDay(workout: Workout): Date {
 export function newId(): string {
   return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
 }
+
+/**
+ * How reopening a finished workout should retime it, on top of clearing the
+ * finish fields. Shared by the cloud and on-device stores so the two can't
+ * drift — each one just translates the result into its own "clear a field"
+ * form (Firestore needs deleteField(), the local store deletes the key).
+ */
+export type ReopenTiming =
+  /** Finished on an earlier day: becomes a backlog edit pinned to that day. */
+  | { kind: "backlog"; scheduledFor: Date }
+  /** Finished today: resume the clock where it stopped, ignoring the pause. */
+  | { kind: "resume"; startedAt: Date }
+  | { kind: "none" };
+
+export function reopenTiming(workout: Workout): ReopenTiming {
+  if (!workout.completedAt) return { kind: "none" };
+  if (!sameDay(workout.completedAt, new Date())) {
+    return { kind: "backlog", scheduledFor: workout.completedAt };
+  }
+  if (workout.startedAt) {
+    const pausedMs = Date.now() - workout.completedAt.getTime();
+    return { kind: "resume", startedAt: new Date(workout.startedAt.getTime() + pausedMs) };
+  }
+  return { kind: "none" };
+}

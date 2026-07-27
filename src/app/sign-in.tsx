@@ -10,6 +10,7 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { useLocalSearchParams, useRouter } from "expo-router";
 import { FirebaseError } from "firebase/app";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import * as AppleAuthentication from "expo-apple-authentication";
@@ -50,7 +51,14 @@ export default function SignInScreen() {
     signInWithApple,
     canUseApple,
     resetPassword,
+    isGuest,
+    continueAsGuest,
   } = useAuth();
+  const router = useRouter();
+  // Set when a guest opens this screen from Profile to claim their data, which
+  // separates "upgrading" from a first run — the two need opposite behaviour.
+  const { upgrade } = useLocalSearchParams<{ upgrade?: string }>();
+  const isUpgrading = upgrade === "1";
   const [mode, setMode] = useState<"signIn" | "signUp">("signIn");
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
@@ -60,6 +68,13 @@ export default function SignInScreen() {
   const [googleBusy, setGoogleBusy] = useState(false);
   const [appleBusy, setAppleBusy] = useState(false);
   const [appleReady, setAppleReady] = useState(false);
+
+  // Entering guest mode mounts the app screens but doesn't move us there — this
+  // screen stays available so guests can come back to upgrade. Step through
+  // ourselves, except when a guest deliberately opened this screen to sign up.
+  useEffect(() => {
+    if (isGuest && !isUpgrading) router.replace("/");
+  }, [isGuest, isUpgrading, router]);
 
   // Sign in with Apple needs iOS 13+; the check is async so it can't gate render directly.
   useEffect(() => {
@@ -157,6 +172,15 @@ export default function SignInScreen() {
             <Text style={styles.subtitle}>Log lifts. Build streaks. See progress.</Text>
           </View>
 
+          {isGuest && (
+            <View style={styles.migrateNote}>
+              <Ionicons name="cloud-upload-outline" size={16} color={Palette.accentText} />
+              <Text style={styles.migrateNoteText}>
+                Everything you&apos;ve logged on this phone moves into your account.
+              </Text>
+            </View>
+          )}
+
           {(appleReady || canUseGoogle) && (
             <>
               <View style={styles.providers}>
@@ -252,6 +276,21 @@ export default function SignInScreen() {
               <Text style={styles.switchLink}>{isSignUp ? "Sign in" : "Create one"}</Text>
             </Text>
           </Pressable>
+
+          {/* Guests arrive here from Profile, so they need a way back into the
+              app they're already using. Everyone else gets the door in. */}
+          {isUpgrading ? (
+            <Pressable onPress={() => router.back()} style={styles.switchRow} hitSlop={8}>
+              <Text style={styles.guestLink}>Not now</Text>
+            </Pressable>
+          ) : (
+            <Pressable onPress={continueAsGuest} style={styles.guestRow} hitSlop={8}>
+              <Text style={styles.guestLink}>Continue without an account</Text>
+              <Text style={styles.guestHint}>
+                Your workouts stay on this phone until you sign up.
+              </Text>
+            </Pressable>
+          )}
         </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>
@@ -354,8 +393,39 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     color: Palette.accentText,
   },
+  migrateNote: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.two,
+    backgroundColor: Palette.accentSoft,
+    borderWidth: 1,
+    borderColor: Palette.accent,
+    borderRadius: Radius.md,
+    padding: Spacing.three,
+    marginBottom: -Spacing.two,
+  },
+  migrateNoteText: {
+    flex: 1,
+    fontSize: 13,
+    lineHeight: 18,
+    color: Palette.accentText,
+  },
   switchRow: {
     alignItems: "center",
+  },
+  guestRow: {
+    alignItems: "center",
+    gap: 2,
+    marginTop: -Spacing.two,
+  },
+  guestLink: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: Palette.accentText,
+  },
+  guestHint: {
+    fontSize: 12,
+    color: Palette.textTertiary,
   },
   switchText: {
     fontSize: 14,

@@ -2,6 +2,7 @@ import Ionicons from "@expo/vector-icons/Ionicons";
 import { useEffect } from "react";
 import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { Image } from "expo-image";
+import { useRouter } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { Button, Card, SectionLabel } from "@/components/ui";
@@ -25,12 +26,15 @@ const REST_OPTIONS = [
 export default function ProfileScreen() {
   const {
     user,
+    isGuest,
+    discardGuestData,
     signOut,
     updateDisplayName,
     deleteAccount,
     refreshUser,
     resendVerificationEmail,
   } = useAuth();
+  const router = useRouter();
   const { unit, setUnit } = useWeightUnit();
   const { restSeconds, setRestSeconds } = useRestTimer();
   const { defaultSets, setDefaultSets } = useDefaultSets();
@@ -105,6 +109,19 @@ export default function ProfileScreen() {
     }
   }
 
+  // Guest data lives only on this phone, so there's no account to delete and
+  // no way to recover it — say so plainly before wiping.
+  function confirmDiscardGuestData() {
+    Alert.alert(
+      "Delete all data?",
+      "Every workout, template, and custom exercise saved on this phone will be permanently erased. This cannot be undone.",
+      [
+        { text: "Cancel", style: "cancel" },
+        { text: "Delete forever", style: "destructive", onPress: () => discardGuestData() },
+      ]
+    );
+  }
+
   function confirmDeleteAccount() {
     Alert.alert(
       "Delete account?",
@@ -163,15 +180,32 @@ export default function ProfileScreen() {
             />
           </View>
           <View style={{ flex: 1, gap: 2 }}>
-            <Text style={styles.name}>{user?.displayName ?? "Athlete"}</Text>
+            <Text style={styles.name}>{isGuest ? "Guest" : user?.displayName ?? "Athlete"}</Text>
             <Text style={styles.email} numberOfLines={1}>
-              {user?.email}
+              {isGuest ? "Saved on this phone" : user?.email}
             </Text>
           </View>
-          <Pressable onPress={editName} hitSlop={10} style={styles.editButton}>
-            <Ionicons name="pencil" size={16} color={Palette.textSecondary} />
-          </Pressable>
+          {/* Guests have no Firebase profile to rename. */}
+          {!isGuest && (
+            <Pressable onPress={editName} hitSlop={10} style={styles.editButton}>
+              <Ionicons name="pencil" size={16} color={Palette.textSecondary} />
+            </Pressable>
+          )}
         </Card>
+
+        {isGuest && (
+          <Card style={styles.upgradeCard}>
+            <Text style={styles.upgradeTitle}>Back up your workouts</Text>
+            <Text style={styles.upgradeText}>
+              Your history is only on this phone right now. Create an account and it syncs across
+              your devices — everything you&apos;ve already logged comes with you.
+            </Text>
+            <Button
+              title="Create account or sign in"
+              onPress={() => router.push({ pathname: "/sign-in", params: { upgrade: "1" } })}
+            />
+          </Card>
+        )}
 
         {hasPassword && user && !user.emailVerified && (
           <Pressable onPress={resendVerification} style={styles.verifyRow} hitSlop={4}>
@@ -243,10 +277,12 @@ export default function ProfileScreen() {
           </Card>
         </View>
 
-        <Button title="Sign out" variant="danger" onPress={confirmSignOut} />
+        {!isGuest && <Button title="Sign out" variant="danger" onPress={confirmSignOut} />}
 
-        <Pressable onPress={confirmDeleteAccount} hitSlop={8}>
-          <Text style={styles.deleteAccount}>Delete account</Text>
+        <Pressable onPress={isGuest ? confirmDiscardGuestData : confirmDeleteAccount} hitSlop={8}>
+          <Text style={styles.deleteAccount}>
+            {isGuest ? "Delete all data" : "Delete account"}
+          </Text>
         </Pressable>
       </ScrollView>
     </SafeAreaView>
@@ -286,6 +322,21 @@ const styles = StyleSheet.create({
     borderColor: Palette.border,
     alignItems: "center",
     justifyContent: "center",
+  },
+  upgradeCard: {
+    gap: Spacing.two,
+    backgroundColor: Palette.accentSoft,
+    borderColor: Palette.accent,
+  },
+  upgradeTitle: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: Palette.text,
+  },
+  upgradeText: {
+    fontSize: 13,
+    lineHeight: 19,
+    color: Palette.textSecondary,
   },
   verifyRow: {
     flexDirection: "row",

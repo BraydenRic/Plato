@@ -16,7 +16,7 @@ import { Chip, Field } from "@/components/ui";
 import { Palette, Radius, Spacing } from "@/constants/theme";
 import { useWeightUnit } from "@/context/UnitContext";
 import { useDefaultSets } from "@/context/DefaultSetsContext";
-import { getWorkout, stripUndefined, updateWorkout } from "@/lib/firestore";
+import { getWorkout, stripUndefined, updateWorkout } from "@/lib/data";
 import { useExerciseLibrary } from "@/hooks/use-exercise-library";
 import { newId } from "@/lib/workout-utils";
 import type { Exercise, Workout, WorkoutSet } from "@/types";

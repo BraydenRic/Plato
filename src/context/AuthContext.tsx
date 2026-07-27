@@ -1,4 +1,5 @@
 import { createContext, useContext, useEffect, useState } from "react";
+import { Alert } from "react-native";
 import {
   type User,
   EmailAuthProvider,
@@ -20,6 +21,15 @@ import {
 import { auth } from "@/lib/firebase";
 import { deleteAllUserData } from "@/lib/firestore";
 import {
+  GUEST_USER_ID,
+  clearGuestData,
+  hasContent,
+  readGuestActive,
+  readGuestData,
+  writeGuestActive,
+} from "@/lib/local-store";
+import { migrateGuestDataTo } from "@/lib/migrate-guest-data";
+import {
   googleSignInAvailable,
   reauthenticateWithGoogle,
   signInWithGoogle as googleSignIn,
@@ -28,6 +38,20 @@ import {
 interface AuthContextType {
   user: User | null;
   loading: boolean;
+  /** Using the app without an account, with everything stored on this device. */
+  isGuest: boolean;
+  /**
+   * Whose data to read and write: the signed-in uid, GUEST_USER_ID while in
+   * guest mode, or null when neither. Screens pass this to `@/lib/data`, which
+   * routes to the cloud or the device store based on it.
+   */
+  dataUserId: string | null;
+  /** Enters guest mode — no account, no network, data stays on this phone. */
+  continueAsGuest: () => Promise<void>;
+  /** True while guest data is being uploaded into a freshly signed-in account. */
+  migrating: boolean;
+  /** Wipes on-device guest data and leaves guest mode. */
+  discardGuestData: () => Promise<void>;
   signIn: (email: string, password: string) => Promise<void>;
   signUp: (name: string, email: string, password: string) => Promise<void>;
   /** Native Google flow. Resolves false if the user dismissed the picker. */
@@ -58,6 +82,11 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType>({
   user: null,
   loading: true,
+  isGuest: false,
+  dataUserId: null,
+  continueAsGuest: async () => {},
+  migrating: false,
+  discardGuestData: async () => {},
   signIn: async () => {},
   signUp: async () => {},
   signInWithGoogle: async () => false,
@@ -74,15 +103,74 @@ const AuthContext = createContext<AuthContextType>({
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [authLoading, setAuthLoading] = useState(true);
+  const [isGuest, setIsGuest] = useState(false);
+  const [guestChecked, setGuestChecked] = useState(false);
+  const [migrating, setMigrating] = useState(false);
 
   useEffect(() => {
+    let cancelled = false;
+    // Restoring the guest flag is part of "is the session ready?" — resolving it
+    // alongside Firebase keeps a returning guest from flashing the sign-in screen.
+    readGuestActive()
+      .then((active) => {
+        if (!cancelled) setIsGuest(active);
+      })
+      .finally(() => {
+        if (!cancelled) setGuestChecked(true);
+      });
     const unsubscribe = onAuthStateChanged(auth, (u) => {
       setUser(u);
-      setLoading(false);
+      setAuthLoading(false);
     });
-    return unsubscribe;
+    return () => {
+      cancelled = true;
+      unsubscribe();
+    };
   }, []);
+
+  // The moment an account exists, anything logged as a guest belongs to it.
+  // This runs on every sign-in *and* every launch, so a migration interrupted
+  // by a dead connection simply finishes the next time the app opens.
+  useEffect(() => {
+    if (!user) return;
+    let cancelled = false;
+    (async () => {
+      const guest = await readGuestData();
+      if (!hasContent(guest)) {
+        await writeGuestActive(false);
+        if (!cancelled) setIsGuest(false);
+        return;
+      }
+      if (!cancelled) setMigrating(true);
+      try {
+        await migrateGuestDataTo(user.uid);
+        if (!cancelled) setIsGuest(false);
+      } catch (e) {
+        console.warn("Couldn't move guest data into the account", e);
+        Alert.alert(
+          "Some workouts are still on this device",
+          "We couldn't finish moving them into your account. They're safe here and we'll try again next time you open Plato."
+        );
+      } finally {
+        if (!cancelled) setMigrating(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [user]);
+
+  async function continueAsGuest() {
+    await writeGuestActive(true);
+    setIsGuest(true);
+  }
+
+  async function discardGuestData() {
+    await clearGuestData();
+    await writeGuestActive(false);
+    setIsGuest(false);
+  }
 
   async function signIn(email: string, password: string) {
     await signInWithEmailAndPassword(auth, email.trim(), password);
@@ -111,7 +199,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }
 
   async function signOut() {
-    await firebaseSignOut(auth);
+    if (auth.currentUser) {
+      await firebaseSignOut(auth);
+      return;
+    }
+    // A guest has no session to end. Leaving guest mode returns them to the
+    // sign-in screen with their device data untouched, so resuming picks up
+    // exactly where they left off.
+    await writeGuestActive(false);
+    setIsGuest(false);
   }
 
   async function resetPassword(email: string) {
@@ -171,7 +267,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     <AuthContext.Provider
       value={{
         user,
-        loading,
+        loading: authLoading || !guestChecked,
+        isGuest,
+        dataUserId: user?.uid ?? (isGuest ? GUEST_USER_ID : null),
+        continueAsGuest,
+        migrating,
+        discardGuestData,
         signIn,
         signUp,
         signInWithGoogle,

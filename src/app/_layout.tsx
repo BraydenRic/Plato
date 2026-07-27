@@ -15,7 +15,7 @@ import { Palette } from "@/constants/theme";
 SplashScreen.preventAutoHideAsync();
 
 function RootNavigator() {
-  const { user, loading } = useAuth();
+  const { user, loading, isGuest } = useAuth();
 
   useEffect(() => {
     if (!loading) SplashScreen.hideAsync();
@@ -33,13 +33,22 @@ function RootNavigator() {
     user.providerData.some((p) => p.providerId === "password") &&
     !user.emailVerified;
 
+  // Guests get the whole app with no account at all. The sign-in screen stays
+  // mounted for them (see the !user guard below) so "Create an account" from
+  // Profile can push to it without dropping them out of the app first.
+  //
+  // Once an account exists it takes over completely, even while guest data is
+  // still uploading — otherwise a lingering guest flag would let an unverified
+  // signup walk straight past the verification gate.
+  const canUseApp = user ? !needsVerification : isGuest;
+
   return (
     <Stack
       screenOptions={{
         headerShown: false,
         contentStyle: { backgroundColor: Palette.bg },
       }}>
-      <Stack.Protected guard={!!user && !needsVerification}>
+      <Stack.Protected guard={canUseApp}>
         <Stack.Screen name="(tabs)" />
         <Stack.Screen name="workout/[id]" />
         <Stack.Screen name="history" />

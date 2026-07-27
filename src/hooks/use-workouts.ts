@@ -1,12 +1,12 @@
 import { useEffect, useState } from "react";
-import { subscribeWorkouts } from "@/lib/firestore";
+import { subscribeWorkouts } from "@/lib/data";
 import { useAuth } from "@/context/AuthContext";
 import type { Workout } from "@/types";
 
 // Single live subscription to the user's workouts (templates included),
 // shared by the Workouts and Stats tabs.
 export function useWorkouts() {
-  const { user } = useAuth();
+  const { dataUserId } = useAuth();
   const [workouts, setWorkouts] = useState<Workout[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -15,13 +15,13 @@ export function useWorkouts() {
     // Drop the previous user's data on sign-out/account switch so it can
     // never flash on screen for the next session.
     setWorkouts([]);
-    if (!user) {
+    if (!dataUserId) {
       setLoading(false);
       return;
     }
     setLoading(true);
     const unsubscribe = subscribeWorkouts(
-      user.uid,
+      dataUserId,
       (all) => {
         setWorkouts(all);
         setError(null);
@@ -33,7 +33,7 @@ export function useWorkouts() {
       }
     );
     return unsubscribe;
-  }, [user]);
+  }, [dataUserId]);
 
   return {
     loading,

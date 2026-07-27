@@ -7,7 +7,7 @@ import { Card, EmptyState, SectionLabel } from "@/components/ui";
 import { MuscleMap } from "@/components/muscle-map";
 import { Palette, Spacing } from "@/constants/theme";
 import { useWorkouts } from "@/hooks/use-workouts";
-import { computeStats } from "@/lib/firestore";
+import { computeStats } from "@/lib/data";
 import { useWeightUnit } from "@/context/UnitContext";
 import { addDays, displayVolume, formatDuration, startOfWeek, workoutVolumeLbs } from "@/lib/workout-utils";
 

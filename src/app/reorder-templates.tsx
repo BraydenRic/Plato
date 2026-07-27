@@ -7,7 +7,7 @@ import DraggableFlatList, { ScaleDecorator } from "react-native-draggable-flatli
 
 import { Palette, Radius, Spacing } from "@/constants/theme";
 import { useWorkouts } from "@/hooks/use-workouts";
-import { updateWorkout } from "@/lib/firestore";
+import { updateWorkout } from "@/lib/data";
 import { totalSetCount } from "@/lib/workout-utils";
 import type { Workout } from "@/types";
 

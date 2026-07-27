@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 
 import { useAuth } from "@/context/AuthContext";
 import { EXERCISES } from "@/lib/exercises";
-import { subscribeExerciseLibrary, updateExerciseLibrary, type ExerciseLibrary } from "@/lib/firestore";
+import { subscribeExerciseLibrary, updateExerciseLibrary, type ExerciseLibrary } from "@/lib/data";
 import { newId } from "@/lib/workout-utils";
 import type { Exercise } from "@/types";
 
@@ -17,7 +17,7 @@ export const MAX_CUSTOM_EXERCISES = 200;
 // removed, plus their custom exercises. Workouts embed exercise copies, so
 // removing something here never touches logged history.
 export function useExerciseLibrary() {
-  const { user } = useAuth();
+  const { dataUserId } = useAuth();
   const [library, setLibrary] = useState<ExerciseLibrary>(EMPTY);
   const [loading, setLoading] = useState(true);
 
@@ -25,16 +25,16 @@ export function useExerciseLibrary() {
     // Reset on sign-out/account switch so one user's customizations never
     // leak into the next session.
     setLibrary(EMPTY);
-    if (!user) {
+    if (!dataUserId) {
       setLoading(false);
       return;
     }
-    const unsubscribe = subscribeExerciseLibrary(user.uid, (lib) => {
+    const unsubscribe = subscribeExerciseLibrary(dataUserId, (lib) => {
       setLibrary(lib);
       setLoading(false);
     });
     return unsubscribe;
-  }, [user]);
+  }, [dataUserId]);
 
   const exercises = useMemo(() => {
     const removed = new Set(library.removedIds);
@@ -45,13 +45,23 @@ export function useExerciseLibrary() {
     ];
   }, [library]);
 
+  // Every mutation needs a target. Reading it once per call (rather than
+  // asserting non-null) keeps these safe if one fires during sign-out.
+  function requireUserId(): string {
+    if (!dataUserId) throw new Error("No active session.");
+    return dataUserId;
+  }
+
   async function createExercise(input: Omit<Exercise, "id" | "isCustom">): Promise<Exercise> {
     // Backstop the UI's check so we can never overflow the library document.
     if (library.custom.length >= MAX_CUSTOM_EXERCISES) {
       throw new Error("custom exercise limit reached");
     }
     const exercise: Exercise = { ...input, id: `custom-${newId()}`, isCustom: true };
-    await updateExerciseLibrary(user!.uid, { ...library, custom: [...library.custom, exercise] });
+    await updateExerciseLibrary(requireUserId(), {
+      ...library,
+      custom: [...library.custom, exercise],
+    });
     return exercise;
   }
 
@@ -59,12 +69,12 @@ export function useExerciseLibrary() {
   // override under the same id, so the merged list swaps it in transparently.
   async function updateExercise(exercise: Exercise): Promise<void> {
     if (exercise.isCustom) {
-      await updateExerciseLibrary(user!.uid, {
+      await updateExerciseLibrary(requireUserId(), {
         ...library,
         custom: library.custom.map((e) => (e.id === exercise.id ? exercise : e)),
       });
     } else {
-      await updateExerciseLibrary(user!.uid, {
+      await updateExerciseLibrary(requireUserId(), {
         ...library,
         overrides: [...library.overrides.filter((e) => e.id !== exercise.id), exercise],
       });
@@ -73,12 +83,12 @@ export function useExerciseLibrary() {
 
   async function deleteExercise(exercise: Exercise): Promise<void> {
     if (exercise.isCustom) {
-      await updateExerciseLibrary(user!.uid, {
+      await updateExerciseLibrary(requireUserId(), {
         ...library,
         custom: library.custom.filter((e) => e.id !== exercise.id),
       });
     } else if (!library.removedIds.includes(exercise.id)) {
-      await updateExerciseLibrary(user!.uid, {
+      await updateExerciseLibrary(requireUserId(), {
         ...library,
         removedIds: [...library.removedIds, exercise.id],
         overrides: library.overrides.filter((e) => e.id !== exercise.id),
@@ -87,7 +97,7 @@ export function useExerciseLibrary() {
   }
 
   async function resetLibrary(): Promise<void> {
-    await updateExerciseLibrary(user!.uid, EMPTY);
+    await updateExerciseLibrary(requireUserId(), EMPTY);
   }
 
   return {

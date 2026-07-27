@@ -17,7 +17,7 @@ import { Button, Card, EmptyState, SectionLabel } from "@/components/ui";
 import { Palette, Radius, Spacing } from "@/constants/theme";
 import { useAuth } from "@/context/AuthContext";
 import { useWorkouts } from "@/hooks/use-workouts";
-import { createWorkout, deleteWorkout, startFromTemplate, stripUndefined } from "@/lib/firestore";
+import { createWorkout, deleteWorkout, startFromTemplate, stripUndefined } from "@/lib/data";
 import { useWeightUnit } from "@/context/UnitContext";
 import {
   addDays,
@@ -49,7 +49,8 @@ type PickerConfig = { title: string; subtitle?: string; options: PickerOption[] 
 
 export default function WorkoutsScreen() {
   const router = useRouter();
-  const { user } = useAuth();
+  // `user` only drives the greeting — guests have no account, so it falls back.
+  const { user, dataUserId } = useAuth();
   const { loading, error, active, planned, completed, templates } = useWorkouts();
   const { plan, assignDay } = useWeeklyPlan();
   const [starting, setStarting] = useState(false);
@@ -114,12 +115,12 @@ export default function WorkoutsScreen() {
   }
 
   async function quickStart() {
-    if (!user || starting || atActiveLimit()) return;
+    if (!dataUserId || starting || atActiveLimit()) return;
     setStarting(true);
     try {
       const id = await createWorkout(
         stripUndefined({
-          userId: user.uid,
+          userId: dataUserId,
           name: defaultWorkoutName(),
           isTemplate: false,
           exercises: [],
@@ -136,12 +137,12 @@ export default function WorkoutsScreen() {
   }
 
   async function planEmpty(day: Date) {
-    if (!user || starting) return;
+    if (!dataUserId || starting) return;
     setStarting(true);
     try {
       const id = await createWorkout(
         stripUndefined({
-          userId: user.uid,
+          userId: dataUserId,
           name: `${day.toLocaleDateString(undefined, { weekday: "long" })} Workout`,
           isTemplate: false,
           exercises: [],
@@ -158,10 +159,10 @@ export default function WorkoutsScreen() {
   }
 
   async function planFromTemplate(template: Workout, day: Date, navigate = true) {
-    if (!user || starting) return;
+    if (!dataUserId || starting) return;
     setStarting(true);
     try {
-      const id = await startFromTemplate(template, user.uid, day);
+      const id = await startFromTemplate(template, dataUserId, day);
       // Future plans just get scheduled and we stay on the calendar; logging a
       // past day opens the workout so its sets can be filled in.
       if (navigate) router.push(`/workout/${id}`);
@@ -194,10 +195,10 @@ export default function WorkoutsScreen() {
   }
 
   async function beginTemplate(template: Workout) {
-    if (!user || starting || atActiveLimit()) return;
+    if (!dataUserId || starting || atActiveLimit()) return;
     setStarting(true);
     try {
-      const id = await startFromTemplate(template, user.uid);
+      const id = await startFromTemplate(template, dataUserId);
       router.push(`/workout/${id}`);
     } catch {
       Alert.alert("Couldn't start workout", "Check your connection and try again.");
@@ -207,7 +208,7 @@ export default function WorkoutsScreen() {
   }
 
   async function newTemplate() {
-    if (!user) return;
+    if (!dataUserId) return;
     if (templates.length >= MAX_TEMPLATES) {
       Alert.alert(
         "Template limit reached",
@@ -218,7 +219,7 @@ export default function WorkoutsScreen() {
     try {
       const id = await createWorkout(
         stripUndefined({
-          userId: user.uid,
+          userId: dataUserId,
           name: "New template",
           isTemplate: true,
           exercises: [],
