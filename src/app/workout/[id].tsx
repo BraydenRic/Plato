@@ -24,8 +24,9 @@ import { getCompletedWorkouts, reopenWorkout, saveAsTemplate, stripUndefined, su
 import { useWorkouts } from "@/hooks/use-workouts";
 import { isTimedExercise } from "@/lib/exercises";
 import { useRestTimer } from "@/context/RestTimerContext";
+import { useSetTimer } from "@/context/SetTimerContext";
 import { useWeightUnit } from "@/context/UnitContext";
-import { convertWeight, displayVolume, formatClock, newId, relativeDay, sameDay, startOfDay, workoutVolumeLbs, completedSetCount, totalSetCount, MAX_TEMPLATES, MAX_ACTIVE_WORKOUTS } from "@/lib/workout-utils";
+import { convertWeight, displayVolume, formatClock, newId, previousSetsByExercise, relativeDay, sameDay, startOfDay, workoutVolumeLbs, completedSetCount, totalSetCount, MAX_TEMPLATES, MAX_ACTIVE_WORKOUTS } from "@/lib/workout-utils";
 import type { Workout, WorkoutExercise, WorkoutSet } from "@/types";
 
 
@@ -73,11 +74,13 @@ export default function WorkoutScreen() {
   const [restEndsAt, setRestEndsAt] = useState<number | null>(null);
   const [restLeft, setRestLeft] = useState(0);
   const [elapsed, setElapsed] = useState(0);
-  // The one set stopwatch that can run at a time (timed exercises). startedAt is
-  // backdated by any already-logged duration so start acts as resume.
-  const [timing, setTiming] = useState<{ exerciseId: string; setId: string; startedAt: number } | null>(null);
   const { unit: weightUnit } = useWeightUnit();
   const { restSeconds } = useRestTimer();
+  // The one set stopwatch that can run at a time (timed exercises). It's held
+  // above the navigator so leaving this screen doesn't cancel it; scope it to
+  // this workout so another workout's timer never drives these rows.
+  const { timer, startTimer, clearTimer } = useSetTimer();
+  const timing = timer && timer.workoutId === id ? timer : null;
 
   // Registry of the live set inputs (keyed by set id + field) plus which one is
   // focused, so the keyboard's "Next" button can advance to the following field.
@@ -162,20 +165,10 @@ export default function WorkoutScreen() {
   // Last completed numbers per exercise, shown as input placeholders so the
   // user knows what they lifted last time without templates storing weights.
   const { completed, templates, active } = useWorkouts();
-  const previousSets = useMemo(() => {
-    const map = new Map<string, WorkoutSet[]>();
-    for (const w of completed) {
-      // `completed` is newest-first, so the first hit per exercise wins.
-      if (w.id === workout?.id) continue;
-      for (const ex of w.exercises) {
-        if (!map.has(ex.exerciseId)) {
-          const done = ex.sets.filter((s) => s.isCompleted && (s.weight != null || s.duration != null));
-          if (done.length > 0) map.set(ex.exerciseId, done);
-        }
-      }
-    }
-    return map;
-  }, [completed, workout?.id]);
+  const previousSets = useMemo(
+    () => previousSetsByExercise(completed, workout?.id),
+    [completed, workout?.id]
+  );
 
   if (loading) {
     return (
@@ -281,12 +274,20 @@ export default function WorkoutScreen() {
   function toggleSetTimer(exerciseId: string, setId: string, currentDuration?: number) {
     if (timing?.setId === setId) {
       commitTimer(timing);
-      setTiming(null);
+      clearTimer();
       return;
     }
     // Only one stopwatch at a time — starting another set banks the running one.
+    // Only this workout's timer can be banked from here (patching a set needs
+    // that workout loaded), so a timer left running in another workout is
+    // dropped and its set keeps whatever duration it had already logged.
     if (timing) commitTimer(timing);
-    setTiming({ exerciseId, setId, startedAt: Date.now() - (currentDuration ?? 0) * 1000 });
+    startTimer({
+      workoutId: id,
+      exerciseId,
+      setId,
+      startedAt: Date.now() - (currentDuration ?? 0) * 1000,
+    });
   }
 
   function addSet(exercise: WorkoutExercise) {
@@ -306,6 +307,9 @@ export default function WorkoutScreen() {
   }
 
   function removeSet(exerciseId: string, setId: string) {
+    // Deleting the row a stopwatch is running on leaves nothing to bank it into,
+    // so drop the timer with it rather than stranding it on a missing set.
+    if (timing?.setId === setId) clearTimer();
     saveExercises(
       workout!.exercises.map((ex) =>
         ex.id !== exerciseId ? ex : { ...ex, sets: ex.sets.filter((s) => s.id !== setId) }
@@ -319,7 +323,10 @@ export default function WorkoutScreen() {
       {
         text: "Remove",
         style: "destructive",
-        onPress: () => saveExercises(workout!.exercises.filter((ex) => ex.id !== exerciseId)),
+        onPress: () => {
+          if (timing?.exerciseId === exerciseId) clearTimer();
+          saveExercises(workout!.exercises.filter((ex) => ex.id !== exerciseId));
+        },
       },
     ]);
   }
@@ -382,7 +389,7 @@ export default function WorkoutScreen() {
               ),
             }
       );
-      setTiming(null);
+      clearTimer();
     }
     finishWith(exercises);
   }
@@ -451,6 +458,8 @@ export default function WorkoutScreen() {
         text: isTemplate ? "Delete template" : "Delete workout",
         style: "destructive" as const,
         onPress: async () => {
+          // The timer now outlives this screen, so it has to go with the workout.
+          if (timing) clearTimer();
           await deleteWorkout(workout!);
           router.back();
         },
@@ -706,7 +715,8 @@ function ExerciseCard({
   onToggleTimer,
 }: {
   exercise: WorkoutExercise;
-  prevSets?: WorkoutSet[];
+  /** Last session's numbers, indexed by set position — holes where it was skipped. */
+  prevSets?: (WorkoutSet | undefined)[];
   templateMode?: boolean;
   onDrag?: () => void;
   dragActive?: boolean;

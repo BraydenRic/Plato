@@ -83,6 +83,25 @@ export type MuscleGroup =
   | "Cardio"
   | "Full Body";
 
+/**
+ * A user's customisations to the bundled exercise list. The defaults ship in the
+ * app bundle, so this holds only the deltas — resetting is clearing this doc.
+ */
+export interface ExerciseLibrary {
+  custom: Exercise[];
+  removedIds: string[];
+  /** Edited copies of default exercises, keeping the original id so workout
+   *  history and last-weight tracking still line up. */
+  overrides: Exercise[];
+}
+
+/**
+ * A recurring weekday → template map. Purely a suggestion layer: it never
+ * creates workout docs on its own. Indexed by JS getDay() (0 = Sunday …
+ * 6 = Saturday); null means a rest day.
+ */
+export type WeeklyPlan = (string | null)[];
+
 export interface VolumeDataPoint {
   date: string;
   volume: number;

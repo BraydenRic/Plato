@@ -17,8 +17,13 @@ import {
   Timestamp,
 } from "firebase/firestore";
 import { db } from "./firebase";
-import { reopenTiming, workoutVolumeLbs } from "./workout-utils";
-import type { Exercise, Workout, UserStatistics } from "@/types";
+import { EMPTY_WEEKLY_PLAN, reopenTiming, sanitizeExercises, workoutVolumeLbs } from "./workout-utils";
+import type { Exercise, ExerciseLibrary, UserStatistics, WeeklyPlan, Workout } from "@/types";
+
+// Re-exported so existing importers of this module keep working; both now live
+// in Firebase-free modules so the guest store can share them.
+export { sanitizeExercises, EMPTY_WEEKLY_PLAN };
+export type { ExerciseLibrary, WeeklyPlan };
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -27,30 +32,6 @@ function toDate(val: unknown): Date | undefined {
   if (val instanceof Timestamp) return val.toDate();
   if (val instanceof Date) return val;
   return undefined;
-}
-
-// Some stored docs carry null/undefined holes in their exercises/sets arrays
-// (crashed build 9 the moment a set row rendered). Rendering, stats, and the
-// keypad all assume every entry exists, so drop the holes at the read boundary
-// and log them — writes should never produce these, so a warning here means a
-// bug (or legacy data) worth chasing.
-export function sanitizeExercises(raw: unknown, docName?: unknown): Workout["exercises"] {
-  const entries = (Array.isArray(raw) ? raw : []) as Workout["exercises"];
-  const exercises = entries.filter((ex) => ex && ex.exercise);
-  if (exercises.length !== entries.length) {
-    console.warn(`Dropped ${entries.length - exercises.length} corrupt exercise entries in "${String(docName ?? "?")}"`);
-  }
-  return exercises.map((ex) => {
-    const rawSets = Array.isArray(ex.sets) ? ex.sets : [];
-    const sets = rawSets.filter(Boolean);
-    if (sets.length !== rawSets.length) {
-      console.warn(
-        `Dropped ${rawSets.length - sets.length} corrupt set entries in "${String(docName ?? "?")}" / ${ex.exercise?.name ?? ex.exerciseId}:`,
-        JSON.stringify(rawSets)
-      );
-    }
-    return { ...ex, sets };
-  });
 }
 
 function workoutFromDoc(id: string, data: Record<string, unknown>): Workout {
@@ -160,14 +141,6 @@ export async function deleteAllUserData(userId: string): Promise<void> {
 // user created plus ids of defaults they removed. The default exercises live in
 // the app bundle, so resetting is just clearing this doc.
 
-export interface ExerciseLibrary {
-  custom: Exercise[];
-  removedIds: string[];
-  // Edited copies of default exercises, keeping the original id so workout
-  // history and last-weight tracking still line up.
-  overrides: Exercise[];
-}
-
 export function subscribeExerciseLibrary(
   userId: string,
   onChange: (library: ExerciseLibrary) => void
@@ -201,10 +174,6 @@ export async function getExerciseLibrary(userId: string): Promise<ExerciseLibrar
 // A recurring weekday → template map. Purely a suggestion layer: it never
 // creates workout docs on its own, so it adds zero ongoing writes. Indexed by
 // JS getDay() (0 = Sunday … 6 = Saturday); null means a rest day.
-export type WeeklyPlan = (string | null)[];
-
-const EMPTY_WEEKLY_PLAN: WeeklyPlan = [null, null, null, null, null, null, null];
-
 export function subscribeWeeklyPlan(
   userId: string,
   onChange: (plan: WeeklyPlan) => void
@@ -228,8 +197,6 @@ export async function setWeeklyPlan(userId: string, days: WeeklyPlan): Promise<v
   // full 7-slot array both assigns and clears days in one call.
   await setDoc(doc(db, "weeklyPlans", userId), { userId, days }, { merge: true });
 }
-
-export { EMPTY_WEEKLY_PLAN };
 
 // Reopen a finished workout so an accidental finish can be undone or missed
 // sets filled in. A workout finished today resumes as a live session; one from

@@ -1,8 +1,7 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
-import { sanitizeExercises, type ExerciseLibrary, type WeeklyPlan } from "./firestore";
-import { newId, reopenTiming } from "./workout-utils";
-import type { Workout } from "@/types";
+import { newId, reopenTiming, sanitizeExercises } from "./workout-utils";
+import type { ExerciseLibrary, WeeklyPlan, Workout } from "@/types";
 
 /**
  * On-device mirror of the Firestore data layer, used before someone signs in.
@@ -36,18 +35,34 @@ export interface GuestData {
   workouts: Workout[];
   library: ExerciseLibrary;
   weeklyPlan: WeeklyPlan;
+  /**
+   * Guest template id → the cloud id it became, written as each template lands
+   * during migration. The weekly split points at template ids, and a template
+   * leaves the device the moment it uploads, so without this a migration that
+   * failed partway would retry with nothing left to remap the split against and
+   * would drop it silently.
+   */
+  migratedTemplateIds: Record<string, string>;
 }
 
 const emptyData = (): GuestData => ({
   workouts: [],
   library: { custom: [], removedIds: [], overrides: [] },
   weeklyPlan: [null, null, null, null, null, null, null],
+  migratedTemplateIds: {},
 });
 
 // ── Persistence ──────────────────────────────────────────────────────────────
 
 let cache: GuestData | null = null;
 let loading: Promise<GuestData> | null = null;
+/**
+ * Bumped by every wipe. A read that started before the wipe must not install
+ * its (now-deleted) result into the cache afterwards — that would resurrect the
+ * data, the next write would persist it back to disk, and the next launch would
+ * upload it all over again as duplicates.
+ */
+let generation = 0;
 const listeners = new Set<() => void>();
 
 function toDate(value: unknown): Date | undefined {
@@ -76,22 +91,52 @@ function reviveWorkout(raw: Record<string, unknown>): Workout {
   };
 }
 
+const asArray = <T,>(value: unknown): T[] => (Array.isArray(value) ? (value as T[]) : []);
+
+// Every field is rebuilt rather than spread, because a spread lets a corrupt
+// stored shape (`{"custom": null}`) survive past the JSON.parse guard and blow
+// up later at `library.custom.length` — far from the actual cause.
+function reviveLibrary(raw: unknown): ExerciseLibrary {
+  const lib = (raw ?? {}) as Partial<ExerciseLibrary>;
+  return {
+    custom: asArray(lib.custom),
+    removedIds: asArray<string>(lib.removedIds).filter((id) => typeof id === "string"),
+    overrides: asArray(lib.overrides),
+  };
+}
+
+function reviveWeeklyPlan(raw: unknown): WeeklyPlan {
+  const days = asArray<unknown>(raw);
+  return Array.from({ length: 7 }, (_, i) => (typeof days[i] === "string" ? (days[i] as string) : null));
+}
+
+function reviveTemplateIds(raw: unknown): Record<string, string> {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return {};
+  const out: Record<string, string> = {};
+  for (const [local, cloud] of Object.entries(raw as Record<string, unknown>)) {
+    if (typeof cloud === "string") out[local] = cloud;
+  }
+  return out;
+}
+
 async function load(): Promise<GuestData> {
   if (cache) return cache;
   // Memoize the in-flight read so concurrent callers share one parse and can
   // never end up mutating two different copies of the data.
   loading ??= (async () => {
+    const gen = generation;
     let data = emptyData();
     try {
       const stored = await AsyncStorage.getItem(DATA_KEY);
       if (stored) {
         const parsed = JSON.parse(stored) as Partial<GuestData>;
         data = {
-          workouts: (Array.isArray(parsed.workouts) ? parsed.workouts : []).map((w) =>
-            reviveWorkout(w as unknown as Record<string, unknown>)
+          workouts: asArray<unknown>(parsed.workouts).map((w) =>
+            reviveWorkout(w as Record<string, unknown>)
           ),
-          library: { ...emptyData().library, ...(parsed.library ?? {}) },
-          weeklyPlan: Array.from({ length: 7 }, (_, i) => parsed.weeklyPlan?.[i] ?? null),
+          library: reviveLibrary(parsed.library),
+          weeklyPlan: reviveWeeklyPlan(parsed.weeklyPlan),
+          migratedTemplateIds: reviveTemplateIds(parsed.migratedTemplateIds),
         };
       }
     } catch (e) {
@@ -100,6 +145,9 @@ async function load(): Promise<GuestData> {
       // radius is this device's unsynced guest data.
       console.warn("Couldn't read guest data; starting fresh", e);
     }
+    // A wipe landed while this read was in flight — its result is stale by
+    // definition, so hand back the post-wipe state and leave the cache alone.
+    if (gen !== generation) return cache ?? emptyData();
     cache = data;
     loading = null;
     return data;
@@ -292,7 +340,22 @@ export async function removeMigratedWorkout(id: string): Promise<void> {
   await persist();
 }
 
+/**
+ * Records where a guest template landed in the cloud. Written before the local
+ * copy is dropped, so a migration resumed after a failure can still point the
+ * weekly split at the right cloud template.
+ */
+export async function recordMigratedTemplate(localId: string, cloudId: string): Promise<void> {
+  const data = await load();
+  data.migratedTemplateIds[localId] = cloudId;
+  await persist();
+}
+
 export async function clearGuestData(): Promise<void> {
+  // Invalidate any read still in flight before swapping the cache, so its
+  // continuation can't reinstate what's being deleted here.
+  generation++;
+  loading = null;
   cache = emptyData();
   await AsyncStorage.removeItem(DATA_KEY);
   notify();

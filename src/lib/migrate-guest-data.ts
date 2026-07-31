@@ -18,6 +18,7 @@ import {
   clearGuestData,
   hasContent,
   readGuestData,
+  recordMigratedTemplate,
   removeMigratedWorkout,
   writeGuestActive,
   type GuestData,
@@ -73,12 +74,21 @@ export async function migrateGuestDataTo(userId: string): Promise<MigrationResul
 
   // Sequential on purpose: each workout leaves the device only once it's safely
   // in the cloud, which makes a partial failure resumable instead of duplicating.
-  const templateIdMap = new Map<string, string>();
+  //
+  // Seeded with what earlier attempts already uploaded — those templates are
+  // long gone from the device, but the weekly split below still needs to know
+  // where they landed.
+  const templateIdMap = new Map<string, string>(Object.entries(guest.migratedTemplateIds));
   let migrated = 0;
   for (const workout of [...guest.workouts]) {
     const { id, ...fields } = workout;
     const cloudId = await createWorkout(stripUndefined({ ...fields, userId }), true);
-    if (workout.isTemplate) templateIdMap.set(id, cloudId);
+    // Record before removing: between these two writes the mapping is the only
+    // thing tying the split to the uploaded template.
+    if (workout.isTemplate) {
+      templateIdMap.set(id, cloudId);
+      await recordMigratedTemplate(id, cloudId);
+    }
     await removeMigratedWorkout(id);
     migrated++;
   }

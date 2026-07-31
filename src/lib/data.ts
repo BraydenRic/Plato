@@ -1,6 +1,6 @@
 import * as cloud from "./firestore";
 import * as local from "./local-store";
-import { GUEST_USER_ID, isGuestUserId, isLocalWorkoutId } from "./local-store";
+import { isGuestUserId, isLocalWorkoutId } from "./local-store";
 import type { ExerciseLibrary, WeeklyPlan } from "./firestore";
 import type { UserStatistics, Workout, WorkoutExercise } from "@/types";
 

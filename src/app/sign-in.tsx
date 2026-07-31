@@ -255,7 +255,7 @@ export default function SignInScreen() {
               />
             )}
             {isSignUp && confirmPassword.length > 0 && !passwordsMatch && (
-              <Text style={styles.passwordHint}>Passwords don't match yet.</Text>
+              <Text style={styles.passwordHint}>Passwords don&apos;t match yet.</Text>
             )}
             {!isSignUp && (
               <Pressable onPress={forgotPassword} hitSlop={8} style={styles.forgotRow}>

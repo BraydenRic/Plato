@@ -1,4 +1,36 @@
-import type { Workout, WorkoutSet } from "@/types";
+import type { WeeklyPlan, Workout, WorkoutSet } from "@/types";
+
+export const EMPTY_WEEKLY_PLAN: WeeklyPlan = [null, null, null, null, null, null, null];
+
+// Some stored docs carry null/undefined holes in their exercises/sets arrays
+// (crashed build 9 the moment a set row rendered). Rendering, stats, and the
+// keypad all assume every entry exists, so drop the holes at the read boundary
+// and log them — writes should never produce these, so a warning here means a
+// bug (or legacy data) worth chasing.
+//
+// Lives here rather than next to the Firestore reader because the on-device
+// guest store needs it too, and pulling it from there would drag the whole
+// Firebase SDK into a mode that is meant to never touch the network.
+export function sanitizeExercises(raw: unknown, docName?: unknown): Workout["exercises"] {
+  const entries = (Array.isArray(raw) ? raw : []) as Workout["exercises"];
+  const exercises = entries.filter((ex) => ex && ex.exercise);
+  if (exercises.length !== entries.length) {
+    console.warn(
+      `Dropped ${entries.length - exercises.length} corrupt exercise entries in "${String(docName ?? "?")}"`
+    );
+  }
+  return exercises.map((ex) => {
+    const rawSets = Array.isArray(ex.sets) ? ex.sets : [];
+    const sets = rawSets.filter(Boolean);
+    if (sets.length !== rawSets.length) {
+      console.warn(
+        `Dropped ${rawSets.length - sets.length} corrupt set entries in "${String(docName ?? "?")}" / ${ex.exercise?.name ?? ex.exerciseId}:`,
+        JSON.stringify(rawSets)
+      );
+    }
+    return { ...ex, sets };
+  });
+}
 
 // Templates are reusable and never auto-expire, so cap them per account to keep
 // the collection from growing without bound. 20 comfortably covers real routines
@@ -124,6 +156,48 @@ export function workoutDay(workout: Workout): Date {
 
 export function newId(): string {
   return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+}
+
+// ── "What did I lift last time?" ─────────────────────────────────────────────
+
+/** A set counts as remembered only if it was finished with a real number in it. */
+function isLogged(set: WorkoutSet): boolean {
+  return set.isCompleted && (set.weight != null || set.duration != null);
+}
+
+/**
+ * The numbers to ghost into empty inputs, per exercise, indexed by set position.
+ *
+ * Two rules make this behave the way lifters expect:
+ *
+ *  1. It walks the whole history, not just the last workout. A session where the
+ *     exercise was in the workout but nothing was entered logs nothing, so it's
+ *     passed over and an older session supplies the numbers — skipping bench for
+ *     two weeks still ghosts what you last actually pressed, and finishing a
+ *     workout with an exercise left blank can't erase that memory.
+ *  2. Positions are preserved, holes and all. Compacting the logged sets would
+ *     slide set 3's numbers up under set 2 and ghost a weight that was never
+ *     lifted there. A set the source session never reached stays undefined, and
+ *     the row shows a dash.
+ *
+ * @param completed Finished workouts, newest first — the first session holding a
+ *   logged set for an exercise wins.
+ * @param excludeWorkoutId The workout being edited, so it can't ghost itself.
+ */
+export function previousSetsByExercise(
+  completed: Workout[],
+  excludeWorkoutId?: string
+): Map<string, (WorkoutSet | undefined)[]> {
+  const map = new Map<string, (WorkoutSet | undefined)[]>();
+  for (const workout of completed) {
+    if (workout.id === excludeWorkoutId) continue;
+    for (const exercise of workout.exercises) {
+      if (map.has(exercise.exerciseId)) continue;
+      const logged = exercise.sets.map((set) => (isLogged(set) ? set : undefined));
+      if (logged.some(Boolean)) map.set(exercise.exerciseId, logged);
+    }
+  }
+  return map;
 }
 
 /**

@@ -104,9 +104,19 @@ const AuthContext = createContext<AuthContextType>({
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [authLoading, setAuthLoading] = useState(true);
-  const [isGuest, setIsGuest] = useState(false);
+  const [guestActive, setGuestActive] = useState(false);
   const [guestChecked, setGuestChecked] = useState(false);
   const [migrating, setMigrating] = useState(false);
+
+  /**
+   * An account always outranks the guest flag. The flag can legitimately still
+   * be set while an account exists — during migration, and after one that
+   * failed and will retry next launch — and screens that branch on it would
+   * then show account-less UI over data that hasn't reached the cloud yet,
+   * including Profile's "Delete all data" button. Deriving it here means no
+   * screen has to remember that rule.
+   */
+  const isGuest = guestActive && !user;
 
   useEffect(() => {
     let cancelled = false;
@@ -114,7 +124,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // alongside Firebase keeps a returning guest from flashing the sign-in screen.
     readGuestActive()
       .then((active) => {
-        if (!cancelled) setIsGuest(active);
+        if (!cancelled) setGuestActive(active);
       })
       .finally(() => {
         if (!cancelled) setGuestChecked(true);
@@ -148,12 +158,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         const guest = await readGuestData();
         if (!hasContent(guest)) {
           await writeGuestActive(false);
-          if (!cancelled) setIsGuest(false);
+          if (!cancelled) setGuestActive(false);
           return;
         }
         if (!cancelled) setMigrating(true);
         await migrateGuestDataTo(uid);
-        if (!cancelled) setIsGuest(false);
+        if (!cancelled) setGuestActive(false);
       } catch (e) {
         console.warn("Couldn't move guest data into the account", e);
         Alert.alert(
@@ -172,13 +182,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   async function continueAsGuest() {
     await writeGuestActive(true);
-    setIsGuest(true);
+    setGuestActive(true);
   }
 
   async function discardGuestData() {
     await clearGuestData();
     await writeGuestActive(false);
-    setIsGuest(false);
+    setGuestActive(false);
   }
 
   async function signIn(email: string, password: string) {
@@ -216,7 +226,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // sign-in screen with their device data untouched, so resuming picks up
     // exactly where they left off.
     await writeGuestActive(false);
-    setIsGuest(false);
+    setGuestActive(false);
   }
 
   async function resetPassword(email: string) {
@@ -278,7 +288,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         user,
         loading: authLoading || !guestChecked,
         isGuest,
-        dataUserId: user?.uid ?? (isGuest ? GUEST_USER_ID : null),
+        dataUserId: user?.uid ?? (guestActive ? GUEST_USER_ID : null),
         continueAsGuest,
         migrating,
         discardGuestData,

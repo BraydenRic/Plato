@@ -2,20 +2,38 @@ import { Stack } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import * as SplashScreen from "expo-splash-screen";
 import { useEffect } from "react";
-import { View } from "react-native";
+import { ActivityIndicator, StyleSheet, Text, View } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 
 import { LiveActivitySync } from "@/components/live-activity-sync";
 import { AuthProvider, useAuth } from "@/context/AuthContext";
 import { RestTimerProvider } from "@/context/RestTimerContext";
+import { SetTimerProvider } from "@/context/SetTimerContext";
 import { DefaultSetsProvider } from "@/context/DefaultSetsContext";
 import { UnitProvider } from "@/context/UnitContext";
-import { Palette } from "@/constants/theme";
+import { Palette, Spacing } from "@/constants/theme";
 
 SplashScreen.preventAutoHideAsync();
 
+// Shown while guest data is uploading into a freshly signed-in account. The
+// upload is sequential and can take a while on a long history, and the tabs
+// would otherwise be mounted against a cloud account that is still filling up —
+// so a guest signing in would watch their whole history appear to vanish and
+// trickle back. Holding the app here for the duration says what's happening.
+function MigratingScreen() {
+  return (
+    <View style={styles.migrating}>
+      <ActivityIndicator color={Palette.accent} />
+      <Text style={styles.migratingTitle}>Moving your workouts</Text>
+      <Text style={styles.migratingBody}>
+        Saving everything you logged on this device into your account. This only happens once.
+      </Text>
+    </View>
+  );
+}
+
 function RootNavigator() {
-  const { user, loading, isGuest } = useAuth();
+  const { user, loading, isGuest, migrating } = useAuth();
 
   useEffect(() => {
     if (!loading) SplashScreen.hideAsync();
@@ -24,6 +42,8 @@ function RootNavigator() {
   // Keep the splash visible until Firebase restores the session,
   // so signed-in users never flash the sign-in screen.
   if (loading) return <View style={{ flex: 1, backgroundColor: Palette.bg }} />;
+
+  if (migrating) return <MigratingScreen />;
 
   // Email/password accounts stay locked out until the address is verified —
   // otherwise anyone could claim someone else's email. Apple/Google emails
@@ -67,17 +87,44 @@ function RootNavigator() {
   );
 }
 
+const styles = StyleSheet.create({
+  migrating: {
+    flex: 1,
+    backgroundColor: Palette.bg,
+    alignItems: "center",
+    justifyContent: "center",
+    gap: Spacing.three,
+    paddingHorizontal: Spacing.four,
+  },
+  migratingTitle: {
+    color: Palette.text,
+    fontSize: 20,
+    fontWeight: "700",
+    textAlign: "center",
+  },
+  migratingBody: {
+    color: Palette.textSecondary,
+    fontSize: 15,
+    lineHeight: 21,
+    textAlign: "center",
+  },
+});
+
 export default function RootLayout() {
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <AuthProvider>
         <UnitProvider>
           <RestTimerProvider>
-            <DefaultSetsProvider>
-              <StatusBar style="light" />
-              <LiveActivitySync />
-              <RootNavigator />
-            </DefaultSetsProvider>
+            {/* Above the navigator so a running set stopwatch survives leaving
+                the workout screen, which unmounts it. */}
+            <SetTimerProvider>
+              <DefaultSetsProvider>
+                <StatusBar style="light" />
+                <LiveActivitySync />
+                <RootNavigator />
+              </DefaultSetsProvider>
+            </SetTimerProvider>
           </RestTimerProvider>
         </UnitProvider>
       </AuthProvider>
