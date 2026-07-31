@@ -7,6 +7,7 @@ import Ionicons from "@expo/vector-icons/Ionicons";
 import { Chip, Field } from "@/components/ui";
 import { Palette, Radius, Spacing } from "@/constants/theme";
 import { useExerciseLibrary } from "@/hooks/use-exercise-library";
+import { filterExercises } from "@/lib/exercises";
 import type { Exercise } from "@/types";
 
 export default function ExercisesScreen() {
@@ -19,16 +20,10 @@ export default function ExercisesScreen() {
     [exercises]
   );
 
-  const filtered = useMemo(() => {
-    const term = search.trim().toLowerCase();
-    return exercises.filter(
-      (e) =>
-        (category === "All" || e.category === category) &&
-        (term === "" ||
-          e.name.toLowerCase().includes(term) ||
-          e.musclesWorked.some((m) => m.toLowerCase().includes(term)))
-    );
-  }, [exercises, search, category]);
+  const filtered = useMemo(
+    () => filterExercises(exercises, search, category),
+    [exercises, search, category]
+  );
 
   function confirmDelete(exercise: Exercise) {
     Alert.alert(
@@ -77,7 +72,7 @@ export default function ExercisesScreen() {
       </View>
 
       <View style={styles.searchWrap}>
-        <Field placeholder="Search exercises or muscles" value={search} onChangeText={setSearch} autoCorrect={false} />
+        <Field placeholder="Search exercises" value={search} onChangeText={setSearch} autoCorrect={false} />
       </View>
 
       <View>

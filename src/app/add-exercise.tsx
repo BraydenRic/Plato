@@ -18,6 +18,7 @@ import { useWeightUnit } from "@/context/UnitContext";
 import { useDefaultSets } from "@/context/DefaultSetsContext";
 import { getWorkout, stripUndefined, updateWorkout } from "@/lib/data";
 import { useExerciseLibrary } from "@/hooks/use-exercise-library";
+import { filterExercises } from "@/lib/exercises";
 import { newId } from "@/lib/workout-utils";
 import type { Exercise, Workout, WorkoutSet } from "@/types";
 
@@ -36,16 +37,10 @@ export default function AddExerciseModal() {
     [exercises]
   );
 
-  const filtered = useMemo(() => {
-    const term = search.trim().toLowerCase();
-    return exercises.filter(
-      (e) =>
-        (category === "All" || e.category === category) &&
-        (term === "" ||
-          e.name.toLowerCase().includes(term) ||
-          e.musclesWorked.some((m) => m.toLowerCase().includes(term)))
-    );
-  }, [exercises, search, category]);
+  const filtered = useMemo(
+    () => filterExercises(exercises, search, category),
+    [exercises, search, category]
+  );
 
   async function add(exercise: Exercise) {
     if (!workoutId || addedIds.has(exercise.id)) return;
@@ -121,7 +116,7 @@ export default function AddExerciseModal() {
 
       <View style={styles.searchWrap}>
         <Field
-          placeholder="Search exercises or muscles"
+          placeholder="Search exercises"
           value={search}
           onChangeText={setSearch}
           autoCorrect={false}

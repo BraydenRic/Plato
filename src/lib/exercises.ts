@@ -223,6 +223,28 @@ export function isTimedExercise(exercise: Exercise): boolean {
   return exercise.category === "Cardio" || TIMED_EXERCISE_IDS.has(exercise.id);
 }
 
+/**
+ * Shared by the Exercises tab and the add-exercise picker so the two can't
+ * drift apart.
+ *
+ * The text term matches the **name only**. It used to match musclesWorked too,
+ * which meant typing "shoulder" buried Shoulder Press under every bench and dip
+ * variation that happens to list shoulders as a secondary — searching by muscle
+ * is what the category chips are for.
+ */
+export function filterExercises(
+  exercises: Exercise[],
+  search: string,
+  category: string
+): Exercise[] {
+  const term = search.trim().toLowerCase();
+  return exercises.filter(
+    (e) =>
+      (category === "All" || e.category === category) &&
+      (term === "" || e.name.toLowerCase().includes(term))
+  );
+}
+
 export const WORKOUT_TEMPLATES = [
   {
     name: "Push Day",
