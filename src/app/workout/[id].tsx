@@ -26,6 +26,7 @@ import { isTimedExercise } from "@/lib/exercises";
 import { useRestTimer } from "@/context/RestTimerContext";
 import { useSetTimer } from "@/context/SetTimerContext";
 import { useWeightUnit } from "@/context/UnitContext";
+import { useTheme } from "@/context/ThemeContext";
 import { convertWeight, displayVolume, formatClock, liveSetSeconds, newId, previousSetsByExercise, relativeDay, sameDay, startOfDay, workoutVolumeLbs, completedSetCount, totalSetCount, MAX_TEMPLATES, MAX_ACTIVE_WORKOUTS } from "@/lib/workout-utils";
 import type { Workout, WorkoutExercise, WorkoutSet } from "@/types";
 
@@ -64,6 +65,7 @@ export function ErrorBoundary({ error, retry }: ErrorBoundaryProps) {
 }
 
 export default function WorkoutScreen() {
+  const theme = useTheme();
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
 
@@ -173,7 +175,7 @@ export default function WorkoutScreen() {
   if (loading) {
     return (
       <SafeAreaView style={styles.safe}>
-        <ActivityIndicator color={Palette.accent} style={{ marginTop: Spacing.six }} />
+        <ActivityIndicator color={theme.accent} style={{ marginTop: Spacing.six }} />
       </SafeAreaView>
     );
   }
@@ -477,11 +479,11 @@ export default function WorkoutScreen() {
           </Pressable>
           <View style={styles.topCenter}>
             {isTemplate ? (
-              <Text style={styles.plannedLabel}>Template</Text>
+              <Text style={[styles.plannedLabel, { color: theme.accentText }]}>Template</Text>
             ) : isDone ? (
               <Text style={styles.doneLabel}>Completed</Text>
             ) : isPlanned ? (
-              <Text style={styles.plannedLabel}>
+              <Text style={[styles.plannedLabel, { color: theme.accentText }]}>
                 {isPastPlan ? "Logging" : "Planned"}
                 {workout.scheduledFor ? ` · ${relativeDay(workout.scheduledFor)}` : ""}
               </Text>
@@ -622,9 +624,15 @@ export default function WorkoutScreen() {
         )}
 
         {restEndsAt && !isDone && (
-          <View style={styles.restBar}>
-            <Ionicons name="timer-outline" size={18} color={Palette.accentText} />
-            <Text style={styles.restText}>Rest {formatClock(restLeft)}</Text>
+          <View
+            style={[
+              styles.restBar,
+              { backgroundColor: theme.accentSoft, borderColor: theme.accent },
+            ]}>
+            <Ionicons name="timer-outline" size={18} color={theme.accentText} />
+            <Text style={[styles.restText, { color: theme.accentText }]}>
+              Rest {formatClock(restLeft)}
+            </Text>
             <Pressable onPress={() => setRestEndsAt(restEndsAt + 15_000)} hitSlop={8}>
               <Text style={styles.restSkip}>+15s</Text>
             </Pressable>
@@ -672,9 +680,17 @@ export default function WorkoutScreen() {
             the bar sitting directly on top of the keypad. */}
         {keypadOpen && !isDone && !isTemplate && (
           <View style={styles.keypadBar}>
-            <Pressable onPress={focusPrev} hitSlop={8} style={styles.keypadPill}>
-              <Ionicons name="arrow-back" size={18} color={Palette.accentText} />
-              <Text style={styles.keypadPillText} maxFontSizeMultiplier={FontScaleCap.keypad}>
+            <Pressable
+              onPress={focusPrev}
+              hitSlop={8}
+              style={[
+                styles.keypadPill,
+                { backgroundColor: theme.accentSoft, borderColor: theme.accent },
+              ]}>
+              <Ionicons name="arrow-back" size={18} color={theme.accentText} />
+              <Text
+                style={[styles.keypadPillText, { color: theme.accentText }]}
+                maxFontSizeMultiplier={FontScaleCap.keypad}>
                 Back
               </Text>
             </Pressable>
@@ -683,11 +699,19 @@ export default function WorkoutScreen() {
                 Done
               </Text>
             </Pressable>
-            <Pressable onPress={focusNext} hitSlop={8} style={styles.keypadPill}>
-              <Text style={styles.keypadPillText} maxFontSizeMultiplier={FontScaleCap.keypad}>
+            <Pressable
+              onPress={focusNext}
+              hitSlop={8}
+              style={[
+                styles.keypadPill,
+                { backgroundColor: theme.accentSoft, borderColor: theme.accent },
+              ]}>
+              <Text
+                style={[styles.keypadPillText, { color: theme.accentText }]}
+                maxFontSizeMultiplier={FontScaleCap.keypad}>
                 Next
               </Text>
-              <Ionicons name="arrow-forward" size={18} color={Palette.accentText} />
+              <Ionicons name="arrow-forward" size={18} color={theme.accentText} />
             </Pressable>
           </View>
         )}
@@ -733,14 +757,17 @@ function ExerciseCard({
   onToggleTimer?: (setId: string, currentDuration?: number) => void;
 }) {
   const { unit } = useWeightUnit();
+  const theme = useTheme();
   // Cardio and holds log a stopwatch per set instead of weight × reps.
   const timed = isTimedExercise(exercise.exercise);
   return (
-    <Card style={[styles.exerciseCard, dragActive && styles.exerciseCardDragging]}>
+    <Card style={[styles.exerciseCard, dragActive && { borderColor: theme.accent }]}>
       <View style={styles.exerciseHeader}>
         <View style={{ flex: 1 }}>
           <Text style={styles.exerciseName}>{exercise.exercise.name}</Text>
-          <Text style={styles.exerciseCategory}>{exercise.exercise.category}</Text>
+          <Text style={[styles.exerciseCategory, { color: theme.accentText }]}>
+            {exercise.exercise.category}
+          </Text>
         </View>
         {templateMode && (
           // Touching the grip hands the gesture to the drag system immediately.
@@ -861,6 +888,7 @@ function SetRow({
   onRemove: () => void;
 }) {
   const { unit } = useWeightUnit();
+  const theme = useTheme();
 
   // Weights are stored with the unit they were logged in; show them converted
   // to the current preference so switching lbs/kg updates old workouts too.
@@ -1009,7 +1037,15 @@ function SetRow({
         <>
           {running ? (
             <Text
-              style={[styles.timerLive, styles.inputCol]}
+              style={[
+                styles.timerLive,
+                {
+                  backgroundColor: theme.accentSoft,
+                  borderColor: theme.accent,
+                  color: theme.accentText,
+                },
+                styles.inputCol,
+              ]}
               maxFontSizeMultiplier={FontScaleCap.grid}>
               {formatClock(liveSeconds)}
             </Text>
@@ -1038,8 +1074,18 @@ function SetRow({
             <Pressable
               onPress={onToggleTimer}
               hitSlop={6}
-              style={[styles.timerButton, running && styles.timerButtonActive]}>
-              <Ionicons name={running ? "stop" : "play"} size={15} color={running ? "#fff" : Palette.accentText} />
+              style={[
+                styles.timerButton,
+                { backgroundColor: theme.accentSoft, borderColor: theme.accent },
+                running && styles.timerButtonActive,
+              ]}>
+              {/* Running turns the pill danger-red, so white is right there
+                  whatever the theme; idle it carries the accent. */}
+              <Ionicons
+                name={running ? "stop" : "play"}
+                size={15}
+                color={running ? "#fff" : theme.accentText}
+              />
             </Pressable>
           )}
         </>
@@ -1135,7 +1181,6 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     letterSpacing: 1,
     textTransform: "uppercase",
-    color: Palette.accentText,
   },
   scroll: {
     padding: Spacing.three,
@@ -1166,9 +1211,6 @@ const styles = StyleSheet.create({
   exerciseCard: {
     gap: Spacing.two,
   },
-  exerciseCardDragging: {
-    borderColor: Palette.accent,
-  },
   exerciseHeader: {
     flexDirection: "row",
     alignItems: "flex-start",
@@ -1181,7 +1223,6 @@ const styles = StyleSheet.create({
   },
   exerciseCategory: {
     fontSize: 12,
-    color: Palette.accentText,
     marginTop: 1,
   },
   setHeaderRow: {
@@ -1267,14 +1308,11 @@ const styles = StyleSheet.create({
     gap: 6,
     minHeight: 44,
     borderRadius: Radius.full,
-    backgroundColor: Palette.accentSoft,
     borderWidth: 1,
-    borderColor: Palette.accent,
   },
   keypadPillText: {
     fontSize: 16,
     fontWeight: "700",
-    color: Palette.accentText,
   },
   checkCol: {
     width: 34,
@@ -1284,11 +1322,8 @@ const styles = StyleSheet.create({
   },
   // Same footprint as a set input, restyled as the live stopwatch readout.
   timerLive: {
-    backgroundColor: Palette.accentSoft,
     borderRadius: Radius.sm,
     borderWidth: 1,
-    borderColor: Palette.accent,
-    color: Palette.accentText,
     fontSize: 15,
     fontWeight: "700",
     textAlign: "center",
@@ -1300,9 +1335,7 @@ const styles = StyleSheet.create({
     width: 34,
     height: 30,
     borderRadius: Radius.sm,
-    backgroundColor: Palette.accentSoft,
     borderWidth: 1,
-    borderColor: Palette.accent,
     alignItems: "center",
     justifyContent: "center",
   },
@@ -1336,15 +1369,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.three,
     paddingVertical: 10,
     borderRadius: Radius.md,
-    backgroundColor: Palette.accentSoft,
     borderWidth: 1,
-    borderColor: Palette.accent,
   },
   restText: {
     flex: 1,
     fontSize: 15,
     fontWeight: "700",
-    color: Palette.accentText,
     fontVariant: ["tabular-nums"],
   },
   restSkip: {

@@ -5,6 +5,7 @@ import Ionicons from "@expo/vector-icons/Ionicons";
 
 import { Button } from "@/components/ui";
 import { Palette, Radius, Spacing } from "@/constants/theme";
+import { useTheme } from "@/context/ThemeContext";
 import { useAuth } from "@/context/AuthContext";
 
 // Blocks email/password accounts out of the app until the address is
@@ -12,6 +13,7 @@ import { useAuth } from "@/context/AuthContext";
 // root layout routes here whenever the signed-in user still needs it.
 export default function VerifyEmailScreen() {
   const { user, signOut, refreshUser, resendVerificationEmail } = useAuth();
+  const theme = useTheme();
   const [checking, setChecking] = useState(false);
   const [resending, setResending] = useState(false);
 
@@ -55,8 +57,9 @@ export default function VerifyEmailScreen() {
   return (
     <SafeAreaView style={styles.safe}>
       <View style={styles.content}>
-        <View style={styles.iconWrap}>
-          <Ionicons name="mail-unread-outline" size={34} color={Palette.accentText} />
+        <View
+          style={[styles.iconWrap, { backgroundColor: theme.accentSoft, borderColor: theme.accent }]}>
+          <Ionicons name="mail-unread-outline" size={34} color={theme.accentText} />
         </View>
         <Text style={styles.title}>Verify your email</Text>
         <Text style={styles.body}>
@@ -80,7 +83,8 @@ export default function VerifyEmailScreen() {
 
         <Pressable onPress={() => signOut()} hitSlop={8} style={styles.signOutRow}>
           <Text style={styles.signOutText}>
-            Wrong email? <Text style={styles.signOutLink}>Sign out</Text>
+            Wrong email?{" "}
+            <Text style={[styles.signOutLink, { color: theme.accentText }]}>Sign out</Text>
           </Text>
         </Pressable>
       </View>
@@ -104,9 +108,7 @@ const styles = StyleSheet.create({
     width: 72,
     height: 72,
     borderRadius: Radius.xl,
-    backgroundColor: Palette.accentSoft,
     borderWidth: 1,
-    borderColor: Palette.accent,
     alignItems: "center",
     justifyContent: "center",
     marginBottom: Spacing.two,
@@ -147,7 +149,6 @@ const styles = StyleSheet.create({
     color: Palette.textTertiary,
   },
   signOutLink: {
-    color: Palette.accentText,
     fontWeight: "600",
   },
 });

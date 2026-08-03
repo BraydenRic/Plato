@@ -6,6 +6,7 @@ import Ionicons from "@expo/vector-icons/Ionicons";
 import { Card, EmptyState, SectionLabel } from "@/components/ui";
 import { MuscleMap } from "@/components/muscle-map";
 import { FontScaleCap, Palette, Spacing } from "@/constants/theme";
+import { useTheme } from "@/context/ThemeContext";
 import { useWorkouts } from "@/hooks/use-workouts";
 import { computeStats } from "@/lib/data";
 import { useWeightUnit } from "@/context/UnitContext";
@@ -14,6 +15,7 @@ import { addDays, displayVolume, formatDuration, startOfWeek, workoutVolumeLbs }
 const CHART_DAYS = 14;
 
 export default function StatsScreen() {
+  const theme = useTheme();
   const { completed, loading } = useWorkouts();
   const { unit } = useWeightUnit();
 
@@ -87,7 +89,7 @@ export default function StatsScreen() {
           </Card>
           <Card style={styles.streakCard}>
             <View style={styles.streakIconWrap}>
-              <Ionicons name="trophy" size={20} color={Palette.accentText} />
+              <Ionicons name="trophy" size={20} color={theme.accentText} />
             </View>
             <Text style={styles.streakValue}>{stats.longestStreak}</Text>
             <Text style={styles.streakLabel}>best streak</Text>
@@ -130,6 +132,7 @@ export default function StatsScreen() {
                         style={[
                           styles.bar,
                           {
+                            backgroundColor: theme.accent,
                             height: `${Math.max(d.volume > 0 ? 6 : 0, (d.volume / maxVolume) * 100)}%`,
                           },
                         ]}
@@ -263,7 +266,6 @@ const styles = StyleSheet.create({
   bar: {
     width: "100%",
     borderRadius: 4,
-    backgroundColor: Palette.accent,
   },
   barLabel: {
     fontSize: 10,

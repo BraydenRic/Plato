@@ -19,6 +19,7 @@ import { useAuth } from "@/context/AuthContext";
 import { useWorkouts } from "@/hooks/use-workouts";
 import { createWorkout, deleteWorkout, startFromTemplate, stripUndefined } from "@/lib/data";
 import { useWeightUnit } from "@/context/UnitContext";
+import { useTheme } from "@/context/ThemeContext";
 import {
   addDays,
   completedSetCount,
@@ -48,6 +49,7 @@ type PickerOption = {
 type PickerConfig = { title: string; subtitle?: string; options: PickerOption[] };
 
 export default function WorkoutsScreen() {
+  const theme = useTheme();
   const router = useRouter();
   // `user` only drives the greeting — guests have no account, so it falls back.
   const { user, dataUserId } = useAuth();
@@ -333,20 +335,20 @@ export default function WorkoutsScreen() {
                   style={[
                     styles.dayCell,
                     hasDone && !isSelected && styles.dayCellDone,
-                    isSelected && styles.dayCellSelected,
+                    isSelected && { backgroundColor: theme.accent },
                   ]}>
                   {/* Seven columns share one row, so the date text caps like the
                       set grid does — past that it wraps out of its own cell. */}
                   <Text
-                    style={[styles.dayName, isSelected && styles.dayTextSelected]}
+                    style={[styles.dayName, isSelected && { color: theme.onAccent }]}
                     maxFontSizeMultiplier={FontScaleCap.grid}>
                     {day.toLocaleDateString(undefined, { weekday: "narrow" })}
                   </Text>
                   <Text
                     style={[
                       styles.dayNum,
-                      isToday && !isSelected && styles.dayNumToday,
-                      isSelected && styles.dayTextSelected,
+                      isToday && !isSelected && { color: theme.accentText },
+                      isSelected && { color: theme.onAccent },
                     ]}
                     maxFontSizeMultiplier={FontScaleCap.grid}>
                     {day.getDate()}
@@ -361,7 +363,7 @@ export default function WorkoutsScreen() {
                             ? styles.dotDone
                             : w.startedAt
                               ? styles.dotLive
-                              : styles.dotPlanned,
+                              : [styles.dotPlanned, { borderColor: theme.accentText }],
                         ]}
                       />
                     ))}
@@ -380,9 +382,14 @@ export default function WorkoutsScreen() {
 
             {dayWorkouts.length === 0 &&
               (daySuggestion ? (
-                <Pressable style={styles.ghostRow} onPress={() => materializeSplit(daySuggestion)}>
+                <Pressable
+                  style={[
+                    styles.ghostRow,
+                    { backgroundColor: theme.accentSoft, borderColor: theme.accent },
+                  ]}
+                  onPress={() => materializeSplit(daySuggestion)}>
                   <View style={styles.ghostBadge}>
-                    <Ionicons name="repeat" size={15} color={Palette.accentText} />
+                    <Ionicons name="repeat" size={15} color={theme.accentText} />
                   </View>
                   <View style={{ flex: 1, gap: 2 }}>
                     <Text style={styles.rowTitle}>{daySuggestion.name}</Text>
@@ -390,7 +397,7 @@ export default function WorkoutsScreen() {
                       From your weekly split · {totalSetCount(daySuggestion)} sets
                     </Text>
                   </View>
-                  <Text style={styles.ghostAction}>
+                  <Text style={[styles.ghostAction, { color: theme.accentText }]}>
                     {selectedIsToday ? "Start" : selectedIsFuture ? "Plan" : "Log"}
                   </Text>
                 </Pressable>
@@ -434,7 +441,7 @@ export default function WorkoutsScreen() {
           </View>
         </View>
 
-        {loading && <ActivityIndicator color={Palette.accent} style={{ marginTop: Spacing.five }} />}
+        {loading && <ActivityIndicator color={theme.accent} style={{ marginTop: Spacing.five }} />}
         {error && !loading && <EmptyState title="Couldn't load workouts" message={error} />}
 
         {active.length > 0 && (
@@ -454,11 +461,11 @@ export default function WorkoutsScreen() {
             <View style={styles.sectionActions}>
               {templates.length > 1 && (
                 <Pressable onPress={() => router.push("/reorder-templates")} hitSlop={8}>
-                  <Text style={styles.sectionAction}>Reorder</Text>
+                  <Text style={[styles.sectionAction, { color: theme.accentText }]}>Reorder</Text>
                 </Pressable>
               )}
               <Pressable onPress={newTemplate} hitSlop={8}>
-                <Text style={styles.sectionAction}>+ New</Text>
+                <Text style={[styles.sectionAction, { color: theme.accentText }]}>+ New</Text>
               </Pressable>
             </View>
           </View>
@@ -534,7 +541,7 @@ export default function WorkoutsScreen() {
             <Pressable onPress={() => router.push("/history")}>
               {({ pressed }) => (
                 <Card style={[styles.historyLink, pressed && { opacity: 0.8 }]}>
-                  <Ionicons name="time-outline" size={20} color={Palette.accentText} />
+                  <Ionicons name="time-outline" size={20} color={theme.accentText} />
                   <View style={{ flex: 1, gap: 2 }}>
                     <Text style={styles.rowTitle}>Full history</Text>
                     <Text style={styles.rowMeta}>
@@ -564,18 +571,21 @@ export default function WorkoutsScreen() {
             {picker?.options.map((o) => (
               <Pressable
                 key={o.key}
-                style={[styles.sheetOption, o.active && styles.sheetOptionActive]}
+                style={[
+                  styles.sheetOption,
+                  o.active && { backgroundColor: theme.accentSoft, borderColor: theme.accent },
+                ]}
                 onPress={() => {
                   setPicker(null);
                   o.onPress();
                 }}>
                 <View style={{ flex: 1, gap: 2 }}>
-                  <Text style={[styles.sheetOptionLabel, o.active && styles.sheetOptionLabelActive]}>
+                  <Text style={[styles.sheetOptionLabel, o.active && { color: theme.accentText }]}>
                     {o.label}
                   </Text>
                   {o.hint ? <Text style={styles.sheetOptionHint}>{o.hint}</Text> : null}
                 </View>
-                {o.active && <Ionicons name="checkmark" size={18} color={Palette.accentText} />}
+                {o.active && <Ionicons name="checkmark" size={18} color={theme.accentText} />}
               </Pressable>
             ))}
           </ScrollView>
@@ -595,6 +605,7 @@ function WorkoutRow({
   onLongPress: () => void;
 }) {
   const { unit } = useWeightUnit();
+  const theme = useTheme();
   const volume = workout.totalVolume ?? workoutVolumeLbs(workout);
   const done = completedSetCount(workout);
   const total = totalSetCount(workout);
@@ -604,7 +615,12 @@ function WorkoutRow({
   return (
     <Pressable onPress={onPress} onLongPress={onLongPress}>
       {({ pressed }) => (
-        <Card style={[styles.workoutRow, isLive && styles.workoutRowActive, pressed && { opacity: 0.8 }]}>
+        <Card
+          style={[
+            styles.workoutRow,
+            isLive && { borderColor: theme.accent, backgroundColor: theme.accentSoft },
+            pressed && { opacity: 0.8 },
+          ]}>
           <View style={{ flex: 1, gap: 3 }}>
             <Text style={styles.rowTitle}>{workout.name}</Text>
             <Text style={styles.rowMeta}>
@@ -620,11 +636,11 @@ function WorkoutRow({
               <Text style={styles.liveText}>LIVE</Text>
             </View>
           ) : isPlanned ? (
-            <View style={styles.plannedBadge}>
-              <Text style={styles.plannedText}>PLANNED</Text>
+            <View style={[styles.plannedBadge, { backgroundColor: theme.accentSoft }]}>
+              <Text style={[styles.plannedText, { color: theme.accentText }]}>PLANNED</Text>
             </View>
           ) : volume > 0 ? (
-            <Text style={styles.volume}>{displayVolume(volume, unit)}</Text>
+            <Text style={[styles.volume, { color: theme.accentText }]}>{displayVolume(volume, unit)}</Text>
           ) : (
             <Ionicons name="chevron-forward" size={16} color={Palette.textTertiary} />
           )}
@@ -717,9 +733,6 @@ const styles = StyleSheet.create({
     // Android has no shadow spread, so the tint + border carry it there.
     elevation: 3,
   },
-  dayCellSelected: {
-    backgroundColor: Palette.accent,
-  },
   dayName: {
     fontSize: 11,
     fontWeight: "600",
@@ -730,12 +743,6 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     color: Palette.text,
     fontVariant: ["tabular-nums"],
-  },
-  dayNumToday: {
-    color: Palette.accentText,
-  },
-  dayTextSelected: {
-    color: "#fff",
   },
   dotRow: {
     flexDirection: "row",
@@ -755,7 +762,6 @@ const styles = StyleSheet.create({
   },
   dotPlanned: {
     borderWidth: 1,
-    borderColor: Palette.accentText,
   },
   dotGhost: {
     width: 5,
@@ -768,9 +774,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: Spacing.three,
-    backgroundColor: Palette.accentSoft,
     borderWidth: 1,
-    borderColor: Palette.accent,
     borderStyle: "dashed",
     borderRadius: Radius.md,
     padding: Spacing.three,
@@ -786,7 +790,6 @@ const styles = StyleSheet.create({
   ghostAction: {
     fontSize: 14,
     fontWeight: "700",
-    color: Palette.accentText,
   },
   splitHint: {
     fontSize: 12,
@@ -855,7 +858,6 @@ const styles = StyleSheet.create({
   sectionAction: {
     fontSize: 13,
     fontWeight: "700",
-    color: Palette.accentText,
   },
   templateEmpty: {
     fontSize: 13,
@@ -866,10 +868,6 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: Spacing.three,
-  },
-  workoutRowActive: {
-    borderColor: Palette.accent,
-    backgroundColor: Palette.accentSoft,
   },
   templateRow: {
     flexDirection: "row",
@@ -897,7 +895,6 @@ const styles = StyleSheet.create({
   volume: {
     fontSize: 14,
     fontWeight: "700",
-    color: Palette.accentText,
     fontVariant: ["tabular-nums"],
   },
   liveBadge: {
@@ -922,7 +919,6 @@ const styles = StyleSheet.create({
     color: Palette.success,
   },
   plannedBadge: {
-    backgroundColor: Palette.accentSoft,
     paddingHorizontal: 10,
     paddingVertical: 5,
     borderRadius: Radius.full,
@@ -931,7 +927,6 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: "700",
     letterSpacing: 1,
-    color: Palette.accentText,
   },
   sheetBackdrop: {
     flex: 1,
@@ -985,17 +980,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.three,
     paddingVertical: 12,
   },
-  sheetOptionActive: {
-    backgroundColor: Palette.accentSoft,
-    borderColor: Palette.accent,
-  },
   sheetOptionLabel: {
     fontSize: 15,
     fontWeight: "600",
     color: Palette.text,
-  },
-  sheetOptionLabelActive: {
-    color: Palette.accentText,
   },
   sheetOptionHint: {
     fontSize: 12,

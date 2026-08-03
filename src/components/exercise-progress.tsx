@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import { StyleSheet, Text, View } from "react-native";
 import Svg, { Circle, Defs, Line, LinearGradient, Path, Stop } from "react-native-svg";
 
+import { useTheme } from "@/context/ThemeContext";
 import { Palette, Radius, Spacing } from "@/constants/theme";
 import { useWeightUnit } from "@/context/UnitContext";
 import { useWorkouts } from "@/hooks/use-workouts";
@@ -127,6 +128,7 @@ function TopSetChart({
   unit: "lbs" | "kg";
   prLbs: number;
 }) {
+  const theme = useTheme();
   const pad = { top: 14, bottom: 10, left: 8, right: 40 };
   const w = width - pad.left - pad.right;
   const h = CHART_HEIGHT - pad.top - pad.bottom;
@@ -153,8 +155,8 @@ function TopSetChart({
       <Svg width={width} height={CHART_HEIGHT}>
         <Defs>
           <LinearGradient id="area" x1="0" y1="0" x2="0" y2="1">
-            <Stop offset="0" stopColor={Palette.accent} stopOpacity="0.28" />
-            <Stop offset="1" stopColor={Palette.accent} stopOpacity="0.02" />
+            <Stop offset="0" stopColor={theme.accent} stopOpacity="0.28" />
+            <Stop offset="1" stopColor={theme.accent} stopOpacity="0.02" />
           </LinearGradient>
         </Defs>
 
@@ -175,7 +177,7 @@ function TopSetChart({
         {points.length > 1 && (
           <Path
             d={line}
-            stroke={Palette.accent}
+            stroke={theme.accent}
             strokeWidth={2}
             fill="none"
             strokeLinejoin="round"
@@ -192,7 +194,7 @@ function TopSetChart({
               cy={y(p.topLbs)}
               r={isPr ? 5 : 3.5}
               fill={isPr ? Palette.amber : Palette.surface}
-              stroke={isPr ? Palette.amber : Palette.accent}
+              stroke={isPr ? Palette.amber : theme.accent}
               strokeWidth={2}
             />
           );

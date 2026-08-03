@@ -3,6 +3,7 @@ import { StyleSheet, Text, View } from "react-native";
 import Body, { type ExtendedBodyPart } from "react-native-body-highlighter";
 
 import { Palette } from "@/constants/theme";
+import { useTheme } from "@/context/ThemeContext";
 
 type Slug = NonNullable<ExtendedBodyPart["slug"]>;
 
@@ -74,14 +75,12 @@ const SEAM = "#37373c";
 // side by side on a phone, so scale is derived from the measured card width.
 const FIGURE_BASE_WIDTH = 200;
 
-// Lighter violet for muscles an exercise works but doesn't target.
-const SECONDARY_VIOLET = "#c4b5fd";
-
 // Front and back body figures, side by side. The exercise library lists the
-// primary target muscle first, so it gets the full violet and the rest of the
-// list gets the lighter secondary shade.
+// primary target muscle first, so it gets the solid accent and the rest of the
+// list gets the lighter accentText shade — both follow the chosen theme.
 export function MuscleMap({ musclesWorked, secondaryMuscles }: MuscleMapProps) {
   const [rowWidth, setRowWidth] = useState(0);
+  const theme = useTheme();
   const scale = rowWidth > 0 ? Math.min((rowWidth / 2 - 8) / FIGURE_BASE_WIDTH, 1) : 0;
 
   const primaryNames = secondaryMuscles ? musclesWorked : musclesWorked.slice(0, 1);
@@ -110,7 +109,7 @@ export function MuscleMap({ musclesWorked, secondaryMuscles }: MuscleMapProps) {
                 side={side}
                 gender="male"
                 scale={scale}
-                colors={[Palette.accent, SECONDARY_VIOLET]}
+                colors={[theme.accent, theme.accentText]}
                 border={SEAM}
                 defaultFill={BODY_GREY}
               />
@@ -121,13 +120,13 @@ export function MuscleMap({ musclesWorked, secondaryMuscles }: MuscleMapProps) {
       <View style={styles.legend}>
         {primarySlugs.length > 0 && (
           <>
-            <View style={[styles.legendDot, { backgroundColor: Palette.accent }]} />
+            <View style={[styles.legendDot, { backgroundColor: theme.accent }]} />
             <Text style={styles.legendText}>Primary</Text>
           </>
         )}
         {secondarySlugs.length > 0 && (
           <>
-            <View style={[styles.legendDot, { backgroundColor: SECONDARY_VIOLET }]} />
+            <View style={[styles.legendDot, { backgroundColor: theme.accentText }]} />
             <Text style={styles.legendText}>Secondary</Text>
           </>
         )}

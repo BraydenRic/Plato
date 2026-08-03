@@ -6,9 +6,10 @@ import { useRouter } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { Button, Card, SectionLabel } from "@/components/ui";
-import { Palette, Radius, Spacing } from "@/constants/theme";
+import { Palette, Radius, Spacing, THEME_LIST } from "@/constants/theme";
 import { useAuth } from "@/context/AuthContext";
 import { REST_OPTIONS, useRestTimer } from "@/context/RestTimerContext";
+import { useThemePicker } from "@/context/ThemeContext";
 import { useDefaultSets, MIN_SETS, MAX_SETS } from "@/context/DefaultSetsContext";
 import { useWeightUnit } from "@/context/UnitContext";
 
@@ -27,6 +28,7 @@ export default function ProfileScreen() {
     resendVerificationEmail,
   } = useAuth();
   const router = useRouter();
+  const { theme, themeId, setThemeId } = useThemePicker();
   // Label beside control only works while both fit. Past a mild text bump the
   // label wins the space and the control drops beneath it.
   const { fontScale } = useWindowDimensions();
@@ -167,12 +169,13 @@ export default function ProfileScreen() {
         </View>
 
         <Card style={styles.accountCard}>
-          <View style={styles.avatar}>
+          <View
+            style={[styles.avatar, { backgroundColor: theme.accentSoft, borderColor: theme.accent }]}>
             <Image
               source={require("../../../assets/images/plato-logo.png")}
               style={styles.avatarLogo}
               contentFit="contain"
-              tintColor={Palette.accentText}
+              tintColor={theme.accentText}
             />
           </View>
           <View style={{ flex: 1, gap: 2 }}>
@@ -190,7 +193,11 @@ export default function ProfileScreen() {
         </Card>
 
         {isGuest && (
-          <Card style={styles.upgradeCard}>
+          <Card
+            style={[
+              styles.upgradeCard,
+              { backgroundColor: theme.accentSoft, borderColor: theme.accent },
+            ]}>
             <Text style={styles.upgradeTitle}>Back up your workouts</Text>
             <Text style={styles.upgradeText}>
               Your history is only on this phone right now. Create an account and it syncs across
@@ -205,8 +212,8 @@ export default function ProfileScreen() {
 
         {hasPassword && user && !user.emailVerified && (
           <Pressable onPress={resendVerification} style={styles.verifyRow} hitSlop={4}>
-            <Ionicons name="mail-unread-outline" size={16} color={Palette.accentText} />
-            <Text style={styles.verifyText}>
+            <Ionicons name="mail-unread-outline" size={16} color={theme.accentText} />
+            <Text style={[styles.verifyText, { color: theme.accentText }]}>
               Verify your email — tap to resend the link
             </Text>
           </Pressable>
@@ -214,7 +221,41 @@ export default function ProfileScreen() {
 
         <View>
           <SectionLabel>Preferences</SectionLabel>
-          <Card style={[styles.prefCard, stackPrefs && styles.prefCardStacked]}>
+          <Card style={styles.themeCard}>
+            <View style={styles.themeHeader}>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.prefTitle}>Accent</Text>
+                <Text style={styles.prefHint}>Colours the app and your home screen icon</Text>
+              </View>
+              <Text style={[styles.themeName, { color: theme.accentText }]}>{theme.label}</Text>
+            </View>
+            {/* Wraps rather than squeezing, so the swatches keep their tap
+                target at large text sizes instead of clipping off the row. */}
+            <View style={styles.swatchRow}>
+              {THEME_LIST.map((t) => {
+                const selected = t.id === themeId;
+                return (
+                  <Pressable
+                    key={t.id}
+                    onPress={() => setThemeId(t.id)}
+                    hitSlop={4}
+                    accessibilityRole="button"
+                    accessibilityLabel={t.label}
+                    accessibilityState={{ selected }}
+                    style={({ pressed }) => [
+                      styles.swatchRing,
+                      // The ring wears the swatch's own light shade, so the
+                      // selected state reads as part of that theme.
+                      selected && { borderColor: t.accentText },
+                      pressed && { opacity: 0.7 },
+                    ]}>
+                    <View style={[styles.swatch, { backgroundColor: t.accent }]} />
+                  </Pressable>
+                );
+              })}
+            </View>
+          </Card>
+          <Card style={[styles.prefCard, stackPrefs && styles.prefCardStacked, styles.cardGap]}>
             <View style={{ flex: 1 }}>
               <Text style={styles.prefTitle}>Weight unit</Text>
               <Text style={styles.prefHint}>Used for new sets and displayed volumes</Text>
@@ -224,8 +265,8 @@ export default function ProfileScreen() {
                 <Pressable
                   key={u}
                   onPress={() => setUnit(u)}
-                  style={[styles.segmentItem, unit === u && styles.segmentActive]}>
-                  <Text style={[styles.segmentText, unit === u && styles.segmentTextActive]}>{u}</Text>
+                  style={[styles.segmentItem, unit === u && { backgroundColor: theme.accent }]}>
+                  <Text style={[styles.segmentText, unit === u && { color: theme.onAccent }]}>{u}</Text>
                 </Pressable>
               ))}
             </View>
@@ -240,11 +281,14 @@ export default function ProfileScreen() {
                 <Pressable
                   key={o.seconds}
                   onPress={() => setRestSeconds(o.seconds)}
-                  style={[styles.segmentItem, restSeconds === o.seconds && styles.segmentActive]}>
+                  style={[
+                    styles.segmentItem,
+                    restSeconds === o.seconds && { backgroundColor: theme.accent },
+                  ]}>
                   <Text
                     style={[
                       styles.segmentText,
-                      restSeconds === o.seconds && styles.segmentTextActive,
+                      restSeconds === o.seconds && { color: theme.onAccent },
                     ]}>
                     {o.label}
                   </Text>
@@ -262,9 +306,12 @@ export default function ProfileScreen() {
                 <Pressable
                   key={n}
                   onPress={() => setDefaultSets(n)}
-                  style={[styles.segmentItem, defaultSets === n && styles.segmentActive]}>
+                  style={[
+                    styles.segmentItem,
+                    defaultSets === n && { backgroundColor: theme.accent },
+                  ]}>
                   <Text
-                    style={[styles.segmentText, defaultSets === n && styles.segmentTextActive]}>
+                    style={[styles.segmentText, defaultSets === n && { color: theme.onAccent }]}>
                     {n}
                   </Text>
                 </Pressable>
@@ -321,8 +368,6 @@ const styles = StyleSheet.create({
   },
   upgradeCard: {
     gap: Spacing.two,
-    backgroundColor: Palette.accentSoft,
-    borderColor: Palette.accent,
   },
   upgradeTitle: {
     fontSize: 16,
@@ -344,15 +389,12 @@ const styles = StyleSheet.create({
   verifyText: {
     fontSize: 13,
     fontWeight: "600",
-    color: Palette.accentText,
   },
   avatar: {
     width: 52,
     height: 52,
     borderRadius: Radius.full,
-    backgroundColor: Palette.accentSoft,
     borderWidth: 1,
-    borderColor: Palette.accent,
     alignItems: "center",
     justifyContent: "center",
   },
@@ -373,6 +415,40 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: Spacing.three,
+  },
+  cardGap: {
+    marginTop: Spacing.two,
+  },
+  themeCard: {
+    gap: Spacing.three,
+  },
+  themeHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.two,
+  },
+  themeName: {
+    fontSize: 13,
+    fontWeight: "700",
+  },
+  swatchRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: Spacing.two,
+  },
+  swatchRing: {
+    width: 44,
+    height: 44,
+    borderRadius: Radius.full,
+    borderWidth: 2,
+    borderColor: "transparent",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  swatch: {
+    width: 30,
+    height: 30,
+    borderRadius: Radius.full,
   },
   prefCardStacked: {
     flexDirection: "column",
@@ -417,15 +493,9 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
     borderRadius: Radius.sm - 2,
   },
-  segmentActive: {
-    backgroundColor: Palette.accent,
-  },
   segmentText: {
     fontSize: 13,
     fontWeight: "600",
     color: Palette.textSecondary,
-  },
-  segmentTextActive: {
-    color: "#fff",
   },
 });

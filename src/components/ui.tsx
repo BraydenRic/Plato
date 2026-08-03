@@ -11,6 +11,7 @@ import {
   type ViewProps,
 } from "react-native";
 import { Palette, Radius, Spacing } from "@/constants/theme";
+import { useTheme } from "@/context/ThemeContext";
 
 // ── Buttons ───────────────────────────────────────────────────────────────────
 
@@ -24,10 +25,12 @@ interface ButtonProps extends PressableProps {
 }
 
 export function Button({ title, variant = "primary", loading, compact, disabled, style, ...rest }: ButtonProps) {
+  const theme = useTheme();
   const palette: Record<ButtonVariant, { bg: string; fg: string; border?: string }> = {
-    primary: { bg: Palette.accent, fg: "#ffffff" },
+    // onAccent rather than a flat white — the bright themes carry dark labels.
+    primary: { bg: theme.accent, fg: theme.onAccent },
     secondary: { bg: Palette.surfaceRaised, fg: Palette.text, border: Palette.border },
-    ghost: { bg: "transparent", fg: Palette.accentText },
+    ghost: { bg: "transparent", fg: theme.accentText },
     danger: { bg: Palette.dangerSoft, fg: Palette.danger },
   };
   const c = palette[variant];
@@ -81,11 +84,12 @@ export function SectionLabel({ children }: { children: React.ReactNode }) {
 }
 
 export function Chip({ label, active, onPress }: { label: string; active?: boolean; onPress?: () => void }) {
+  const theme = useTheme();
   return (
     <Pressable
       onPress={onPress}
-      style={[styles.chip, active && { backgroundColor: Palette.accentSoft, borderColor: Palette.accent }]}>
-      <Text style={[styles.chipText, active && { color: Palette.accentText }]}>{label}</Text>
+      style={[styles.chip, active && { backgroundColor: theme.accentSoft, borderColor: theme.accent }]}>
+      <Text style={[styles.chipText, active && { color: theme.accentText }]}>{label}</Text>
     </Pressable>
   );
 }

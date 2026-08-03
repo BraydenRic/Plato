@@ -51,8 +51,14 @@
         {
           "ios": {
             "extraPods": [
-              { "name": "GoogleUtilities", "modular_headers": true },
-              { "name": "RecaptchaInterop", "modular_headers": true }
+              {
+                "name": "GoogleUtilities",
+                "modular_headers": true
+              },
+              {
+                "name": "RecaptchaInterop",
+                "modular_headers": true
+              }
             ]
           }
         }
@@ -63,6 +69,51 @@
         {
           "silentOnUnsupportedOS": true
         }
+      ],
+      [
+        "expo-alternate-app-icons",
+        [
+          {
+            "name": "Violet",
+            "ios": "./assets/icons/icon-violet.png",
+            "android": {
+              "foregroundImage": "./assets/icons/icon-violet-foreground.png",
+              "backgroundColor": "#09090b"
+            }
+          },
+          {
+            "name": "Cobalt",
+            "ios": "./assets/icons/icon-cobalt.png",
+            "android": {
+              "foregroundImage": "./assets/icons/icon-cobalt-foreground.png",
+              "backgroundColor": "#09090b"
+            }
+          },
+          {
+            "name": "Cyan",
+            "ios": "./assets/icons/icon-cyan.png",
+            "android": {
+              "foregroundImage": "./assets/icons/icon-cyan-foreground.png",
+              "backgroundColor": "#09090b"
+            }
+          },
+          {
+            "name": "Amber",
+            "ios": "./assets/icons/icon-amber.png",
+            "android": {
+              "foregroundImage": "./assets/icons/icon-amber-foreground.png",
+              "backgroundColor": "#09090b"
+            }
+          },
+          {
+            "name": "Magenta",
+            "ios": "./assets/icons/icon-magenta.png",
+            "android": {
+              "foregroundImage": "./assets/icons/icon-magenta-foreground.png",
+              "backgroundColor": "#09090b"
+            }
+          }
+        ]
       ]
     ],
     "experiments": {

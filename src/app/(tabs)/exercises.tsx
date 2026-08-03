@@ -6,11 +6,13 @@ import Ionicons from "@expo/vector-icons/Ionicons";
 
 import { Chip, Field } from "@/components/ui";
 import { Palette, Radius, Spacing } from "@/constants/theme";
+import { useTheme } from "@/context/ThemeContext";
 import { useExerciseLibrary } from "@/hooks/use-exercise-library";
 import { filterExercises } from "@/lib/exercises";
 import type { Exercise } from "@/types";
 
 export default function ExercisesScreen() {
+  const theme = useTheme();
   const { exercises, isModified, deleteExercise, resetLibrary } = useExerciseLibrary();
   const [search, setSearch] = useState("");
   const [category, setCategory] = useState("All");
@@ -66,8 +68,8 @@ export default function ExercisesScreen() {
         <Pressable
           onPress={() => router.push("/create-exercise")}
           hitSlop={8}
-          style={[styles.headerButton, styles.headerButtonAccent]}>
-          <Ionicons name="add" size={22} color="#fff" />
+          style={[styles.headerButton, { backgroundColor: theme.accent }]}>
+          <Ionicons name="add" size={22} color={theme.onAccent} />
         </Pressable>
       </View>
 
@@ -114,6 +116,7 @@ function ExerciseRow({
   onPress: () => void;
   onLongPress: () => void;
 }) {
+  const theme = useTheme();
   return (
     <Pressable onPress={onPress} onLongPress={onLongPress} style={styles.row}>
       <View style={styles.rowHeader}>
@@ -122,12 +125,13 @@ function ExerciseRow({
           <Text style={styles.rowMeta}>{exercise.musclesWorked.join(" · ")}</Text>
         </View>
         {exercise.isCustom && (
-          <View style={[styles.categoryBadge, styles.customBadge]}>
-            <Text style={styles.categoryText}>Custom</Text>
+          <View
+            style={[styles.categoryBadge, { backgroundColor: theme.accentSoft }, styles.customBadge]}>
+            <Text style={[styles.categoryText, { color: theme.accentText }]}>Custom</Text>
           </View>
         )}
-        <View style={styles.categoryBadge}>
-          <Text style={styles.categoryText}>{exercise.category}</Text>
+        <View style={[styles.categoryBadge, { backgroundColor: theme.accentSoft }]}>
+          <Text style={[styles.categoryText, { color: theme.accentText }]}>{exercise.category}</Text>
         </View>
         <Ionicons name="chevron-forward" size={16} color={Palette.textTertiary} />
       </View>
@@ -154,9 +158,6 @@ const styles = StyleSheet.create({
     backgroundColor: Palette.surfaceRaised,
     alignItems: "center",
     justifyContent: "center",
-  },
-  headerButtonAccent: {
-    backgroundColor: Palette.accent,
   },
   title: {
     fontSize: 28,
@@ -205,7 +206,6 @@ const styles = StyleSheet.create({
     color: Palette.textTertiary,
   },
   categoryBadge: {
-    backgroundColor: Palette.accentSoft,
     paddingHorizontal: 8,
     paddingVertical: 3,
     borderRadius: Radius.full,
@@ -216,6 +216,5 @@ const styles = StyleSheet.create({
   categoryText: {
     fontSize: 11,
     fontWeight: "600",
-    color: Palette.accentText,
   },
 });

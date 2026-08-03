@@ -11,6 +11,7 @@ import { RestTimerProvider } from "@/context/RestTimerContext";
 import { SetTimerProvider } from "@/context/SetTimerContext";
 import { DefaultSetsProvider } from "@/context/DefaultSetsContext";
 import { UnitProvider } from "@/context/UnitContext";
+import { ThemeProvider, useTheme } from "@/context/ThemeContext";
 import { Palette, Spacing } from "@/constants/theme";
 
 SplashScreen.preventAutoHideAsync();
@@ -21,9 +22,10 @@ SplashScreen.preventAutoHideAsync();
 // so a guest signing in would watch their whole history appear to vanish and
 // trickle back. Holding the app here for the duration says what's happening.
 function MigratingScreen() {
+  const theme = useTheme();
   return (
     <View style={styles.migrating}>
-      <ActivityIndicator color={Palette.accent} />
+      <ActivityIndicator color={theme.accent} />
       <Text style={styles.migratingTitle}>Moving your workouts</Text>
       <Text style={styles.migratingBody}>
         Saving everything you logged on this device into your account. This only happens once.
@@ -113,21 +115,26 @@ const styles = StyleSheet.create({
 export default function RootLayout() {
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
-      <AuthProvider>
-        <UnitProvider>
-          <RestTimerProvider>
-            {/* Above the navigator so a running set stopwatch survives leaving
-                the workout screen, which unmounts it. */}
-            <SetTimerProvider>
-              <DefaultSetsProvider>
-                <StatusBar style="light" />
-                <LiveActivitySync />
-                <RootNavigator />
-              </DefaultSetsProvider>
-            </SetTimerProvider>
-          </RestTimerProvider>
-        </UnitProvider>
-      </AuthProvider>
+      {/* Outermost of the providers: the accent is a property of the device, not
+          of an account, so the sign-in screen and the migrating screen — both of
+          which render before there is a user — are themed too. */}
+      <ThemeProvider>
+        <AuthProvider>
+          <UnitProvider>
+            <RestTimerProvider>
+              {/* Above the navigator so a running set stopwatch survives leaving
+                  the workout screen, which unmounts it. */}
+              <SetTimerProvider>
+                <DefaultSetsProvider>
+                  <StatusBar style="light" />
+                  <LiveActivitySync />
+                  <RootNavigator />
+                </DefaultSetsProvider>
+              </SetTimerProvider>
+            </RestTimerProvider>
+          </UnitProvider>
+        </AuthProvider>
+      </ThemeProvider>
     </GestureHandlerRootView>
   );
 }

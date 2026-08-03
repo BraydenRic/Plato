@@ -4,6 +4,7 @@ import { useEffect, useRef } from "react";
 import { startWorkoutActivity, stopWorkoutActivity, updateWorkoutActivity } from "@/lib/live-activity";
 import { completedSetCount, totalSetCount } from "@/lib/workout-utils";
 import { useWorkouts } from "@/hooks/use-workouts";
+import { useTheme } from "@/context/ThemeContext";
 import type { Workout } from "@/types";
 
 // Which Live Activity belongs to which workout, persisted so a relaunch can
@@ -20,6 +21,7 @@ type Tracked = { activityId: string; workoutId: string };
  */
 export function LiveActivitySync() {
   const { active, loading } = useWorkouts();
+  const theme = useTheme();
 
   const tracked = useRef<Tracked | null>(null);
   const hydrated = useRef<Promise<void> | null>(null);
@@ -69,12 +71,16 @@ export function LiveActivitySync() {
         tracked.current = null;
       }
 
-      const activityId = startWorkoutActivity(workout, doneSets, totalSets);
+      const activityId = startWorkoutActivity(workout, doneSets, totalSets, theme.activityTint);
       if (activityId) {
         tracked.current = { activityId, workoutId: workout.id };
         await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(tracked.current));
       }
     });
+    // theme.activityTint is deliberately not a dependency: it only applies to a
+    // newly started activity, and re-running this on a theme change would tear
+    // down and recreate a perfectly good pill mid-workout.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loading, current, doneSets, totalSets]);
 
   return null;

@@ -19,13 +19,13 @@ function nativeModule(): typeof import("expo-live-activity") | null {
   }
 }
 
-// Colors mirror Palette (constants/theme) but stay hardcoded hex — the native
-// widget only parses plain hex strings, not rgba().
+// The chrome mirrors Palette (constants/theme) but stays hardcoded hex — the
+// native widget only parses plain hex strings, not rgba(). The progress tint is
+// the one themed colour, so it arrives per-call instead (see startWorkoutActivity).
 const ACTIVITY_STYLE = {
   backgroundColor: "#09090b",
   titleColor: "#fafafa",
   subtitleColor: "#a1a1aa",
-  progressViewTint: "#8b5cf6",
   progressViewLabelColor: "#fafafa",
   timerType: "digital" as const,
   imagePosition: "right" as const,
@@ -47,17 +47,27 @@ function workoutState(workout: Workout, doneSets: number, totalSets: number) {
   };
 }
 
-/** Starts the in-workout Live Activity. Returns its id, or undefined where unsupported. */
+/**
+ * Starts the in-workout Live Activity. Returns its id, or undefined where
+ * unsupported.
+ *
+ * `tint` is the caller's current theme accent. iOS fixes an activity's style at
+ * start, so switching theme mid-workout leaves the pill on the old tint until
+ * the next workout — restarting it just to recolour would make the Dynamic
+ * Island animate out and back in, which is worse than the stale colour.
+ */
 export function startWorkoutActivity(
   workout: Workout,
   doneSets: number,
-  totalSets: number
+  totalSets: number,
+  tint: string
 ): string | undefined {
   const mod = nativeModule();
   if (!mod) return undefined;
   try {
     const id = mod.startActivity(workoutState(workout, doneSets, totalSets), {
       ...ACTIVITY_STYLE,
+      progressViewTint: tint,
       // Tapping the pill / lock-screen card drops the user straight back
       // into the live workout.
       deepLinkUrl: `/workout/${workout.id}`,

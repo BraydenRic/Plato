@@ -9,6 +9,7 @@ import { Palette, Radius, Spacing } from "@/constants/theme";
 import { useWorkouts } from "@/hooks/use-workouts";
 import { deleteWorkout } from "@/lib/data";
 import { useWeightUnit } from "@/context/UnitContext";
+import { useTheme } from "@/context/ThemeContext";
 import { completedSetCount, displayVolume, workoutVolumeLbs } from "@/lib/workout-utils";
 import type { Workout } from "@/types";
 
@@ -81,6 +82,7 @@ function HistoryRow({
   onLongPress: () => void;
 }) {
   const { unit } = useWeightUnit();
+  const theme = useTheme();
   const volume = workout.totalVolume ?? workoutVolumeLbs(workout);
   return (
     <Pressable onPress={onPress} onLongPress={onLongPress}>
@@ -95,7 +97,7 @@ function HistoryRow({
             </Text>
           </View>
           {volume > 0 ? (
-            <Text style={styles.volume}>{displayVolume(volume, unit)}</Text>
+            <Text style={[styles.volume, { color: theme.accentText }]}>{displayVolume(volume, unit)}</Text>
           ) : (
             <Ionicons name="chevron-forward" size={16} color={Palette.textTertiary} />
           )}
@@ -166,7 +168,6 @@ const styles = StyleSheet.create({
   volume: {
     fontSize: 14,
     fontWeight: "700",
-    color: Palette.accentText,
     fontVariant: ["tabular-nums"],
   },
 });

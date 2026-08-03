@@ -19,6 +19,7 @@ import { Image } from "expo-image";
 import { Button, Field } from "@/components/ui";
 import { Palette, Radius, Spacing } from "@/constants/theme";
 import { useAuth } from "@/context/AuthContext";
+import { useTheme } from "@/context/ThemeContext";
 
 function friendlyAuthError(e: unknown): string {
   if (e instanceof FirebaseError) {
@@ -55,6 +56,7 @@ export default function SignInScreen() {
     continueAsGuest,
   } = useAuth();
   const router = useRouter();
+  const theme = useTheme();
   // Set when a guest opens this screen from Profile to claim their data, which
   // separates "upgrading" from a first run — the two need opposite behaviour.
   const { upgrade } = useLocalSearchParams<{ upgrade?: string }>();
@@ -161,11 +163,16 @@ export default function SignInScreen() {
         behavior={Platform.OS === "ios" ? "padding" : "height"}>
         <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
           <View style={styles.hero}>
-            <View style={styles.logoMark}>
+            <View
+              style={[
+                styles.logoMark,
+                { backgroundColor: theme.accentSoft, borderColor: theme.accent },
+              ]}>
               <Image
                 source={require("../../assets/images/plato-logo.png")}
                 style={styles.logoImage}
                 contentFit="contain"
+                tintColor={theme.accentText}
               />
             </View>
             <Text style={styles.title}>Plato</Text>
@@ -173,9 +180,13 @@ export default function SignInScreen() {
           </View>
 
           {isGuest && (
-            <View style={styles.migrateNote}>
-              <Ionicons name="cloud-upload-outline" size={16} color={Palette.accentText} />
-              <Text style={styles.migrateNoteText}>
+            <View
+              style={[
+                styles.migrateNote,
+                { backgroundColor: theme.accentSoft, borderColor: theme.accent },
+              ]}>
+              <Ionicons name="cloud-upload-outline" size={16} color={theme.accentText} />
+              <Text style={[styles.migrateNoteText, { color: theme.accentText }]}>
                 Everything you&apos;ve logged on this phone moves into your account.
               </Text>
             </View>
@@ -259,7 +270,7 @@ export default function SignInScreen() {
             )}
             {!isSignUp && (
               <Pressable onPress={forgotPassword} hitSlop={8} style={styles.forgotRow}>
-                <Text style={styles.forgotText}>Forgot password?</Text>
+                <Text style={[styles.forgotText, { color: theme.accentText }]}>Forgot password?</Text>
               </Pressable>
             )}
             <Button
@@ -273,7 +284,9 @@ export default function SignInScreen() {
           <Pressable onPress={() => setMode(isSignUp ? "signIn" : "signUp")} style={styles.switchRow}>
             <Text style={styles.switchText}>
               {isSignUp ? "Already have an account? " : "New to Plato? "}
-              <Text style={styles.switchLink}>{isSignUp ? "Sign in" : "Create one"}</Text>
+              <Text style={[styles.switchLink, { color: theme.accentText }]}>
+                {isSignUp ? "Sign in" : "Create one"}
+              </Text>
             </Text>
           </Pressable>
 
@@ -326,9 +339,7 @@ const styles = StyleSheet.create({
     width: 72,
     height: 72,
     borderRadius: Radius.xl,
-    backgroundColor: Palette.accentSoft,
     borderWidth: 1,
-    borderColor: Palette.accent,
     alignItems: "center",
     justifyContent: "center",
     marginBottom: Spacing.two,
@@ -401,15 +412,12 @@ const styles = StyleSheet.create({
   forgotText: {
     fontSize: 13,
     fontWeight: "600",
-    color: Palette.accentText,
   },
   migrateNote: {
     flexDirection: "row",
     alignItems: "center",
     gap: Spacing.two,
-    backgroundColor: Palette.accentSoft,
     borderWidth: 1,
-    borderColor: Palette.accent,
     borderRadius: Radius.md,
     padding: Spacing.three,
     marginBottom: -Spacing.two,
@@ -418,7 +426,6 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: 13,
     lineHeight: 18,
-    color: Palette.accentText,
   },
   switchRow: {
     alignItems: "center",
@@ -462,7 +469,6 @@ const styles = StyleSheet.create({
     color: Palette.textTertiary,
   },
   switchLink: {
-    color: Palette.accentText,
     fontWeight: "600",
   },
 });

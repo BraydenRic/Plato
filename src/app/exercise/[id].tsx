@@ -7,10 +7,12 @@ import { MuscleMap } from "@/components/muscle-map";
 import { SectionLabel } from "@/components/ui";
 import { Palette, Radius, Spacing } from "@/constants/theme";
 import { useExerciseLibrary } from "@/hooks/use-exercise-library";
+import { useTheme } from "@/context/ThemeContext";
 
 export default function ExerciseDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { exercises, deleteExercise } = useExerciseLibrary();
+  const theme = useTheme();
   const exercise = exercises.find((e) => e.id === id);
 
   function confirmDelete() {
@@ -47,7 +49,7 @@ export default function ExerciseDetailScreen() {
       <View style={styles.header}>
         <View style={{ flex: 1, gap: 2 }}>
           <Text style={styles.title}>{exercise.name}</Text>
-          <Text style={styles.meta}>{exercise.category}</Text>
+          <Text style={[styles.meta, { color: theme.accentText }]}>{exercise.category}</Text>
         </View>
         <Pressable
           onPress={() => router.push({ pathname: "/create-exercise", params: { exerciseId: exercise.id } })}
@@ -66,8 +68,8 @@ export default function ExerciseDetailScreen() {
       <ScrollView contentContainerStyle={styles.scroll}>
         <View style={styles.muscleChips}>
           {exercise.musclesWorked.map((m) => (
-            <View key={m} style={styles.muscleChip}>
-              <Text style={styles.muscleChipText}>{m}</Text>
+            <View key={m} style={[styles.muscleChip, { backgroundColor: theme.accentSoft }]}>
+              <Text style={[styles.muscleChipText, { color: theme.accentText }]}>{m}</Text>
             </View>
           ))}
         </View>
@@ -118,7 +120,6 @@ const styles = StyleSheet.create({
   },
   meta: {
     fontSize: 13,
-    color: Palette.accentText,
     fontWeight: "600",
   },
   closeButton: {
@@ -140,7 +141,6 @@ const styles = StyleSheet.create({
     gap: Spacing.two,
   },
   muscleChip: {
-    backgroundColor: Palette.accentSoft,
     paddingHorizontal: 10,
     paddingVertical: 4,
     borderRadius: Radius.full,
@@ -148,7 +148,6 @@ const styles = StyleSheet.create({
   muscleChipText: {
     fontSize: 12,
     fontWeight: "600",
-    color: Palette.accentText,
   },
   description: {
     fontSize: 14,

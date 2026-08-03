@@ -5,6 +5,7 @@ import Ionicons from "@expo/vector-icons/Ionicons";
 
 import { Button, Field, SectionLabel } from "@/components/ui";
 import { Palette, Radius, Spacing } from "@/constants/theme";
+import { useTheme } from "@/context/ThemeContext";
 import { useExerciseLibrary, MAX_CUSTOM_EXERCISES } from "@/hooks/use-exercise-library";
 import { EXERCISES, isTimedExercise } from "@/lib/exercises";
 
@@ -164,9 +165,15 @@ export default function CreateExerciseModal() {
 }
 
 function SelectChip({ label, active, onPress }: { label: string; active: boolean; onPress: () => void }) {
+  const theme = useTheme();
   return (
-    <Pressable onPress={onPress} style={[styles.chip, active && styles.chipActive]}>
-      <Text style={[styles.chipText, active && styles.chipTextActive]}>{label}</Text>
+    <Pressable
+      onPress={onPress}
+      style={[
+        styles.chip,
+        active && { backgroundColor: theme.accentSoft, borderColor: theme.accent },
+      ]}>
+      <Text style={[styles.chipText, active && { color: theme.accentText }]}>{label}</Text>
     </Pressable>
   );
 }
@@ -220,17 +227,10 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: Palette.border,
   },
-  chipActive: {
-    backgroundColor: Palette.accentSoft,
-    borderColor: Palette.accent,
-  },
   chipText: {
     fontSize: 13,
     fontWeight: "600",
     color: Palette.textSecondary,
-  },
-  chipTextActive: {
-    color: Palette.accentText,
   },
   descriptionField: {
     minHeight: 80,

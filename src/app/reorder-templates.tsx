@@ -6,6 +6,7 @@ import Ionicons from "@expo/vector-icons/Ionicons";
 import DraggableFlatList, { ScaleDecorator } from "react-native-draggable-flatlist";
 
 import { Palette, Radius, Spacing } from "@/constants/theme";
+import { useTheme } from "@/context/ThemeContext";
 import { useWorkouts } from "@/hooks/use-workouts";
 import { updateWorkout } from "@/lib/data";
 import { totalSetCount } from "@/lib/workout-utils";
@@ -13,6 +14,7 @@ import type { Workout } from "@/types";
 
 export default function ReorderTemplatesScreen() {
   const { templates } = useWorkouts();
+  const theme = useTheme();
   // Local copy so the drag is instant and doesn't fight the live subscription.
   const [order, setOrder] = useState<Workout[]>(templates);
 
@@ -39,7 +41,7 @@ export default function ReorderTemplatesScreen() {
       <View style={styles.header}>
         <Text style={styles.title}>Reorder templates</Text>
         <Pressable onPress={() => router.back()} hitSlop={10} style={styles.doneButton}>
-          <Text style={styles.doneText}>Done</Text>
+          <Text style={[styles.doneText, { color: theme.accentText }]}>Done</Text>
         </Pressable>
       </View>
       <Text style={styles.hint}>Drag the handles to set the order they appear in.</Text>
@@ -51,7 +53,11 @@ export default function ReorderTemplatesScreen() {
         contentContainerStyle={styles.list}
         renderItem={({ item, drag, isActive }) => (
           <ScaleDecorator>
-            <View style={[styles.row, isActive && styles.rowActive]}>
+            <View
+              style={[
+                styles.row,
+                isActive && { borderColor: theme.accent, backgroundColor: theme.accentSoft },
+              ]}>
               <View style={{ flex: 1, gap: 2 }}>
                 <Text style={styles.rowName}>{item.name}</Text>
                 <Text style={styles.rowMeta}>
@@ -94,7 +100,6 @@ const styles = StyleSheet.create({
   doneText: {
     fontSize: 15,
     fontWeight: "700",
-    color: Palette.accentText,
   },
   hint: {
     fontSize: 13,
@@ -117,10 +122,6 @@ const styles = StyleSheet.create({
     borderColor: Palette.border,
     borderRadius: Radius.md,
     padding: Spacing.three,
-  },
-  rowActive: {
-    borderColor: Palette.accent,
-    backgroundColor: Palette.accentSoft,
   },
   rowName: {
     fontSize: 15,

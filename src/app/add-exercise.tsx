@@ -15,6 +15,7 @@ import Ionicons from "@expo/vector-icons/Ionicons";
 import { Chip, Field } from "@/components/ui";
 import { Palette, Radius, Spacing } from "@/constants/theme";
 import { useWeightUnit } from "@/context/UnitContext";
+import { useTheme } from "@/context/ThemeContext";
 import { useDefaultSets } from "@/context/DefaultSetsContext";
 import { getWorkout, stripUndefined, updateWorkout } from "@/lib/data";
 import { useExerciseLibrary } from "@/hooks/use-exercise-library";
@@ -30,6 +31,7 @@ export default function AddExerciseModal() {
   const [category, setCategory] = useState("All");
   const [addedIds, setAddedIds] = useState<Set<string>>(new Set());
   const { unit } = useWeightUnit();
+  const theme = useTheme();
   const { defaultSets } = useDefaultSets();
 
   const categories = useMemo(
@@ -110,7 +112,7 @@ export default function AddExerciseModal() {
       <View style={styles.header}>
         <Text style={styles.title}>Add exercise</Text>
         <Pressable onPress={() => router.back()} hitSlop={12}>
-          <Text style={styles.done}>Done</Text>
+          <Text style={[styles.done, { color: theme.accentText }]}>Done</Text>
         </Pressable>
       </View>
 
@@ -156,8 +158,13 @@ export default function AddExerciseModal() {
                 <Text style={styles.rowName}>{item.name}</Text>
                 <Text style={styles.rowMeta}>{item.musclesWorked.join(" · ")}</Text>
               </View>
-              <View style={[styles.addIcon, added && styles.addIconDone]}>
-                <Ionicons name={added ? "checkmark" : "add"} size={18} color={added ? "#fff" : Palette.accentText} />
+              <View
+                style={[
+                  styles.addIcon,
+                  { backgroundColor: theme.accentSoft },
+                  added && styles.addIconDone,
+                ]}>
+                <Ionicons name={added ? "checkmark" : "add"} size={18} color={added ? "#fff" : theme.accentText} />
               </View>
             </Pressable>
           );
@@ -187,7 +194,6 @@ const styles = StyleSheet.create({
   done: {
     fontSize: 16,
     fontWeight: "600",
-    color: Palette.accentText,
   },
   searchWrap: {
     paddingHorizontal: Spacing.three,
@@ -228,7 +234,6 @@ const styles = StyleSheet.create({
     width: 30,
     height: 30,
     borderRadius: Radius.sm,
-    backgroundColor: Palette.accentSoft,
     alignItems: "center",
     justifyContent: "center",
   },
