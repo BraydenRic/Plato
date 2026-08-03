@@ -281,15 +281,25 @@ export default function SignInScreen() {
               app they're already using. Everyone else gets the door in. */}
           {isUpgrading ? (
             <Pressable onPress={() => router.back()} style={styles.switchRow} hitSlop={8}>
-              <Text style={styles.guestLink}>Not now</Text>
+              <Text style={styles.dismissText}>Not now</Text>
             </Pressable>
           ) : (
-            <Pressable onPress={continueAsGuest} style={styles.guestRow} hitSlop={8}>
-              <Text style={styles.guestLink}>Continue without an account</Text>
+            /* Fenced off behind a rule rather than stacked under the sign-in ⇄
+               create link: that link changes the form above it, this one skips
+               the whole screen. Sharing their styling made them read as a pair
+               of equal choices. Outlined instead of accent-coloured so it stays
+               a real, reachable control without competing with signing in. */
+            <View style={styles.guestBlock}>
+              <View style={styles.guestSeparator} />
+              <Pressable
+                onPress={continueAsGuest}
+                style={({ pressed }) => [styles.guestButton, pressed && { opacity: 0.7 }]}>
+                <Text style={styles.guestButtonText}>Continue as guest</Text>
+              </Pressable>
               <Text style={styles.guestHint}>
-                Your workouts stay on this phone until you sign up.
+                Workouts save on this phone. Sign in later to sync them.
               </Text>
-            </Pressable>
+            </View>
           )}
         </ScrollView>
       </KeyboardAvoidingView>
@@ -413,19 +423,39 @@ const styles = StyleSheet.create({
   switchRow: {
     alignItems: "center",
   },
-  guestRow: {
-    alignItems: "center",
-    gap: 2,
-    marginTop: -Spacing.two,
+  guestBlock: {
+    gap: Spacing.three,
   },
-  guestLink: {
-    fontSize: 14,
+  guestSeparator: {
+    height: StyleSheet.hairlineWidth,
+    backgroundColor: Palette.border,
+  },
+  // Matches the provider buttons' height and radius so it sits in the same
+  // family, but outlined on the background instead of filled — present without
+  // pulling attention off the primary action.
+  guestButton: {
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 14,
+    borderRadius: Radius.md,
+    borderWidth: 1,
+    borderColor: Palette.borderStrong,
+  },
+  guestButtonText: {
+    fontSize: 15,
     fontWeight: "600",
-    color: Palette.accentText,
+    color: Palette.textSecondary,
   },
   guestHint: {
     fontSize: 12,
+    lineHeight: 16,
     color: Palette.textTertiary,
+    textAlign: "center",
+  },
+  dismissText: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: Palette.textSecondary,
   },
   switchText: {
     fontSize: 14,
