@@ -25,14 +25,21 @@ SRC_IOS = ROOT / "assets/images/icon.png"
 SRC_ANDROID = ROOT / "assets/images/android-icon-foreground.png"
 OUT = ROOT / "assets/icons"
 
-# theme id -> accentText, the lighter shade. The saturated `accent` is tuned for
-# filled buttons and goes muddy at icon scale on a near-black field; the lighter
-# one holds its colour when the glyph is only a few pixels thick.
+# theme id -> the shade the glyph is tinted with. Usually accentText: the
+# saturated `accent` is tuned for filled buttons and goes muddy at icon scale on
+# a near-black field, while the lighter shade holds its colour when the glyph is
+# only a few pixels thick.
+#
+# Crimson is the exception. Its accentText is a light salmon that landed ΔE 23
+# from magenta's icon tint — near enough that the two icons would be hard to
+# tell apart on a home screen, which is the one job an alternate icon has. It
+# uses red-500 instead, which reads unmistakably red at ΔE 61.
 TINTS = {
     "violet": "#c4b5fd",
     "cobalt": "#93c5fd",
     "cyan": "#67e8f9",
     "amber": "#fdba74",
+    "crimson": "#ef4444",
     "magenta": "#f9a8d4",
 }
 

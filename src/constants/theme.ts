@@ -26,7 +26,14 @@ export const Palette = {
 
 // ── Themes ────────────────────────────────────────────────────────────────────
 
-export type ThemeId = "violet" | "cobalt" | "cyan" | "amber" | "magenta" | "graphite";
+export type ThemeId =
+  | "violet"
+  | "cobalt"
+  | "cyan"
+  | "amber"
+  | "crimson"
+  | "magenta"
+  | "graphite";
 
 export interface Theme {
   id: ThemeId;
@@ -132,6 +139,24 @@ export const THEMES: Record<ThemeId, Theme> = {
     activityTint: "#f97316",
     iconName: "Amber",
   },
+  crimson: {
+    id: "crimson",
+    label: "Crimson",
+    // The one accent that shares a hue family with a semantic, so it is picked
+    // to sit as far from it as a red can: `danger` is a light red-400 and this
+    // is red-600, ΔE 30.9 apart — past the same bar every other theme clears,
+    // where rose-500 managed only 19.4 and was dropped for it. The two also
+    // never appear as the same kind of surface: destructive controls are a soft
+    // tint with red text, primary ones a solid fill. It carries white at
+    // 4.83:1, better than violet does.
+    accent: "#dc2626",
+    accentSoft: "rgba(220,38,38,0.16)",
+    accentText: "#fca5a5",
+    accentMuted: "#fca5a5",
+    onAccent: "#ffffff",
+    activityTint: "#dc2626",
+    iconName: "Crimson",
+  },
   magenta: {
     id: "magenta",
     label: "Magenta",
@@ -170,6 +195,7 @@ export const THEME_LIST: readonly Theme[] = [
   THEMES.cobalt,
   THEMES.cyan,
   THEMES.amber,
+  THEMES.crimson,
   THEMES.magenta,
   THEMES.graphite,
 ];

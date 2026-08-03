@@ -106,6 +106,14 @@
             }
           },
           {
+            "name": "Crimson",
+            "ios": "./assets/icons/icon-crimson.png",
+            "android": {
+              "foregroundImage": "./assets/icons/icon-crimson-foreground.png",
+              "backgroundColor": "#09090b"
+            }
+          },
+          {
             "name": "Magenta",
             "ios": "./assets/icons/icon-magenta.png",
             "android": {

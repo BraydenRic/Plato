@@ -218,7 +218,6 @@ describe("the app icon mapping", () => {
   it("names alternates exactly as app.json registers them", () => {
     // The plugin matches on this string at runtime; a mismatch throws on the
     // native side long after the build has shipped.
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
     const appJson = require("../../../app.json");
     const entry = appJson.expo.plugins.find(
       (p: unknown) => Array.isArray(p) && p[0] === "expo-alternate-app-icons"

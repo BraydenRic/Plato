@@ -236,8 +236,7 @@ export default function ProfileScreen() {
               </View>
               <Text style={[styles.themeName, { color: theme.accentText }]}>{theme.label}</Text>
             </View>
-            {/* Wraps rather than squeezing, so the swatches keep their tap
-                target at large text sizes instead of clipping off the row. */}
+            {/* Fixed-size swatches, so this row never reflows with text size. */}
             <View style={styles.swatchRow}>
               {THEME_LIST.map((t) => {
                 const selected = t.id === themeId;
@@ -245,7 +244,7 @@ export default function ProfileScreen() {
                   <Pressable
                     key={t.id}
                     onPress={() => setThemeId(t.id)}
-                    hitSlop={4}
+                    hitSlop={6}
                     accessibilityRole="button"
                     accessibilityLabel={t.label}
                     accessibilityState={{ selected }}
@@ -465,12 +464,16 @@ const styles = StyleSheet.create({
   },
   swatchRow: {
     flexDirection: "row",
-    flexWrap: "wrap",
-    gap: Spacing.two,
+    // space-between rather than a fixed gap: the swatches are a fixed size, so
+    // letting the leftover width fall between them keeps all of them on one row
+    // as themes are added, instead of orphaning the last onto a line of its own.
+    justifyContent: "space-between",
   },
   swatchRing: {
-    width: 44,
-    height: 44,
+    // 40 not 44 so seven still fit across the narrowest iPhone. hitSlop on the
+    // Pressable takes the tap target back over the 44pt minimum.
+    width: 40,
+    height: 40,
     borderRadius: Radius.full,
     borderWidth: 2,
     borderColor: "transparent",
@@ -478,8 +481,8 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   swatch: {
-    width: 30,
-    height: 30,
+    width: 28,
+    height: 28,
     borderRadius: Radius.full,
   },
   prefCardStacked: {
