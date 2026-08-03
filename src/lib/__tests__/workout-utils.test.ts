@@ -6,6 +6,7 @@ import {
   formatClock,
   formatDuration,
   formatVolume,
+  liveSetSeconds,
   newId,
   previousSetsByExercise,
   relativeDay,
@@ -428,5 +429,59 @@ describe("previousSetsByExercise", () => {
     ];
 
     expect(previousSetsByExercise(history).has("bench-press")).toBe(false);
+  });
+});
+
+describe("liveSetSeconds", () => {
+  // The row and the commit both call this, so agreement between what you watch
+  // and what gets logged is a property of there being one function, not luck.
+  const startedAt = 1_000_000;
+
+  it("reports whole seconds elapsed", () => {
+    expect(liveSetSeconds(startedAt + 42_000, startedAt)).toBe(42);
+  });
+
+  it("floors a part-second rather than rounding it up", () => {
+    // Regression: this rounded, so stopping at 0:42.6 showed 0:42 and logged
+    // 0:43 — the row ticked up one second at the moment you stopped it.
+    expect(liveSetSeconds(startedAt + 42_600, startedAt)).toBe(42);
+    expect(liveSetSeconds(startedAt + 42_999, startedAt)).toBe(42);
+  });
+
+  it("logs exactly the value the readout last showed", () => {
+    const stoppedAt = startedAt + 42_600;
+    const shown = liveSetSeconds(stoppedAt, startedAt);
+    const committed = liveSetSeconds(stoppedAt, startedAt);
+    expect(committed).toBe(shown);
+  });
+
+  it("never reads below what the set already banked", () => {
+    // Regression: on resume the row's clock is briefly the previous run's last
+    // tick, which put elapsed under the banked duration and flashed 0:00 over a
+    // set that already held 1:30.
+    const staleNow = startedAt - 5_000;
+    expect(liveSetSeconds(staleNow, startedAt, 90)).toBe(90);
+  });
+
+  it("reads the banked duration the instant a resumed set starts", () => {
+    // start backdates startedAt by the banked seconds, so t=0 is already 1:30.
+    const banked = 90;
+    const resumedAt = 1_000_000;
+    expect(liveSetSeconds(resumedAt, resumedAt - banked * 1000, banked)).toBe(banked);
+  });
+
+  it("counts on from the banked duration once time passes", () => {
+    const banked = 90;
+    const resumedAt = 1_000_000;
+    const backdated = resumedAt - banked * 1000;
+    expect(liveSetSeconds(resumedAt + 10_000, backdated, banked)).toBe(100);
+  });
+
+  it("never goes negative when the clock reads before the start", () => {
+    expect(liveSetSeconds(startedAt - 30_000, startedAt)).toBe(0);
+  });
+
+  it("treats a fresh set as starting from zero", () => {
+    expect(liveSetSeconds(startedAt, startedAt)).toBe(0);
   });
 });

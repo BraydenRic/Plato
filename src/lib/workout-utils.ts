@@ -108,6 +108,22 @@ export function formatClock(totalSeconds: number): string {
   return `${m}:${String(s).padStart(2, "0")}`;
 }
 
+/**
+ * Seconds a set stopwatch should show, and the exact value it commits when
+ * stopped — one function so the two can never disagree.
+ *
+ * Floored rather than rounded: the readout ticks on whole seconds, and rounding
+ * up meant stopping at 0:42.6 logged 0:43, so the number jumped as you stopped it.
+ *
+ * `bankedSeconds` is the duration the set already held, which `startedAt` is
+ * backdated by — elapsed can never legitimately fall below it, so clamping
+ * absorbs a stale clock reading rather than briefly showing less than was
+ * already logged.
+ */
+export function liveSetSeconds(nowMs: number, startedAt: number, bankedSeconds = 0): number {
+  return Math.max(bankedSeconds, 0, Math.floor((nowMs - startedAt) / 1000));
+}
+
 export function relativeDay(date: Date): string {
   const diff = Math.round((startOfDay(new Date()).getTime() - startOfDay(date).getTime()) / 86_400_000);
   if (diff === 0) return "Today";

@@ -26,7 +26,7 @@ import { isTimedExercise } from "@/lib/exercises";
 import { useRestTimer } from "@/context/RestTimerContext";
 import { useSetTimer } from "@/context/SetTimerContext";
 import { useWeightUnit } from "@/context/UnitContext";
-import { convertWeight, displayVolume, formatClock, newId, previousSetsByExercise, relativeDay, sameDay, startOfDay, workoutVolumeLbs, completedSetCount, totalSetCount, MAX_TEMPLATES, MAX_ACTIVE_WORKOUTS } from "@/lib/workout-utils";
+import { convertWeight, displayVolume, formatClock, liveSetSeconds, newId, previousSetsByExercise, relativeDay, sameDay, startOfDay, workoutVolumeLbs, completedSetCount, totalSetCount, MAX_TEMPLATES, MAX_ACTIVE_WORKOUTS } from "@/lib/workout-utils";
 import type { Workout, WorkoutExercise, WorkoutSet } from "@/types";
 
 
@@ -255,9 +255,10 @@ export default function WorkoutScreen() {
     }
   }
 
-  // The value a running stopwatch would commit right now.
+  // The value a running stopwatch would commit right now. Shares one helper
+  // with the row's live readout so what you watched is exactly what gets logged.
   function timedSeconds(t: { startedAt: number }): number {
-    return Math.max(0, Math.round((Date.now() - t.startedAt) / 1000));
+    return liveSetSeconds(Date.now(), t.startedAt);
   }
 
   function commitTimer(t: { exerciseId: string; setId: string; startedAt: number }) {
@@ -882,7 +883,28 @@ function SetRow({
     const t = setInterval(() => setNowMs(Date.now()), 250);
     return () => clearInterval(t);
   }, [running]);
-  const liveSeconds = running ? Math.max(0, Math.floor((nowMs - runningStartedAt!) / 1000)) : 0;
+  // Clamped to what the set already banked, which covers the first frame of a
+  // new run where `nowMs` is still the last tick of the previous one — without
+  // it, resuming a set holding 1:30 flashes 0:00 before catching up.
+  const liveSeconds = running ? liveSetSeconds(nowMs, runningStartedAt!, set.duration ?? 0) : 0;
+
+  // The last reading the row painted, kept so it outlives the stopwatch being
+  // cleared.
+  const lastLive = useRef(0);
+  if (running) lastLive.current = liveSeconds;
+
+  // Stopping clears the timer synchronously, but the committed duration has to
+  // round-trip through the store before `set.duration` catches up. Seed the
+  // input with the final reading on that transition so the row doesn't swap
+  // from the live text to an input still holding the pre-stop value — on a
+  // fresh set, an empty field showing its 0:00 placeholder.
+  const wasRunning = useRef(running);
+  useEffect(() => {
+    if (wasRunning.current && !running && lastLive.current > 0) {
+      setDurationText(formatClock(lastLive.current));
+    }
+    wasRunning.current = running;
+  }, [running]);
 
   // Last session's numbers for this exercise, ghosted in empty inputs.
   const prevWeight =
