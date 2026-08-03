@@ -8,20 +8,12 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { Button, Card, SectionLabel } from "@/components/ui";
 import { Palette, Radius, Spacing } from "@/constants/theme";
 import { useAuth } from "@/context/AuthContext";
-import { useRestTimer } from "@/context/RestTimerContext";
+import { REST_OPTIONS, useRestTimer } from "@/context/RestTimerContext";
 import { useDefaultSets, MIN_SETS, MAX_SETS } from "@/context/DefaultSetsContext";
 import { useWeightUnit } from "@/context/UnitContext";
 
 // 1–5 sets, the range offered for a newly added exercise.
 const SET_OPTIONS = Array.from({ length: MAX_SETS - MIN_SETS + 1 }, (_, i) => MIN_SETS + i);
-
-const REST_OPTIONS = [
-  { label: "Off", seconds: 0 },
-  { label: "1:00", seconds: 60 },
-  { label: "1:30", seconds: 90 },
-  { label: "2:00", seconds: 120 },
-  { label: "3:00", seconds: 180 },
-];
 
 export default function ProfileScreen() {
   const {
