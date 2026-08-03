@@ -1,5 +1,8 @@
 import Constants, { ExecutionEnvironment } from "expo-constants";
 
+// Type-only, so it is erased at build time and never loads the native module.
+import type { LiveActivityState } from "expo-live-activity";
+
 import type { Theme } from "@/constants/theme";
 import type { Workout } from "@/types";
 
@@ -60,17 +63,21 @@ function workoutState(
     // phone nothing of ours is running to send one. The countdown holding at
     // 0:00 says it on its own, natively, whether or not the app is awake.
     subtitle: restEndsAt ? `Resting · ${doneSets}/${totalSets} sets` : `${doneSets}/${totalSets} sets`,
-    progressBar: restEndsAt
-      ? // The widget builds `now ... max(now, deadline)`, so once the deadline
-        // passes the bar simply holds at 0:00 rather than running negative or
-        // needing the app to notice. That is the behaviour that survives a
-        // locked phone, where nothing of ours is running to intervene.
-        { date: restEndsAt }
-      : {
-          // Counts up natively (like the phone-call pill) even while the app is
-          // backgrounded or the phone is locked.
-          elapsedTimer: { startDate: (workout.startedAt ?? workout.createdAt).getTime() },
-        },
+    // Both timers at once. The published types make these mutually exclusive,
+    // but the native side reads them from separate fields of the same record —
+    // `progressBar?.elapsedTimer?.startDate` and `progressBar?.date` — so
+    // sending both populates both. The widget's own view is what used to pick
+    // one, and plugins/with-live-activity-rest-timer opens that up.
+    //
+    // The countdown builds `now ... max(now, deadline)` natively, so it holds
+    // at 0:00 once the deadline passes rather than running negative or waiting
+    // on the app to notice — the only behaviour that survives a locked phone.
+    progressBar: {
+      // Counts up natively (like the phone-call pill) even while the app is
+      // backgrounded or the phone is locked.
+      elapsedTimer: { startDate: (workout.startedAt ?? workout.createdAt).getTime() },
+      ...(restEndsAt != null ? { date: restEndsAt } : {}),
+    } as unknown as LiveActivityState["progressBar"],
     imageName: activityImage(theme),
     dynamicIslandImageName: activityImage(theme),
   };

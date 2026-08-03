@@ -61,11 +61,21 @@ describe("while no rest is running", () => {
 });
 
 describe("while resting", () => {
-  it("counts down to the deadline instead of up from the start", () => {
+  it("carries both timers, so the workout clock keeps running", () => {
     const deadline = Date.now() + 90_000;
-    // `date` is what makes the widget build now...max(now, deadline), which is
-    // the thing that holds at 0:00 without the app being awake to stop it.
-    expect(startedState(deadline).progressBar).toEqual({ date: deadline });
+    // The published types call these mutually exclusive; the native side reads
+    // them from separate fields, and the patched widget view draws both. If
+    // this ever collapses back to one, the workout timer disappears for the
+    // length of every rest.
+    expect(startedState(deadline).progressBar).toEqual({
+      elapsedTimer: { startDate: STARTED.getTime() },
+      date: deadline,
+    });
+  });
+
+  it("leaves the countdown out entirely when not resting", () => {
+    // Not `date: undefined` — the widget branches on the key being present.
+    expect(startedState(null).progressBar).not.toHaveProperty("date");
   });
 
   it("says it is resting, since both bars look the same", () => {
@@ -85,7 +95,10 @@ describe("updates", () => {
     const deadline = Date.now() + 45_000;
     activity.updateWorkoutActivity("activity-1", workout, 5, 12, THEMES.violet, deadline);
     const [, state] = mockUpdateActivity.mock.calls[0];
-    expect(state.progressBar).toEqual({ date: deadline });
+    expect(state.progressBar).toEqual({
+      elapsedTimer: { startDate: STARTED.getTime() },
+      date: deadline,
+    });
   });
 });
 
