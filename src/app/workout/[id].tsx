@@ -73,11 +73,10 @@ export default function WorkoutScreen() {
   const [loading, setLoading] = useState(true);
   const [finishing, setFinishing] = useState(false);
   const [resuming, setResuming] = useState(false);
-  const [restEndsAt, setRestEndsAt] = useState<number | null>(null);
+  const { restSeconds, restEndsAt, startRest, extendRest, endRest } = useRestTimer();
   const [restLeft, setRestLeft] = useState(0);
   const [elapsed, setElapsed] = useState(0);
   const { unit: weightUnit } = useWeightUnit();
-  const { restSeconds } = useRestTimer();
   // The one set stopwatch that can run at a time (timed exercises). It's held
   // above the navigator so leaving this screen doesn't cancel it; scope it to
   // this workout so another workout's timer never drives these rows.
@@ -149,14 +148,12 @@ export default function WorkoutScreen() {
     return () => clearInterval(t);
   }, [startedAtMs, isDone]);
 
-  // Rest countdown.
+  // Drives the in-app readout only. The deadline itself stays put in the
+  // context once it passes — the Live Activity needs it to hold at 0:00, and
+  // this bar hides itself on restLeft instead.
   useEffect(() => {
     if (!restEndsAt) return;
-    const tick = () => {
-      const left = Math.ceil((restEndsAt - Date.now()) / 1000);
-      if (left <= 0) setRestEndsAt(null);
-      else setRestLeft(left);
-    };
+    const tick = () => setRestLeft(Math.max(0, Math.ceil((restEndsAt - Date.now()) / 1000)));
     tick();
     const t = setInterval(tick, 250);
     return () => clearInterval(t);
@@ -253,7 +250,7 @@ export default function WorkoutScreen() {
     // No rest countdown while merely planning — only during a live session,
     // only on the incomplete→complete flip, and only if the timer is on.
     if (patch.isCompleted && !wasCompleted && !isDone && !isPlanned && restSeconds > 0) {
-      setRestEndsAt(Date.now() + restSeconds * 1000);
+      startRest();
     }
   }
 
@@ -623,7 +620,7 @@ export default function WorkoutScreen() {
           </ScrollView>
         )}
 
-        {restEndsAt && !isDone && (
+        {restEndsAt && restLeft > 0 && !isDone && (
           <View
             style={[
               styles.restBar,
@@ -633,10 +630,10 @@ export default function WorkoutScreen() {
             <Text style={[styles.restText, { color: theme.accentText }]}>
               Rest {formatClock(restLeft)}
             </Text>
-            <Pressable onPress={() => setRestEndsAt(restEndsAt + 15_000)} hitSlop={8}>
+            <Pressable onPress={() => extendRest(15_000)} hitSlop={8}>
               <Text style={styles.restSkip}>+15s</Text>
             </Pressable>
-            <Pressable onPress={() => setRestEndsAt(null)} hitSlop={8}>
+            <Pressable onPress={endRest} hitSlop={8}>
               <Text style={styles.restSkip}>Skip</Text>
             </Pressable>
           </View>

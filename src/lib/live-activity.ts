@@ -45,15 +45,32 @@ export function activityImage(theme: Theme): string {
   return `plato-logo-${theme.id}`;
 }
 
-function workoutState(workout: Workout, doneSets: number, totalSets: number, theme: Theme) {
+function workoutState(
+  workout: Workout,
+  doneSets: number,
+  totalSets: number,
+  theme: Theme,
+  restEndsAt: number | null
+) {
   return {
     title: workout.name,
-    subtitle: `${doneSets}/${totalSets} sets`,
-    progressBar: {
-      // Counts up natively (like the phone-call pill) even while the app is
-      // backgrounded or the phone is locked.
-      elapsedTimer: { startDate: (workout.startedAt ?? workout.createdAt).getTime() },
-    },
+    // Both bars look alike, so the subtitle is what says which one is on show.
+    // It stays put for the whole rest: swapping it to something like "Ready" at
+    // the deadline would need a push at that exact moment, and on a locked
+    // phone nothing of ours is running to send one. The countdown holding at
+    // 0:00 says it on its own, natively, whether or not the app is awake.
+    subtitle: restEndsAt ? `Resting · ${doneSets}/${totalSets} sets` : `${doneSets}/${totalSets} sets`,
+    progressBar: restEndsAt
+      ? // The widget builds `now ... max(now, deadline)`, so once the deadline
+        // passes the bar simply holds at 0:00 rather than running negative or
+        // needing the app to notice. That is the behaviour that survives a
+        // locked phone, where nothing of ours is running to intervene.
+        { date: restEndsAt }
+      : {
+          // Counts up natively (like the phone-call pill) even while the app is
+          // backgrounded or the phone is locked.
+          elapsedTimer: { startDate: (workout.startedAt ?? workout.createdAt).getTime() },
+        },
     imageName: activityImage(theme),
     dynamicIslandImageName: activityImage(theme),
   };
@@ -73,12 +90,13 @@ export function startWorkoutActivity(
   workout: Workout,
   doneSets: number,
   totalSets: number,
-  theme: Theme
+  theme: Theme,
+  restEndsAt: number | null
 ): string | undefined {
   const mod = nativeModule();
   if (!mod) return undefined;
   try {
-    const id = mod.startActivity(workoutState(workout, doneSets, totalSets, theme), {
+    const id = mod.startActivity(workoutState(workout, doneSets, totalSets, theme, restEndsAt), {
       ...ACTIVITY_STYLE,
       progressViewTint: theme.activityTint,
       // Tapping the pill / lock-screen card drops the user straight back
@@ -98,12 +116,13 @@ export function updateWorkoutActivity(
   workout: Workout,
   doneSets: number,
   totalSets: number,
-  theme: Theme
+  theme: Theme,
+  restEndsAt: number | null
 ): boolean {
   const mod = nativeModule();
   if (!mod) return false;
   try {
-    mod.updateActivity(activityId, workoutState(workout, doneSets, totalSets, theme));
+    mod.updateActivity(activityId, workoutState(workout, doneSets, totalSets, theme, restEndsAt));
     return true;
   } catch {
     // The OS ended it (8-hour limit, user dismissed it, app reinstall…).

@@ -47,6 +47,89 @@ async function settle() {
   });
 }
 
+describe("the running rest countdown", () => {
+  /**
+   * Lifted out of the workout screen so leaving that screen no longer cancels a
+   * rest in progress — the same reason the set stopwatch lives above the
+   * navigator — and so the Live Activity can draw it on the lock screen.
+   */
+
+  it("does nothing while the timer is switched off", async () => {
+    const ctx = mountHook(useRestTimer, RestTimerProvider);
+    await settle();
+    await act(async () => ctx.current.startRest());
+    expect(ctx.current.restEndsAt).toBeNull();
+  });
+
+  it("sets a deadline the configured distance ahead", async () => {
+    await AsyncStorage.setItem("rest_seconds", "90");
+    const ctx = mountHook(useRestTimer, RestTimerProvider);
+    await settle();
+
+    const before = Date.now();
+    await act(async () => ctx.current.startRest());
+    expect(ctx.current.restEndsAt).toBeGreaterThanOrEqual(before + 90_000);
+    expect(ctx.current.restEndsAt).toBeLessThanOrEqual(Date.now() + 90_000);
+  });
+
+  it("pushes the deadline out for +15s", async () => {
+    await AsyncStorage.setItem("rest_seconds", "60");
+    const ctx = mountHook(useRestTimer, RestTimerProvider);
+    await settle();
+    await act(async () => ctx.current.startRest());
+
+    const first = ctx.current.restEndsAt!;
+    await act(async () => ctx.current.extendRest(15_000));
+    expect(ctx.current.restEndsAt).toBe(first + 15_000);
+  });
+
+  it("has nothing to extend when no rest is running", async () => {
+    const ctx = mountHook(useRestTimer, RestTimerProvider);
+    await settle();
+    await act(async () => ctx.current.extendRest(15_000));
+    expect(ctx.current.restEndsAt).toBeNull();
+  });
+
+  it("clears on skip", async () => {
+    await AsyncStorage.setItem("rest_seconds", "60");
+    const ctx = mountHook(useRestTimer, RestTimerProvider);
+    await settle();
+    await act(async () => ctx.current.startRest());
+    await act(async () => ctx.current.endRest());
+    expect(ctx.current.restEndsAt).toBeNull();
+  });
+
+  it("keeps a deadline that has already passed", async () => {
+    // The Live Activity draws its countdown from this and holds at 0:00 once
+    // the deadline is behind it. Clearing it on expiry would work only while
+    // the app is awake to notice — on a locked phone nothing of ours runs, so
+    // the deadline has to be what persists.
+    await AsyncStorage.setItem("rest_seconds", "60");
+    const ctx = mountHook(useRestTimer, RestTimerProvider);
+    await settle();
+    await act(async () => ctx.current.startRest());
+    const deadline = ctx.current.restEndsAt;
+
+    jest.spyOn(Date, "now").mockReturnValue(deadline! + 60_000);
+    await settle();
+    expect(ctx.current.restEndsAt).toBe(deadline);
+    jest.spyOn(Date, "now").mockRestore();
+  });
+
+  it("starts a fresh rest over a stale one", async () => {
+    await AsyncStorage.setItem("rest_seconds", "60");
+    const ctx = mountHook(useRestTimer, RestTimerProvider);
+    await settle();
+    await act(async () => ctx.current.startRest());
+    const first = ctx.current.restEndsAt!;
+
+    jest.spyOn(Date, "now").mockReturnValue(first + 5_000);
+    await act(async () => ctx.current.startRest());
+    expect(ctx.current.restEndsAt).toBe(first + 5_000 + 60_000);
+    jest.spyOn(Date, "now").mockRestore();
+  });
+});
+
 describe("nearestRestIndex", () => {
   /**
    * Profile drives its rest stepper from this, so it decides which option the

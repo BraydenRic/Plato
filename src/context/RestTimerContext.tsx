@@ -45,10 +45,49 @@ export function nearestRestIndex(seconds: number): number {
 const RestTimerContext = createContext<{
   restSeconds: number;
   setRestSeconds: (seconds: number) => void;
-}>({ restSeconds: DEFAULT_SECONDS, setRestSeconds: () => {} });
+  /**
+   * Wall-clock ms the current rest is due to end, or null when not resting.
+   *
+   * Deliberately *not* cleared when it passes. The Live Activity draws its
+   * countdown from this deadline and holds at 0:00 on its own once the deadline
+   * is behind it — which is the only behaviour that survives a locked phone,
+   * where no JavaScript is running to clear anything. Callers that want the
+   * in-app "still resting" answer should compare it against the clock.
+   */
+  restEndsAt: number | null;
+  /** Begins a rest of the configured length. No-op when the timer is off. */
+  startRest: () => void;
+  /** Pushes the deadline out, for the "+15s" control. */
+  extendRest: (ms: number) => void;
+  endRest: () => void;
+}>({
+  restSeconds: DEFAULT_SECONDS,
+  setRestSeconds: () => {},
+  restEndsAt: null,
+  startRest: () => {},
+  extendRest: () => {},
+  endRest: () => {},
+});
 
 export function RestTimerProvider({ children }: { children: React.ReactNode }) {
   const [restSeconds, setRestSecondsState] = useState(DEFAULT_SECONDS);
+  // Above the navigator for the same reason the set stopwatch is: the workout
+  // screen unmounts the moment you leave it, which used to cancel a rest that
+  // was still running. The deadline is wall-clock, so it resumes correctly.
+  const [restEndsAt, setRestEndsAt] = useState<number | null>(null);
+
+  function startRest() {
+    if (restSeconds <= 0) return;
+    setRestEndsAt(Date.now() + restSeconds * 1000);
+  }
+
+  function extendRest(ms: number) {
+    setRestEndsAt((current) => (current == null ? null : current + ms));
+  }
+
+  function endRest() {
+    setRestEndsAt(null);
+  }
 
   useEffect(() => {
     AsyncStorage.getItem(STORAGE_KEY).then((raw) => {
@@ -63,7 +102,8 @@ export function RestTimerProvider({ children }: { children: React.ReactNode }) {
   }
 
   return (
-    <RestTimerContext.Provider value={{ restSeconds, setRestSeconds }}>
+    <RestTimerContext.Provider
+      value={{ restSeconds, setRestSeconds, restEndsAt, startRest, extendRest, endRest }}>
       {children}
     </RestTimerContext.Provider>
   );

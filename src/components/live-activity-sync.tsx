@@ -5,6 +5,7 @@ import { startWorkoutActivity, stopWorkoutActivity, updateWorkoutActivity } from
 import { completedSetCount, totalSetCount } from "@/lib/workout-utils";
 import { useWorkouts } from "@/hooks/use-workouts";
 import { useTheme } from "@/context/ThemeContext";
+import { useRestTimer } from "@/context/RestTimerContext";
 import type { Workout } from "@/types";
 
 // Which Live Activity belongs to which workout, persisted so a relaunch can
@@ -22,6 +23,7 @@ type Tracked = { activityId: string; workoutId: string };
 export function LiveActivitySync() {
   const { active, loading } = useWorkouts();
   const theme = useTheme();
+  const { restEndsAt } = useRestTimer();
 
   const tracked = useRef<Tracked | null>(null);
   const hydrated = useRef<Promise<void> | null>(null);
@@ -62,7 +64,8 @@ export function LiveActivitySync() {
       }
 
       if (t && t.workoutId === workout.id) {
-        if (updateWorkoutActivity(t.activityId, workout, doneSets, totalSets, theme)) return;
+        if (updateWorkoutActivity(t.activityId, workout, doneSets, totalSets, theme, restEndsAt))
+          return;
         // The activity died underneath us — fall through and start a new one.
         tracked.current = null;
       } else if (t) {
@@ -71,7 +74,7 @@ export function LiveActivitySync() {
         tracked.current = null;
       }
 
-      const activityId = startWorkoutActivity(workout, doneSets, totalSets, theme);
+      const activityId = startWorkoutActivity(workout, doneSets, totalSets, theme, restEndsAt);
       if (activityId) {
         tracked.current = { activityId, workoutId: workout.id };
         await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(tracked.current));
@@ -82,7 +85,7 @@ export function LiveActivitySync() {
     // down and recreate a perfectly good pill mid-workout; the logo picks up the
     // new theme on the next update the workout sends anyway.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [loading, current, doneSets, totalSets]);
+  }, [loading, current, doneSets, totalSets, restEndsAt]);
 
   return null;
 }
