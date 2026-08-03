@@ -23,6 +23,7 @@ const cloud = ((globalThis as Record<string, unknown>).__cloudMock ??= {
   updateExerciseLibrary: jest.fn(),
   getWeeklyPlan: jest.fn(),
   setWeeklyPlan: jest.fn(),
+  getWorkouts: jest.fn(),
 }) as Record<string, jest.Mock>;
 
 jest.mock("../data", () => ({
@@ -41,6 +42,7 @@ jest.mock("../firestore", () => ({
   updateExerciseLibrary: (...args: unknown[]) => (globalThis as any).__cloudMock.updateExerciseLibrary(...args),
   getWeeklyPlan: (...args: unknown[]) => (globalThis as any).__cloudMock.getWeeklyPlan(...args),
   setWeeklyPlan: (...args: unknown[]) => (globalThis as any).__cloudMock.setWeeklyPlan(...args),
+  getWorkouts: (...args: unknown[]) => (globalThis as any).__cloudMock.getWorkouts(...args),
 }));
 
 type LocalStore = typeof import("../local-store");
@@ -69,6 +71,9 @@ beforeEach(() => {
   cloud.updateExerciseLibrary.mockResolvedValue(undefined);
   cloud.getWeeklyPlan.mockResolvedValue(Array(7).fill(null));
   cloud.setWeeklyPlan.mockResolvedValue(undefined);
+  // The account starts with no templates, so the merge cap is out of the way
+  // unless a test deliberately fills it.
+  cloud.getWorkouts.mockResolvedValue([]);
 });
 
 describe("nothing to migrate", () => {
@@ -92,7 +97,7 @@ describe("happy path", () => {
 
     const result = await migrate.migrateGuestDataTo(UID);
 
-    expect(result).toEqual({ workouts: 2, customExercisesDropped: 0 });
+    expect(result).toEqual({ workouts: 2, customExercisesDropped: 0, templatesDropped: 0 });
     expect(cloud.createWorkout).toHaveBeenCalledTimes(2);
     for (const [payload, preserveCreatedAt] of cloud.createWorkout.mock.calls) {
       expect(payload.userId).toBe(UID);
@@ -332,5 +337,92 @@ describe("exercise library merge", () => {
     });
     const result = await migrate.migrateGuestDataTo(UID);
     expect(result?.customExercisesDropped).toBe(0);
+  });
+});
+
+describe("the merged template ceiling", () => {
+  /**
+   * The per-screen limit only stops you creating a 21st template. Without a
+   * ceiling here, signing out, refilling guest mode and signing back in could
+   * be repeated to climb past it without bound.
+   */
+  const { MAX_TEMPLATES, MAX_MERGED_TEMPLATES } = require("../workout-utils");
+
+  const templates = (prefix: string, n: number) =>
+    Array.from({ length: n }, (_, i) => ({
+      id: `${prefix}-${i}`,
+      name: `${prefix} ${i}`,
+      isTemplate: true,
+      exercises: [],
+      createdAt: new Date("2026-01-01").toISOString(),
+    }));
+
+  it("lets a full account and a full guest session both come across", async () => {
+    // The honest worst case: 20 + 20. Nothing may be lost here.
+    const { migrate } = await seed({ workouts: templates("guest", MAX_TEMPLATES) });
+    cloud.getWorkouts.mockResolvedValue(templates("acct", MAX_TEMPLATES));
+
+    const result = await migrate.migrateGuestDataTo(UID);
+
+    expect(result?.templatesDropped).toBe(0);
+    expect(cloud.createWorkout).toHaveBeenCalledTimes(MAX_TEMPLATES);
+  });
+
+  it("stops the cycle being repeated to climb past the ceiling", async () => {
+    // Second time around the account is already at the ceiling, so a fresh
+    // guest session full of templates adds nothing.
+    const { migrate } = await seed({ workouts: templates("guest", MAX_TEMPLATES) });
+    cloud.getWorkouts.mockResolvedValue(templates("acct", MAX_MERGED_TEMPLATES));
+
+    const result = await migrate.migrateGuestDataTo(UID);
+
+    expect(result?.templatesDropped).toBe(MAX_TEMPLATES);
+    expect(cloud.createWorkout).not.toHaveBeenCalled();
+  });
+
+  it("fills the remaining room and reports only the excess", async () => {
+    const { migrate } = await seed({ workouts: templates("guest", 10) });
+    cloud.getWorkouts.mockResolvedValue(templates("acct", MAX_MERGED_TEMPLATES - 4));
+
+    const result = await migrate.migrateGuestDataTo(UID);
+
+    expect(cloud.createWorkout).toHaveBeenCalledTimes(4);
+    expect(result?.templatesDropped).toBe(6);
+  });
+
+  it("never drops a logged workout to make room", async () => {
+    // The ceiling is about templates. A completed session is the history the
+    // app exists to keep, and must cross regardless.
+    const { migrate } = await seed({
+      workouts: [
+        ...templates("guest", 3),
+        {
+          id: "done-1",
+          name: "Leg day",
+          exercises: [],
+          createdAt: new Date("2026-02-01").toISOString(),
+          completedAt: new Date("2026-02-01").toISOString(),
+        },
+      ],
+    });
+    cloud.getWorkouts.mockResolvedValue(templates("acct", MAX_MERGED_TEMPLATES));
+
+    const result = await migrate.migrateGuestDataTo(UID);
+
+    expect(result?.templatesDropped).toBe(3);
+    expect(result?.workouts).toBe(1);
+    const [[uploaded]] = cloud.createWorkout.mock.calls;
+    expect(uploaded.name).toBe("Leg day");
+  });
+
+  it("measures room against the account, not the guest session", async () => {
+    // Counting only what the guest brought would let each cycle add a fresh 20.
+    const { migrate } = await seed({ workouts: templates("guest", 5) });
+    cloud.getWorkouts.mockResolvedValue(templates("acct", MAX_MERGED_TEMPLATES - 2));
+
+    await migrate.migrateGuestDataTo(UID);
+
+    expect(cloud.getWorkouts).toHaveBeenCalledWith(UID, true);
+    expect(cloud.createWorkout).toHaveBeenCalledTimes(2);
   });
 });

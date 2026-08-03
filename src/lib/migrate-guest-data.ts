@@ -7,13 +7,14 @@ import {
 } from "./data";
 import {
   getExerciseLibrary,
+  getWorkouts,
   getWeeklyPlan,
   setWeeklyPlan,
   updateExerciseLibrary,
   type ExerciseLibrary,
   type WeeklyPlan,
 } from "./firestore";
-import { MAX_CUSTOM_EXERCISES } from "./workout-utils";
+import { MAX_CUSTOM_EXERCISES, MAX_MERGED_TEMPLATES } from "./workout-utils";
 import {
   clearGuestData,
   hasContent,
@@ -43,6 +44,11 @@ export interface MigrationResult {
    * loss can be reported rather than happening in silence.
    */
   customExercisesDropped: number;
+  /**
+   * Templates left behind because the merged total would have passed
+   * MAX_MERGED_TEMPLATES. Surfaced for the same reason as the exercises above.
+   */
+  templatesDropped: number;
 }
 
 // Keep the account's own edits on conflict — they're deliberate and long-standing,
@@ -95,13 +101,15 @@ export async function migrateGuestDataTo(userId: string): Promise<MigrationResul
     return null;
   }
 
-  // Templates and in-progress workouts are uploaded without regard to
-  // MAX_TEMPLATES / MAX_ACTIVE_WORKOUTS, and deliberately so. Those two are
-  // product limits on creating more, not storage limits — each workout is its
-  // own document — so enforcing them here would mean deleting something the
-  // user logged in order to satisfy a number. Landing slightly over is the
-  // safe side: the UI already refuses to create more and says which to delete,
-  // so it settles itself.
+  // Templates get a ceiling here, but a deliberately generous one — see
+  // MAX_MERGED_TEMPLATES. The per-screen limit only governs creating more, so
+  // without this a sign-out/guest/sign-in cycle could be repeated to climb past
+  // it indefinitely. Room is measured against what the account already holds, so
+  // the cap can't be walked around by merging twice.
+  //
+  // Logged workouts are never capped, only templates. A completed session is
+  // the history the app exists to keep; a template is a convenience that can be
+  // rebuilt in a minute.
   //
   // Sequential on purpose: each workout leaves the device only once it's safely
   // in the cloud, which makes a partial failure resumable instead of duplicating.
@@ -110,8 +118,19 @@ export async function migrateGuestDataTo(userId: string): Promise<MigrationResul
   // long gone from the device, but the weekly split below still needs to know
   // where they landed.
   const templateIdMap = new Map<string, string>(Object.entries(guest.migratedTemplateIds));
+  let templateRoom = MAX_MERGED_TEMPLATES - (await getWorkouts(userId, true)).length;
+  let templatesDropped = 0;
   let migrated = 0;
   for (const workout of [...guest.workouts]) {
+    if (workout.isTemplate) {
+      if (templateRoom <= 0) {
+        // Left on the device only until clearGuestData below; counted so the
+        // caller can say so rather than let it go unremarked.
+        templatesDropped++;
+        continue;
+      }
+      templateRoom--;
+    }
     const { id, ...fields } = workout;
     const cloudId = await createWorkout(stripUndefined({ ...fields, userId }), true);
     // Record before removing: between these two writes the mapping is the only
@@ -132,7 +151,7 @@ export async function migrateGuestDataTo(userId: string): Promise<MigrationResul
 
   await clearGuestData();
   await writeGuestActive(false);
-  return { workouts: migrated, customExercisesDropped };
+  return { workouts: migrated, customExercisesDropped, templatesDropped };
 }
 
 // Guest template ids don't survive the upload, so remap each weekday onto the

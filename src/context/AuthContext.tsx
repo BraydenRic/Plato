@@ -164,16 +164,27 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         if (!cancelled) setMigrating(true);
         const result = await migrateGuestDataTo(uid);
         if (!cancelled) setGuestActive(false);
-        // The library is one document with a hard size ceiling, so a big enough
-        // account plus a big enough guest session can't both fit. Everything
-        // else came across; say so rather than let them find out by noticing an
-        // exercise missing weeks later.
-        if (result && result.customExercisesDropped > 0) {
-          const n = result.customExercisesDropped;
-          Alert.alert(
-            "Your workouts moved over",
-            `${n} custom exercise${n === 1 ? "" : "s"} couldn't come with them — your account was already at the limit. Everything you logged is safe.`
-          );
+        // Two things have ceilings a merge can run into: the exercise library is
+        // a single document with a hard size limit, and templates are capped so
+        // repeated guest sessions can't climb past the per-screen limit. Logged
+        // workouts are never affected, which is what the closing line promises.
+        // Say so either way — the alternative is someone noticing weeks later.
+        if (result) {
+          const missing: string[] = [];
+          if (result.customExercisesDropped > 0) {
+            const n = result.customExercisesDropped;
+            missing.push(`${n} custom exercise${n === 1 ? "" : "s"}`);
+          }
+          if (result.templatesDropped > 0) {
+            const n = result.templatesDropped;
+            missing.push(`${n} template${n === 1 ? "" : "s"}`);
+          }
+          if (missing.length > 0) {
+            Alert.alert(
+              "Your workouts moved over",
+              `${missing.join(" and ")} couldn't come with them — your account was already at the limit. Every workout you logged is safe.`
+            );
+          }
         }
       } catch (e) {
         console.warn("Couldn't move guest data into the account", e);

@@ -37,6 +37,21 @@ export function sanitizeExercises(raw: unknown, docName?: unknown): Workout["exe
 // (most people keep 3–10) while stopping runaway creation.
 export const MAX_TEMPLATES = 20;
 
+/**
+ * Ceiling on templates once a guest session merges into an account.
+ *
+ * Twice MAX_TEMPLATES, because that is exactly the most an honest merge can
+ * produce: an account already at its limit plus a guest session already at
+ * its own. Anything beyond it can only come from signing out, filling guest
+ * mode again and signing back in — repeatedly — which is the only way the
+ * per-screen limit can be walked past.
+ *
+ * Capping at MAX_TEMPLATES instead would bound it no more tightly, and would
+ * quietly delete real work: someone at 20 templates who reinstalls, taps
+ * "Continue as guest", saves two, then signs in would lose both.
+ */
+export const MAX_MERGED_TEMPLATES = MAX_TEMPLATES * 2;
+
 // Cap simultaneously in-progress (started, unfinished) workouts. Nobody trains
 // more than a couple at once; the limit stops runaway "start and abandon" from
 // piling up live sessions. Finishing or deleting one frees a slot.
