@@ -3,7 +3,12 @@ import { Text } from "react-native";
 import { act, render, screen } from "@testing-library/react-native";
 
 import { DefaultSetsProvider, MAX_SETS, MIN_SETS, useDefaultSets } from "../DefaultSetsContext";
-import { REST_OPTIONS, RestTimerProvider, useRestTimer } from "../RestTimerContext";
+import {
+  REST_OPTIONS,
+  RestTimerProvider,
+  nearestRestIndex,
+  useRestTimer,
+} from "../RestTimerContext";
 import { SetTimerProvider, useSetTimer } from "../SetTimerContext";
 import { UnitProvider, useWeightUnit } from "../UnitContext";
 import { formatClock } from "@/lib/workout-utils";
@@ -41,6 +46,42 @@ async function settle() {
     await Promise.resolve();
   });
 }
+
+describe("nearestRestIndex", () => {
+  /**
+   * Profile drives its rest stepper from this, so it decides which option the
+   * − / + buttons move away from. Anything it can't place would strand the
+   * stepper at "Off" no matter what the user had actually chosen.
+   */
+
+  it.each(REST_OPTIONS.map((o, i): [string, number, number] => [o.label, o.seconds, i]))(
+    "places the exact value %s at its own position",
+    (_label, seconds, index) => {
+      expect(nearestRestIndex(seconds)).toBe(index);
+    }
+  );
+
+  it("rounds a between-the-stops value to the closer stop", () => {
+    // 105s sits between 1:30 and 2:00, nearer the former.
+    expect(REST_OPTIONS[nearestRestIndex(105)].label).toBe("1:30");
+    expect(REST_OPTIONS[nearestRestIndex(115)].label).toBe("2:00");
+  });
+
+  it("clamps past either end rather than falling off", () => {
+    expect(REST_OPTIONS[nearestRestIndex(-50)].label).toBe("Off");
+    expect(REST_OPTIONS[nearestRestIndex(99_999)].label).toBe("5:00");
+  });
+
+  it("keeps a 3:00 preference chosen before 4:00 and 5:00 existed", () => {
+    expect(REST_OPTIONS[nearestRestIndex(180)].label).toBe("3:00");
+  });
+
+  it("prefers the earlier option when a value sits exactly between two", () => {
+    // 45s is equidistant from Off and 1:00. Ties resolving downward is the
+    // safer default — it under-rests rather than silently adding a minute.
+    expect(REST_OPTIONS[nearestRestIndex(30)].label).toBe("Off");
+  });
+});
 
 describe("RestTimerContext", () => {
   it("starts off, because the countdown is opt-in", async () => {

@@ -163,6 +163,27 @@ describe("every theme", () => {
   );
 
   it.each(THEME_LIST.map((t): [string, Theme] => [t.label, t]))(
+    "%s can draw two levels of itself at once",
+    (_label, theme) => {
+      // The muscle map paints primary muscles in `accent` and secondary ones in
+      // `accentMuted`. Graphite shipped with both tokens set to white, so the
+      // two groups came out identical and the diagram said nothing — this is
+      // that bug, pinned.
+      expect(deltaE(theme.accent, theme.accentMuted)).toBeGreaterThan(25);
+    }
+  );
+
+  it.each(THEME_LIST.map((t): [string, Theme] => [t.label, t]))(
+    "%s keeps its muted tone off the muscle map's own body grey",
+    (_label, theme) => {
+      // Secondary muscles have to read as highlighted against the unworked
+      // body, or dialling the tone down far enough to differ from the primary
+      // just loses it into the figure instead.
+      expect(deltaE(theme.accentMuted, "#3f3f3f")).toBeGreaterThan(25);
+    }
+  );
+
+  it.each(THEME_LIST.map((t): [string, Theme] => [t.label, t]))(
     "%s gives the Live Activity a plain hex tint",
     (_label, theme) => {
       // The native widget parses hex only; an rgba() string makes the progress

@@ -77,7 +77,7 @@ const FIGURE_BASE_WIDTH = 200;
 
 // Front and back body figures, side by side. The exercise library lists the
 // primary target muscle first, so it gets the solid accent and the rest of the
-// list gets the lighter accentText shade — both follow the chosen theme.
+// list gets the muted shade — both follow the chosen theme.
 export function MuscleMap({ musclesWorked, secondaryMuscles }: MuscleMapProps) {
   const [rowWidth, setRowWidth] = useState(0);
   const theme = useTheme();
@@ -109,7 +109,7 @@ export function MuscleMap({ musclesWorked, secondaryMuscles }: MuscleMapProps) {
                 side={side}
                 gender="male"
                 scale={scale}
-                colors={[theme.accent, theme.accentText]}
+                colors={[theme.accent, theme.accentMuted]}
                 border={SEAM}
                 defaultFill={BODY_GREY}
               />
@@ -126,7 +126,7 @@ export function MuscleMap({ musclesWorked, secondaryMuscles }: MuscleMapProps) {
         )}
         {secondarySlugs.length > 0 && (
           <>
-            <View style={[styles.legendDot, { backgroundColor: theme.accentText }]} />
+            <View style={[styles.legendDot, { backgroundColor: theme.accentMuted }]} />
             <Text style={styles.legendText}>Secondary</Text>
           </>
         )}

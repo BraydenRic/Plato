@@ -38,6 +38,16 @@ export interface Theme {
   accentSoft: string;
   /** Accent-coloured text and icons, lifted so it stays legible on `bg`. */
   accentText: string;
+  /**
+   * A second, weaker tone of the accent, for the places that have to show two
+   * levels of the same colour at once — today the muscle map's primary vs
+   * secondary muscle groups.
+   *
+   * This can't just reuse `accentText`. Graphite's accent and accentText are
+   * both white on purpose (its signal is contrast, not hue), so a diagram
+   * drawing the two groups from those tokens painted them identically.
+   */
+  accentMuted: string;
   /** Label colour on top of a filled `accent` surface. */
   onAccent: string;
   /**
@@ -80,6 +90,7 @@ export const THEMES: Record<ThemeId, Theme> = {
     accent: "#8b5cf6",
     accentSoft: "rgba(139,92,246,0.16)",
     accentText: "#c4b5fd",
+    accentMuted: "#c4b5fd",
     onAccent: "#ffffff",
     activityTint: "#8b5cf6",
     iconName: "Violet",
@@ -90,6 +101,7 @@ export const THEMES: Record<ThemeId, Theme> = {
     accent: "#3b82f6",
     accentSoft: "rgba(59,130,246,0.16)",
     accentText: "#93c5fd",
+    accentMuted: "#93c5fd",
     onAccent: "#ffffff",
     activityTint: "#3b82f6",
     iconName: "Cobalt",
@@ -100,6 +112,9 @@ export const THEMES: Record<ThemeId, Theme> = {
     accent: "#06b6d4",
     accentSoft: "rgba(6,182,212,0.16)",
     accentText: "#67e8f9",
+    // A step paler than accentText: cyan-300 against the cyan-500 primary was
+    // only ΔE 19, too close to read as two levels on the muscle map.
+    accentMuted: "#a5f3fc",
     // White on cyan-500 lands near 2.4:1. Near-black clears 5.5:1.
     onAccent: "#083344",
     activityTint: "#06b6d4",
@@ -111,6 +126,7 @@ export const THEMES: Record<ThemeId, Theme> = {
     accent: "#f97316",
     accentSoft: "rgba(249,115,22,0.16)",
     accentText: "#fdba74",
+    accentMuted: "#fdba74",
     // Same story as cyan — white on orange-500 is a washout.
     onAccent: "#2a1206",
     activityTint: "#f97316",
@@ -122,6 +138,7 @@ export const THEMES: Record<ThemeId, Theme> = {
     accent: "#ec4899",
     accentSoft: "rgba(236,72,153,0.16)",
     accentText: "#f9a8d4",
+    accentMuted: "#f9a8d4",
     onAccent: "#ffffff",
     activityTint: "#ec4899",
     iconName: "Magenta",
@@ -135,6 +152,10 @@ export const THEMES: Record<ThemeId, Theme> = {
     accent: "#fafafa",
     accentSoft: "rgba(250,250,250,0.10)",
     accentText: "#fafafa",
+    // The one theme where this genuinely differs from accentText — see the
+    // field docs. Zinc-400 reads as "the same colour, dialled down" against
+    // white, while still sitting clear of the diagram's own body grey.
+    accentMuted: "#a1a1aa",
     onAccent: "#09090b",
     activityTint: "#fafafa",
     // #fafafa is the white glyph already shipping in the bundle, so this theme

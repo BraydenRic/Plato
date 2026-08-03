@@ -23,6 +23,24 @@ export const REST_OPTIONS = [
   { label: "5:00", seconds: 300 },
 ] as const;
 
+/**
+ * Where a stored duration sits on the options list.
+ *
+ * Nearest rather than exact, because the context accepts any duration while
+ * this list is only the handful Profile offers. A value saved when the options
+ * were different — or anything unexpected off the disk — still lands somewhere
+ * sensible instead of silently pinning the picker to "Off".
+ */
+export function nearestRestIndex(seconds: number): number {
+  return REST_OPTIONS.reduce(
+    (best, option, i) =>
+      Math.abs(option.seconds - seconds) < Math.abs(REST_OPTIONS[best].seconds - seconds)
+        ? i
+        : best,
+    0
+  );
+}
+
 // 0 means the auto rest countdown is off.
 const RestTimerContext = createContext<{
   restSeconds: number;

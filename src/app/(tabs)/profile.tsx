@@ -8,7 +8,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { Button, Card, SectionLabel } from "@/components/ui";
 import { Palette, Radius, Spacing, THEME_LIST } from "@/constants/theme";
 import { useAuth } from "@/context/AuthContext";
-import { REST_OPTIONS, useRestTimer } from "@/context/RestTimerContext";
+import { REST_OPTIONS, nearestRestIndex, useRestTimer } from "@/context/RestTimerContext";
 import { useThemePicker } from "@/context/ThemeContext";
 import { useDefaultSets, MIN_SETS, MAX_SETS } from "@/context/DefaultSetsContext";
 import { useWeightUnit } from "@/context/UnitContext";
@@ -35,6 +35,13 @@ export default function ProfileScreen() {
   const stackPrefs = fontScale > 1.3;
   const { unit, setUnit } = useWeightUnit();
   const { restSeconds, setRestSeconds } = useRestTimer();
+  const restIndex = nearestRestIndex(restSeconds);
+  const restOption = REST_OPTIONS[restIndex];
+
+  function stepRest(direction: 1 | -1) {
+    const next = REST_OPTIONS[restIndex + direction];
+    if (next) setRestSeconds(next.seconds);
+  }
   const { defaultSets, setDefaultSets } = useDefaultSets();
 
   // Providers like Apple only surface a name once (and Hide My Email hides it),
@@ -271,29 +278,54 @@ export default function ProfileScreen() {
               ))}
             </View>
           </Card>
-          <Card style={styles.restCard}>
-            <View>
+          {/* A stepper rather than a segmented control: seven options no longer
+              fit on one row, and letting them wrap left an orphan on a second
+              line. This stays one compact row whatever REST_OPTIONS grows to. */}
+          <Card style={[styles.prefCard, stackPrefs && styles.prefCardStacked, styles.cardGap]}>
+            <View style={{ flex: 1 }}>
               <Text style={styles.prefTitle}>Rest timer</Text>
               <Text style={styles.prefHint}>Countdown after checking off a set</Text>
             </View>
-            <View style={[styles.segment, { alignSelf: "flex-start" }]}>
-              {REST_OPTIONS.map((o) => (
-                <Pressable
-                  key={o.seconds}
-                  onPress={() => setRestSeconds(o.seconds)}
-                  style={[
-                    styles.segmentItem,
-                    restSeconds === o.seconds && { backgroundColor: theme.accent },
-                  ]}>
-                  <Text
-                    style={[
-                      styles.segmentText,
-                      restSeconds === o.seconds && { color: theme.onAccent },
-                    ]}>
-                    {o.label}
-                  </Text>
-                </Pressable>
-              ))}
+            <View
+              style={[styles.stepper, stackPrefs && { alignSelf: "flex-start" }]}
+              accessible
+              accessibilityRole="adjustable"
+              accessibilityLabel="Rest timer"
+              accessibilityValue={{ text: restOption.label }}
+              accessibilityActions={[{ name: "increment" }, { name: "decrement" }]}
+              onAccessibilityAction={(e) => {
+                if (e.nativeEvent.actionName === "increment") stepRest(1);
+                if (e.nativeEvent.actionName === "decrement") stepRest(-1);
+              }}>
+              <Pressable
+                onPress={() => stepRest(-1)}
+                disabled={restIndex === 0}
+                hitSlop={6}
+                style={({ pressed }) => [styles.stepperButton, pressed && { opacity: 0.6 }]}>
+                <Ionicons
+                  name="remove"
+                  size={18}
+                  color={restIndex === 0 ? Palette.textTertiary : Palette.text}
+                />
+              </Pressable>
+              {/* Fixed width and tabular figures so the control doesn't twitch
+                  as the label changes width between "Off" and "1:30". */}
+              <Text style={[styles.stepperValue, { color: theme.accentText }]}>
+                {restOption.label}
+              </Text>
+              <Pressable
+                onPress={() => stepRest(1)}
+                disabled={restIndex === REST_OPTIONS.length - 1}
+                hitSlop={6}
+                style={({ pressed }) => [styles.stepperButton, pressed && { opacity: 0.6 }]}>
+                <Ionicons
+                  name="add"
+                  size={18}
+                  color={
+                    restIndex === REST_OPTIONS.length - 1 ? Palette.textTertiary : Palette.text
+                  }
+                />
+              </Pressable>
             </View>
           </Card>
           <Card style={styles.restCard}>
@@ -487,6 +519,31 @@ const styles = StyleSheet.create({
     borderColor: Palette.border,
     padding: 3,
     gap: 3,
+  },
+  stepper: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: Palette.surfaceRaised,
+    borderRadius: Radius.sm,
+    borderWidth: 1,
+    borderColor: Palette.border,
+    padding: 3,
+    gap: 3,
+  },
+  stepperButton: {
+    width: 38,
+    height: 32,
+    borderRadius: Radius.sm - 2,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: Palette.surface,
+  },
+  stepperValue: {
+    minWidth: 54,
+    textAlign: "center",
+    fontSize: 14,
+    fontWeight: "700",
+    fontVariant: ["tabular-nums"],
   },
   segmentItem: {
     paddingHorizontal: 12,
