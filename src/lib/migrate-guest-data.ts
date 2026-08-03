@@ -37,28 +37,51 @@ import {
 
 export interface MigrationResult {
   workouts: number;
+  /**
+   * Custom exercises that could not come across, because the account plus the
+   * guest's own would have overflowed MAX_CUSTOM_EXERCISES. Surfaced so the
+   * loss can be reported rather than happening in silence.
+   */
+  customExercisesDropped: number;
 }
 
 // Keep the account's own edits on conflict — they're deliberate and long-standing,
 // where guest edits were made minutes ago in a throwaway session.
-function mergeLibraries(account: ExerciseLibrary, guest: ExerciseLibrary): ExerciseLibrary {
+//
+// The cap is the one place this can genuinely lose something. Every custom
+// exercise lives in a single Firestore document, so MAX_CUSTOM_EXERCISES keeps
+// that doc under the 1 MB ceiling — it can't simply be lifted the way the
+// template and active-workout limits can. Since the account's own entries come
+// first, any overflow falls on the guest's, so the count comes back with the
+// merge for the caller to report instead of vanishing.
+function mergeLibraries(
+  account: ExerciseLibrary,
+  guest: ExerciseLibrary
+): { library: ExerciseLibrary; dropped: number } {
   const accountCustomIds = new Set(account.custom.map((e) => e.id));
   const overriddenIds = new Set(account.overrides.map((e) => e.id));
+  const combined = [
+    ...account.custom,
+    ...guest.custom.filter((e) => !accountCustomIds.has(e.id)),
+  ];
   return {
-    custom: [...account.custom, ...guest.custom.filter((e) => !accountCustomIds.has(e.id))].slice(
-      0,
-      MAX_CUSTOM_EXERCISES
-    ),
-    removedIds: [...new Set([...account.removedIds, ...guest.removedIds])],
-    overrides: [...account.overrides, ...guest.overrides.filter((e) => !overriddenIds.has(e.id))],
+    library: {
+      custom: combined.slice(0, MAX_CUSTOM_EXERCISES),
+      removedIds: [...new Set([...account.removedIds, ...guest.removedIds])],
+      overrides: [...account.overrides, ...guest.overrides.filter((e) => !overriddenIds.has(e.id))],
+    },
+    dropped: Math.max(0, combined.length - MAX_CUSTOM_EXERCISES),
   };
 }
 
-async function migrateLibrary(userId: string, guest: GuestData): Promise<void> {
+/** Returns how many custom exercises the cap forced out. */
+async function migrateLibrary(userId: string, guest: GuestData): Promise<number> {
   const { custom, removedIds, overrides } = guest.library;
-  if (custom.length === 0 && removedIds.length === 0 && overrides.length === 0) return;
+  if (custom.length === 0 && removedIds.length === 0 && overrides.length === 0) return 0;
   const account = await getExerciseLibrary(userId);
-  await updateExerciseLibrary(userId, mergeLibraries(account, guest.library));
+  const { library, dropped } = mergeLibraries(account, guest.library);
+  await updateExerciseLibrary(userId, library);
+  return dropped;
 }
 
 /**
@@ -72,6 +95,14 @@ export async function migrateGuestDataTo(userId: string): Promise<MigrationResul
     return null;
   }
 
+  // Templates and in-progress workouts are uploaded without regard to
+  // MAX_TEMPLATES / MAX_ACTIVE_WORKOUTS, and deliberately so. Those two are
+  // product limits on creating more, not storage limits — each workout is its
+  // own document — so enforcing them here would mean deleting something the
+  // user logged in order to satisfy a number. Landing slightly over is the
+  // safe side: the UI already refuses to create more and says which to delete,
+  // so it settles itself.
+  //
   // Sequential on purpose: each workout leaves the device only once it's safely
   // in the cloud, which makes a partial failure resumable instead of duplicating.
   //
@@ -93,7 +124,7 @@ export async function migrateGuestDataTo(userId: string): Promise<MigrationResul
     migrated++;
   }
 
-  await migrateLibrary(userId, guest);
+  const customExercisesDropped = await migrateLibrary(userId, guest);
   await migrateWeeklyPlanWithIds(userId, guest.weeklyPlan, templateIdMap);
 
   // Totals and streaks are derived, so recompute from what actually landed.
@@ -101,7 +132,7 @@ export async function migrateGuestDataTo(userId: string): Promise<MigrationResul
 
   await clearGuestData();
   await writeGuestActive(false);
-  return { workouts: migrated };
+  return { workouts: migrated, customExercisesDropped };
 }
 
 // Guest template ids don't survive the upload, so remap each weekday onto the

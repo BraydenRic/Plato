@@ -6,6 +6,10 @@ import { Button, Chip } from "../ui";
 import { ThemeProvider, useThemePicker } from "@/context/ThemeContext";
 import { THEMES, type ThemeId } from "@/constants/theme";
 
+// Pulls in expo-font's native loader, which has no place in a unit test.
+jest.mock("@expo/vector-icons/Ionicons", () => "Ionicons");
+
+
 /**
  * End-to-end wiring between the theme and the shared primitives.
  *

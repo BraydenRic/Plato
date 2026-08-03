@@ -1,7 +1,11 @@
 import { ActivityIndicator, Text } from "react-native";
 import { fireEvent, render, screen } from "@testing-library/react-native";
 
-import { Button, Card, Chip, Divider, EmptyState, Field, SectionLabel } from "../ui";
+import { Button, Card, Chip, Divider, EmptyState, Field, SectionLabel, Stepper } from "../ui";
+
+// Pulls in expo-font's native loader, which has no place in a unit test.
+jest.mock("@expo/vector-icons/Ionicons", () => "Ionicons");
+
 
 /**
  * The shared primitives every screen is built from. These are the pieces where
@@ -130,5 +134,72 @@ describe("layout primitives", () => {
 
   it("Divider renders without needing any props", () => {
     expect(() => render(<Divider />)).not.toThrow();
+  });
+});
+
+describe("Stepper", () => {
+  /**
+   * Replaces a segmented control wherever the option list outgrew its row, so
+   * the parts that matter are the bounds (a stepper that steps past the end of
+   * its list hands the caller an index that isn't there) and the accessibility
+   * contract, since the two buttons are icons with no text of their own.
+   */
+
+  function setup(overrides: Partial<React.ComponentProps<typeof Stepper>> = {}) {
+    const onStep = jest.fn();
+    render(
+      <Stepper
+        accessibilityLabel="Rest timer"
+        value="1:30"
+        onStep={onStep}
+        canDecrement
+        canIncrement
+        testID="stepper"
+        {...overrides}
+      />
+    );
+    return onStep;
+  }
+
+  it("shows the current value", () => {
+    setup();
+    expect(screen.getByText("1:30")).toBeTruthy();
+  });
+
+  it("steps up and down", () => {
+    const onStep = setup();
+    fireEvent.press(screen.getByTestId("stepper-increment"));
+    expect(onStep).toHaveBeenCalledWith(1);
+    fireEvent.press(screen.getByTestId("stepper-decrement"));
+    expect(onStep).toHaveBeenCalledWith(-1);
+  });
+
+  it("won't step below the first option", () => {
+    const onStep = setup({ canDecrement: false });
+    fireEvent.press(screen.getByTestId("stepper-decrement"));
+    expect(onStep).not.toHaveBeenCalled();
+  });
+
+  it("won't step past the last option", () => {
+    const onStep = setup({ canIncrement: false });
+    fireEvent.press(screen.getByTestId("stepper-increment"));
+    expect(onStep).not.toHaveBeenCalled();
+  });
+
+  it("presents itself to VoiceOver as one adjustable control", () => {
+    setup();
+    const control = screen.getByLabelText("Rest timer");
+    // Without this the two icon buttons are announced as unlabelled buttons.
+    expect(control.props.accessibilityRole).toBe("adjustable");
+    expect(control.props.accessibilityValue).toEqual({ text: "1:30" });
+  });
+
+  it("responds to the VoiceOver adjust gesture, not just taps", () => {
+    const onStep = setup();
+    const control = screen.getByLabelText("Rest timer");
+    fireEvent(control, "accessibilityAction", { nativeEvent: { actionName: "increment" } });
+    expect(onStep).toHaveBeenCalledWith(1);
+    fireEvent(control, "accessibilityAction", { nativeEvent: { actionName: "decrement" } });
+    expect(onStep).toHaveBeenCalledWith(-1);
   });
 });

@@ -1,3 +1,4 @@
+import Ionicons from "@expo/vector-icons/Ionicons";
 import { forwardRef } from "react";
 import {
   ActivityIndicator,
@@ -8,7 +9,9 @@ import {
   View,
   type PressableProps,
   type TextInputProps,
+  type StyleProp,
   type ViewProps,
+  type ViewStyle,
 } from "react-native";
 import { Palette, Radius, Spacing } from "@/constants/theme";
 import { useTheme } from "@/context/ThemeContext";
@@ -62,6 +65,76 @@ export function Card({ style, ...rest }: ViewProps) {
 
 export function Divider() {
   return <View style={styles.divider} />;
+}
+
+// ── Steppers ──────────────────────────────────────────────────────────────────
+
+interface StepperProps {
+  /** What VoiceOver announces the control as, e.g. "Rest timer". */
+  accessibilityLabel: string;
+  /** The current value, already formatted for display. */
+  value: string;
+  onStep: (direction: 1 | -1) => void;
+  canDecrement: boolean;
+  canIncrement: boolean;
+  style?: StyleProp<ViewStyle>;
+  /** When set, the two buttons take `${testID}-decrement` / `-increment`. */
+  testID?: string;
+}
+
+/**
+ * A − / + pair around a value.
+ *
+ * Preferred over a segmented control wherever the option list is long enough to
+ * overflow its row: this stays one compact line no matter how many stops there
+ * are, where a segmented control wraps and leaves an orphan on a second line.
+ *
+ * The whole thing is one accessibility element with the `adjustable` role, so
+ * VoiceOver offers swipe-to-adjust and reads the value — rather than exposing
+ * two buttons labelled only by their icons.
+ */
+export function Stepper({
+  accessibilityLabel,
+  value,
+  onStep,
+  canDecrement,
+  canIncrement,
+  style,
+  testID,
+}: StepperProps) {
+  return (
+    <View
+      style={[styles.stepper, style]}
+      accessible
+      accessibilityRole="adjustable"
+      accessibilityLabel={accessibilityLabel}
+      accessibilityValue={{ text: value }}
+      accessibilityActions={[{ name: "increment" }, { name: "decrement" }]}
+      onAccessibilityAction={(e) => {
+        if (e.nativeEvent.actionName === "increment") onStep(1);
+        if (e.nativeEvent.actionName === "decrement") onStep(-1);
+      }}>
+      <Pressable
+        onPress={() => onStep(-1)}
+        disabled={!canDecrement}
+        testID={testID && `${testID}-decrement`}
+        hitSlop={6}
+        style={({ pressed }) => [styles.stepperButton, pressed && { opacity: 0.6 }]}>
+        <Ionicons name="remove" size={18} color={canDecrement ? Palette.text : Palette.textTertiary} />
+      </Pressable>
+      {/* Fixed width and tabular figures so the control doesn't twitch as the
+          label changes width — "Off" against "1:30", say. */}
+      <Text style={styles.stepperValue}>{value}</Text>
+      <Pressable
+        onPress={() => onStep(1)}
+        disabled={!canIncrement}
+        testID={testID && `${testID}-increment`}
+        hitSlop={6}
+        style={({ pressed }) => [styles.stepperButton, pressed && { opacity: 0.6 }]}>
+        <Ionicons name="add" size={18} color={canIncrement ? Palette.text : Palette.textTertiary} />
+      </Pressable>
+    </View>
+  );
 }
 
 // ── Text inputs ───────────────────────────────────────────────────────────────
@@ -123,6 +196,32 @@ const styles = StyleSheet.create({
   },
   buttonTextCompact: {
     fontSize: 13,
+  },
+  stepper: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: Palette.surfaceRaised,
+    borderRadius: Radius.sm,
+    borderWidth: 1,
+    borderColor: Palette.border,
+    padding: 3,
+    gap: 3,
+  },
+  stepperButton: {
+    width: 38,
+    height: 32,
+    borderRadius: Radius.sm - 2,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: Palette.surface,
+  },
+  stepperValue: {
+    minWidth: 54,
+    textAlign: "center",
+    fontSize: 14,
+    fontWeight: "700",
+    color: Palette.text,
+    fontVariant: ["tabular-nums"],
   },
   card: {
     backgroundColor: Palette.surface,

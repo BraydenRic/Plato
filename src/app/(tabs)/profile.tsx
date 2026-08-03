@@ -5,16 +5,13 @@ import { Image } from "expo-image";
 import { useRouter } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 
-import { Button, Card, SectionLabel } from "@/components/ui";
+import { Button, Card, SectionLabel, Stepper } from "@/components/ui";
 import { Palette, Radius, Spacing, THEME_LIST } from "@/constants/theme";
 import { useAuth } from "@/context/AuthContext";
 import { REST_OPTIONS, nearestRestIndex, useRestTimer } from "@/context/RestTimerContext";
 import { useThemePicker } from "@/context/ThemeContext";
 import { useDefaultSets, MIN_SETS, MAX_SETS } from "@/context/DefaultSetsContext";
 import { useWeightUnit } from "@/context/UnitContext";
-
-// 1–5 sets, the range offered for a newly added exercise.
-const SET_OPTIONS = Array.from({ length: MAX_SETS - MIN_SETS + 1 }, (_, i) => MIN_SETS + i);
 
 export default function ProfileScreen() {
   const {
@@ -285,69 +282,30 @@ export default function ProfileScreen() {
               <Text style={styles.prefTitle}>Rest timer</Text>
               <Text style={styles.prefHint}>Countdown after checking off a set</Text>
             </View>
-            <View
-              style={[styles.stepper, stackPrefs && { alignSelf: "flex-start" }]}
-              accessible
-              accessibilityRole="adjustable"
+            <Stepper
               accessibilityLabel="Rest timer"
-              accessibilityValue={{ text: restOption.label }}
-              accessibilityActions={[{ name: "increment" }, { name: "decrement" }]}
-              onAccessibilityAction={(e) => {
-                if (e.nativeEvent.actionName === "increment") stepRest(1);
-                if (e.nativeEvent.actionName === "decrement") stepRest(-1);
-              }}>
-              <Pressable
-                onPress={() => stepRest(-1)}
-                disabled={restIndex === 0}
-                hitSlop={6}
-                style={({ pressed }) => [styles.stepperButton, pressed && { opacity: 0.6 }]}>
-                <Ionicons
-                  name="remove"
-                  size={18}
-                  color={restIndex === 0 ? Palette.textTertiary : Palette.text}
-                />
-              </Pressable>
-              {/* Fixed width and tabular figures so the control doesn't twitch
-                  as the label changes width between "Off" and "1:30". */}
-              <Text style={[styles.stepperValue, { color: theme.accentText }]}>
-                {restOption.label}
-              </Text>
-              <Pressable
-                onPress={() => stepRest(1)}
-                disabled={restIndex === REST_OPTIONS.length - 1}
-                hitSlop={6}
-                style={({ pressed }) => [styles.stepperButton, pressed && { opacity: 0.6 }]}>
-                <Ionicons
-                  name="add"
-                  size={18}
-                  color={
-                    restIndex === REST_OPTIONS.length - 1 ? Palette.textTertiary : Palette.text
-                  }
-                />
-              </Pressable>
-            </View>
+              value={restOption.label}
+              onStep={stepRest}
+              canDecrement={restIndex > 0}
+              canIncrement={restIndex < REST_OPTIONS.length - 1}
+              style={stackPrefs ? { alignSelf: "flex-start" } : undefined}
+            />
           </Card>
-          <Card style={styles.restCard}>
-            <View>
+          <Card style={[styles.prefCard, stackPrefs && styles.prefCardStacked, styles.cardGap]}>
+            <View style={{ flex: 1 }}>
               <Text style={styles.prefTitle}>Default sets</Text>
               <Text style={styles.prefHint}>Sets a new exercise starts with</Text>
             </View>
-            <View style={[styles.segment, { alignSelf: "flex-start" }]}>
-              {SET_OPTIONS.map((n) => (
-                <Pressable
-                  key={n}
-                  onPress={() => setDefaultSets(n)}
-                  style={[
-                    styles.segmentItem,
-                    defaultSets === n && { backgroundColor: theme.accent },
-                  ]}>
-                  <Text
-                    style={[styles.segmentText, defaultSets === n && { color: theme.onAccent }]}>
-                    {n}
-                  </Text>
-                </Pressable>
-              ))}
-            </View>
+            {/* Matches the rest timer beside it. The context clamps, so the
+                stepper only has to say when it has run out of room. */}
+            <Stepper
+              accessibilityLabel="Default sets"
+              value={String(defaultSets)}
+              onStep={(d) => setDefaultSets(defaultSets + d)}
+              canDecrement={defaultSets > MIN_SETS}
+              canIncrement={defaultSets < MAX_SETS}
+              style={stackPrefs ? { alignSelf: "flex-start" } : undefined}
+            />
           </Card>
         </View>
 
@@ -490,10 +448,6 @@ const styles = StyleSheet.create({
     alignItems: "stretch",
     gap: Spacing.two,
   },
-  restCard: {
-    gap: Spacing.two,
-    marginTop: Spacing.two,
-  },
   deleteAccount: {
     fontSize: 13,
     color: Palette.textTertiary,
@@ -522,31 +476,6 @@ const styles = StyleSheet.create({
     borderColor: Palette.border,
     padding: 3,
     gap: 3,
-  },
-  stepper: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: Palette.surfaceRaised,
-    borderRadius: Radius.sm,
-    borderWidth: 1,
-    borderColor: Palette.border,
-    padding: 3,
-    gap: 3,
-  },
-  stepperButton: {
-    width: 38,
-    height: 32,
-    borderRadius: Radius.sm - 2,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: Palette.surface,
-  },
-  stepperValue: {
-    minWidth: 54,
-    textAlign: "center",
-    fontSize: 14,
-    fontWeight: "700",
-    fontVariant: ["tabular-nums"],
   },
   segmentItem: {
     paddingHorizontal: 12,

@@ -92,7 +92,7 @@ describe("happy path", () => {
 
     const result = await migrate.migrateGuestDataTo(UID);
 
-    expect(result).toEqual({ workouts: 2 });
+    expect(result).toEqual({ workouts: 2, customExercisesDropped: 0 });
     expect(cloud.createWorkout).toHaveBeenCalledTimes(2);
     for (const [payload, preserveCreatedAt] of cloud.createWorkout.mock.calls) {
       expect(payload.userId).toBe(UID);
@@ -295,9 +295,42 @@ describe("exercise library merge", () => {
       overrides: [],
     });
 
-    await migrate.migrateGuestDataTo(UID);
+    const result = await migrate.migrateGuestDataTo(UID);
 
     const [, merged] = cloud.updateExerciseLibrary.mock.calls[0];
     expect(merged.custom).toHaveLength(MAX_CUSTOM_EXERCISES);
+    // The cap is a Firestore document-size guard, so it can't just be lifted.
+    // What it must not do is drop 50 of someone's exercises without saying so.
+    expect(result?.customExercisesDropped).toBe(50);
+  });
+
+  it("keeps the account's own exercises when the cap forces a choice", async () => {
+    const { MAX_CUSTOM_EXERCISES } = require("../workout-utils");
+    const many = (prefix: string, n: number) =>
+      Array.from({ length: n }, (_, i) => ({ id: `${prefix}-${i}`, name: `${prefix} ${i}` }));
+
+    const { migrate } = await seed({
+      library: { custom: many("guest", 10), removedIds: [], overrides: [] },
+    });
+    cloud.getExerciseLibrary.mockResolvedValue({
+      custom: many("acct", MAX_CUSTOM_EXERCISES),
+      removedIds: [],
+      overrides: [],
+    });
+
+    await migrate.migrateGuestDataTo(UID);
+
+    // Same rule as every other conflict here: the long-standing account data
+    // wins over a throwaway guest session.
+    const [, merged] = cloud.updateExerciseLibrary.mock.calls[0];
+    expect(merged.custom.every((e: { id: string }) => e.id.startsWith("acct-"))).toBe(true);
+  });
+
+  it("reports nothing dropped when everything fits", async () => {
+    const { migrate } = await seed({
+      library: { custom: [{ id: "g1", name: "Sled Push" }], removedIds: [], overrides: [] },
+    });
+    const result = await migrate.migrateGuestDataTo(UID);
+    expect(result?.customExercisesDropped).toBe(0);
   });
 });

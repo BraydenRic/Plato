@@ -162,8 +162,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           return;
         }
         if (!cancelled) setMigrating(true);
-        await migrateGuestDataTo(uid);
+        const result = await migrateGuestDataTo(uid);
         if (!cancelled) setGuestActive(false);
+        // The library is one document with a hard size ceiling, so a big enough
+        // account plus a big enough guest session can't both fit. Everything
+        // else came across; say so rather than let them find out by noticing an
+        // exercise missing weeks later.
+        if (result && result.customExercisesDropped > 0) {
+          const n = result.customExercisesDropped;
+          Alert.alert(
+            "Your workouts moved over",
+            `${n} custom exercise${n === 1 ? "" : "s"} couldn't come with them — your account was already at the limit. Everything you logged is safe.`
+          );
+        }
       } catch (e) {
         console.warn("Couldn't move guest data into the account", e);
         Alert.alert(
