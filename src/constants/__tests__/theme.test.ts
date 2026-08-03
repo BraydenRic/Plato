@@ -256,3 +256,32 @@ describe("isThemeId", () => {
     expect(isThemeId("toString")).toBe(false);
   });
 });
+
+describe("the Live Activity logo", () => {
+  /**
+   * The widget resolves this name against its own compiled asset catalog. A
+   * theme whose file is missing doesn't error anywhere — the pill just draws no
+   * logo, during a workout, on the lock screen, which is about the least
+   * visible place a mistake could hide.
+   */
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const fs = require("fs");
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const path = require("path");
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const { activityImage } = require("@/lib/live-activity");
+
+  it.each(THEME_LIST.map((t): [string, Theme] => [t.label, t]))(
+    "%s has the image it asks the widget for",
+    (_label, theme) => {
+      const name = activityImage(theme);
+      const file = path.join(__dirname, "../../../assets/liveActivity", `${name}.png`);
+      expect(fs.existsSync(file)).toBe(true);
+    }
+  );
+
+  it("gives every theme its own image", () => {
+    const names = THEME_LIST.map((t) => activityImage(t));
+    expect(new Set(names).size).toBe(THEME_LIST.length);
+  });
+});

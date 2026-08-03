@@ -54,7 +54,7 @@ export function LiveActivitySync() {
 
       if (!workout) {
         if (t) {
-          stopWorkoutActivity(t.activityId, "Workout finished");
+          stopWorkoutActivity(t.activityId, "Workout finished", theme);
           tracked.current = null;
           await AsyncStorage.removeItem(STORAGE_KEY);
         }
@@ -62,24 +62,25 @@ export function LiveActivitySync() {
       }
 
       if (t && t.workoutId === workout.id) {
-        if (updateWorkoutActivity(t.activityId, workout, doneSets, totalSets)) return;
+        if (updateWorkoutActivity(t.activityId, workout, doneSets, totalSets, theme)) return;
         // The activity died underneath us — fall through and start a new one.
         tracked.current = null;
       } else if (t) {
         // A different workout took over as the live one.
-        stopWorkoutActivity(t.activityId, "Workout finished");
+        stopWorkoutActivity(t.activityId, "Workout finished", theme);
         tracked.current = null;
       }
 
-      const activityId = startWorkoutActivity(workout, doneSets, totalSets, theme.activityTint);
+      const activityId = startWorkoutActivity(workout, doneSets, totalSets, theme);
       if (activityId) {
         tracked.current = { activityId, workoutId: workout.id };
         await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(tracked.current));
       }
     });
-    // theme.activityTint is deliberately not a dependency: it only applies to a
-    // newly started activity, and re-running this on a theme change would tear
-    // down and recreate a perfectly good pill mid-workout.
+    // theme is deliberately not a dependency. The progress tint only applies to
+    // a newly started activity, so re-running this on a theme change would tear
+    // down and recreate a perfectly good pill mid-workout; the logo picks up the
+    // new theme on the next update the workout sends anyway.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loading, current, doneSets, totalSets]);
 

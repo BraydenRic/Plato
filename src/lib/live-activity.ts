@@ -1,5 +1,6 @@
 import Constants, { ExecutionEnvironment } from "expo-constants";
 
+import type { Theme } from "@/constants/theme";
 import type { Workout } from "@/types";
 
 // Live Activities are a native iOS 16.2+ feature compiled into dev/production
@@ -33,7 +34,18 @@ const ACTIVITY_STYLE = {
   contentFit: "contain" as const,
 };
 
-function workoutState(workout: Workout, doneSets: number, totalSets: number) {
+/**
+ * The widget looks images up by name in its own compiled asset catalog, one
+ * imageset per file in assets/liveActivity — so a themed logo is just a matter
+ * of naming the right one. Unlike the progress tint, which is style and frozen
+ * when the activity starts, the image is part of the state and travels with
+ * every update.
+ */
+export function activityImage(theme: Theme): string {
+  return `plato-logo-${theme.id}`;
+}
+
+function workoutState(workout: Workout, doneSets: number, totalSets: number, theme: Theme) {
   return {
     title: workout.name,
     subtitle: `${doneSets}/${totalSets} sets`,
@@ -42,8 +54,8 @@ function workoutState(workout: Workout, doneSets: number, totalSets: number) {
       // backgrounded or the phone is locked.
       elapsedTimer: { startDate: (workout.startedAt ?? workout.createdAt).getTime() },
     },
-    imageName: "plato-logo",
-    dynamicIslandImageName: "plato-logo",
+    imageName: activityImage(theme),
+    dynamicIslandImageName: activityImage(theme),
   };
 }
 
@@ -51,23 +63,24 @@ function workoutState(workout: Workout, doneSets: number, totalSets: number) {
  * Starts the in-workout Live Activity. Returns its id, or undefined where
  * unsupported.
  *
- * `tint` is the caller's current theme accent. iOS fixes an activity's style at
- * start, so switching theme mid-workout leaves the pill on the old tint until
- * the next workout — restarting it just to recolour would make the Dynamic
- * Island animate out and back in, which is worse than the stale colour.
+ * iOS fixes an activity's style at start, so switching theme mid-workout leaves
+ * the progress bar on the old tint until the next workout — restarting it just
+ * to recolour would make the Dynamic Island animate out and back in, which is
+ * worse than the stale colour. The logo is state rather than style, so that one
+ * does follow a mid-workout change.
  */
 export function startWorkoutActivity(
   workout: Workout,
   doneSets: number,
   totalSets: number,
-  tint: string
+  theme: Theme
 ): string | undefined {
   const mod = nativeModule();
   if (!mod) return undefined;
   try {
-    const id = mod.startActivity(workoutState(workout, doneSets, totalSets), {
+    const id = mod.startActivity(workoutState(workout, doneSets, totalSets, theme), {
       ...ACTIVITY_STYLE,
-      progressViewTint: tint,
+      progressViewTint: theme.activityTint,
       // Tapping the pill / lock-screen card drops the user straight back
       // into the live workout.
       deepLinkUrl: `/workout/${workout.id}`,
@@ -84,12 +97,13 @@ export function updateWorkoutActivity(
   activityId: string,
   workout: Workout,
   doneSets: number,
-  totalSets: number
+  totalSets: number,
+  theme: Theme
 ): boolean {
   const mod = nativeModule();
   if (!mod) return false;
   try {
-    mod.updateActivity(activityId, workoutState(workout, doneSets, totalSets));
+    mod.updateActivity(activityId, workoutState(workout, doneSets, totalSets, theme));
     return true;
   } catch {
     // The OS ended it (8-hour limit, user dismissed it, app reinstall…).
@@ -98,7 +112,7 @@ export function updateWorkoutActivity(
 }
 
 /** Ends the activity — the final state is what iOS shows while it dismisses. */
-export function stopWorkoutActivity(activityId: string, title: string) {
+export function stopWorkoutActivity(activityId: string, title: string, theme: Theme) {
   const mod = nativeModule();
   if (!mod) return;
   try {
@@ -106,8 +120,8 @@ export function stopWorkoutActivity(activityId: string, title: string) {
       title,
       subtitle: "Workout complete",
       progressBar: { progress: 1 },
-      imageName: "plato-logo",
-      dynamicIslandImageName: "plato-logo",
+      imageName: activityImage(theme),
+      dynamicIslandImageName: activityImage(theme),
     });
   } catch {
     // Already gone — nothing to clean up.
