@@ -7,6 +7,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 
 import { Button, Card, SectionLabel, Stepper } from "@/components/ui";
 import { Sparkline } from "@/components/sparkline";
+import { BodyweightChart } from "@/components/bodyweight-chart";
 import { useBodyweight } from "@/hooks/use-bodyweight";
 import { convertWeight } from "@/lib/workout-utils";
 import { Palette, Radius, Spacing, THEME_LIST } from "@/constants/theme";
@@ -45,6 +46,7 @@ export default function ProfileScreen() {
   const { defaultSets, setDefaultSets } = useDefaultSets();
   const { log: bodyweightLog, latest: latestWeight, record: recordWeight } = useBodyweight();
   const [sparkWidth, setSparkWidth] = useState(0);
+  const [chartOpen, setChartOpen] = useState(false);
 
   // Stored in lbs like every other weight; the card speaks the chosen unit.
   const shownWeight =
@@ -66,9 +68,20 @@ export default function ProfileScreen() {
           onPress: (value?: string) => {
             const entered = Number((value ?? "").trim());
             if (!Number.isFinite(entered) || entered <= 0) return;
-            recordWeight(convertWeight(entered, unit, "lbs")).catch(() =>
-              Alert.alert("Couldn't save", "Check your connection and try again.")
-            );
+            recordWeight(convertWeight(entered, unit, "lbs")).catch((e) => {
+              // Don't blame the network for what is usually a rejected write —
+              // `bodyweight` is its own Firestore collection and needs its own
+              // security rule. The code is what says which, so surface it.
+              console.warn("Couldn't save the weigh-in", e);
+              const denied =
+                typeof e === "object" && e !== null && "code" in e && e.code === "permission-denied";
+              Alert.alert(
+                "Couldn't save",
+                denied
+                  ? "Your account isn't allowed to store weigh-ins yet."
+                  : "Check your connection and try again."
+              );
+            });
           },
         },
       ],
@@ -260,34 +273,55 @@ export default function ProfileScreen() {
           </Pressable>
         )}
 
-        <Pressable onPress={logBodyweight}>
-          {({ pressed }) => (
-            <Card style={[styles.bodyweightCard, pressed && { opacity: 0.8 }]}>
-              <View style={styles.bodyweightRow}>
-                <Text style={styles.prefTitle}>Bodyweight</Text>
-                <Text style={[styles.bodyweightValue, { color: theme.accentText }]}>
-                  {shownWeight != null ? `${shownWeight} ${unit}` : "Add"}
-                </Text>
-              </View>
-              {/* Second row only once there is a shape to show — one weigh-in is
-                  a dot, not a trend, and an empty row would just be clutter. */}
-              {bodyweightLog.length > 1 && (
-                <View
-                  style={styles.bodyweightRow}
-                  onLayout={(e) => setSparkWidth(e.nativeEvent.layout.width)}>
+        <Card style={styles.bodyweightCard}>
+          {/* Tapping the summary logs; the chevron expands. Two targets rather
+              than one so opening the history doesn't put a keyboard up. */}
+          <Pressable onPress={logBodyweight} style={({ pressed }) => pressed && { opacity: 0.8 }}>
+            <View style={styles.bodyweightRow}>
+              <Text style={styles.prefTitle}>Bodyweight</Text>
+              <Text style={[styles.bodyweightValue, { color: theme.accentText }]}>
+                {shownWeight != null ? `${shownWeight} ${unit}` : "Add"}
+              </Text>
+            </View>
+          </Pressable>
+
+          {/* Second row only once there is a shape to show — one weigh-in is a
+              dot, not a trend, and an empty row would just be clutter. */}
+          {bodyweightLog.length > 1 && (
+            <Pressable
+              onPress={() => setChartOpen((open) => !open)}
+              accessibilityRole="button"
+              accessibilityLabel={chartOpen ? "Hide bodyweight history" : "Show bodyweight history"}
+              accessibilityState={{ expanded: chartOpen }}
+              style={({ pressed }) => pressed && { opacity: 0.8 }}>
+              <View
+                style={styles.bodyweightRow}
+                onLayout={(e) => setSparkWidth(e.nativeEvent.layout.width)}>
+                {chartOpen ? (
+                  <Text style={styles.bodyweightDelta}>History</Text>
+                ) : (
                   <Sparkline
                     values={bodyweightLog.map((e) => e.lbs)}
                     color={theme.accent}
-                    width={Math.max(0, sparkWidth - 64)}
+                    width={Math.max(0, sparkWidth - 96)}
                   />
+                )}
+                <View style={styles.bodyweightTrailing}>
                   <Text style={styles.bodyweightDelta}>
                     {weightDelta > 0 ? `+${weightDelta}` : weightDelta} {unit}
                   </Text>
+                  <Ionicons
+                    name={chartOpen ? "chevron-up" : "chevron-down"}
+                    size={14}
+                    color={Palette.textTertiary}
+                  />
                 </View>
-              )}
-            </Card>
+              </View>
+            </Pressable>
           )}
-        </Pressable>
+
+          {chartOpen && <BodyweightChart log={bodyweightLog} unit={unit} />}
+        </Card>
 
         <View>
           <SectionLabel>Preferences</SectionLabel>
@@ -484,6 +518,11 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: "700",
     fontVariant: ["tabular-nums"],
+  },
+  bodyweightTrailing: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.one,
   },
   bodyweightDelta: {
     fontSize: 12,

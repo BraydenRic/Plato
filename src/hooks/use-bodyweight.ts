@@ -29,9 +29,15 @@ export function useBodyweight() {
       .then((entries) => {
         if (!cancelled) setLog(entries);
       })
-      .catch(() => {
+      .catch((e) => {
         // A failed read shows an empty card, which invites logging a weigh-in
         // that would then overwrite the log we couldn't see. Leave what's there.
+        //
+        // Logged rather than swallowed: the first time this ran against a real
+        // account it failed with permission-denied, because `bodyweight` is a
+        // collection the security rules had never heard of. A silent empty card
+        // gave no clue, and the write path blamed the network.
+        console.warn("Couldn't read the bodyweight log", e);
       })
       .finally(() => {
         if (!cancelled) setLoading(false);
