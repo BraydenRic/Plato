@@ -23,7 +23,7 @@ export function BodyweightChart({ log, unit }: { log: BodyweightEntry[]; unit: "
   const pad = { top: 12, bottom: 20, left: 8, right: 44 };
 
   const geometry = useMemo(() => {
-    if (log.length < 2 || width <= 0) return null;
+    if (log.length === 0 || width <= 0) return null;
 
     const values = log.map((e) => convertWeight(e.lbs, "lbs", unit));
     const times = log.map((e) => e.date.getTime());
@@ -40,7 +40,14 @@ export function BodyweightChart({ log, unit }: { log: BodyweightEntry[]; unit: "
 
     const first = times[0];
     const last = times[times.length - 1];
+    // A single weigh-in spans no time; put its point in the middle rather than
+    // dividing by zero and drawing it hard against the left edge.
     const timeSpan = Math.max(last - first, 1);
+    if (log.length === 1) {
+      const cx = pad.left + w / 2;
+      const cy = pad.top + h / 2;
+      return { values, times, x: () => cx, y: () => cy, line: "", area: "", max, min, latest: values[0] };
+    }
 
     const x = (t: number) => pad.left + ((t - first) / timeSpan) * w;
     const y = (v: number) => pad.top + (1 - (v - lo) / (hi - lo)) * h;

@@ -19,7 +19,23 @@ export function Sparkline({
   width: number;
   height?: number;
 }) {
-  if (values.length < 2 || width <= 0) return <View style={{ width, height }} />;
+  if (values.length === 0 || width <= 0) return <View style={{ width, height }} />;
+
+  // One weigh-in has no slope, but it does have a position worth drawing —
+  // a flat mark reads as "recorded, nothing to compare yet".
+  if (values.length === 1) {
+    return (
+      <Svg width={width} height={height}>
+        <Path
+          d={`M0,${height / 2} L${width},${height / 2}`}
+          stroke={color}
+          strokeWidth={2}
+          strokeLinecap="round"
+          opacity={0.35}
+        />
+      </Svg>
+    );
+  }
 
   const max = Math.max(...values);
   const min = Math.min(...values);

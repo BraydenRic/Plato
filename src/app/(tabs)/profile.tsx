@@ -285,9 +285,10 @@ export default function ProfileScreen() {
             </View>
           </Pressable>
 
-          {/* Second row only once there is a shape to show — one weigh-in is a
-              dot, not a trend, and an empty row would just be clutter. */}
-          {bodyweightLog.length > 1 && (
+          {/* Shown from the first weigh-in, not the second. Gating on a trend
+              meant logging a weight and seeing nothing change, which reads as
+              the feature being broken rather than as waiting for tomorrow. */}
+          {bodyweightLog.length > 0 && (
             <Pressable
               onPress={() => setChartOpen((open) => !open)}
               accessibilityRole="button"
