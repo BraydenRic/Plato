@@ -86,3 +86,53 @@ describe("isTimedExercise", () => {
     expect(isTimedExercise(makeExercise({ id: "bench-press", category: "Chest" }))).toBe(false);
   });
 });
+
+/**
+ * Nobody types an exercise the way the library spells it. "Pull ups" found
+ * nothing, because the library says "Pull-Up" and one substring test over the
+ * whole name can't see past the hyphen or the plural.
+ *
+ * Run against the real bundled library rather than a fixture: the point is that
+ * what people actually type finds what's actually shipped.
+ */
+describe("searching the way people type", () => {
+  const found = (term: string) => filterExercises(EXERCISES, term, "All").map((e) => e.name);
+
+  it.each([
+    ["pull ups", "Pull-Up"],
+    ["pullups", "Pull-Up"],
+    ["Pull-Ups", "Pull-Up"],
+    ["pull up", "Pull-Up"],
+    ["PULL UPS", "Pull-Up"],
+    ["push ups", "Push-Up"],
+    ["dips", "Chest Dips"],
+  ])("%p finds %p", (term, expected) => {
+    expect(found(term)).toContain(expected);
+  });
+
+  it("still matches inside a word", () => {
+    expect(found("cline")).toContain("Incline Bench Press");
+  });
+
+  it("ignores the order the words are typed in", () => {
+    expect(found("press bench")).toContain("Bench Press");
+  });
+
+  it("doesn't match across the gap between two words", () => {
+    // Squash the name to one string and "abs" reaches through "cable" into
+    // "row". Word-by-word, it can't.
+    expect(found("abs")).not.toContain("Cable Row");
+  });
+
+  it("doesn't let a one-letter name word swallow every search", () => {
+    // T-Bar Row's "T" is a prefix of any word starting with t.
+    expect(found("tricep")).not.toContain("T-Bar Row");
+  });
+
+  it("still finds nothing for a real misspelling", () => {
+    // A dropped letter survives, since "pul" is inside "pull" — but a wrong
+    // one doesn't, and that's the line edit-distance matching would cross.
+    expect(found("pul up")).toContain("Pull-Up");
+    expect(found("benhc press")).toHaveLength(0);
+  });
+});

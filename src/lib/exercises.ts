@@ -239,6 +239,14 @@ export function isBodyweightExercise(exercise: Exercise): boolean {
 }
 
 /**
+ * Split on anything that isn't a letter or digit, so a hyphen and a space are
+ * the same thing: "Pull-Up" and "Pull Up" both give ["pull", "up"].
+ */
+function words(text: string): string[] {
+  return text.toLowerCase().split(/[^a-z0-9]+/).filter(Boolean);
+}
+
+/**
  * Shared by the Exercises tab and the add-exercise picker so the two can't
  * drift apart.
  *
@@ -246,18 +254,45 @@ export function isBodyweightExercise(exercise: Exercise): boolean {
  * which meant typing "shoulder" buried Shoulder Press under every bench and dip
  * variation that happens to list shoulders as a secondary — searching by muscle
  * is what the category chips are for.
+ *
+ * Every word typed has to match a word of the name, in one of two directions:
+ *
+ *   a name word contains it     "cline" finds Incline, "down" finds Pulldown
+ *   it starts with a name word  "pullups" finds Pull-Up, "dips" finds Dip
+ *
+ * The second direction is the new one, and it's what makes punctuation and
+ * plurals stop mattering: "Pull ups" used to find nothing, because the library
+ * spells it "Pull-Up" and one substring test over the whole name can't see past
+ * either the hyphen or the s. Word order doesn't matter, so "press bench" finds
+ * Bench Press.
+ *
+ * Comparing word against word — rather than gluing the name into one string and
+ * searching that — is what keeps this from getting loose. Squashed, "abs" finds
+ * Cable Row through the seam between "cable" and "row", and an exercise you
+ * have to notice is wrong costs more than one you have to search for again. For
+ * the same reason there's no edit-distance matching: a dropped letter already
+ * survives ("pul" sits inside "pull"), and going further would rescue "benhc
+ * press" at the price of offering Dip when you typed Hip.
+ *
+ * A one-letter name word only matches the first way, or the "T" in T-Bar Row
+ * would answer to every search beginning with a t.
  */
 export function filterExercises(
   exercises: Exercise[],
   search: string,
   category: string
 ): Exercise[] {
-  const term = search.trim().toLowerCase();
-  return exercises.filter(
-    (e) =>
-      (category === "All" || e.category === category) &&
-      (term === "" || e.name.toLowerCase().includes(term))
-  );
+  const terms = words(search);
+  return exercises.filter((e) => {
+    if (category !== "All" && e.category !== category) return false;
+    if (terms.length === 0) return true;
+    const nameWords = words(e.name);
+    return terms.every((term) =>
+      nameWords.some(
+        (word) => word.includes(term) || (word.length >= 2 && term.startsWith(word))
+      )
+    );
+  });
 }
 
 export const WORKOUT_TEMPLATES = [
