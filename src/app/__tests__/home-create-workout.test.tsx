@@ -4,6 +4,9 @@ import WorkoutsScreen from "../(tabs)/index";
 import type { Workout } from "@/types";
 
 /**
+ * What the home screen does when you create a workout on it: whether it opens
+ * the thing it just made, and what it shows while it does.
+ *
  * Starting a workout must not show it on this screen before the workout screen
  * has finished covering it.
  *
@@ -18,10 +21,19 @@ import type { Workout } from "@/types";
  * The other half is when it comes back. Waiting until this screen is focused
  * again holds the row until the back-swipe has finished, which puts the gap
  * somewhere the user is looking instead of somewhere they aren't.
+ *
+ * And whether it opens at all depends on the day. Planning ahead shouldn't
+ * open anything; logging a past day should. That used to be an argument each
+ * caller passed, defaulting to "open", and the callers that plan from the
+ * picker never overrode it — so both directions are asserted here.
  */
 
 const NEW_ID = "new-workout";
 const mockPush = jest.fn();
+
+// Tuesday 4 August 2026, so the week strip runs Mon 3rd → Sun 9th and which
+// days count as future is fixed rather than depending on the day it's run.
+const NOW = new Date(2026, 7, 4, 12, 0);
 
 const mockStartedWorkout: Workout = {
   id: NEW_ID,
@@ -29,8 +41,8 @@ const mockStartedWorkout: Workout = {
   name: "Thursday Session",
   isTemplate: false,
   exercises: [],
-  createdAt: new Date(),
-  startedAt: new Date(),
+  createdAt: new Date(2026, 7, 4, 9, 0),
+  startedAt: new Date(2026, 7, 4, 9, 0),
 };
 
 jest.mock("expo-router", () => ({
@@ -91,6 +103,7 @@ jest.mock("@expo/vector-icons/Ionicons", () => "Ionicons");
 
 beforeEach(() => {
   jest.useFakeTimers();
+  jest.setSystemTime(NOW);
   mockPush.mockClear();
 });
 
@@ -128,4 +141,37 @@ it("hides a workout being opened from every list, then brings it back", async ()
     jest.advanceTimersByTime(500);
   });
   expect(rowsForNewWorkout().length).toBeGreaterThan(0);
+});
+
+it("schedules a future day without opening the workout", async () => {
+  render(<WorkoutsScreen />);
+
+  // Pick tomorrow (Wed the 5th) off the week strip.
+  await act(async () => {
+    fireEvent.press(screen.getByText("5"));
+  });
+
+  await act(async () => {
+    fireEvent.press(screen.getByText("Plan for Tomorrow"));
+  });
+
+  // Planning ahead is finished the moment it lands on the calendar. Opening it
+  // interrupts someone laying out a week who still has days left to fill.
+  expect(mockPush).not.toHaveBeenCalled();
+});
+
+it("still opens a workout logged for a past day", async () => {
+  render(<WorkoutsScreen />);
+
+  // Yesterday, Mon the 3rd — being written up from memory, so the sets need to
+  // be in front of you.
+  await act(async () => {
+    fireEvent.press(screen.getByText("3"));
+  });
+
+  await act(async () => {
+    fireEvent.press(screen.getByText("Log for Yesterday"));
+  });
+
+  expect(mockPush).toHaveBeenCalledWith(`/workout/${NEW_ID}`);
 });

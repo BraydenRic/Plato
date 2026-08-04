@@ -202,6 +202,21 @@ export default function WorkoutsScreen() {
       .finally(() => setStarting(false));
   }
 
+  /**
+   * Whether creating a workout for this day should open it.
+   *
+   * Planning ahead is done the moment the workout lands on the calendar —
+   * opening it interrupts someone who is laying out a week and has four more
+   * days to fill. Today and past days are the opposite: today's is about to be
+   * lifted, and a past one is being written up from memory, so both want the
+   * sets in front of them straight away.
+   *
+   * Derived from the day rather than passed in by each caller. It used to be a
+   * `navigate` argument, and the two callers that planned from the picker both
+   * defaulted it to true — so planning next Tuesday from there opened it anyway.
+   */
+  const opensOnCreate = (day: Date) => day.getTime() <= today.getTime();
+
   function planEmpty(day: Date) {
     if (!dataUserId || starting) return;
     setStarting(true);
@@ -215,24 +230,20 @@ export default function WorkoutsScreen() {
         scheduledFor: day,
       })
     );
-    openNewWorkout(id);
+    if (opensOnCreate(day)) openNewWorkout(id);
     saved
       .catch(() => Alert.alert("Couldn't plan workout", "Check your connection and try again."))
       .finally(() => setStarting(false));
   }
 
-  function planFromTemplate(template: Workout, day: Date, navigate = true) {
+  function planFromTemplate(template: Workout, day: Date) {
     if (!dataUserId || starting) return;
     // Navigate on the id rather than on the write. Waiting for the server first
     // leaves this list on screen with the new workout already in it, which
     // reads as the workout appearing under today a beat before the screen opens.
     setStarting(true);
     const { id, saved } = startFromTemplate(template, dataUserId, day);
-    // Future plans just get scheduled and we stay on the calendar; logging a
-    // past day opens the workout so its sets can be filled in.
-    if (navigate) {
-      openNewWorkout(id);
-    }
+    if (opensOnCreate(day)) openNewWorkout(id);
     saved
       .catch(() => Alert.alert("Couldn't plan workout", "Check your connection and try again."))
       .finally(() => setStarting(false));
@@ -297,7 +308,7 @@ export default function WorkoutsScreen() {
   // following the same start-today / plan-ahead / log-past rule as templates.
   function materializeSplit(template: Workout) {
     if (selectedIsToday) beginTemplate(template);
-    else planFromTemplate(template, selectedDay, !selectedIsFuture);
+    else planFromTemplate(template, selectedDay);
   }
 
   function editSplitDay(day: Date) {
@@ -553,7 +564,7 @@ export default function WorkoutsScreen() {
                   onPress={() =>
                     selectedIsToday
                       ? beginTemplate(t)
-                      : planFromTemplate(t, selectedDay, !selectedIsFuture)
+                      : planFromTemplate(t, selectedDay)
                   }
                 />
               </Card>
