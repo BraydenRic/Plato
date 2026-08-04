@@ -24,6 +24,7 @@ const cloud = ((globalThis as Record<string, unknown>).__cloudMock ??= {
   getWeeklyPlan: jest.fn(),
   setWeeklyPlan: jest.fn(),
   getWorkouts: jest.fn(),
+  countActiveWorkouts: jest.fn(),
 }) as Record<string, jest.Mock>;
 
 jest.mock("../data", () => ({
@@ -43,6 +44,8 @@ jest.mock("../firestore", () => ({
   getWeeklyPlan: (...args: unknown[]) => (globalThis as any).__cloudMock.getWeeklyPlan(...args),
   setWeeklyPlan: (...args: unknown[]) => (globalThis as any).__cloudMock.setWeeklyPlan(...args),
   getWorkouts: (...args: unknown[]) => (globalThis as any).__cloudMock.getWorkouts(...args),
+  countActiveWorkouts: (...args: unknown[]) =>
+    (globalThis as any).__cloudMock.countActiveWorkouts(...args),
 }));
 
 type LocalStore = typeof import("../local-store");
@@ -74,6 +77,7 @@ beforeEach(() => {
   // The account starts with no templates, so the merge cap is out of the way
   // unless a test deliberately fills it.
   cloud.getWorkouts.mockResolvedValue([]);
+  cloud.countActiveWorkouts.mockResolvedValue(0);
 });
 
 describe("nothing to migrate", () => {
@@ -97,7 +101,12 @@ describe("happy path", () => {
 
     const result = await migrate.migrateGuestDataTo(UID);
 
-    expect(result).toEqual({ workouts: 2, customExercisesDropped: 0, templatesDropped: 0 });
+    expect(result).toEqual({
+      workouts: 2,
+      customExercisesDropped: 0,
+      templatesDropped: 0,
+      activeWorkoutsDropped: 0,
+    });
     expect(cloud.createWorkout).toHaveBeenCalledTimes(2);
     for (const [payload, preserveCreatedAt] of cloud.createWorkout.mock.calls) {
       expect(payload.userId).toBe(UID);
@@ -424,5 +433,107 @@ describe("the merged template ceiling", () => {
 
     expect(cloud.getWorkouts).toHaveBeenCalledWith(UID, true);
     expect(cloud.createWorkout).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe("the merged in-progress ceiling", () => {
+  /**
+   * Same hole as the templates, same shape of fix. Worth stating what this
+   * deliberately does *not* do: it never marks an unfinished session complete.
+   * Streaks and totals are derived from completedAt, so auto-finishing an
+   * abandoned workout would credit a training day that never happened.
+   */
+  const { MAX_ACTIVE_WORKOUTS, MAX_MERGED_ACTIVE_WORKOUTS } = require("../workout-utils");
+
+  const started = (prefix: string, n: number) =>
+    Array.from({ length: n }, (_, i) => ({
+      id: `${prefix}-${i}`,
+      name: `${prefix} ${i}`,
+      exercises: [],
+      createdAt: new Date("2026-01-01").toISOString(),
+      startedAt: new Date("2026-01-01").toISOString(),
+    }));
+
+  it("lets a full account and a full guest session both come across", async () => {
+    const { migrate } = await seed({ workouts: started("guest", MAX_ACTIVE_WORKOUTS) });
+    cloud.countActiveWorkouts.mockResolvedValue(MAX_ACTIVE_WORKOUTS);
+
+    const result = await migrate.migrateGuestDataTo(UID);
+
+    expect(result?.activeWorkoutsDropped).toBe(0);
+    expect(cloud.createWorkout).toHaveBeenCalledTimes(MAX_ACTIVE_WORKOUTS);
+  });
+
+  it("stops the cycle being repeated to climb past the ceiling", async () => {
+    const { migrate } = await seed({ workouts: started("guest", MAX_ACTIVE_WORKOUTS) });
+    cloud.countActiveWorkouts.mockResolvedValue(MAX_MERGED_ACTIVE_WORKOUTS);
+
+    const result = await migrate.migrateGuestDataTo(UID);
+
+    expect(result?.activeWorkoutsDropped).toBe(MAX_ACTIVE_WORKOUTS);
+    expect(cloud.createWorkout).not.toHaveBeenCalled();
+  });
+
+  it("uploads an unfinished workout still unfinished", async () => {
+    // The tempting shortcut for this cap was to finish in-progress workouts on
+    // sign-in instead of counting them. Streaks and totals come off completedAt,
+    // so that would credit a training day nobody did. Whatever crosses must
+    // arrive exactly as unfinished as it left.
+    const { migrate } = await seed({ workouts: started("guest", 1) });
+    cloud.countActiveWorkouts.mockResolvedValue(0);
+
+    await migrate.migrateGuestDataTo(UID);
+
+    const [[uploaded]] = cloud.createWorkout.mock.calls;
+    expect(uploaded.startedAt).toBeTruthy();
+    expect(uploaded.completedAt ?? null).toBeNull();
+  });
+
+  it("still carries a finished workout when in-progress ones are capped", async () => {
+    const { migrate } = await seed({
+      workouts: [
+        ...started("guest", 3),
+        {
+          id: "done-1",
+          name: "Leg day",
+          exercises: [],
+          createdAt: new Date("2026-02-01").toISOString(),
+          startedAt: new Date("2026-02-01").toISOString(),
+          completedAt: new Date("2026-02-01").toISOString(),
+        },
+      ],
+    });
+    cloud.countActiveWorkouts.mockResolvedValue(MAX_MERGED_ACTIVE_WORKOUTS);
+
+    const result = await migrate.migrateGuestDataTo(UID);
+
+    expect(result?.activeWorkoutsDropped).toBe(3);
+    expect(result?.workouts).toBe(1);
+    const [[uploaded]] = cloud.createWorkout.mock.calls;
+    expect(uploaded.name).toBe("Leg day");
+  });
+
+  it("leaves a planned workout alone — it was never started", async () => {
+    const { migrate } = await seed({
+      workouts: [
+        { id: "p1", name: "Tuesday", exercises: [], createdAt: new Date("2026-02-01").toISOString() },
+      ],
+    });
+    cloud.countActiveWorkouts.mockResolvedValue(MAX_MERGED_ACTIVE_WORKOUTS);
+
+    const result = await migrate.migrateGuestDataTo(UID);
+
+    expect(result?.activeWorkoutsDropped).toBe(0);
+    expect(cloud.createWorkout).toHaveBeenCalledTimes(1);
+  });
+
+  it("measures room against the account, not the guest session", async () => {
+    const { migrate } = await seed({ workouts: started("guest", 4) });
+    cloud.countActiveWorkouts.mockResolvedValue(MAX_MERGED_ACTIVE_WORKOUTS - 1);
+
+    await migrate.migrateGuestDataTo(UID);
+
+    expect(cloud.countActiveWorkouts).toHaveBeenCalledWith(UID);
+    expect(cloud.createWorkout).toHaveBeenCalledTimes(1);
   });
 });

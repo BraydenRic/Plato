@@ -6,6 +6,7 @@ import {
   upsertUserStats,
 } from "./data";
 import {
+  countActiveWorkouts,
   getExerciseLibrary,
   getWorkouts,
   getWeeklyPlan,
@@ -14,7 +15,12 @@ import {
   type ExerciseLibrary,
   type WeeklyPlan,
 } from "./firestore";
-import { MAX_CUSTOM_EXERCISES, MAX_MERGED_TEMPLATES } from "./workout-utils";
+import {
+  MAX_CUSTOM_EXERCISES,
+  MAX_MERGED_ACTIVE_WORKOUTS,
+  MAX_MERGED_TEMPLATES,
+  isActiveWorkout,
+} from "./workout-utils";
 import {
   clearGuestData,
   hasContent,
@@ -49,6 +55,11 @@ export interface MigrationResult {
    * MAX_MERGED_TEMPLATES. Surfaced for the same reason as the exercises above.
    */
   templatesDropped: number;
+  /**
+   * In-progress workouts left behind for the same reason as the templates above.
+   * Finished ones are never affected.
+   */
+  activeWorkoutsDropped: number;
 }
 
 // Keep the account's own edits on conflict — they're deliberate and long-standing,
@@ -107,9 +118,13 @@ export async function migrateGuestDataTo(userId: string): Promise<MigrationResul
   // it indefinitely. Room is measured against what the account already holds, so
   // the cap can't be walked around by merging twice.
   //
-  // Logged workouts are never capped, only templates. A completed session is
-  // the history the app exists to keep; a template is a convenience that can be
-  // rebuilt in a minute.
+  // In-progress workouts get the same treatment, for the same reason — the
+  // per-screen limit of five is walked past by the same repeated cycle. The
+  // count comes from an unlimited read rather than getWorkouts, whose 50-row
+  // window could miss an abandoned session sitting behind a long history.
+  //
+  // Finished workouts are never capped. A completed session is the history the
+  // app exists to keep; a template or an abandoned session is not.
   //
   // Sequential on purpose: each workout leaves the device only once it's safely
   // in the cloud, which makes a partial failure resumable instead of duplicating.
@@ -119,7 +134,9 @@ export async function migrateGuestDataTo(userId: string): Promise<MigrationResul
   // where they landed.
   const templateIdMap = new Map<string, string>(Object.entries(guest.migratedTemplateIds));
   let templateRoom = MAX_MERGED_TEMPLATES - (await getWorkouts(userId, true)).length;
+  let activeRoom = MAX_MERGED_ACTIVE_WORKOUTS - (await countActiveWorkouts(userId));
   let templatesDropped = 0;
+  let activeWorkoutsDropped = 0;
   let migrated = 0;
   for (const workout of [...guest.workouts]) {
     if (workout.isTemplate) {
@@ -130,6 +147,12 @@ export async function migrateGuestDataTo(userId: string): Promise<MigrationResul
         continue;
       }
       templateRoom--;
+    } else if (isActiveWorkout(workout)) {
+      if (activeRoom <= 0) {
+        activeWorkoutsDropped++;
+        continue;
+      }
+      activeRoom--;
     }
     const { id, ...fields } = workout;
     const cloudId = await createWorkout(stripUndefined({ ...fields, userId }), true);
@@ -151,7 +174,7 @@ export async function migrateGuestDataTo(userId: string): Promise<MigrationResul
 
   await clearGuestData();
   await writeGuestActive(false);
-  return { workouts: migrated, customExercisesDropped, templatesDropped };
+  return { workouts: migrated, customExercisesDropped, templatesDropped, activeWorkoutsDropped };
 }
 
 // Guest template ids don't survive the upload, so remap each weekday onto the

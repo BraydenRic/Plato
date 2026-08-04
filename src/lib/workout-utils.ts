@@ -57,6 +57,30 @@ export const MAX_MERGED_TEMPLATES = MAX_TEMPLATES * 2;
 // piling up live sessions. Finishing or deleting one frees a slot.
 export const MAX_ACTIVE_WORKOUTS = 5;
 
+/**
+ * Ceiling on in-progress workouts once a guest session merges into an account.
+ * Twice MAX_ACTIVE_WORKOUTS for the same reason as MAX_MERGED_TEMPLATES: that is
+ * the most an honest merge can produce, so the cap only ever bites the repeated
+ * sign-out/guest/sign-in cycle that walks past the per-screen limit.
+ */
+export const MAX_MERGED_ACTIVE_WORKOUTS = MAX_ACTIVE_WORKOUTS * 2;
+
+/**
+ * Started but not finished — the live session(s).
+ *
+ * Shared so the screen that refuses a sixth and the merge that caps the total
+ * are answering the same question. Two copies of this would drift, and the
+ * symptom would be a cap that counts something subtly different from what the
+ * user is looking at.
+ */
+export function isActiveWorkout(workout: {
+  isTemplate?: boolean;
+  completedAt?: Date | null;
+  startedAt?: Date | null;
+}): boolean {
+  return !workout.isTemplate && !workout.completedAt && !!workout.startedAt;
+}
+
 // All of a user's custom exercises live in a single document, so cap them to
 // keep it well under Firestore's 1 MB limit. 200 is far more than anyone builds
 // by hand (the app ships ~177 defaults) while staying tiny on disk.

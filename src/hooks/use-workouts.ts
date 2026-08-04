@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { subscribeWorkouts } from "@/lib/data";
 import { useAuth } from "@/context/AuthContext";
+import { isActiveWorkout } from "@/lib/workout-utils";
 import type { Workout } from "@/types";
 
 // Single live subscription to the user's workouts (templates included),
@@ -48,7 +49,7 @@ export function useWorkouts() {
         return ai !== bi ? ai - bi : b.createdAt.getTime() - a.createdAt.getTime();
       }),
     // Started but unfinished — the live session(s).
-    active: workouts.filter((w) => !w.isTemplate && !w.completedAt && !!w.startedAt),
+    active: workouts.filter(isActiveWorkout),
     // Created for a future (or past) day but never begun.
     planned: workouts.filter((w) => !w.isTemplate && !w.completedAt && !w.startedAt),
     // Sorted by when they happened, not when they were created — a backdated

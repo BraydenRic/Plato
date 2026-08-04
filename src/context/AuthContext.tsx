@@ -179,6 +179,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             const n = result.templatesDropped;
             missing.push(`${n} template${n === 1 ? "" : "s"}`);
           }
+          if (result.activeWorkoutsDropped > 0) {
+            const n = result.activeWorkoutsDropped;
+            missing.push(`${n} unfinished workout${n === 1 ? "" : "s"}`);
+          }
           if (missing.length > 0) {
             Alert.alert(
               "Your workouts moved over",

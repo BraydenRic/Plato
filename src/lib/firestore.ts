@@ -17,7 +17,13 @@ import {
   Timestamp,
 } from "firebase/firestore";
 import { db } from "./firebase";
-import { EMPTY_WEEKLY_PLAN, reopenTiming, sanitizeExercises, workoutVolumeLbs } from "./workout-utils";
+import {
+  EMPTY_WEEKLY_PLAN,
+  isActiveWorkout,
+  reopenTiming,
+  sanitizeExercises,
+  workoutVolumeLbs,
+} from "./workout-utils";
 import type { Exercise, ExerciseLibrary, UserStatistics, WeeklyPlan, Workout } from "@/types";
 
 // Re-exported so existing importers of this module keep working; both now live
@@ -74,6 +80,21 @@ export async function getCompletedWorkouts(userId: string): Promise<Workout[]> {
     .map((d) => workoutFromDoc(d.id, d.data() as Record<string, unknown>))
     .filter((w) => !w.isTemplate && !!w.completedAt)
     .sort((a, b) => b.completedAt!.getTime() - a.completedAt!.getTime());
+}
+
+/**
+ * How many workouts are started but unfinished.
+ *
+ * Same unlimited read as getCompletedWorkouts, filtered client-side, so it needs
+ * no composite index and — unlike getWorkouts, which stops at 50 — cannot miss
+ * an old abandoned session sitting behind a long history.
+ */
+export async function countActiveWorkouts(userId: string): Promise<number> {
+  const q = query(collection(db, "workouts"), where("userId", "==", userId));
+  const snap = await getDocs(q);
+  return snap.docs
+    .map((d) => workoutFromDoc(d.id, d.data() as Record<string, unknown>))
+    .filter(isActiveWorkout).length;
 }
 
 /** Live subscription to one workout — the workout screen's source of truth. */
