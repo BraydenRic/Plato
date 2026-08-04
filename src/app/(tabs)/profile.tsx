@@ -1,11 +1,14 @@
 import Ionicons from "@expo/vector-icons/Ionicons";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { Alert, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from "react-native";
 import { Image } from "expo-image";
 import { useRouter } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { Button, Card, SectionLabel, Stepper } from "@/components/ui";
+import { Sparkline } from "@/components/sparkline";
+import { useBodyweight } from "@/hooks/use-bodyweight";
+import { convertWeight } from "@/lib/workout-utils";
 import { Palette, Radius, Spacing, THEME_LIST } from "@/constants/theme";
 import { useAuth } from "@/context/AuthContext";
 import { REST_OPTIONS, nearestRestIndex, useRestTimer } from "@/context/RestTimerContext";
@@ -40,6 +43,40 @@ export default function ProfileScreen() {
     if (next) setRestSeconds(next.seconds);
   }
   const { defaultSets, setDefaultSets } = useDefaultSets();
+  const { log: bodyweightLog, latest: latestWeight, record: recordWeight } = useBodyweight();
+  const [sparkWidth, setSparkWidth] = useState(0);
+
+  // Stored in lbs like every other weight; the card speaks the chosen unit.
+  const shownWeight =
+    latestWeight != null ? Math.round(convertWeight(latestWeight.lbs, "lbs", unit)) : null;
+  // Against the oldest weigh-in on the card, which is what the line draws.
+  const weightDelta =
+    bodyweightLog.length > 1
+      ? Math.round(convertWeight(latestWeight!.lbs - bodyweightLog[0].lbs, "lbs", unit))
+      : 0;
+
+  function logBodyweight() {
+    Alert.prompt(
+      "Bodyweight",
+      `Today's weigh-in, in ${unit}.`,
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Save",
+          onPress: (value?: string) => {
+            const entered = Number((value ?? "").trim());
+            if (!Number.isFinite(entered) || entered <= 0) return;
+            recordWeight(convertWeight(entered, unit, "lbs")).catch(() =>
+              Alert.alert("Couldn't save", "Check your connection and try again.")
+            );
+          },
+        },
+      ],
+      "plain-text",
+      shownWeight != null ? String(shownWeight) : "",
+      "decimal-pad"
+    );
+  }
 
   // Providers like Apple only surface a name once (and Hide My Email hides it),
   // so let people set the name that shows on their profile themselves.
@@ -223,6 +260,35 @@ export default function ProfileScreen() {
           </Pressable>
         )}
 
+        <Pressable onPress={logBodyweight}>
+          {({ pressed }) => (
+            <Card style={[styles.bodyweightCard, pressed && { opacity: 0.8 }]}>
+              <View style={styles.bodyweightRow}>
+                <Text style={styles.prefTitle}>Bodyweight</Text>
+                <Text style={[styles.bodyweightValue, { color: theme.accentText }]}>
+                  {shownWeight != null ? `${shownWeight} ${unit}` : "Add"}
+                </Text>
+              </View>
+              {/* Second row only once there is a shape to show — one weigh-in is
+                  a dot, not a trend, and an empty row would just be clutter. */}
+              {bodyweightLog.length > 1 && (
+                <View
+                  style={styles.bodyweightRow}
+                  onLayout={(e) => setSparkWidth(e.nativeEvent.layout.width)}>
+                  <Sparkline
+                    values={bodyweightLog.map((e) => e.lbs)}
+                    color={theme.accent}
+                    width={Math.max(0, sparkWidth - 64)}
+                  />
+                  <Text style={styles.bodyweightDelta}>
+                    {weightDelta > 0 ? `+${weightDelta}` : weightDelta} {unit}
+                  </Text>
+                </View>
+              )}
+            </Card>
+          )}
+        </Pressable>
+
         <View>
           <SectionLabel>Preferences</SectionLabel>
           <Card style={styles.themeCard}>
@@ -404,6 +470,25 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: Spacing.three,
+  },
+  bodyweightCard: {
+    gap: Spacing.two,
+  },
+  bodyweightRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: Spacing.three,
+  },
+  bodyweightValue: {
+    fontSize: 15,
+    fontWeight: "700",
+    fontVariant: ["tabular-nums"],
+  },
+  bodyweightDelta: {
+    fontSize: 12,
+    color: Palette.textTertiary,
+    fontVariant: ["tabular-nums"],
   },
   cardGap: {
     marginTop: Spacing.two,

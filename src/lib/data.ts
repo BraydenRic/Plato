@@ -2,7 +2,7 @@ import * as cloud from "./firestore";
 import * as local from "./local-store";
 import { isGuestUserId, isLocalWorkoutId } from "./local-store";
 import type { ExerciseLibrary, WeeklyPlan } from "./firestore";
-import type { UserStatistics, Workout, WorkoutExercise } from "@/types";
+import type { BodyweightEntry, UserStatistics, Workout, WorkoutExercise } from "@/types";
 
 /**
  * The app's single data entry point. Screens and hooks call these instead of
@@ -140,6 +140,16 @@ export function setWeeklyPlan(userId: string, days: WeeklyPlan): Promise<void> {
 }
 
 // ── Statistics ───────────────────────────────────────────────────────────────
+
+export function getBodyweightLog(userId: string): Promise<BodyweightEntry[]> {
+  return isGuestUserId(userId) ? local.getBodyweightLog(userId) : cloud.getBodyweightLog(userId);
+}
+
+export function setBodyweightLog(userId: string, log: BodyweightEntry[]): Promise<void> {
+  return isGuestUserId(userId)
+    ? local.setBodyweightLog(userId, log)
+    : cloud.setBodyweightLog(userId, log);
+}
 
 export function upsertUserStats(stats: UserStatistics): Promise<void> {
   return isGuestUserId(stats.userId) ? local.upsertUserStats() : cloud.upsertUserStats(stats);

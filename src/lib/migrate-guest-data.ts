@@ -7,8 +7,10 @@ import {
 } from "./data";
 import {
   countActiveWorkouts,
+  getBodyweightLog,
   getExerciseLibrary,
   getWorkouts,
+  setBodyweightLog,
   getWeeklyPlan,
   setWeeklyPlan,
   updateExerciseLibrary,
@@ -20,6 +22,7 @@ import {
   MAX_MERGED_ACTIVE_WORKOUTS,
   MAX_MERGED_TEMPLATES,
   isActiveWorkout,
+  withBodyweightEntry,
 } from "./workout-utils";
 import {
   clearGuestData,
@@ -89,6 +92,22 @@ function mergeLibraries(
     },
     dropped: Math.max(0, combined.length - MAX_CUSTOM_EXERCISES),
   };
+}
+
+/**
+ * Folds the guest's weigh-ins into the account's, one day at a time.
+ *
+ * Union rather than overwrite, like the library: someone may have weighed in on
+ * both sides. withBodyweightEntry replaces same-day entries, so the guest's
+ * reading wins a collision — it is the more recent of the two by definition,
+ * since the account was dormant while they were using guest mode.
+ */
+async function migrateBodyweight(userId: string, guest: GuestData): Promise<void> {
+  const entries = guest.bodyweight ?? [];
+  if (entries.length === 0) return;
+  let merged = await getBodyweightLog(userId);
+  for (const entry of entries) merged = withBodyweightEntry(merged, entry);
+  await setBodyweightLog(userId, merged);
 }
 
 /** Returns how many custom exercises the cap forced out. */
@@ -166,6 +185,7 @@ export async function migrateGuestDataTo(userId: string): Promise<MigrationResul
     migrated++;
   }
 
+  await migrateBodyweight(userId, guest);
   const customExercisesDropped = await migrateLibrary(userId, guest);
   await migrateWeeklyPlanWithIds(userId, guest.weeklyPlan, templateIdMap);
 

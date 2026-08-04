@@ -1,4 +1,4 @@
-import type { WeeklyPlan, Workout, WorkoutSet } from "@/types";
+import type { BodyweightEntry, WeeklyPlan, Workout, WorkoutSet } from "@/types";
 
 export const EMPTY_WEEKLY_PLAN: WeeklyPlan = [null, null, null, null, null, null, null];
 
@@ -85,6 +85,13 @@ export function isActiveWorkout(workout: {
 // keep it well under Firestore's 1 MB limit. 200 is far more than anyone builds
 // by hand (the app ships ~177 defaults) while staying tiny on disk.
 export const MAX_CUSTOM_EXERCISES = 200;
+
+/**
+ * Weigh-ins kept per user. One document holds the lot, same as the exercise
+ * library, so this keeps it far under Firestore's 1 MB ceiling — daily
+ * weigh-ins would take five years to get here.
+ */
+export const MAX_BODYWEIGHT_ENTRIES = 2000;
 
 const KG_TO_LBS = 2.20462;
 
@@ -278,4 +285,43 @@ export function reopenTiming(workout: Workout): ReopenTiming {
     return { kind: "resume", startedAt: new Date(workout.startedAt.getTime() + pausedMs) };
   }
   return { kind: "none" };
+}
+
+
+// ── Bodyweight ───────────────────────────────────────────────────────────────
+
+/**
+ * Adds a weigh-in, newest last, replacing any entry already on that day.
+ *
+ * One per day because a weigh-in is a reading of the same thing, not an event
+ * worth accumulating — logging twice on a Tuesday should correct Tuesday, not
+ * put two dots on the chart a few hours apart.
+ */
+export function withBodyweightEntry(
+  log: BodyweightEntry[],
+  entry: BodyweightEntry
+): BodyweightEntry[] {
+  const day = startOfDay(entry.date).getTime();
+  const kept = log.filter((e) => startOfDay(e.date).getTime() !== day);
+  return [...kept, entry]
+    .sort((a, b) => a.date.getTime() - b.date.getTime())
+    .slice(-MAX_BODYWEIGHT_ENTRIES);
+}
+
+/**
+ * The weigh-in closest in time to `when`, or null if there are none.
+ *
+ * Nearest rather than most-recent-before, so a workout logged before someone
+ * started tracking still gets a sensible weight instead of nothing. This is
+ * what a future bodyweight-aware volume would call: valuing last March's
+ * pull-ups at last March's weight rather than at today's.
+ */
+export function bodyweightOn(log: BodyweightEntry[], when: Date): BodyweightEntry | null {
+  if (log.length === 0) return null;
+  return log.reduce((best, entry) =>
+    Math.abs(entry.date.getTime() - when.getTime()) <
+    Math.abs(best.date.getTime() - when.getTime())
+      ? entry
+      : best
+  );
 }

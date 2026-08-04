@@ -24,7 +24,14 @@ import {
   sanitizeExercises,
   workoutVolumeLbs,
 } from "./workout-utils";
-import type { Exercise, ExerciseLibrary, UserStatistics, WeeklyPlan, Workout } from "@/types";
+import type {
+  BodyweightEntry,
+  Exercise,
+  ExerciseLibrary,
+  UserStatistics,
+  WeeklyPlan,
+  Workout,
+} from "@/types";
 
 // Re-exported so existing importers of this module keep working; both now live
 // in Firebase-free modules so the guest store can share them.
@@ -277,6 +284,29 @@ export function stripUndefined<T>(value: T): T {
 }
 
 // ── Statistics ────────────────────────────────────────────────────────────────
+
+/**
+ * The weigh-in log, one document per user — same shape as the exercise library
+ * and the weekly split, and capped for the same reason.
+ */
+export async function getBodyweightLog(userId: string): Promise<BodyweightEntry[]> {
+  const snap = await getDoc(doc(db, "bodyweight", userId));
+  const raw = snap.exists() ? (snap.data().entries as unknown) : null;
+  if (!Array.isArray(raw)) return [];
+  return raw
+    .map((e) => ({ date: toDate((e as { date: unknown }).date), lbs: Number((e as { lbs: unknown }).lbs) }))
+    .filter((e): e is BodyweightEntry => e.date instanceof Date && Number.isFinite(e.lbs))
+    .sort((a, b) => a.date.getTime() - b.date.getTime());
+}
+
+export async function setBodyweightLog(userId: string, log: BodyweightEntry[]): Promise<void> {
+  // Dates, not ISO strings: Firestore stores these as Timestamps, which is what
+  // toDate above reads back. A string would round-trip to undefined and the log
+  // would silently come back empty.
+  await setDoc(doc(db, "bodyweight", userId), {
+    entries: log.map((e) => ({ date: e.date, lbs: e.lbs })),
+  });
+}
 
 export async function upsertUserStats(stats: UserStatistics): Promise<void> {
   // Strip undefined before writing — Firestore rejects undefined field values

@@ -50,6 +50,14 @@ export interface Workout {
 
 export type WorkoutStatus = "none" | "inProgress" | "completed";
 
+/** One weigh-in. Dated, so a set can be valued against the weight at the time. */
+export interface BodyweightEntry {
+  /** Day of the weigh-in. One entry per day; a second replaces the first. */
+  date: Date;
+  /** Always stored in lbs, like totalVolumeLbs — display converts. */
+  lbs: number;
+}
+
 export interface UserStatistics {
   userId: string;
   totalCompletedWorkouts: number;

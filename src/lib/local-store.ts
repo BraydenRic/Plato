@@ -1,7 +1,7 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
 import { newId, reopenTiming, sanitizeExercises } from "./workout-utils";
-import type { ExerciseLibrary, WeeklyPlan, Workout } from "@/types";
+import type { BodyweightEntry, ExerciseLibrary, WeeklyPlan, Workout } from "@/types";
 
 /**
  * On-device mirror of the Firestore data layer, used before someone signs in.
@@ -43,6 +43,8 @@ export interface GuestData {
    * would drop it silently.
    */
   migratedTemplateIds: Record<string, string>;
+  /** Weigh-ins, oldest first. Absent on stores written before this existed. */
+  bodyweight?: BodyweightEntry[];
 }
 
 const emptyData = (): GuestData => ({
@@ -50,6 +52,7 @@ const emptyData = (): GuestData => ({
   library: { custom: [], removedIds: [], overrides: [] },
   weeklyPlan: [null, null, null, null, null, null, null],
   migratedTemplateIds: {},
+  bodyweight: [],
 });
 
 // ── Persistence ──────────────────────────────────────────────────────────────
@@ -119,6 +122,14 @@ function reviveTemplateIds(raw: unknown): Record<string, string> {
   return out;
 }
 
+/** Dates come back from JSON as strings; anything unparseable is dropped. */
+function reviveBodyweight(value: unknown): BodyweightEntry[] {
+  return asArray<Record<string, unknown>>(value)
+    .map((e) => ({ date: toDate(e.date), lbs: Number(e.lbs) }))
+    .filter((e): e is BodyweightEntry => e.date instanceof Date && Number.isFinite(e.lbs))
+    .sort((a, b) => a.date.getTime() - b.date.getTime());
+}
+
 async function load(): Promise<GuestData> {
   if (cache) return cache;
   // Memoize the in-flight read so concurrent callers share one parse and can
@@ -137,6 +148,7 @@ async function load(): Promise<GuestData> {
           library: reviveLibrary(parsed.library),
           weeklyPlan: reviveWeeklyPlan(parsed.weeklyPlan),
           migratedTemplateIds: reviveTemplateIds(parsed.migratedTemplateIds),
+          bodyweight: reviveBodyweight(parsed.bodyweight),
         };
       }
     } catch (e) {
@@ -305,6 +317,18 @@ export function subscribeWeeklyPlan(
 export async function setWeeklyPlan(_userId: string, days: WeeklyPlan): Promise<void> {
   const data = await load();
   data.weeklyPlan = days;
+  await commit();
+}
+
+// ── Bodyweight ───────────────────────────────────────────────────────────────
+
+export async function getBodyweightLog(_userId: string): Promise<BodyweightEntry[]> {
+  return [...((await load()).bodyweight ?? [])];
+}
+
+export async function setBodyweightLog(_userId: string, log: BodyweightEntry[]): Promise<void> {
+  const data = await load();
+  data.bodyweight = log;
   await commit();
 }
 

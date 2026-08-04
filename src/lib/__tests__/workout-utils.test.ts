@@ -18,6 +18,9 @@ import {
   totalSetCount,
   workoutDay,
   workoutVolumeLbs,
+  MAX_BODYWEIGHT_ENTRIES,
+  withBodyweightEntry,
+  bodyweightOn,
 } from "../workout-utils";
 import {
   daysAgo,
@@ -483,5 +486,82 @@ describe("liveSetSeconds", () => {
 
   it("treats a fresh set as starting from zero", () => {
     expect(liveSetSeconds(startedAt, startedAt)).toBe(0);
+  });
+});
+
+describe("the bodyweight log", () => {
+  /**
+   * A weigh-in is a reading of one thing, not an event worth accumulating, so
+   * the log holds at most one entry per day and stays sorted. bodyweightOn is
+   * what a future bodyweight-aware volume would call — it is here now because
+   * the rule it encodes (value a set against the weight at the time) is the
+   * whole reason the log is dated rather than a single number.
+   */
+  const day = (iso: string, lbs: number) => ({ date: new Date(iso), lbs });
+
+  it("starts from nothing", () => {
+    const log = withBodyweightEntry([], day("2026-03-01", 178));
+    expect(log).toHaveLength(1);
+    expect(log[0].lbs).toBe(178);
+  });
+
+  it("keeps entries oldest first however they arrive", () => {
+    let log = withBodyweightEntry([], day("2026-03-10", 180));
+    log = withBodyweightEntry(log, day("2026-03-01", 178));
+    log = withBodyweightEntry(log, day("2026-03-05", 179));
+    expect(log.map((e) => e.lbs)).toEqual([178, 179, 180]);
+  });
+
+  it("corrects a same-day weigh-in rather than adding a second", () => {
+    let log = withBodyweightEntry([], day("2026-03-01T07:00:00", 178));
+    log = withBodyweightEntry(log, day("2026-03-01T19:00:00", 180));
+    expect(log).toHaveLength(1);
+    expect(log[0].lbs).toBe(180);
+  });
+
+  it("treats a different day as a different entry", () => {
+    let log = withBodyweightEntry([], day("2026-03-01T23:00:00", 178));
+    log = withBodyweightEntry(log, day("2026-03-02T01:00:00", 179));
+    expect(log).toHaveLength(2);
+  });
+
+  it("drops the oldest once the cap is reached", () => {
+    let log: { date: Date; lbs: number }[] = [];
+    // One a day past the ceiling; the earliest must fall off, not the newest.
+    for (let i = 0; i < MAX_BODYWEIGHT_ENTRIES + 5; i++) {
+      log = withBodyweightEntry(log, {
+        date: new Date(2020, 0, 1 + i),
+        lbs: 150 + i,
+      });
+    }
+    expect(log).toHaveLength(MAX_BODYWEIGHT_ENTRIES);
+    expect(log[log.length - 1].lbs).toBe(150 + MAX_BODYWEIGHT_ENTRIES + 4);
+  });
+});
+
+describe("bodyweightOn", () => {
+  const log = [
+    { date: new Date("2026-01-01"), lbs: 170 },
+    { date: new Date("2026-03-01"), lbs: 178 },
+    { date: new Date("2026-06-01"), lbs: 184 },
+  ];
+
+  it("has no answer for an empty log", () => {
+    expect(bodyweightOn([], new Date("2026-03-01"))).toBeNull();
+  });
+
+  it("values a workout against the weigh-in nearest it", () => {
+    // The point of dating the log: March's pull-ups get March's weight, not
+    // whatever the scale says today.
+    expect(bodyweightOn(log, new Date("2026-03-05"))?.lbs).toBe(178);
+    expect(bodyweightOn(log, new Date("2026-05-20"))?.lbs).toBe(184);
+  });
+
+  it("still answers for a workout logged before tracking began", () => {
+    expect(bodyweightOn(log, new Date("2025-06-01"))?.lbs).toBe(170);
+  });
+
+  it("uses the latest for a workout after the last weigh-in", () => {
+    expect(bodyweightOn(log, new Date("2027-01-01"))?.lbs).toBe(184);
   });
 });
