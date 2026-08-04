@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Alert,
   FlatList,
@@ -17,11 +17,11 @@ import { Palette, Radius, Spacing } from "@/constants/theme";
 import { useWeightUnit } from "@/context/UnitContext";
 import { useTheme } from "@/context/ThemeContext";
 import { useDefaultSets } from "@/context/DefaultSetsContext";
-import { getWorkout, stripUndefined, updateWorkout } from "@/lib/data";
+import { stripUndefined, subscribeWorkout, updateWorkout } from "@/lib/data";
 import { useExerciseLibrary } from "@/hooks/use-exercise-library";
 import { filterExercises } from "@/lib/exercises";
 import { newId } from "@/lib/workout-utils";
-import type { Exercise, Workout, WorkoutSet } from "@/types";
+import type { Exercise, Workout, WorkoutExercise, WorkoutSet } from "@/types";
 
 export default function AddExerciseModal() {
   const { workoutId } = useLocalSearchParams<{ workoutId: string }>();
@@ -33,6 +33,26 @@ export default function AddExerciseModal() {
   const { unit } = useWeightUnit();
   const theme = useTheme();
   const { defaultSets } = useDefaultSets();
+
+  /**
+   * The workout's exercises, live.
+   *
+   * Was a fresh getWorkout on every add, which reads the *server*. That could
+   * not see a workout whose creation had not been acked yet — the case for
+   * anything opened straight after starting one — and two quick adds would both
+   * read the same pre-add copy and the second would overwrite the first.
+   *
+   * A ref rather than state because consecutive adds have to compose: the write
+   * for the second has to build on the first, which a re-render has not
+   * necessarily delivered yet.
+   */
+  const exercisesRef = useRef<WorkoutExercise[] | null>(null);
+  useEffect(() => {
+    if (!workoutId) return;
+    return subscribeWorkout(workoutId, (next) => {
+      if (next) exercisesRef.current = next.exercises;
+    });
+  }, [workoutId]);
 
   const categories = useMemo(
     () => ["All", ...new Set(exercises.map((e) => e.category))],
@@ -48,10 +68,10 @@ export default function AddExerciseModal() {
     if (!workoutId || addedIds.has(exercise.id)) return;
     setAddedIds((prev) => new Set(prev).add(exercise.id));
     try {
-      // Read-modify-write of the embedded exercises array. The workout screen
-      // is subscribed to this doc, so it updates the moment this lands.
-      const workout = await getWorkout(workoutId);
-      if (!workout) throw new Error("workout missing");
+      // Built from the live copy, which is the same one the workout screen is
+      // rendering, so this write can't be based on a version it never saw.
+      const current = exercisesRef.current;
+      if (!current) throw new Error("workout not loaded");
       // Start with the user's preferred number of empty sets (Profile → Default sets).
       const startingSets: WorkoutSet[] = Array.from({ length: defaultSets }, () => ({
         id: newId(),
@@ -59,15 +79,18 @@ export default function AddExerciseModal() {
         isCompleted: false,
       }));
       const exercises = [
-        ...workout.exercises,
+        ...current,
         {
           id: newId(),
           exerciseId: exercise.id,
           exercise,
-          orderIndex: workout.exercises.length,
+          orderIndex: current.length,
           sets: startingSets,
         },
       ];
+      // Bank it before the await so a second add composes onto this one rather
+      // than racing the round-trip.
+      exercisesRef.current = exercises;
       await updateWorkout(workoutId, stripUndefined({ exercises }) as Partial<Workout>);
     } catch {
       setAddedIds((prev) => {
@@ -89,16 +112,17 @@ export default function AddExerciseModal() {
       return next;
     });
     try {
-      const workout = await getWorkout(workoutId);
-      if (!workout) throw new Error("workout missing");
+      const current = exercisesRef.current;
+      if (!current) throw new Error("workout not loaded");
       // Drop only the copy we added this session (the last one with this id), so
       // a pre-existing copy of the same exercise stays put. Reindex to keep
       // orderIndex contiguous.
-      const exercises = [...workout.exercises];
+      const exercises = [...current];
       const last = exercises.map((ex) => ex.exerciseId).lastIndexOf(exercise.id);
       if (last === -1) return;
       exercises.splice(last, 1);
       const reindexed = exercises.map((ex, i) => ({ ...ex, orderIndex: i }));
+      exercisesRef.current = reindexed;
       await updateWorkout(workoutId, stripUndefined({ exercises: reindexed }) as Partial<Workout>);
     } catch {
       // Put the check back — the exercise is still on the template.
