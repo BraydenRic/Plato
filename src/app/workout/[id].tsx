@@ -33,7 +33,7 @@ import { useBodyweight } from "@/hooks/use-bodyweight";
 import { useSetTimer } from "@/context/SetTimerContext";
 import { useWeightUnit } from "@/context/UnitContext";
 import { useTheme } from "@/context/ThemeContext";
-import { bodyweightOn, formatBodyweightLoad, convertWeight, displayVolume, formatClock, liveSetSeconds, newId, previousSetsByExercise, relativeDay, sameDay, startOfDay, workoutVolumeLbs, completedSetCount, totalSetCount, MAX_TEMPLATES, MAX_ACTIVE_WORKOUTS } from "@/lib/workout-utils";
+import { bodyweightOn, formatBodyweightLoad, convertWeight, displayVolume, formatClock, liveSetSeconds, newId, previousSetsByExercise, relativeDay, sameDay, startOfDay, workoutDay, workoutVolumeLbs, completedSetCount, totalSetCount, MAX_TEMPLATES, MAX_ACTIVE_WORKOUTS } from "@/lib/workout-utils";
 import type { Workout, WorkoutExercise, WorkoutSet } from "@/types";
 
 
@@ -237,13 +237,23 @@ export default function WorkoutScreen() {
     return () => clearInterval(t);
   }, [restEndsAt]);
 
-  // What the lifter weighed when this workout happened, so bodyweight sets are
-  // valued against that rather than against today's scale. Null until they have
-  // recorded anything, in which case those sets count zero as they always did.
+  /**
+   * What the lifter weighed on the day this workout belongs to, so bodyweight
+   * sets are valued against that rather than against today's scale. Undefined
+   * until they have recorded anything, in which case those sets count zero as
+   * they always did.
+   *
+   * workoutDay is the same helper the calendar places the row with, so the
+   * weight always matches the day the workout is filed under. This used to walk
+   * completedAt → startedAt → createdAt and skip scheduledFor, which meant a day
+   * being backfilled had neither of the first two and fell through to the day it
+   * was typed in: log yesterday's session this morning and it valued your pull
+   * ups at today's weight. Worse than a wrong label, since finishing freezes
+   * totalVolume from this number.
+   */
   const bodyweightLbs = useMemo(() => {
     if (!workout) return undefined;
-    const when = workout.completedAt ?? workout.startedAt ?? workout.createdAt;
-    return bodyweightOn(bodyweightLog, when)?.lbs;
+    return bodyweightOn(bodyweightLog, workoutDay(workout))?.lbs;
   }, [workout, bodyweightLog]);
 
   const liveVolume = useMemo(

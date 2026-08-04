@@ -23,6 +23,7 @@ import type { Workout } from "@/types";
 const mockUpdateWorkout = jest.fn(async () => {});
 let mockGetWorkout = jest.fn(async (): Promise<Workout | null> => null);
 let emitWorkout: ((w: Workout | null) => void) | null = null;
+let mockBodyweightLog: { date: Date; lbs: number }[] = [];
 
 jest.mock("expo-router", () => ({
   useLocalSearchParams: () => ({ id: "w1" }),
@@ -58,7 +59,12 @@ jest.mock("@/hooks/use-workouts", () => ({
 }));
 
 jest.mock("@/hooks/use-bodyweight", () => ({
-  useBodyweight: () => ({ log: [], loading: false, record: jest.fn(), latest: null }),
+  useBodyweight: () => ({
+    log: mockBodyweightLog,
+    loading: false,
+    record: jest.fn(),
+    latest: mockBodyweightLog[mockBodyweightLog.length - 1] ?? null,
+  }),
 }));
 
 jest.mock("@/context/RestTimerContext", () => ({
@@ -122,11 +128,15 @@ function workoutWith(names: string[]): Workout {
 }
 
 /** Deliver the workout the way the subscription would on first load. */
-async function loadWith(names: string[]) {
+async function loadWorkout(w: Workout) {
   render(<WorkoutScreen />);
   await act(async () => {
-    emitWorkout?.(workoutWith(names));
+    emitWorkout?.(w);
   });
+}
+
+async function loadWith(names: string[]) {
+  await loadWorkout(workoutWith(names));
 }
 
 /** Confirm the next Alert by pressing its destructive button. */
@@ -140,6 +150,7 @@ beforeEach(() => {
   jest.clearAllMocks();
   emitWorkout = null;
   mockGetWorkout = jest.fn(async () => null);
+  mockBodyweightLog = [];
 });
 
 afterEach(() => {
@@ -205,4 +216,66 @@ it("doesn't let a focus re-read undo an edit made while it was in flight", async
 
   await waitFor(() => expect(mockGetWorkout).toHaveBeenCalled());
   expect(screen.queryByText("Bench press")).toBeNull();
+});
+
+/**
+ * A bodyweight set is worth what you weighed on the day of the workout, which
+ * is not always the day you typed it in.
+ *
+ * Backfilling is the case that broke: a workout planned or logged for an
+ * earlier day has no startedAt and no completedAt, so resolving the date by
+ * completedAt → startedAt → createdAt fell through to today and valued
+ * yesterday's pull ups at this morning's weigh-in. It shows in the exercise
+ * header, and finishing freezes totalVolume from the same number.
+ */
+describe("what a bodyweight set is valued against", () => {
+  const YESTERDAY = new Date(2026, 7, 3, 9, 0);
+  const TODAY = new Date(2026, 7, 4, 9, 0);
+
+  function pullUpsOn(day: { scheduledFor?: Date; startedAt?: Date }): Workout {
+    return {
+      id: "w1",
+      userId: "u1",
+      name: "Pull day",
+      isTemplate: false,
+      exercises: [
+        {
+          id: "ex0",
+          exerciseId: "pull-up",
+          exercise: {
+            id: "pull-up",
+            name: "Pull-Up",
+            category: "Back",
+            musclesWorked: ["lats"],
+            description: "",
+            isBodyweight: true,
+          },
+          orderIndex: 0,
+          sets: [{ id: "s0", weightUnit: "lbs" as const, isCompleted: false }],
+        },
+      ],
+      createdAt: TODAY,
+      ...day,
+    };
+  }
+
+  beforeEach(() => {
+    mockBodyweightLog = [
+      { date: YESTERDAY, lbs: 195 },
+      { date: TODAY, lbs: 190 },
+    ];
+  });
+
+  it("uses the weigh-in from the day being logged, not the day it was typed", async () => {
+    // Written up this morning, but it belongs to yesterday.
+    await loadWorkout(pullUpsOn({ scheduledFor: YESTERDAY }));
+
+    expect(screen.getByText(/BW 195 lbs/)).toBeTruthy();
+  });
+
+  it("uses today's weigh-in for a workout happening today", async () => {
+    await loadWorkout(pullUpsOn({ startedAt: TODAY }));
+
+    expect(screen.getByText(/BW 190 lbs/)).toBeTruthy();
+  });
 });
