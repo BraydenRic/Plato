@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -84,8 +84,8 @@ export default function WorkoutsScreen() {
   );
 
   /**
-   * The workout we are in the middle of opening, hidden from this screen until
-   * we come back.
+   * The workout we are in the middle of opening, hidden from this screen for
+   * as long as the push takes to cover it.
    *
    * Creating one updates Firestore's cache immediately, but pushing the workout
    * screen takes an animation to cover this list — so the new row and its
@@ -94,17 +94,52 @@ export default function WorkoutsScreen() {
    * createWorkoutLocalFirst) shortened that; it did not remove it, because the
    * cache was never what we were waiting for.
    *
-   * Cleared on focus rather than on a timer: the only moment it should come
-   * back is when this screen is on top again.
+   * Revealed on a timer, which reads as the wrong tool until you ask what the
+   * alternative is timing against. Waiting for this screen to be focused again
+   * was the first attempt, and it holds the row back the entire time the
+   * workout is open — including while a back-swipe is dragging this list into
+   * view, so the row was missing during the swipe and appeared once it
+   * finished. The window we actually need to cover is one animation, and it
+   * ends long before anyone looks at this list again.
    */
   const [openingId, setOpeningId] = useState<string | null>(null);
-  useFocusEffect(useCallback(() => setOpeningId(null), []));
+  const revealTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  function openNewWorkout(id: string) {
+    setOpeningId(id);
+    router.push(`/workout/${id}`);
+    if (revealTimer.current) clearTimeout(revealTimer.current);
+    // Comfortably past the end of the push, and far short of the time it takes
+    // to open a workout and swipe back out of it.
+    revealTimer.current = setTimeout(() => setOpeningId(null), 500);
+  }
+
+  useEffect(() => () => {
+    if (revealTimer.current) clearTimeout(revealTimer.current);
+  }, []);
+
+  // Backstop. However the timer fared, this list is whole by the time it is on
+  // top again — a row that stayed hidden would look like a lost workout.
+  useFocusEffect(
+    useCallback(() => {
+      if (revealTimer.current) clearTimeout(revealTimer.current);
+      setOpeningId(null);
+    }, [])
+  );
 
   // Same suppression for the templates list. The cap checks deliberately keep
   // counting `templates`, since the one being opened does exist.
   const visibleTemplates = useMemo(
     () => templates.filter((t) => t.id !== openingId),
     [templates, openingId]
+  );
+
+  // And for In progress, which lists the same workouts the calendar does. This
+  // one was missed, so starting a workout flashed it here even while the
+  // calendar below correctly held it back.
+  const visibleActive = useMemo(
+    () => active.filter((w) => w.id !== openingId),
+    [active, openingId]
   );
 
   // Everything except templates has a home on the calendar.
@@ -161,8 +196,7 @@ export default function WorkoutsScreen() {
         startedAt: new Date(),
       })
     );
-    setOpeningId(id);
-    router.push(`/workout/${id}`);
+    openNewWorkout(id);
     saved
       .catch(() => Alert.alert("Couldn't start workout", "Check your connection and try again."))
       .finally(() => setStarting(false));
@@ -181,8 +215,7 @@ export default function WorkoutsScreen() {
         scheduledFor: day,
       })
     );
-    setOpeningId(id);
-    router.push(`/workout/${id}`);
+    openNewWorkout(id);
     saved
       .catch(() => Alert.alert("Couldn't plan workout", "Check your connection and try again."))
       .finally(() => setStarting(false));
@@ -198,8 +231,7 @@ export default function WorkoutsScreen() {
     // Future plans just get scheduled and we stay on the calendar; logging a
     // past day opens the workout so its sets can be filled in.
     if (navigate) {
-      setOpeningId(id);
-      router.push(`/workout/${id}`);
+      openNewWorkout(id);
     }
     saved
       .catch(() => Alert.alert("Couldn't plan workout", "Check your connection and try again."))
@@ -231,8 +263,7 @@ export default function WorkoutsScreen() {
     if (!dataUserId || starting || atActiveLimit()) return;
     setStarting(true);
     const { id, saved } = startFromTemplate(template, dataUserId);
-    setOpeningId(id);
-    router.push(`/workout/${id}`);
+    openNewWorkout(id);
     saved
       .catch(() => Alert.alert("Couldn't start workout", "Check your connection and try again."))
       .finally(() => setStarting(false));
@@ -256,8 +287,7 @@ export default function WorkoutsScreen() {
         createdAt: new Date(),
       }) as Omit<Workout, "id">
     );
-    setOpeningId(id);
-    router.push(`/workout/${id}`);
+    openNewWorkout(id);
     saved.catch(() =>
       Alert.alert("Couldn't create template", "Check your connection and try again.")
     );
@@ -473,10 +503,10 @@ export default function WorkoutsScreen() {
         {loading && <ActivityIndicator color={theme.accent} style={{ marginTop: Spacing.five }} />}
         {error && !loading && <EmptyState title="Couldn't load workouts" message={error} />}
 
-        {active.length > 0 && (
+        {visibleActive.length > 0 && (
           <View style={styles.section}>
             <SectionLabel>In progress</SectionLabel>
-            {active.map((w) => (
+            {visibleActive.map((w) => (
               <WorkoutRow key={w.id} workout={w}
                 onPress={() => router.push(`/workout/${w.id}`)}
                 onLongPress={() => confirmDelete(w)} />
