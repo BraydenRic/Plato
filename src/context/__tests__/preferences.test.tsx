@@ -57,8 +57,8 @@ describe("the running rest countdown", () => {
   it("does nothing while the timer is switched off", async () => {
     const ctx = mountHook(useRestTimer, RestTimerProvider);
     await settle();
-    await act(async () => ctx.current.startRest());
-    expect(ctx.current.restEndsAt).toBeNull();
+    await act(async () => ctx.current.startRest("w1"));
+    expect(ctx.current.rest).toBeNull();
   });
 
   it("sets a deadline the configured distance ahead", async () => {
@@ -67,36 +67,79 @@ describe("the running rest countdown", () => {
     await settle();
 
     const before = Date.now();
-    await act(async () => ctx.current.startRest());
-    expect(ctx.current.restEndsAt).toBeGreaterThanOrEqual(before + 90_000);
-    expect(ctx.current.restEndsAt).toBeLessThanOrEqual(Date.now() + 90_000);
+    await act(async () => ctx.current.startRest("w1"));
+    expect(ctx.current.rest?.endsAt).toBeGreaterThanOrEqual(before + 90_000);
+    expect(ctx.current.rest?.endsAt).toBeLessThanOrEqual(Date.now() + 90_000);
   });
 
   it("pushes the deadline out for +15s", async () => {
     await AsyncStorage.setItem("rest_seconds", "60");
     const ctx = mountHook(useRestTimer, RestTimerProvider);
     await settle();
-    await act(async () => ctx.current.startRest());
+    await act(async () => ctx.current.startRest("w1"));
 
-    const first = ctx.current.restEndsAt!;
+    const first = ctx.current.rest?.endsAt!;
     await act(async () => ctx.current.extendRest(15_000));
-    expect(ctx.current.restEndsAt).toBe(first + 15_000);
+    expect(ctx.current.rest?.endsAt).toBe(first + 15_000);
   });
 
   it("has nothing to extend when no rest is running", async () => {
     const ctx = mountHook(useRestTimer, RestTimerProvider);
     await settle();
     await act(async () => ctx.current.extendRest(15_000));
-    expect(ctx.current.restEndsAt).toBeNull();
+    expect(ctx.current.rest).toBeNull();
   });
 
   it("clears on skip", async () => {
     await AsyncStorage.setItem("rest_seconds", "60");
     const ctx = mountHook(useRestTimer, RestTimerProvider);
     await settle();
-    await act(async () => ctx.current.startRest());
+    await act(async () => ctx.current.startRest("w1"));
     await act(async () => ctx.current.endRest());
-    expect(ctx.current.restEndsAt).toBeNull();
+    expect(ctx.current.rest).toBeNull();
+  });
+
+  it("belongs to the workout that started it", async () => {
+    await AsyncStorage.setItem("rest_seconds", "60");
+    const ctx = mountHook(useRestTimer, RestTimerProvider);
+    await settle();
+    await act(async () => ctx.current.startRest("workout-a"));
+    expect(ctx.current.rest?.workoutId).toBe("workout-a");
+  });
+
+  it("does not follow the user into the next workout", async () => {
+    // Rest outlives the workout screen on purpose, which means it also outlives
+    // the workout. Without an owner, finishing a session and starting another
+    // left the first one's countdown running in the second.
+    await AsyncStorage.setItem("rest_seconds", "60");
+    const ctx = mountHook(useRestTimer, RestTimerProvider);
+    await settle();
+    await act(async () => ctx.current.startRest("workout-a"));
+
+    const rest = ctx.current.rest;
+    expect(rest?.workoutId).toBe("workout-a");
+    // The consumer's own check: a different workout gets nothing from this.
+    expect(rest?.workoutId === "workout-b").toBe(false);
+  });
+
+  it("hands the countdown over when a new workout starts one", async () => {
+    await AsyncStorage.setItem("rest_seconds", "60");
+    const ctx = mountHook(useRestTimer, RestTimerProvider);
+    await settle();
+    await act(async () => ctx.current.startRest("workout-a"));
+    await act(async () => ctx.current.startRest("workout-b"));
+    expect(ctx.current.rest?.workoutId).toBe("workout-b");
+  });
+
+  it("keeps the owner when the deadline is pushed out", async () => {
+    await AsyncStorage.setItem("rest_seconds", "60");
+    const ctx = mountHook(useRestTimer, RestTimerProvider);
+    await settle();
+    await act(async () => ctx.current.startRest("workout-a"));
+    const before = ctx.current.rest!.endsAt;
+    await act(async () => ctx.current.extendRest(15_000));
+    expect(ctx.current.rest?.workoutId).toBe("workout-a");
+    expect(ctx.current.rest?.endsAt).toBe(before + 15_000);
   });
 
   it("keeps a deadline that has already passed", async () => {
@@ -107,12 +150,12 @@ describe("the running rest countdown", () => {
     await AsyncStorage.setItem("rest_seconds", "60");
     const ctx = mountHook(useRestTimer, RestTimerProvider);
     await settle();
-    await act(async () => ctx.current.startRest());
-    const deadline = ctx.current.restEndsAt;
+    await act(async () => ctx.current.startRest("w1"));
+    const deadline = ctx.current.rest?.endsAt;
 
     jest.spyOn(Date, "now").mockReturnValue(deadline! + 60_000);
     await settle();
-    expect(ctx.current.restEndsAt).toBe(deadline);
+    expect(ctx.current.rest?.endsAt).toBe(deadline);
     jest.spyOn(Date, "now").mockRestore();
   });
 
@@ -120,12 +163,12 @@ describe("the running rest countdown", () => {
     await AsyncStorage.setItem("rest_seconds", "60");
     const ctx = mountHook(useRestTimer, RestTimerProvider);
     await settle();
-    await act(async () => ctx.current.startRest());
-    const first = ctx.current.restEndsAt!;
+    await act(async () => ctx.current.startRest("w1"));
+    const first = ctx.current.rest?.endsAt!;
 
     jest.spyOn(Date, "now").mockReturnValue(first + 5_000);
-    await act(async () => ctx.current.startRest());
-    expect(ctx.current.restEndsAt).toBe(first + 5_000 + 60_000);
+    await act(async () => ctx.current.startRest("w1"));
+    expect(ctx.current.rest?.endsAt).toBe(first + 5_000 + 60_000);
     jest.spyOn(Date, "now").mockRestore();
   });
 });

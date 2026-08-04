@@ -23,7 +23,7 @@ type Tracked = { activityId: string; workoutId: string };
 export function LiveActivitySync() {
   const { active, loading } = useWorkouts();
   const theme = useTheme();
-  const { restEndsAt } = useRestTimer();
+  const { rest } = useRestTimer();
 
   const tracked = useRef<Tracked | null>(null);
   const hydrated = useRef<Promise<void> | null>(null);
@@ -53,6 +53,9 @@ export function LiveActivitySync() {
       await hydrated.current;
 
       const t = tracked.current;
+      // Only a rest belonging to this workout. Rest state outlives the screen,
+      // so an old session's countdown must not follow the pill to a new one.
+      const restEndsAt = workout && rest?.workoutId === workout.id ? rest.endsAt : null;
 
       if (!workout) {
         if (t) {
@@ -64,7 +67,8 @@ export function LiveActivitySync() {
       }
 
       if (t && t.workoutId === workout.id) {
-        if (updateWorkoutActivity(t.activityId, workout, doneSets, totalSets, theme, restEndsAt))
+        const restEndsAt = rest?.workoutId === workout.id ? rest.endsAt : null;
+      if (updateWorkoutActivity(t.activityId, workout, doneSets, totalSets, theme, restEndsAt))
           return;
         // The activity died underneath us — fall through and start a new one.
         tracked.current = null;
@@ -85,7 +89,7 @@ export function LiveActivitySync() {
     // down and recreate a perfectly good pill mid-workout; the logo picks up the
     // new theme on the next update the workout sends anyway.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [loading, current, doneSets, totalSets, restEndsAt]);
+  }, [loading, current, doneSets, totalSets, rest]);
 
   return null;
 }

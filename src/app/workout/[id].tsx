@@ -73,7 +73,10 @@ export default function WorkoutScreen() {
   const [loading, setLoading] = useState(true);
   const [finishing, setFinishing] = useState(false);
   const [resuming, setResuming] = useState(false);
-  const { restSeconds, restEndsAt, startRest, extendRest, endRest } = useRestTimer();
+  const { restSeconds, rest, startRest, extendRest, endRest } = useRestTimer();
+  // Only this workout's rest. A rest outlives the screen by design, so without
+  // this the next workout would inherit the last one's countdown.
+  const restEndsAt = rest?.workoutId === id ? rest.endsAt : null;
   const [restLeft, setRestLeft] = useState(0);
   const [elapsed, setElapsed] = useState(0);
   const { unit: weightUnit } = useWeightUnit();
@@ -276,7 +279,7 @@ export default function WorkoutScreen() {
     // No rest countdown while merely planning — only during a live session,
     // only on the incomplete→complete flip, and only if the timer is on.
     if (patch.isCompleted && !wasCompleted && !isDone && !isPlanned && restSeconds > 0) {
-      startRest();
+      startRest(id);
     }
   }
 

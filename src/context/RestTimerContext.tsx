@@ -45,8 +45,34 @@ export function nearestRestIndex(seconds: number): number {
 const RestTimerContext = createContext<{
   restSeconds: number;
   setRestSeconds: (seconds: number) => void;
+  rest: RunningRest | null;
+  /** Begins a rest of the configured length. No-op when the timer is off. */
+  startRest: (workoutId: string) => void;
+  /** Pushes the deadline out, for the "+15s" control. */
+  extendRest: (ms: number) => void;
+  endRest: () => void;
+}>({
+  restSeconds: DEFAULT_SECONDS,
+  setRestSeconds: () => {},
+  rest: null,
+  startRest: () => {},
+  extendRest: () => {},
+  endRest: () => {},
+});
+
+/**
+ * The one rest countdown that can be running.
+ *
+ * Scoped to a workout for the same reason RunningSetTimer is: this state sits
+ * above the navigator so it survives leaving the screen, which also means it
+ * survives *finishing the workout*. Without an owner, a rest started in one
+ * session carried on into the next one.
+ */
+export interface RunningRest {
+  /** Which workout owns it, so a later workout doesn't inherit it. */
+  workoutId: string;
   /**
-   * Wall-clock ms the current rest is due to end, or null when not resting.
+   * Wall-clock ms the rest is due to end.
    *
    * Deliberately *not* cleared when it passes. The Live Activity draws its
    * countdown from this deadline and holds at 0:00 on its own once the deadline
@@ -54,39 +80,27 @@ const RestTimerContext = createContext<{
    * where no JavaScript is running to clear anything. Callers that want the
    * in-app "still resting" answer should compare it against the clock.
    */
-  restEndsAt: number | null;
-  /** Begins a rest of the configured length. No-op when the timer is off. */
-  startRest: () => void;
-  /** Pushes the deadline out, for the "+15s" control. */
-  extendRest: (ms: number) => void;
-  endRest: () => void;
-}>({
-  restSeconds: DEFAULT_SECONDS,
-  setRestSeconds: () => {},
-  restEndsAt: null,
-  startRest: () => {},
-  extendRest: () => {},
-  endRest: () => {},
-});
+  endsAt: number;
+}
 
 export function RestTimerProvider({ children }: { children: React.ReactNode }) {
   const [restSeconds, setRestSecondsState] = useState(DEFAULT_SECONDS);
   // Above the navigator for the same reason the set stopwatch is: the workout
   // screen unmounts the moment you leave it, which used to cancel a rest that
   // was still running. The deadline is wall-clock, so it resumes correctly.
-  const [restEndsAt, setRestEndsAt] = useState<number | null>(null);
+  const [rest, setRest] = useState<RunningRest | null>(null);
 
-  function startRest() {
+  function startRest(workoutId: string) {
     if (restSeconds <= 0) return;
-    setRestEndsAt(Date.now() + restSeconds * 1000);
+    setRest({ workoutId, endsAt: Date.now() + restSeconds * 1000 });
   }
 
   function extendRest(ms: number) {
-    setRestEndsAt((current) => (current == null ? null : current + ms));
+    setRest((current) => (current == null ? null : { ...current, endsAt: current.endsAt + ms }));
   }
 
   function endRest() {
-    setRestEndsAt(null);
+    setRest(null);
   }
 
   useEffect(() => {
@@ -103,7 +117,7 @@ export function RestTimerProvider({ children }: { children: React.ReactNode }) {
 
   return (
     <RestTimerContext.Provider
-      value={{ restSeconds, setRestSeconds, restEndsAt, startRest, extendRest, endRest }}>
+      value={{ restSeconds, setRestSeconds, rest, startRest, extendRest, endRest }}>
       {children}
     </RestTimerContext.Provider>
   );
