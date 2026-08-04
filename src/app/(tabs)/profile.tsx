@@ -17,6 +17,10 @@ import { useThemePicker } from "@/context/ThemeContext";
 import { useDefaultSets, MIN_SETS, MAX_SETS } from "@/context/DefaultSetsContext";
 import { useWeightUnit } from "@/context/UnitContext";
 
+// Short enough to type on a phone with one hand, long enough that you can't
+// produce it by tapping through.
+const DELETE_WORD = "DELETE";
+
 export default function ProfileScreen() {
   const {
     user,
@@ -161,6 +165,39 @@ export default function ProfileScreen() {
     }
   }
 
+  /**
+   * Make them write the word out before anything is destroyed.
+   *
+   * The steps either side of this are both things you can do by accident: a
+   * "Delete forever" button sits exactly where a tapped-through alert puts your
+   * thumb, and the password sheet after it is muscle memory. Typing is the only
+   * part of the flow that can't be completed without reading it.
+   *
+   * Matched case-insensitively — iOS capitalises the first letter for you, and
+   * failing someone who typed the right word is just a puzzle, not a safeguard.
+   */
+  function confirmByTyping(onConfirmed: () => void) {
+    Alert.prompt(
+      `Type ${DELETE_WORD} to confirm`,
+      `This can't be undone. Type ${DELETE_WORD} below to continue.`,
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Continue",
+          style: "destructive",
+          onPress: (typed?: string) => {
+            if (typed?.trim().toUpperCase() !== DELETE_WORD) {
+              Alert.alert("That didn't match", `Type ${DELETE_WORD} to confirm, or cancel.`);
+              return;
+            }
+            onConfirmed();
+          },
+        },
+      ],
+      "plain-text"
+    );
+  }
+
   // Guest data lives only on this phone, so there's no account to delete and
   // no way to recover it — say so plainly before wiping.
   function confirmDiscardGuestData() {
@@ -169,7 +206,39 @@ export default function ProfileScreen() {
       "Every workout, template, and custom exercise saved on this phone will be permanently erased. This cannot be undone.",
       [
         { text: "Cancel", style: "cancel" },
-        { text: "Delete forever", style: "destructive", onPress: () => discardGuestData() },
+        {
+          text: "Continue",
+          style: "destructive",
+          onPress: () => confirmByTyping(() => discardGuestData()),
+        },
+      ]
+    );
+  }
+
+  // Proving it's you, once they've proved they mean it.
+  function reauthenticateAndDelete() {
+    if (hasPassword) {
+      Alert.prompt(
+        "Confirm your password",
+        "Enter your password to permanently delete your account.",
+        [
+          { text: "Cancel", style: "cancel" },
+          {
+            text: "Delete forever",
+            style: "destructive",
+            onPress: (password?: string) => runDeleteAccount(password),
+          },
+        ],
+        "secure-text"
+      );
+      return;
+    }
+    Alert.alert(
+      "Confirm it's you",
+      `You'll sign in with ${socialName} one more time to confirm, then your account is permanently deleted.`,
+      [
+        { text: "Cancel", style: "cancel" },
+        { text: "Delete forever", style: "destructive", onPress: () => runDeleteAccount() },
       ]
     );
   }
@@ -183,33 +252,7 @@ export default function ProfileScreen() {
         {
           text: "Continue",
           style: "destructive",
-          onPress: () =>
-            hasPassword
-              ? Alert.prompt(
-                  "Confirm your password",
-                  "Enter your password to permanently delete your account.",
-                  [
-                    { text: "Cancel", style: "cancel" },
-                    {
-                      text: "Delete forever",
-                      style: "destructive",
-                      onPress: (password?: string) => runDeleteAccount(password),
-                    },
-                  ],
-                  "secure-text"
-                )
-              : Alert.alert(
-                  "Confirm it's you",
-                  `You'll sign in with ${socialName} one more time to confirm, then your account is permanently deleted.`,
-                  [
-                    { text: "Cancel", style: "cancel" },
-                    {
-                      text: "Delete forever",
-                      style: "destructive",
-                      onPress: () => runDeleteAccount(),
-                    },
-                  ]
-                ),
+          onPress: () => confirmByTyping(reauthenticateAndDelete),
         },
       ]
     );
