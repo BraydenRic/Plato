@@ -12,7 +12,7 @@ import { makeWorkout } from "./factories";
 
 const cloudFns = [
   "subscribeWorkouts", "subscribeWorkout", "getWorkout", "getCompletedWorkouts",
-  "createWorkout", "updateWorkout", "deleteWorkout", "reopenWorkout",
+  "createWorkout", "createWorkoutLocalFirst", "updateWorkout", "deleteWorkout", "reopenWorkout",
   "subscribeExerciseLibrary", "updateExerciseLibrary",
   "subscribeWeeklyPlan", "setWeeklyPlan", "upsertUserStats",
 ] as const;
@@ -32,6 +32,9 @@ jest.mock("../firestore", () => {
   ]) {
     mod[name] = jest.fn(() => `cloud:${name}`);
   }
+  // Returns an id up front with the write still running, so it can't share the
+  // plain jest.fn above.
+  mod.createWorkoutLocalFirst = jest.fn(() => ({ id: "cloud-new", saved: Promise.resolve() }));
   return mod;
 });
 
@@ -47,6 +50,7 @@ jest.mock("../local-store", () => {
   ]) {
     mod[name] = jest.fn(() => `local:${name}`);
   }
+  mod.createWorkoutLocalFirst = jest.fn(() => ({ id: "local-new", saved: Promise.resolve() }));
   return mod;
 });
 
@@ -202,27 +206,51 @@ describe("templates", () => {
   });
 
   it("starts immediately when no day is given, and plans when one is", async () => {
-    asMock(cloud, "createWorkout").mockResolvedValue("new-id");
     const template = makeWorkout({ userId: UID, isTemplate: true, exercises: [] });
 
-    await data.startFromTemplate(template, UID);
-    const [started] = asMock(cloud, "createWorkout").mock.calls[0];
+    data.startFromTemplate(template, UID);
+    const [started] = asMock(cloud, "createWorkoutLocalFirst").mock.calls[0];
     expect(started.startedAt).toBeInstanceOf(Date);
     expect(started.scheduledFor).toBeUndefined();
     expect(started.isTemplate).toBe(false);
 
-    asMock(cloud, "createWorkout").mockClear();
+    asMock(cloud, "createWorkoutLocalFirst").mockClear();
     const day = new Date("2026-04-01T12:00:00Z");
-    await data.startFromTemplate(template, UID, day);
-    const [planned] = asMock(cloud, "createWorkout").mock.calls[0];
+    data.startFromTemplate(template, UID, day);
+    const [planned] = asMock(cloud, "createWorkoutLocalFirst").mock.calls[0];
     // A planned workout has no startedAt — it isn't a session until you begin it.
     expect(planned.startedAt).toBeUndefined();
     expect(planned.scheduledFor).toEqual(day);
   });
 
-  it("routes a guest's template creation to the device store", async () => {
-    asMock(local, "createWorkout").mockResolvedValue("local-new");
-    await data.startFromTemplate(makeWorkout({ isTemplate: true, exercises: [] }), GUEST);
-    expectRoutedTo("local", "createWorkout");
+  it("routes a guest's template creation to the device store", () => {
+    asMock(local, "createWorkoutLocalFirst").mockReturnValue({
+      id: "local-new",
+      saved: Promise.resolve(),
+    });
+    data.startFromTemplate(makeWorkout({ isTemplate: true, exercises: [] }), GUEST);
+    expectRoutedTo("local", "createWorkoutLocalFirst");
+  });
+
+  it("hands back an id without waiting for the write to land", () => {
+    // The whole point: the caller navigates on this id while the write is still
+    // in flight, so the list underneath never sits there showing the new
+    // workout for a network round-trip first.
+    let settled = false;
+    asMock(cloud, "createWorkoutLocalFirst").mockReturnValue({
+      id: "cloud-new",
+      saved: new Promise<void>((resolve) =>
+        setTimeout(() => {
+          settled = true;
+          resolve();
+        }, 50)
+      ),
+    });
+    const { id } = data.startFromTemplate(
+      makeWorkout({ userId: UID, isTemplate: true, exercises: [] }),
+      UID
+    );
+    expect(id).toBe("cloud-new");
+    expect(settled).toBe(false);
   });
 });

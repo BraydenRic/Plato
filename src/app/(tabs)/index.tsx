@@ -17,7 +17,12 @@ import { Button, Card, EmptyState, SectionLabel } from "@/components/ui";
 import { FontScaleCap, Palette, Radius, Spacing } from "@/constants/theme";
 import { useAuth } from "@/context/AuthContext";
 import { useWorkouts } from "@/hooks/use-workouts";
-import { createWorkout, deleteWorkout, startFromTemplate, stripUndefined } from "@/lib/data";
+import {
+  createWorkoutLocalFirst,
+  deleteWorkout,
+  startFromTemplate,
+  stripUndefined,
+} from "@/lib/data";
 import { useWeightUnit } from "@/context/UnitContext";
 import { useTheme } from "@/context/ThemeContext";
 import {
@@ -116,63 +121,57 @@ export default function WorkoutsScreen() {
     return false;
   }
 
-  async function quickStart() {
+  function quickStart() {
     if (!dataUserId || starting || atActiveLimit()) return;
     setStarting(true);
-    try {
-      const id = await createWorkout(
-        stripUndefined({
-          userId: dataUserId,
-          name: defaultWorkoutName(),
-          isTemplate: false,
-          exercises: [],
-          createdAt: new Date(),
-          startedAt: new Date(),
-        })
-      );
-      router.push(`/workout/${id}`);
-    } catch {
-      Alert.alert("Couldn't start workout", "Check your connection and try again.");
-    } finally {
-      setStarting(false);
-    }
+    const { id, saved } = createWorkoutLocalFirst(
+      stripUndefined({
+        userId: dataUserId,
+        name: defaultWorkoutName(),
+        isTemplate: false,
+        exercises: [],
+        createdAt: new Date(),
+        startedAt: new Date(),
+      })
+    );
+    router.push(`/workout/${id}`);
+    saved
+      .catch(() => Alert.alert("Couldn't start workout", "Check your connection and try again."))
+      .finally(() => setStarting(false));
   }
 
-  async function planEmpty(day: Date) {
+  function planEmpty(day: Date) {
     if (!dataUserId || starting) return;
     setStarting(true);
-    try {
-      const id = await createWorkout(
-        stripUndefined({
-          userId: dataUserId,
-          name: `${day.toLocaleDateString(undefined, { weekday: "long" })} Workout`,
-          isTemplate: false,
-          exercises: [],
-          createdAt: new Date(),
-          scheduledFor: day,
-        })
-      );
-      router.push(`/workout/${id}`);
-    } catch {
-      Alert.alert("Couldn't plan workout", "Check your connection and try again.");
-    } finally {
-      setStarting(false);
-    }
+    const { id, saved } = createWorkoutLocalFirst(
+      stripUndefined({
+        userId: dataUserId,
+        name: `${day.toLocaleDateString(undefined, { weekday: "long" })} Workout`,
+        isTemplate: false,
+        exercises: [],
+        createdAt: new Date(),
+        scheduledFor: day,
+      })
+    );
+    router.push(`/workout/${id}`);
+    saved
+      .catch(() => Alert.alert("Couldn't plan workout", "Check your connection and try again."))
+      .finally(() => setStarting(false));
   }
 
-  async function planFromTemplate(template: Workout, day: Date, navigate = true) {
+  function planFromTemplate(template: Workout, day: Date, navigate = true) {
     if (!dataUserId || starting) return;
+    // Navigate on the id rather than on the write. Waiting for the server first
+    // leaves this list on screen with the new workout already in it, which
+    // reads as the workout appearing under today a beat before the screen opens.
     setStarting(true);
-    try {
-      const id = await startFromTemplate(template, dataUserId, day);
-      // Future plans just get scheduled and we stay on the calendar; logging a
-      // past day opens the workout so its sets can be filled in.
-      if (navigate) router.push(`/workout/${id}`);
-    } catch {
-      Alert.alert("Couldn't plan workout", "Check your connection and try again.");
-    } finally {
-      setStarting(false);
-    }
+    const { id, saved } = startFromTemplate(template, dataUserId, day);
+    // Future plans just get scheduled and we stay on the calendar; logging a
+    // past day opens the workout so its sets can be filled in.
+    if (navigate) router.push(`/workout/${id}`);
+    saved
+      .catch(() => Alert.alert("Couldn't plan workout", "Check your connection and try again."))
+      .finally(() => setStarting(false));
   }
 
   function planWorkout(day: Date) {
@@ -196,20 +195,17 @@ export default function WorkoutsScreen() {
     });
   }
 
-  async function beginTemplate(template: Workout) {
+  function beginTemplate(template: Workout) {
     if (!dataUserId || starting || atActiveLimit()) return;
     setStarting(true);
-    try {
-      const id = await startFromTemplate(template, dataUserId);
-      router.push(`/workout/${id}`);
-    } catch {
-      Alert.alert("Couldn't start workout", "Check your connection and try again.");
-    } finally {
-      setStarting(false);
-    }
+    const { id, saved } = startFromTemplate(template, dataUserId);
+    router.push(`/workout/${id}`);
+    saved
+      .catch(() => Alert.alert("Couldn't start workout", "Check your connection and try again."))
+      .finally(() => setStarting(false));
   }
 
-  async function newTemplate() {
+  function newTemplate() {
     if (!dataUserId) return;
     if (templates.length >= MAX_TEMPLATES) {
       Alert.alert(
@@ -218,20 +214,19 @@ export default function WorkoutsScreen() {
       );
       return;
     }
-    try {
-      const id = await createWorkout(
-        stripUndefined({
-          userId: dataUserId,
-          name: "New template",
-          isTemplate: true,
-          exercises: [],
-          createdAt: new Date(),
-        }) as Omit<Workout, "id">
-      );
-      router.push(`/workout/${id}`);
-    } catch {
-      Alert.alert("Couldn't create template", "Check your connection and try again.");
-    }
+    const { id, saved } = createWorkoutLocalFirst(
+      stripUndefined({
+        userId: dataUserId,
+        name: "New template",
+        isTemplate: true,
+        exercises: [],
+        createdAt: new Date(),
+      }) as Omit<Workout, "id">
+    );
+    router.push(`/workout/${id}`);
+    saved.catch(() =>
+      Alert.alert("Couldn't create template", "Check your connection and try again.")
+    );
   }
 
   // Turn a weekly-split suggestion into a real workout for the selected day,

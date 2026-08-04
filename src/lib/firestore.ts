@@ -141,6 +141,32 @@ export async function createWorkout(
   return ref.id;
 }
 
+/**
+ * Creates a workout and hands back its id straight away, with the write still
+ * in flight.
+ *
+ * addDoc generates the id on the client and Firestore's cache reflects the new
+ * document immediately, but the promise only settles on server ack. Awaiting it
+ * before navigating means the list underneath re-renders with the new workout
+ * and sits there for a whole round-trip — visible as the workout appearing
+ * under today just before the screen opens.
+ *
+ * The caller navigates on `id` and watches `saved` for failure. Deliberately
+ * not used by the migration, which must know a workout is really in the cloud
+ * before removing it from the device.
+ */
+export function createWorkoutLocalFirst(workout: Omit<Workout, "id">): {
+  id: string;
+  saved: Promise<void>;
+} {
+  const ref = doc(collection(db, "workouts"));
+  const saved = setDoc(ref, {
+    ...workout,
+    createdAt: workout.createdAt ?? serverTimestamp(),
+  });
+  return { id: ref.id, saved };
+}
+
 export async function updateWorkout(id: string, updates: Partial<Workout>): Promise<void> {
   await updateDoc(doc(db, "workouts", id), updates);
 }

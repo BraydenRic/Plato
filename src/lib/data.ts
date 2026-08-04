@@ -79,12 +79,22 @@ function blankSets(exercises: WorkoutExercise[]): WorkoutExercise[] {
 
 // Without `scheduledFor` the workout starts immediately; with it, it becomes a
 // plan for that day — no startedAt until the user actually begins it.
+/** See firestore.createWorkoutLocalFirst — navigate on `id`, watch `saved`. */
+export function createWorkoutLocalFirst(workout: Omit<Workout, "id">): {
+  id: string;
+  saved: Promise<void>;
+} {
+  return isGuestUserId(workout.userId)
+    ? local.createWorkoutLocalFirst(workout)
+    : cloud.createWorkoutLocalFirst(cloud.stripUndefined(workout));
+}
+
 export function startFromTemplate(
   template: Workout,
   userId: string,
   scheduledFor?: Date
-): Promise<string> {
-  return createWorkout(
+): { id: string; saved: Promise<void> } {
+  return createWorkoutLocalFirst(
     cloud.stripUndefined({
       userId,
       name: template.name,

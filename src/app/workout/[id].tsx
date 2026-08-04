@@ -502,11 +502,17 @@ export default function WorkoutScreen() {
       {
         text: isTemplate ? "Delete template" : "Delete workout",
         style: "destructive" as const,
-        onPress: async () => {
+        onPress: () => {
           // The timer now outlives this screen, so it has to go with the workout.
           if (timing) clearTimer();
-          await deleteWorkout(workout!);
+          // Leave first. Deleting while this screen is still mounted makes its
+          // own subscription fire with nothing, so it renders its empty state
+          // for a frame before the navigation lands — the blank flash on the
+          // way out. Going back first means the screen is gone by then.
           router.back();
+          deleteWorkout(workout!).catch(() =>
+            Alert.alert("Couldn't delete", "Check your connection and try again.")
+          );
         },
       },
     ]);

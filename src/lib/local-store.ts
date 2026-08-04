@@ -236,6 +236,21 @@ export async function getCompletedWorkouts(_userId: string): Promise<Workout[]> 
     .sort((a, b) => b.completedAt!.getTime() - a.completedAt!.getTime());
 }
 
+/** Device counterpart of the cloud's local-first create. The id is ours to
+ *  choose either way, so this only differs in shape. */
+export function createWorkoutLocalFirst(workout: Omit<Workout, "id">): {
+  id: string;
+  saved: Promise<void>;
+} {
+  const id = `local-${newId()}`;
+  const saved = (async () => {
+    const data = await load();
+    data.workouts.push({ ...workout, id, createdAt: workout.createdAt ?? new Date() });
+    await commit();
+  })();
+  return { id, saved };
+}
+
 export async function createWorkout(workout: Omit<Workout, "id">): Promise<string> {
   const data = await load();
   const id = `local-${newId()}`;
