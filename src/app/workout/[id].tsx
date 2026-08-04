@@ -91,6 +91,14 @@ export default function WorkoutScreen() {
   // (not InputAccessoryView, which doesn't render on the new architecture) so it
   // only appears while a set input is focused.
   const [keypadOpen, setKeypadOpen] = useState(false);
+  // Whether the keyboard is up at all, by any route — including the name field,
+  // which deliberately keeps the keypad bar closed. Used only to keep the footer
+  // away from the keyboard; see where it is read.
+  const [keyboardUp, setKeyboardUp] = useState(false);
+  // Whether a field actually took focus, as opposed to merely being pressed.
+  // The watchdog below leans on this to tell a cancelled press apart from a
+  // keyboard that is only slow to arrive.
+  const keypadConfirmed = useRef(false);
   const registerInput = (key: string, node: TextInput | null) => {
     if (node) inputRefs.current.set(key, node);
     else inputRefs.current.delete(key);
@@ -99,18 +107,36 @@ export default function WorkoutScreen() {
   // The bar hides whenever the keyboard goes away, however it was dismissed.
   useEffect(() => {
     const event = Platform.OS === "ios" ? "keyboardWillHide" : "keyboardDidHide";
-    const sub = Keyboard.addListener(event, () => setKeypadOpen(false));
-    return () => sub.remove();
+    const sub = Keyboard.addListener(event, () => {
+      keypadConfirmed.current = false;
+      setKeypadOpen(false);
+      setKeyboardUp(false);
+    });
+    const showEvent = Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow";
+    const shown = Keyboard.addListener(showEvent, () => setKeyboardUp(true));
+    return () => {
+      sub.remove();
+      shown.remove();
+    };
   }, []);
 
   // The bar opens on press-in (before the keyboard, so the footer never
   // flashes upward), but a cancelled press — like a scroll that starts on an
   // input — would strand it with no keyboard. Re-check once the keyboard has
   // had time to appear and back out if it never did.
+  //
+  // Focus is what separates the two cases. Keyboard.isVisible() alone can't:
+  // the first tap after the app comes to the foreground routinely takes longer
+  // than this to animate in, and treating that as a cancelled press closed the
+  // bar while the keyboard was still on its way up. That left the footer
+  // showing — it renders on !keypadOpen — with KeyboardAvoidingView lifting
+  // "Finish workout" into the space Done had just vacated, right under the
+  // thumb of someone mid-set.
   useEffect(() => {
     if (!keypadOpen) return;
     const check = setTimeout(() => {
-      if (!Keyboard.isVisible()) setKeypadOpen(false);
+      if (keypadConfirmed.current || Keyboard.isVisible()) return;
+      setKeypadOpen(false);
     }, 600);
     return () => clearTimeout(check);
   }, [keypadOpen]);
@@ -596,8 +622,9 @@ export default function WorkoutScreen() {
                 prevSets={previousSets.get(exercise.exerciseId)}
                 readOnly={isDone}
                 registerInput={registerInput}
-                onInputFocus={(key) => {
+                onInputFocus={(key, focused) => {
                   focusedField.current = key;
+                  if (focused) keypadConfirmed.current = true;
                   setKeypadOpen(true);
                 }}
                 onPatchSet={(setId, patch) => patchSet(exercise.id, setId, patch)}
@@ -640,8 +667,13 @@ export default function WorkoutScreen() {
         )}
 
         {/* Hidden while the keypad toolbar is up: the footer button would sit
-            right above it, and a mis-tap mid-workout would finish the session. */}
-        {!keypadOpen && (
+            right above it, and a mis-tap mid-workout would finish the session.
+            Also hidden for any other keyboard — renaming the workout raises one
+            without the toolbar — so that "Finish workout" can never end up
+            adjacent to the keyboard, whatever route got it there. Keeping this
+            structural matters more than the toolbar state being right: one is a
+            missing button, the other ends the session. */}
+        {!keypadOpen && !keyboardUp && (
         <View style={styles.footer}>
           {isTemplate ? (
             <Button title="Done" variant="secondary" onPress={() => router.back()} />
@@ -744,7 +776,7 @@ function ExerciseCard({
   dragActive?: boolean;
   readOnly: boolean;
   registerInput?: (key: string, node: TextInput | null) => void;
-  onInputFocus?: (key: string) => void;
+  onInputFocus?: (key: string, focused?: boolean) => void;
   onPatchSet: (setId: string, patch: Partial<WorkoutSet>) => void;
   onAddSet: () => void;
   onRemoveSet: (setId: string) => void;
@@ -880,7 +912,7 @@ function SetRow({
   runningStartedAt?: number;
   onToggleTimer?: () => void;
   registerInput?: (key: string, node: TextInput | null) => void;
-  onInputFocus?: (key: string) => void;
+  onInputFocus?: (key: string, focused?: boolean) => void;
   onPatch: (patch: Partial<WorkoutSet>) => void;
   onRemove: () => void;
 }) {
@@ -1055,7 +1087,7 @@ function SetRow({
               onPressIn={readOnly ? undefined : () => onInputFocus?.(fieldKey(set.id, "duration"))}
               onFocus={() => {
                 editing.current = true;
-                onInputFocus?.(fieldKey(set.id, "duration"));
+                onInputFocus?.(fieldKey(set.id, "duration"), true);
               }}
               onChangeText={setDurationText}
               onEndEditing={commitDuration}
@@ -1096,7 +1128,7 @@ function SetRow({
             onPressIn={readOnly ? undefined : () => onInputFocus?.(fieldKey(set.id, "weight"))}
             onFocus={() => {
               editing.current = true;
-              onInputFocus?.(fieldKey(set.id, "weight"));
+              onInputFocus?.(fieldKey(set.id, "weight"), true);
             }}
             onChangeText={setWeightText}
             onEndEditing={commit}
@@ -1113,7 +1145,7 @@ function SetRow({
             onPressIn={readOnly ? undefined : () => onInputFocus?.(fieldKey(set.id, "reps"))}
             onFocus={() => {
               editing.current = true;
-              onInputFocus?.(fieldKey(set.id, "reps"));
+              onInputFocus?.(fieldKey(set.id, "reps"), true);
             }}
             onChangeText={setRepsText}
             onEndEditing={commit}
