@@ -658,6 +658,7 @@ export default function WorkoutScreen() {
                 onRemove={() => removeExercise(exercise.id)}
                 timingSetId={timing?.exerciseId === exercise.id ? timing.setId : undefined}
                 timingStartedAt={timing?.exerciseId === exercise.id ? timing.startedAt : undefined}
+                bodyweightLbs={bodyweightLbs}
                 onToggleTimer={(setId, duration) => toggleSetTimer(exercise.id, setId, duration)}
               />
             ))}
@@ -791,6 +792,7 @@ function ExerciseCard({
   onRemove,
   timingSetId,
   timingStartedAt,
+  bodyweightLbs,
   onToggleTimer,
 }: {
   exercise: WorkoutExercise;
@@ -808,6 +810,8 @@ function ExerciseCard({
   onRemove: () => void;
   timingSetId?: string;
   timingStartedAt?: number;
+  /** What the lifter weighed when this workout happened, for the BW baseline. */
+  bodyweightLbs?: number;
   onToggleTimer?: (setId: string, currentDuration?: number) => void;
 }) {
   const { unit } = useWeightUnit();
@@ -821,7 +825,16 @@ function ExerciseCard({
         <View style={{ flex: 1 }}>
           <Text style={styles.exerciseName}>{exercise.exercise.name}</Text>
           <Text style={[styles.exerciseCategory, { color: theme.accentText }]}>
+            {/* The baseline is the same for every set, so it belongs here rather
+                than repeated down the rows. Without a weigh-in on file it says
+                so plainly — those sets are counting zero, and silently showing
+                nothing would hide that. */}
             {exercise.exercise.category}
+            {bodyweight
+              ? bodyweightLbs
+                ? ` · BW ${Math.round(convertWeight(bodyweightLbs, "lbs", unit))} ${unit}`
+                : " · BW not set"
+              : ""}
           </Text>
         </View>
         {templateMode && (
@@ -872,7 +885,7 @@ function ExerciseCard({
             ) : (
               <>
                 <Text style={[styles.setHeaderCell, styles.inputCol]} maxFontSizeMultiplier={FontScaleCap.grid}>
-                  WEIGHT ({unit.toUpperCase()})
+                  {bodyweight ? "+ " : ""}WEIGHT ({unit.toUpperCase()})
                 </Text>
                 <Text style={[styles.setHeaderCell, styles.inputCol]} maxFontSizeMultiplier={FontScaleCap.grid}>
                   REPS
@@ -954,10 +967,15 @@ function SetRow({
   const shownWeight =
     set.weight != null && (set.weightUnit === "lbs" || set.weightUnit === "kg")
       ? convertWeight(set.weight, set.weightUnit, unit)
-      : set.weightUnit === "bodyweight" && set.weight
+      : set.weightUnit === "bodyweight"
         ? // Added load is banked in lbs, since "bodyweight" says nothing about
-          // which unit the extra was typed in.
-          convertWeight(set.weight, "lbs", unit)
+          // which unit the extra was typed in. Nothing added leaves the field
+          // empty so its BW placeholder shows through — a literal 0 sitting in
+          // the box reads as "zero pounds", which is the one thing a bodyweight
+          // set is not.
+          set.weight
+          ? convertWeight(set.weight, "lbs", unit)
+          : undefined
         : set.weight;
 
   const [weightText, setWeightText] = useState(shownWeight != null ? String(shownWeight) : "");
