@@ -1,0 +1,53 @@
+rules_version = '2';
+
+// Firestore security rules for Plato.
+//
+// Every collection is per-user and keyed by the owner's uid, either as the
+// document id or as a userId field. There is no shared or public data, so the
+// shape below repeats deliberately rather than abstracting: a rule that is
+// slightly wrong is worse than a rule that is slightly repetitive.
+//
+// ADDING A COLLECTION? It needs a block here before it will work. Firestore
+// denies anything unmentioned, and the failure arrives at runtime as a
+// permission-denied that is easy to mistake for a network problem. The
+// bodyweight log shipped without one and did exactly that.
+//
+// Deploy with:  firebase deploy --only firestore:rules
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Workouts, templates and plans. Keyed by a userId field rather than the
+    // document id, so create and update are checked against the incoming data
+    // as well as the existing document — otherwise a write could reassign a
+    // workout to someone else's uid.
+    match /workouts/{workoutId} {
+      allow read, delete: if request.auth != null
+        && resource.data.userId == request.auth.uid;
+      allow create: if request.auth != null
+        && request.resource.data.userId == request.auth.uid;
+      allow update: if request.auth != null
+        && resource.data.userId == request.auth.uid
+        && request.resource.data.userId == request.auth.uid;
+    }
+
+    // Derived totals and streaks, read by plato-web without loading workouts.
+    match /userStats/{uid} {
+      allow read, write: if request.auth != null && request.auth.uid == uid;
+    }
+
+    // Custom exercises, edits to built-ins, and hidden built-ins.
+    match /exerciseLibrary/{userId} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+
+    // The seven-day split: a template id per weekday.
+    match /weeklyPlans/{uid} {
+      allow read, write: if request.auth != null && request.auth.uid == uid;
+    }
+
+    // Dated weigh-ins, used to value bodyweight sets against the weight at the
+    // time of the workout.
+    match /bodyweight/{userId} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+  }
+}
