@@ -69,39 +69,144 @@ const PATCHED = `        } else if let startDate = contentState.elapsedTimerStar
           .padding(.top, 4)
         } else if let date = contentState.timerEndDateInMilliseconds {`;
 
+
+// ── Dynamic Island ───────────────────────────────────────────────────────────
+// Its compact slot is `.frame(maxWidth: 60)` — one number, not two — so this is
+// a swap rather than the side-by-side the lock screen gets. Both the compact
+// and minimal presentations reorder the same way.
+
+const ISLAND_TRAILING_ANCHOR = `        if let startDate = context.state.elapsedTimerStartDateInMilliseconds {
+          ElapsedTimerText(
+            startTimeMilliseconds: startDate,
+            color: nil
+          )
+          .font(.system(size: 15))
+          .minimumScaleFactor(0.8)
+          .fontWeight(.semibold)
+          .frame(maxWidth: 60)
+          .multilineTextAlignment(.trailing)
+          .applyWidgetURL(from: context.attributes.deepLinkUrl)
+        } else if let date = context.state.timerEndDateInMilliseconds {
+          compactTimer(
+            endDate: date,
+            timerType: context.attributes.timerType ?? .circular,
+            progressViewTint: context.attributes.progressViewTint
+          ).applyWidgetURL(from: context.attributes.deepLinkUrl)
+        } else if let progress = context.state.progress {`;
+
+const ISLAND_TRAILING_PATCHED = `        // Rest wins the island while it is running: the slot fits one number,
+        // and the one you are waiting on is the countdown, not the elapsed time.
+        if let date = context.state.timerEndDateInMilliseconds {
+          compactTimer(
+            endDate: date,
+            timerType: context.attributes.timerType ?? .circular,
+            progressViewTint: context.attributes.progressViewTint
+          ).applyWidgetURL(from: context.attributes.deepLinkUrl)
+        } else if let startDate = context.state.elapsedTimerStartDateInMilliseconds {
+          ElapsedTimerText(
+            startTimeMilliseconds: startDate,
+            color: nil
+          )
+          .font(.system(size: 15))
+          .minimumScaleFactor(0.8)
+          .fontWeight(.semibold)
+          .frame(maxWidth: 60)
+          .multilineTextAlignment(.trailing)
+          .applyWidgetURL(from: context.attributes.deepLinkUrl)
+        } else if let progress = context.state.progress {`;
+
+const ISLAND_MINIMAL_ANCHOR = `        if let startDate = context.state.elapsedTimerStartDateInMilliseconds {
+          ElapsedTimerText(
+            startTimeMilliseconds: startDate,
+            color: context.attributes.progressViewTint.map { Color(hex: $0) }
+          )
+          .font(.system(size: 11))
+          .minimumScaleFactor(0.6)
+          .applyWidgetURL(from: context.attributes.deepLinkUrl)
+        } else if let date = context.state.timerEndDateInMilliseconds {
+          compactTimer(
+            endDate: date,
+            timerType: context.attributes.timerType ?? .circular,
+            progressViewTint: context.attributes.progressViewTint
+          ).applyWidgetURL(from: context.attributes.deepLinkUrl)
+        } else if let progress = context.state.progress {`;
+
+const ISLAND_MINIMAL_PATCHED = `        // Rest wins the island while it is running: the slot fits one number,
+        // and the one you are waiting on is the countdown, not the elapsed time.
+        if let date = context.state.timerEndDateInMilliseconds {
+          compactTimer(
+            endDate: date,
+            timerType: context.attributes.timerType ?? .circular,
+            progressViewTint: context.attributes.progressViewTint
+          ).applyWidgetURL(from: context.attributes.deepLinkUrl)
+        } else if let startDate = context.state.elapsedTimerStartDateInMilliseconds {
+          ElapsedTimerText(
+            startTimeMilliseconds: startDate,
+            color: context.attributes.progressViewTint.map { Color(hex: $0) }
+          )
+          .font(.system(size: 11))
+          .minimumScaleFactor(0.6)
+          .applyWidgetURL(from: context.attributes.deepLinkUrl)
+        } else if let progress = context.state.progress {`;
+
+/** Every file this plugin rewrites, with the marker that says it already has. */
+const PATCHES = [
+  {
+    file: "LiveActivityMediumView.swift",
+    applied: "restEndDate",
+    what: "the side-by-side timers on the lock screen",
+    replacements: [[ANCHOR, PATCHED]],
+  },
+  {
+    file: "LiveActivityWidget.swift",
+    applied: "Rest wins the island",
+    what: "the Dynamic Island timer priority",
+    replacements: [
+      [ISLAND_TRAILING_ANCHOR, ISLAND_TRAILING_PATCHED],
+      [ISLAND_MINIMAL_ANCHOR, ISLAND_MINIMAL_PATCHED],
+    ],
+  },
+];
+
 module.exports = function withLiveActivityRestTimer(config) {
   // withXcodeProject, not withDangerousMod: dangerous mods run first in the iOS
   // chain, before expo-live-activity has copied its widget sources in.
   return withXcodeProject(config, (cfg) => {
-    const file = path.join(cfg.modRequest.platformProjectRoot, "LiveActivity", TARGET);
+    for (const patch of PATCHES) {
+      const file = path.join(cfg.modRequest.platformProjectRoot, "LiveActivity", patch.file);
 
-    // Loud rather than silent. If this ever stops matching — an
-    // expo-live-activity upgrade is the likely cause, since the version is
-    // pinned exactly — the build must fail here. The alternative is an app
-    // that ships looking fine and quietly drops the rest timer.
-    if (!fs.existsSync(file)) {
-      throw new Error(
-        `[with-live-activity-rest-timer] ${TARGET} not found at ${file}. ` +
-          `This plugin has to run after expo-live-activity copies its widget ` +
-          `sources — check the plugin order in app.json.`
-      );
+      // Loud rather than silent. If any of this stops matching — an
+      // expo-live-activity upgrade is the likely cause, since the version is
+      // pinned exactly — the build must fail here. The alternative is an app
+      // that ships looking fine and quietly drops a timer.
+      if (!fs.existsSync(file)) {
+        throw new Error(
+          `[with-live-activity-rest-timer] ${patch.file} not found at ${file}. ` +
+            `This plugin has to run after expo-live-activity copies its widget ` +
+            `sources — check the plugin order in app.json.`
+        );
+      }
+
+      let source = fs.readFileSync(file, "utf8");
+
+      // Prebuild is re-runnable, so a second pass over an already-patched file
+      // is expected rather than a problem.
+      if (source.includes(patch.applied)) continue;
+
+      for (const [anchor, patched] of patch.replacements) {
+        if (!source.includes(anchor)) {
+          throw new Error(
+            `[with-live-activity-rest-timer] ${patch.file} no longer matches what ` +
+              `this patch expects, so ${patch.what} cannot be applied. ` +
+              `expo-live-activity has probably changed; re-read that file and ` +
+              `update the anchors.`
+          );
+        }
+        source = source.replace(anchor, patched);
+      }
+
+      fs.writeFileSync(file, source);
     }
-
-    const source = fs.readFileSync(file, "utf8");
-
-    // Prebuild is re-runnable, so a second pass over an already-patched file
-    // is expected rather than a problem.
-    if (source.includes("restEndDate")) return cfg;
-
-    if (!source.includes(ANCHOR)) {
-      throw new Error(
-        `[with-live-activity-rest-timer] the timer branch in ${TARGET} no longer ` +
-          `matches what this patch expects. expo-live-activity has probably ` +
-          `changed; re-read its medium view and update ANCHOR/PATCHED.`
-      );
-    }
-
-    fs.writeFileSync(file, source.replace(ANCHOR, PATCHED));
     return cfg;
   });
 };
