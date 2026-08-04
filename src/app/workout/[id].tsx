@@ -22,12 +22,13 @@ import { Button, Card, EmptyState } from "@/components/ui";
 import { FontScaleCap, Palette, Radius, Spacing } from "@/constants/theme";
 import { getCompletedWorkouts, reopenWorkout, saveAsTemplate, stripUndefined, subscribeWorkout, updateWorkout, upsertUserStats, computeStats, deleteWorkout } from "@/lib/data";
 import { useWorkouts } from "@/hooks/use-workouts";
-import { isTimedExercise } from "@/lib/exercises";
+import { isBodyweightExercise, isTimedExercise } from "@/lib/exercises";
 import { useRestTimer } from "@/context/RestTimerContext";
+import { useBodyweight } from "@/hooks/use-bodyweight";
 import { useSetTimer } from "@/context/SetTimerContext";
 import { useWeightUnit } from "@/context/UnitContext";
 import { useTheme } from "@/context/ThemeContext";
-import { convertWeight, displayVolume, formatClock, liveSetSeconds, newId, previousSetsByExercise, relativeDay, sameDay, startOfDay, workoutVolumeLbs, completedSetCount, totalSetCount, MAX_TEMPLATES, MAX_ACTIVE_WORKOUTS } from "@/lib/workout-utils";
+import { bodyweightOn, formatBodyweightLoad, convertWeight, displayVolume, formatClock, liveSetSeconds, newId, previousSetsByExercise, relativeDay, sameDay, startOfDay, workoutVolumeLbs, completedSetCount, totalSetCount, MAX_TEMPLATES, MAX_ACTIVE_WORKOUTS } from "@/lib/workout-utils";
 import type { Workout, WorkoutExercise, WorkoutSet } from "@/types";
 
 
@@ -74,6 +75,7 @@ export default function WorkoutScreen() {
   const [finishing, setFinishing] = useState(false);
   const [resuming, setResuming] = useState(false);
   const { restSeconds, rest, startRest, extendRest, endRest } = useRestTimer();
+  const { log: bodyweightLog } = useBodyweight();
   // Only this workout's rest. A rest outlives the screen by design, so without
   // this the next workout would inherit the last one's countdown.
   const restEndsAt = rest?.workoutId === id ? rest.endsAt : null;
@@ -188,7 +190,19 @@ export default function WorkoutScreen() {
     return () => clearInterval(t);
   }, [restEndsAt]);
 
-  const liveVolume = useMemo(() => (workout ? workoutVolumeLbs(workout) : 0), [workout]);
+  // What the lifter weighed when this workout happened, so bodyweight sets are
+  // valued against that rather than against today's scale. Null until they have
+  // recorded anything, in which case those sets count zero as they always did.
+  const bodyweightLbs = useMemo(() => {
+    if (!workout) return undefined;
+    const when = workout.completedAt ?? workout.startedAt ?? workout.createdAt;
+    return bodyweightOn(bodyweightLog, when)?.lbs;
+  }, [workout, bodyweightLog]);
+
+  const liveVolume = useMemo(
+    () => (workout ? workoutVolumeLbs(workout, bodyweightLbs) : 0),
+    [workout, bodyweightLbs]
+  );
 
   // Last completed numbers per exercise, shown as input placeholders so the
   // user knows what they lifted last time without templates storing weights.
@@ -374,7 +388,9 @@ export default function WorkoutScreen() {
       const durationMinutes = isOffDayPlan
         ? undefined
         : Math.max(1, Math.round((completedAt.getTime() - startedAt.getTime()) / 60_000));
-      const totalVolume = workoutVolumeLbs({ ...workout!, exercises });
+      // Frozen here, with the bodyweight of the day. Readers prefer this stored
+      // number, so a later weigh-in never re-values a finished session.
+      const totalVolume = workoutVolumeLbs({ ...workout!, exercises }, bodyweightLbs);
 
       await updateWorkout(
         workout!.id,
@@ -792,6 +808,7 @@ function ExerciseCard({
   const theme = useTheme();
   // Cardio and holds log a stopwatch per set instead of weight × reps.
   const timed = isTimedExercise(exercise.exercise);
+  const bodyweight = isBodyweightExercise(exercise.exercise);
   return (
     <Card style={[styles.exerciseCard, dragActive && { borderColor: theme.accent }]}>
       <View style={styles.exerciseHeader}>
@@ -868,6 +885,7 @@ function ExerciseCard({
               before={i > 0 ? exercise.sets[i - 1] : undefined}
               readOnly={readOnly}
               timed={timed}
+              bodyweight={bodyweight}
               runningStartedAt={timingSetId === set.id ? timingStartedAt : undefined}
               onToggleTimer={() => onToggleTimer?.(set.id, set.duration)}
               registerInput={registerInput}
@@ -897,6 +915,7 @@ function SetRow({
   before,
   readOnly,
   timed,
+  bodyweight,
   runningStartedAt,
   onToggleTimer,
   registerInput,
@@ -911,6 +930,8 @@ function SetRow({
   before?: WorkoutSet;
   readOnly: boolean;
   timed?: boolean;
+  /** The weight field means *added* load, and blank reads as BW. */
+  bodyweight: boolean;
   /** Set when this row's stopwatch is running (backdated by prior duration). */
   runningStartedAt?: number;
   onToggleTimer?: () => void;
@@ -927,7 +948,11 @@ function SetRow({
   const shownWeight =
     set.weight != null && (set.weightUnit === "lbs" || set.weightUnit === "kg")
       ? convertWeight(set.weight, set.weightUnit, unit)
-      : set.weight;
+      : set.weightUnit === "bodyweight" && set.weight
+        ? // Added load is banked in lbs, since "bodyweight" says nothing about
+          // which unit the extra was typed in.
+          convertWeight(set.weight, "lbs", unit)
+        : set.weight;
 
   const [weightText, setWeightText] = useState(shownWeight != null ? String(shownWeight) : "");
   const [repsText, setRepsText] = useState(set.reps != null ? String(set.reps) : "");
@@ -970,7 +995,9 @@ function SetRow({
   const prevWeight =
     prev?.weight != null && (prev.weightUnit === "lbs" || prev.weightUnit === "kg")
       ? convertWeight(prev.weight, prev.weightUnit, unit)
-      : prev?.weight;
+      : prev?.weightUnit === "bodyweight" && prev.weight
+        ? convertWeight(prev.weight, "lbs", unit)
+        : prev?.weight;
 
   // Sync remote changes into the inputs when not actively editing.
   useEffect(() => {
@@ -996,11 +1023,21 @@ function SetRow({
     // only when it has both a weight and a positive rep count. Partial entries are
     // still stored so the row can flag them with a red X, but don't count as done.
     // Weight 0 is valid (bodyweight moves), but 0 reps isn't a real set.
-    const done = validWeight != null && validReps != null && validReps > 0;
+    // A bodyweight set is done on reps alone — the empty weight field *is* the
+    // load, so waiting for a number would mean it could never be completed.
+    const done = bodyweight
+      ? validReps != null && validReps > 0
+      : validWeight != null && validReps != null && validReps > 0;
     onPatch({
-      // Typed values are in the currently displayed unit, so store that unit.
-      weight: validWeight,
-      ...(validWeight != null ? { weightUnit: unit } : {}),
+      // Typed values are in the currently displayed unit, so store that unit —
+      // except on a bodyweight set, where the number is the *added* load and is
+      // banked in lbs because "bodyweight" leaves nowhere to record a unit.
+      weight: bodyweight && validWeight != null ? convertWeight(validWeight, unit, "lbs") : validWeight,
+      ...(bodyweight
+        ? { weightUnit: "bodyweight" as const }
+        : validWeight != null
+          ? { weightUnit: unit }
+          : {}),
       reps: validReps,
       isCompleted: done,
       completedAt: done ? new Date() : undefined,
@@ -1135,8 +1172,16 @@ function SetRow({
             }}
             onChangeText={setWeightText}
             onEndEditing={commit}
-            keyboardType="decimal-pad"
-            placeholder={prevWeight != null ? String(prevWeight) : "—"}
+            keyboardType={bodyweight ? "numbers-and-punctuation" : "decimal-pad"}
+            placeholder={
+              bodyweight
+                ? // The empty field *is* the load on these, so it shows what it
+                  // means — "BW", or last session's added weight.
+                  formatBodyweightLoad(prev?.weightUnit === "bodyweight" ? prev.weight : 0, unit)
+                : prevWeight != null
+                  ? String(prevWeight)
+                  : "—"
+            }
             placeholderTextColor={Palette.textTertiary}
             editable={!readOnly}
           />

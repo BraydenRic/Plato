@@ -95,18 +95,39 @@ export const MAX_BODYWEIGHT_ENTRIES = 2000;
 
 const KG_TO_LBS = 2.20462;
 
-export function setVolumeLbs(set: WorkoutSet): number {
+export function setVolumeLbs(set: WorkoutSet, bodyweightLbs?: number): number {
   if (!set.isCompleted || !set.reps) return 0;
-  if (set.weightUnit === "bodyweight" || !set.weight) return 0;
+  if (set.weightUnit === "bodyweight") {
+    // Nothing recorded, nothing invented: a bodyweight set counts zero until
+    // the user has told the app what they weigh, exactly as it did before.
+    if (!bodyweightLbs) return 0;
+    // `weight` is the added load here, already in lbs, and may be negative for
+    // the assisted machine. Clamped so heavy assistance can't go below zero.
+    return set.reps * Math.max(0, bodyweightLbs + (set.weight ?? 0));
+  }
+  if (!set.weight) return 0;
   const lbs = set.weightUnit === "kg" ? set.weight * KG_TO_LBS : set.weight;
   return set.reps * lbs;
 }
 
-export function workoutVolumeLbs(workout: Workout): number {
+/**
+ * `bodyweightLbs` is what the lifter weighed when this workout happened — the
+ * caller resolves it with bodyweightOn, since only it knows the date. Omitted,
+ * bodyweight sets count zero, which is what every reader of an already-finished
+ * workout wants: those have their volume stored and must not be re-valued.
+ */
+export function workoutVolumeLbs(workout: Workout, bodyweightLbs?: number): number {
   return workout.exercises.reduce(
-    (sum, ex) => sum + ex.sets.reduce((s, set) => s + setVolumeLbs(set), 0),
+    (sum, ex) => sum + ex.sets.reduce((s, set) => s + setVolumeLbs(set, bodyweightLbs), 0),
     0
   );
+}
+
+/** Formats a bodyweight set's load: "BW", "BW+25", "BW-30". */
+export function formatBodyweightLoad(added: number | undefined, unit: "lbs" | "kg"): string {
+  if (!added) return "BW";
+  const shown = Math.round(convertWeight(Math.abs(added), "lbs", unit) * 10) / 10;
+  return `BW${added > 0 ? "+" : "-"}${shown}`;
 }
 
 export function completedSetCount(workout: Workout): number {

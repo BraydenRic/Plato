@@ -19,6 +19,7 @@ import {
   workoutDay,
   workoutVolumeLbs,
   MAX_BODYWEIGHT_ENTRIES,
+  formatBodyweightLoad,
   withBodyweightEntry,
   bodyweightOn,
 } from "../workout-utils";
@@ -48,7 +49,11 @@ describe("setVolumeLbs", () => {
     expect(setVolumeLbs(makeSet({ reps: 0 }))).toBe(0);
   });
 
-  it("ignores bodyweight sets, which carry no external load", () => {
+  it("ignores a bodyweight set when no bodyweight is supplied", () => {
+    // Not because such a set is worthless — see the bodyweight suite below —
+    // but because the caller has to say what the lifter weighed. Every reader
+    // of an already-finished workout passes nothing, so their stored volume
+    // stays exactly as it was logged.
     expect(setVolumeLbs(makeSet({ weightUnit: "bodyweight", weight: 0 }))).toBe(0);
   });
 
@@ -563,5 +568,72 @@ describe("bodyweightOn", () => {
 
   it("uses the latest for a workout after the last weigh-in", () => {
     expect(bodyweightOn(log, new Date("2027-01-01"))?.lbs).toBe(184);
+  });
+});
+
+describe("bodyweight sets", () => {
+  /**
+   * The load is the lifter, and the weight field is only what they added — a
+   * plate on a dip belt, or a negative for the assisted machine. The added
+   * amount is banked in lbs because "bodyweight" leaves nowhere to record which
+   * unit was typed.
+   */
+  const bwSet = (reps: number, added?: number) => ({
+    id: "s",
+    reps,
+    weight: added,
+    weightUnit: "bodyweight" as const,
+    isCompleted: true,
+  });
+
+  it("counts the lifter when nothing is added", () => {
+    expect(setVolumeLbs(bwSet(10), 180)).toBe(1800);
+  });
+
+  it("adds the belt", () => {
+    expect(setVolumeLbs(bwSet(5, 25), 180)).toBe(205 * 5);
+  });
+
+  it("subtracts the assistance", () => {
+    expect(setVolumeLbs(bwSet(12, -30), 180)).toBe(150 * 12);
+  });
+
+  it("counts zero when no bodyweight has ever been recorded", () => {
+    // Nothing invented from a number the app doesn't have — this is exactly
+    // the behaviour bodyweight sets had before any of this existed.
+    expect(setVolumeLbs(bwSet(10), undefined)).toBe(0);
+    expect(setVolumeLbs(bwSet(10, 25), undefined)).toBe(0);
+  });
+
+  it("never goes negative under more assistance than the lifter weighs", () => {
+    expect(setVolumeLbs(bwSet(10, -500), 180)).toBe(0);
+  });
+
+  it("still ignores a set that was never completed", () => {
+    expect(setVolumeLbs({ ...bwSet(10), isCompleted: false }, 180)).toBe(0);
+  });
+
+  it("leaves loaded sets alone", () => {
+    // Passing a bodyweight must not leak into ordinary lifts.
+    const barbell = { id: "s", reps: 5, weight: 225, weightUnit: "lbs" as const, isCompleted: true };
+    expect(setVolumeLbs(barbell, 180)).toBe(1125);
+    expect(setVolumeLbs(barbell)).toBe(1125);
+  });
+});
+
+describe("formatBodyweightLoad", () => {
+  it("reads as BW with nothing added", () => {
+    expect(formatBodyweightLoad(undefined, "lbs")).toBe("BW");
+    expect(formatBodyweightLoad(0, "lbs")).toBe("BW");
+  });
+
+  it("shows the belt and the assistance", () => {
+    expect(formatBodyweightLoad(25, "lbs")).toBe("BW+25");
+    expect(formatBodyweightLoad(-30, "lbs")).toBe("BW-30");
+  });
+
+  it("converts the added load for a kg lifter", () => {
+    // Banked in lbs, shown in the chosen unit.
+    expect(formatBodyweightLoad(convertWeight(20, "kg", "lbs"), "kg")).toBe("BW+20");
   });
 });

@@ -19,19 +19,19 @@ export const EXERCISES: Exercise[] = [
   { id: "low-cable-fly", name: "Low-to-High Cable Fly", category: "Chest", musclesWorked: ["Upper Chest"], description: "Pulleys set low, sweep upward. Emphasizes the upper chest." },
   { id: "high-cable-fly", name: "High-to-Low Cable Fly", category: "Chest", musclesWorked: ["Lower Chest"], description: "Pulleys set high, sweep down. Emphasizes the lower chest." },
   { id: "incline-cable-fly", name: "Incline Cable Fly", category: "Chest", musclesWorked: ["Upper Chest"], description: "Cable fly on an incline bench for constant upper-chest tension." },
-  { id: "push-up", name: "Push-Up", category: "Chest", musclesWorked: ["Chest", "Triceps", "Core"], description: "Bodyweight pressing movement. Hands shoulder-width, full range of motion." },
-  { id: "dips-chest", name: "Chest Dips", category: "Chest", musclesWorked: ["Chest", "Triceps"], description: "Lean forward to emphasize chest over triceps." },
-  { id: "weighted-dips-chest", name: "Weighted Chest Dips", category: "Chest", musclesWorked: ["Chest", "Triceps"], description: "Add load via belt or dumbbell. Lean forward for chest emphasis." },
+  { id: "push-up", name: "Push-Up", category: "Chest", musclesWorked: ["Chest", "Triceps", "Core"], description: "Bodyweight pressing movement. Hands shoulder-width, full range of motion.", isBodyweight: true },
+  { id: "dips-chest", name: "Chest Dips", category: "Chest", musclesWorked: ["Chest", "Triceps"], description: "Lean forward to emphasize chest over triceps.", isBodyweight: true },
+  { id: "weighted-dips-chest", name: "Weighted Chest Dips", category: "Chest", musclesWorked: ["Chest", "Triceps"], description: "Add load via belt or dumbbell. Lean forward for chest emphasis.", isBodyweight: true },
   { id: "landmine-press", name: "Landmine Press", category: "Chest", musclesWorked: ["Upper Chest", "Shoulders", "Triceps"], description: "Press a barbell end at an angle. Shoulder-friendly upper-chest work." },
   { id: "svend-press", name: "Svend Press", category: "Chest", musclesWorked: ["Chest"], description: "Squeeze plates together and press out. Pure inner-chest contraction." },
 
   // Back
   { id: "deadlift", name: "Deadlift", category: "Back", musclesWorked: ["Back", "Glutes", "Hamstrings", "Core"], description: "King of all lifts. Hinge at hips, neutral spine, drive through the floor." },
   { id: "rack-pull", name: "Rack Pull", category: "Back", musclesWorked: ["Back", "Traps", "Glutes"], description: "Partial deadlift from pins. Overloads the upper back and lockout." },
-  { id: "pull-up", name: "Pull-Up", category: "Back", musclesWorked: ["Lats", "Biceps"], description: "Overhand grip, full hang to chin over bar. The gold standard for back width." },
-  { id: "wide-pull-up", name: "Wide-Grip Pull-Up", category: "Back", musclesWorked: ["Lats", "Biceps"], description: "Wider grip biases lat width and the upper back." },
-  { id: "chin-up", name: "Chin-Up", category: "Back", musclesWorked: ["Lats", "Biceps"], description: "Underhand grip. More bicep involvement than pull-up." },
-  { id: "inverted-row", name: "Inverted Row", category: "Back", musclesWorked: ["Back", "Biceps"], description: "Body-weight horizontal pull under a fixed bar. Scalable for any level." },
+  { id: "pull-up", name: "Pull-Up", category: "Back", musclesWorked: ["Lats", "Biceps"], description: "Overhand grip, full hang to chin over bar. The gold standard for back width.", isBodyweight: true },
+  { id: "wide-pull-up", name: "Wide-Grip Pull-Up", category: "Back", musclesWorked: ["Lats", "Biceps"], description: "Wider grip biases lat width and the upper back.", isBodyweight: true },
+  { id: "chin-up", name: "Chin-Up", category: "Back", musclesWorked: ["Lats", "Biceps"], description: "Underhand grip. More bicep involvement than pull-up.", isBodyweight: true },
+  { id: "inverted-row", name: "Inverted Row", category: "Back", musclesWorked: ["Back", "Biceps"], description: "Body-weight horizontal pull under a fixed bar. Scalable for any level.", isBodyweight: true },
   { id: "barbell-row", name: "Barbell Row", category: "Back", musclesWorked: ["Back", "Biceps", "Core"], description: "Hinged position, pull bar to lower chest. Squeeze shoulder blades." },
   { id: "pendlay-row", name: "Pendlay Row", category: "Back", musclesWorked: ["Back", "Biceps", "Core"], description: "Explosive row from a dead stop on the floor each rep." },
   { id: "dumbbell-row", name: "Dumbbell Row", category: "Back", musclesWorked: ["Back", "Biceps"], description: "One arm braced on a bench. Big stretch and full contraction." },
@@ -49,7 +49,7 @@ export const EXERCISES: Exercise[] = [
   { id: "face-pull", name: "Face Pull", category: "Back", musclesWorked: ["Shoulders", "Back"], description: "Cable at face height, pull to forehead. Excellent for rear delts." },
   { id: "barbell-shrug", name: "Barbell Shrug", category: "Back", musclesWorked: ["Traps"], description: "Elevate the shoulders straight up. Direct upper-trap builder." },
   { id: "dumbbell-shrug", name: "Dumbbell Shrug", category: "Back", musclesWorked: ["Traps"], description: "Shrug with dumbbells for a longer range than the barbell." },
-  { id: "back-extension", name: "Back Extension", category: "Back", musclesWorked: ["Lower Back", "Glutes", "Hamstrings"], description: "Hyperextension bench. Strengthens the spinal erectors and hips." },
+  { id: "back-extension", name: "Back Extension", category: "Back", musclesWorked: ["Lower Back", "Glutes", "Hamstrings"], description: "Hyperextension bench. Strengthens the spinal erectors and hips.", isBodyweight: true },
 
   // Shoulders
   { id: "ohp", name: "Overhead Press", category: "Shoulders", musclesWorked: ["Shoulders", "Triceps", "Core"], description: "Press barbell from rack position overhead. Full body stability required." },
@@ -98,9 +98,9 @@ export const EXERCISES: Exercise[] = [
   { id: "cable-overhead-extension", name: "Cable Overhead Extension", category: "Triceps", musclesWorked: ["Triceps"], description: "Rope overhead from a low pulley. Constant long-head stretch." },
   { id: "db-overhead-extension", name: "Dumbbell Overhead Extension", category: "Triceps", musclesWorked: ["Triceps"], description: "Two-handed dumbbell behind the head. Deep long-head stretch." },
   { id: "machine-tricep-extension", name: "Machine Triceps Extension", category: "Triceps", musclesWorked: ["Triceps"], description: "Seated dip or extension machine. Controlled, high-rep friendly." },
-  { id: "dips-tricep", name: "Tricep Dips", category: "Triceps", musclesWorked: ["Triceps", "Chest"], description: "Upright torso to emphasize triceps." },
-  { id: "bench-dips", name: "Bench Dips", category: "Triceps", musclesWorked: ["Triceps"], description: "Hands on a bench behind you. Scalable bodyweight triceps work." },
-  { id: "diamond-push-up", name: "Diamond Push-Up", category: "Triceps", musclesWorked: ["Triceps", "Chest"], description: "Hands together under the chest. Bodyweight triceps emphasis." },
+  { id: "dips-tricep", name: "Tricep Dips", category: "Triceps", musclesWorked: ["Triceps", "Chest"], description: "Upright torso to emphasize triceps.", isBodyweight: true },
+  { id: "bench-dips", name: "Bench Dips", category: "Triceps", musclesWorked: ["Triceps"], description: "Hands on a bench behind you. Scalable bodyweight triceps work.", isBodyweight: true },
+  { id: "diamond-push-up", name: "Diamond Push-Up", category: "Triceps", musclesWorked: ["Triceps", "Chest"], description: "Hands together under the chest. Bodyweight triceps emphasis.", isBodyweight: true },
   { id: "kickback", name: "Tricep Kickback", category: "Triceps", musclesWorked: ["Triceps"], description: "Hinge forward, extend arm back. Lateral head isolation." },
 
   // Forearms
@@ -129,19 +129,19 @@ export const EXERCISES: Exercise[] = [
   { id: "belt-squat", name: "Belt Squat", category: "Legs", musclesWorked: ["Quads", "Glutes"], description: "Load hangs from the hips. Trains legs with zero spinal load." },
   { id: "leg-press", name: "Leg Press", category: "Legs", musclesWorked: ["Quads", "Glutes", "Hamstrings"], description: "Machine-based pressing. Foot placement alters emphasis." },
   { id: "single-leg-press", name: "Single-Leg Press", category: "Legs", musclesWorked: ["Quads", "Glutes"], description: "One leg at a time on the leg press. Fixes side-to-side imbalances." },
-  { id: "lunges", name: "Lunges", category: "Legs", musclesWorked: ["Quads", "Glutes", "Hamstrings"], description: "Walking or stationary. Unilateral movement for balance." },
-  { id: "walking-lunge", name: "Walking Lunge", category: "Legs", musclesWorked: ["Quads", "Glutes", "Hamstrings"], description: "Step forward continuously. Loaded unilateral leg and glute work." },
-  { id: "reverse-lunge", name: "Reverse Lunge", category: "Legs", musclesWorked: ["Quads", "Glutes"], description: "Step back into the lunge. Easier on the knees than forward lunges." },
-  { id: "bulgarian-squat", name: "Bulgarian Split Squat", category: "Legs", musclesWorked: ["Quads", "Glutes"], description: "Rear foot elevated. Demanding unilateral leg exercise." },
-  { id: "step-up", name: "Step-Up", category: "Legs", musclesWorked: ["Quads", "Glutes"], description: "Drive up onto a box. Unilateral quad and glute strength." },
-  { id: "sissy-squat", name: "Sissy Squat", category: "Legs", musclesWorked: ["Quads"], description: "Lean back on the toes for an intense quad stretch and contraction." },
+  { id: "lunges", name: "Lunges", category: "Legs", musclesWorked: ["Quads", "Glutes", "Hamstrings"], description: "Walking or stationary. Unilateral movement for balance.", isBodyweight: true },
+  { id: "walking-lunge", name: "Walking Lunge", category: "Legs", musclesWorked: ["Quads", "Glutes", "Hamstrings"], description: "Step forward continuously. Loaded unilateral leg and glute work.", isBodyweight: true },
+  { id: "reverse-lunge", name: "Reverse Lunge", category: "Legs", musclesWorked: ["Quads", "Glutes"], description: "Step back into the lunge. Easier on the knees than forward lunges.", isBodyweight: true },
+  { id: "bulgarian-squat", name: "Bulgarian Split Squat", category: "Legs", musclesWorked: ["Quads", "Glutes"], description: "Rear foot elevated. Demanding unilateral leg exercise.", isBodyweight: true },
+  { id: "step-up", name: "Step-Up", category: "Legs", musclesWorked: ["Quads", "Glutes"], description: "Drive up onto a box. Unilateral quad and glute strength.", isBodyweight: true },
+  { id: "sissy-squat", name: "Sissy Squat", category: "Legs", musclesWorked: ["Quads"], description: "Lean back on the toes for an intense quad stretch and contraction.", isBodyweight: true },
   { id: "leg-extension", name: "Leg Extension", category: "Legs", musclesWorked: ["Quads"], description: "Direct quad isolation. Control the eccentric." },
   { id: "romanian-dl", name: "Romanian Deadlift", category: "Legs", musclesWorked: ["Hamstrings", "Glutes", "Back"], description: "Hip hinge with minimal knee bend. Maximum hamstring stretch." },
   { id: "good-morning", name: "Good Morning", category: "Legs", musclesWorked: ["Hamstrings", "Glutes", "Lower Back"], description: "Barbell on the back, hinge forward. Hamstring and posterior-chain builder." },
   { id: "leg-curl", name: "Lying Leg Curl", category: "Legs", musclesWorked: ["Hamstrings"], description: "Face-down machine curl. Direct hamstring isolation." },
   { id: "seated-leg-curl", name: "Seated Leg Curl", category: "Legs", musclesWorked: ["Hamstrings"], description: "Upright machine curl with the hips flexed. Strong hamstring stretch." },
-  { id: "nordic-curl", name: "Nordic Hamstring Curl", category: "Legs", musclesWorked: ["Hamstrings"], description: "Lower the body under control with anchored ankles. Elite eccentric strength." },
-  { id: "glute-ham-raise", name: "Glute-Ham Raise", category: "Legs", musclesWorked: ["Hamstrings", "Glutes"], description: "GHD bench raise. Powerful hamstring and glute contraction." },
+  { id: "nordic-curl", name: "Nordic Hamstring Curl", category: "Legs", musclesWorked: ["Hamstrings"], description: "Lower the body under control with anchored ankles. Elite eccentric strength.", isBodyweight: true },
+  { id: "glute-ham-raise", name: "Glute-Ham Raise", category: "Legs", musclesWorked: ["Hamstrings", "Glutes"], description: "GHD bench raise. Powerful hamstring and glute contraction.", isBodyweight: true },
   { id: "adductor-machine", name: "Adductor Machine", category: "Legs", musclesWorked: ["Hip Flexors"], description: "Squeeze the pads together. Isolates the inner-thigh adductors." },
   { id: "calf-raise", name: "Calf Raise", category: "Legs", musclesWorked: ["Calves"], description: "Standing or seated. Full range, pause at bottom." },
   { id: "seated-calf-raise", name: "Seated Calf Raise", category: "Legs", musclesWorked: ["Calves"], description: "Knees bent to bias the soleus. Slow, full-range reps." },
@@ -152,37 +152,37 @@ export const EXERCISES: Exercise[] = [
   // Glutes
   { id: "hip-thrust", name: "Hip Thrust", category: "Glutes", musclesWorked: ["Glutes", "Hamstrings"], description: "Bar over hips, drive upward. The premier glute exercise." },
   { id: "machine-hip-thrust", name: "Machine Hip Thrust", category: "Glutes", musclesWorked: ["Glutes", "Hamstrings"], description: "Plate-loaded thrust machine. Easy setup and heavy loading." },
-  { id: "single-leg-hip-thrust", name: "Single-Leg Hip Thrust", category: "Glutes", musclesWorked: ["Glutes"], description: "One leg at a time for unilateral glute strength and balance." },
+  { id: "single-leg-hip-thrust", name: "Single-Leg Hip Thrust", category: "Glutes", musclesWorked: ["Glutes"], description: "One leg at a time for unilateral glute strength and balance.", isBodyweight: true },
   { id: "b-stance-hip-thrust", name: "B-Stance Hip Thrust", category: "Glutes", musclesWorked: ["Glutes"], description: "Staggered stance shifts most load onto the working glute." },
-  { id: "glute-bridge", name: "Glute Bridge", category: "Glutes", musclesWorked: ["Glutes", "Hamstrings"], description: "Floor-based hip extension. Controlled squeeze at top." },
+  { id: "glute-bridge", name: "Glute Bridge", category: "Glutes", musclesWorked: ["Glutes", "Hamstrings"], description: "Floor-based hip extension. Controlled squeeze at top.", isBodyweight: true },
   { id: "cable-pull-through", name: "Cable Pull-Through", category: "Glutes", musclesWorked: ["Glutes", "Hamstrings"], description: "Hip hinge against a low cable. Teaches a strong glute lockout." },
   { id: "cable-kickback", name: "Cable Kickback", category: "Glutes", musclesWorked: ["Glutes"], description: "Ankle attachment, extend leg back. Direct glute isolation." },
   { id: "reverse-hyper", name: "Reverse Hyperextension", category: "Glutes", musclesWorked: ["Glutes", "Hamstrings", "Lower Back"], description: "Swing the legs up behind you. Glutes, hams, and low-back health." },
   { id: "sumo-dl", name: "Sumo Deadlift", category: "Glutes", musclesWorked: ["Glutes", "Hamstrings", "Quads"], description: "Wide stance, vertical torso. Greater hip abductor involvement." },
-  { id: "curtsy-lunge", name: "Curtsy Lunge", category: "Glutes", musclesWorked: ["Glutes", "Quads"], description: "Step behind and across. Targets the gluteus medius." },
+  { id: "curtsy-lunge", name: "Curtsy Lunge", category: "Glutes", musclesWorked: ["Glutes", "Quads"], description: "Step behind and across. Targets the gluteus medius.", isBodyweight: true },
   { id: "abduction-machine", name: "Hip Abduction Machine", category: "Glutes", musclesWorked: ["Glutes"], description: "Seated abduction. Targets gluteus medius and minimus." },
   { id: "banded-lateral-walk", name: "Banded Lateral Walk", category: "Glutes", musclesWorked: ["Glutes"], description: "Band around the knees, step sideways. Glute-medius activation." },
-  { id: "frog-pump", name: "Frog Pump", category: "Glutes", musclesWorked: ["Glutes"], description: "Soles together, pump the hips up. High-rep glute burnout." },
+  { id: "frog-pump", name: "Frog Pump", category: "Glutes", musclesWorked: ["Glutes"], description: "Soles together, pump the hips up. High-rep glute burnout.", isBodyweight: true },
 
   // Core
   { id: "plank", name: "Plank", category: "Core", musclesWorked: ["Core"], description: "Maintain rigid body position. Breathe throughout." },
   { id: "side-plank", name: "Side Plank", category: "Core", musclesWorked: ["Obliques", "Core"], description: "Lateral stability hold. Targets obliques and QL." },
   { id: "hollow-hold", name: "Hollow Body Hold", category: "Core", musclesWorked: ["Abs"], description: "Lower back pressed down, limbs extended. Total anterior-core tension." },
-  { id: "crunch", name: "Crunch", category: "Core", musclesWorked: ["Abs"], description: "Curl the shoulders off the floor. Classic upper-ab movement." },
-  { id: "sit-up", name: "Sit-Up", category: "Core", musclesWorked: ["Abs", "Hip Flexors"], description: "Full flexion from lying to seated. Trains the abs and hip flexors." },
-  { id: "decline-sit-up", name: "Decline Sit-Up", category: "Core", musclesWorked: ["Abs", "Hip Flexors"], description: "Sit-up on a decline bench for added resistance." },
-  { id: "bicycle-crunch", name: "Bicycle Crunch", category: "Core", musclesWorked: ["Abs", "Obliques"], description: "Alternate elbow to opposite knee. Hits abs and obliques." },
-  { id: "reverse-crunch", name: "Reverse Crunch", category: "Core", musclesWorked: ["Abs"], description: "Curl the hips toward the ribs. Lower-ab emphasis." },
+  { id: "crunch", name: "Crunch", category: "Core", musclesWorked: ["Abs"], description: "Curl the shoulders off the floor. Classic upper-ab movement.", isBodyweight: true },
+  { id: "sit-up", name: "Sit-Up", category: "Core", musclesWorked: ["Abs", "Hip Flexors"], description: "Full flexion from lying to seated. Trains the abs and hip flexors.", isBodyweight: true },
+  { id: "decline-sit-up", name: "Decline Sit-Up", category: "Core", musclesWorked: ["Abs", "Hip Flexors"], description: "Sit-up on a decline bench for added resistance.", isBodyweight: true },
+  { id: "bicycle-crunch", name: "Bicycle Crunch", category: "Core", musclesWorked: ["Abs", "Obliques"], description: "Alternate elbow to opposite knee. Hits abs and obliques.", isBodyweight: true },
+  { id: "reverse-crunch", name: "Reverse Crunch", category: "Core", musclesWorked: ["Abs"], description: "Curl the hips toward the ribs. Lower-ab emphasis.", isBodyweight: true },
   { id: "cable-crunch", name: "Cable Crunch", category: "Core", musclesWorked: ["Abs"], description: "Loaded flexion. Curl elbows toward knees." },
   { id: "ab-crunch-machine", name: "Ab Crunch Machine", category: "Core", musclesWorked: ["Abs"], description: "Seated machine crunch. Easy to load progressively." },
-  { id: "hanging-leg-raise", name: "Hanging Leg Raise", category: "Core", musclesWorked: ["Abs", "Hip Flexors"], description: "Dead hang, raise legs to 90° or higher." },
-  { id: "leg-raise", name: "Lying Leg Raise", category: "Core", musclesWorked: ["Abs", "Hip Flexors"], description: "Raise straight legs from the floor. Lower-ab focus." },
-  { id: "toes-to-bar", name: "Toes-to-Bar", category: "Core", musclesWorked: ["Abs", "Hip Flexors"], description: "Hang and bring the toes to the bar. Advanced ab and grip control." },
-  { id: "flutter-kick", name: "Flutter Kicks", category: "Core", musclesWorked: ["Abs", "Hip Flexors"], description: "Small alternating leg kicks. Lower-ab endurance." },
-  { id: "v-up", name: "V-Up", category: "Core", musclesWorked: ["Abs"], description: "Simultaneously raise the torso and legs to meet. Full-ab contraction." },
-  { id: "ab-rollout", name: "Ab Wheel Rollout", category: "Core", musclesWorked: ["Abs"], description: "Advanced anti-extension. Brutal for core strength." },
-  { id: "dead-bug", name: "Dead Bug", category: "Core", musclesWorked: ["Abs"], description: "Extend opposite arm and leg while bracing. Anti-extension control." },
-  { id: "russian-twist", name: "Russian Twist", category: "Core", musclesWorked: ["Obliques", "Core"], description: "Seated rotation with weight. Oblique focus." },
+  { id: "hanging-leg-raise", name: "Hanging Leg Raise", category: "Core", musclesWorked: ["Abs", "Hip Flexors"], description: "Dead hang, raise legs to 90° or higher.", isBodyweight: true },
+  { id: "leg-raise", name: "Lying Leg Raise", category: "Core", musclesWorked: ["Abs", "Hip Flexors"], description: "Raise straight legs from the floor. Lower-ab focus.", isBodyweight: true },
+  { id: "toes-to-bar", name: "Toes-to-Bar", category: "Core", musclesWorked: ["Abs", "Hip Flexors"], description: "Hang and bring the toes to the bar. Advanced ab and grip control.", isBodyweight: true },
+  { id: "flutter-kick", name: "Flutter Kicks", category: "Core", musclesWorked: ["Abs", "Hip Flexors"], description: "Small alternating leg kicks. Lower-ab endurance.", isBodyweight: true },
+  { id: "v-up", name: "V-Up", category: "Core", musclesWorked: ["Abs"], description: "Simultaneously raise the torso and legs to meet. Full-ab contraction.", isBodyweight: true },
+  { id: "ab-rollout", name: "Ab Wheel Rollout", category: "Core", musclesWorked: ["Abs"], description: "Advanced anti-extension. Brutal for core strength.", isBodyweight: true },
+  { id: "dead-bug", name: "Dead Bug", category: "Core", musclesWorked: ["Abs"], description: "Extend opposite arm and leg while bracing. Anti-extension control.", isBodyweight: true },
+  { id: "russian-twist", name: "Russian Twist", category: "Core", musclesWorked: ["Obliques", "Core"], description: "Seated rotation with weight. Oblique focus.", isBodyweight: true },
   { id: "pallof-press", name: "Pallof Press", category: "Core", musclesWorked: ["Obliques", "Abs"], description: "Press a cable straight out and resist rotation. Anti-rotation strength." },
   { id: "woodchopper", name: "Cable Woodchopper", category: "Core", musclesWorked: ["Obliques", "Abs"], description: "Diagonal cable chop across the body. Rotational core power." },
 
@@ -199,8 +199,8 @@ export const EXERCISES: Exercise[] = [
   { id: "stairmaster", name: "StairMaster", category: "Cardio", musclesWorked: ["Glutes", "Legs", "Cardio"], description: "Simulated stair climbing. Cardio with glute emphasis." },
   { id: "jump-rope", name: "Jump Rope", category: "Cardio", musclesWorked: ["Calves", "Cardio", "Shoulders"], description: "High intensity. Excellent for conditioning and coordination." },
   { id: "battle-ropes", name: "Battle Ropes", category: "Cardio", musclesWorked: ["Shoulders", "Core", "Cardio"], description: "Wave heavy ropes. Upper-body power endurance." },
-  { id: "burpees", name: "Burpees", category: "Cardio", musclesWorked: ["Legs", "Core", "Cardio"], description: "Squat, plank, jump. Full-body conditioning staple." },
-  { id: "box-jump", name: "Box Jumps", category: "Cardio", musclesWorked: ["Quads", "Glutes", "Cardio"], description: "Explosive jump onto a box. Power and conditioning." },
+  { id: "burpees", name: "Burpees", category: "Cardio", musclesWorked: ["Legs", "Core", "Cardio"], description: "Squat, plank, jump. Full-body conditioning staple.", isBodyweight: true },
+  { id: "box-jump", name: "Box Jumps", category: "Cardio", musclesWorked: ["Quads", "Glutes", "Cardio"], description: "Explosive jump onto a box. Power and conditioning.", isBodyweight: true },
   { id: "sled-push", name: "Sled Push", category: "Cardio", musclesWorked: ["Quads", "Glutes", "Cardio"], description: "Drive a loaded sled. Brutal legs and conditioning with no eccentric." },
 ];
 
@@ -221,6 +221,21 @@ const TIMED_EXERCISE_IDS = new Set([
 export function isTimedExercise(exercise: Exercise): boolean {
   if (exercise.isTimed != null) return exercise.isTimed;
   return exercise.category === "Cardio" || TIMED_EXERCISE_IDS.has(exercise.id);
+}
+
+// Derived from the library rather than hand-listed: tagging an entry above is
+// all a new bodyweight exercise needs. Same reason as the timed set — workouts
+// embed copies of the exercise object, so older logs carry no flag, but ids match.
+const BODYWEIGHT_EXERCISE_IDS = new Set(
+  EXERCISES.filter((e) => e.isBodyweight).map((e) => e.id)
+);
+
+/** Bodyweight exercises take the lifter's own weight as the load, so their
+ *  weight field means *added* load — a plate on a dip belt, or a negative for
+ *  the assisted machine. An explicit isBodyweight wins over the id list. */
+export function isBodyweightExercise(exercise: Exercise): boolean {
+  if (exercise.isBodyweight != null) return exercise.isBodyweight;
+  return BODYWEIGHT_EXERCISE_IDS.has(exercise.id);
 }
 
 /**

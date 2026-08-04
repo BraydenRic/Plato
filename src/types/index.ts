@@ -7,11 +7,23 @@ export interface Exercise {
   isCustom?: boolean;
   /** Logged as a start/stop timer per set (cardio, holds) instead of weight × reps. */
   isTimed?: boolean;
+  /**
+   * Your own body is the load. The weight field then means *added* load — a
+   * plate on a dip belt, or a negative for the assisted machine — rather than
+   * the total, and blank reads as plain bodyweight.
+   */
+  isBodyweight?: boolean;
 }
 
 export interface WorkoutSet {
   id: string;
   reps?: number;
+  /**
+   * The load. For "lbs"/"kg" sets this is the total, in that unit. For
+   * "bodyweight" sets it is only what was *added* — and always in lbs, because
+   * "bodyweight" leaves no room to say which unit was meant. Absent or 0 is
+   * plain bodyweight; negative is assistance.
+   */
   weight?: number;
   weightUnit: "lbs" | "kg" | "bodyweight";
   /** Seconds, for timed exercises (see Exercise.isTimed) — replaces weight/reps. */
