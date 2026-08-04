@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -10,7 +10,7 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { useRouter } from "expo-router";
+import { useFocusEffect, useRouter } from "expo-router";
 import Ionicons from "@expo/vector-icons/Ionicons";
 
 import { Button, Card, EmptyState, SectionLabel } from "@/components/ui";
@@ -83,8 +83,35 @@ export default function WorkoutsScreen() {
     [weekStart.getTime()]
   );
 
+  /**
+   * The workout we are in the middle of opening, hidden from this screen until
+   * we come back.
+   *
+   * Creating one updates Firestore's cache immediately, but pushing the workout
+   * screen takes an animation to cover this list — so the new row and its
+   * calendar dot appear underneath the incoming screen and are visible for the
+   * length of the transition. Navigating before the write lands (see
+   * createWorkoutLocalFirst) shortened that; it did not remove it, because the
+   * cache was never what we were waiting for.
+   *
+   * Cleared on focus rather than on a timer: the only moment it should come
+   * back is when this screen is on top again.
+   */
+  const [openingId, setOpeningId] = useState<string | null>(null);
+  useFocusEffect(useCallback(() => setOpeningId(null), []));
+
+  // Same suppression for the templates list. The cap checks deliberately keep
+  // counting `templates`, since the one being opened does exist.
+  const visibleTemplates = useMemo(
+    () => templates.filter((t) => t.id !== openingId),
+    [templates, openingId]
+  );
+
   // Everything except templates has a home on the calendar.
-  const dated = useMemo(() => [...active, ...planned, ...completed], [active, planned, completed]);
+  const dated = useMemo(
+    () => [...active, ...planned, ...completed].filter((w) => w.id !== openingId),
+    [active, planned, completed, openingId]
+  );
   const dayWorkouts = useMemo(
     () =>
       dated
@@ -134,6 +161,7 @@ export default function WorkoutsScreen() {
         startedAt: new Date(),
       })
     );
+    setOpeningId(id);
     router.push(`/workout/${id}`);
     saved
       .catch(() => Alert.alert("Couldn't start workout", "Check your connection and try again."))
@@ -153,6 +181,7 @@ export default function WorkoutsScreen() {
         scheduledFor: day,
       })
     );
+    setOpeningId(id);
     router.push(`/workout/${id}`);
     saved
       .catch(() => Alert.alert("Couldn't plan workout", "Check your connection and try again."))
@@ -168,7 +197,10 @@ export default function WorkoutsScreen() {
     const { id, saved } = startFromTemplate(template, dataUserId, day);
     // Future plans just get scheduled and we stay on the calendar; logging a
     // past day opens the workout so its sets can be filled in.
-    if (navigate) router.push(`/workout/${id}`);
+    if (navigate) {
+      setOpeningId(id);
+      router.push(`/workout/${id}`);
+    }
     saved
       .catch(() => Alert.alert("Couldn't plan workout", "Check your connection and try again."))
       .finally(() => setStarting(false));
@@ -199,6 +231,7 @@ export default function WorkoutsScreen() {
     if (!dataUserId || starting || atActiveLimit()) return;
     setStarting(true);
     const { id, saved } = startFromTemplate(template, dataUserId);
+    setOpeningId(id);
     router.push(`/workout/${id}`);
     saved
       .catch(() => Alert.alert("Couldn't start workout", "Check your connection and try again."))
@@ -223,6 +256,7 @@ export default function WorkoutsScreen() {
         createdAt: new Date(),
       }) as Omit<Workout, "id">
     );
+    setOpeningId(id);
     router.push(`/workout/${id}`);
     saved.catch(() =>
       Alert.alert("Couldn't create template", "Check your connection and try again.")
@@ -464,12 +498,12 @@ export default function WorkoutsScreen() {
               </Pressable>
             </View>
           </View>
-          {templates.length === 0 ? (
+          {visibleTemplates.length === 0 ? (
             <Text style={styles.templateEmpty}>
               Build a reusable workout structure, or save one from a finished workout.
             </Text>
           ) : (
-            templates.map((t) => (
+            visibleTemplates.map((t) => (
               <Card key={t.id} style={styles.templateRow}>
                 <Pressable
                   style={styles.templateInfo}
