@@ -141,9 +141,10 @@ export default function AddExerciseModal() {
       </View>
 
       <View style={styles.searchWrap}>
+        {/* defaultValue, not value — see the note on the Exercises tab search. */}
         <Field
           placeholder="Search exercises"
-          value={search}
+          defaultValue={search}
           onChangeText={setSearch}
           autoCorrect={false}
         />

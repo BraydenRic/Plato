@@ -74,7 +74,30 @@ export default function ExercisesScreen() {
       </View>
 
       <View style={styles.searchWrap}>
-        <Field placeholder="Search exercises" value={search} onChangeText={setSearch} autoCorrect={false} />
+        {/*
+          defaultValue rather than value, deliberately.
+
+          A controlled TextInput has its native text "forced to match" the prop
+          on every render, and when the round-trip through state lags the
+          keyboard — which it does here, since each keystroke re-filters ~180
+          exercises and redraws the list — the input gets set back to the
+          previous string and the caret lands mid-word. Typing, deleting and
+          typing again was a reliable way to end up inserting in the middle of
+          what you'd written. React Native's own docs call this out: controlled
+          inputs "might drop characters during rapid user input".
+
+          Nothing sets `search` except this field, so the prop was pure echo and
+          bought nothing for the risk. Uncontrolled, the native input owns the
+          text and state just observes it. If a Clear button ever lands here it
+          will need a ref and .clear(), because defaultValue won't push a new
+          value in after mount — that's the trade.
+        */}
+        <Field
+          placeholder="Search exercises"
+          defaultValue={search}
+          onChangeText={setSearch}
+          autoCorrect={false}
+        />
       </View>
 
       <View>
