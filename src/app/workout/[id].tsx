@@ -109,6 +109,10 @@ export default function WorkoutScreen() {
   // The watchdog below leans on this to tell a cancelled press apart from a
   // keyboard that is only slow to arrive.
   const keypadConfirmed = useRef(false);
+  // Counts edits made on this screen. Anything that reads the workout
+  // asynchronously compares this before and after: if it changed, the read
+  // started before an edit and is now describing a version we've moved past.
+  const editSeq = useRef(0);
   const registerInput = (key: string, node: TextInput | null) => {
     if (node) inputRefs.current.set(key, node);
     else inputRefs.current.delete(key);
@@ -173,14 +177,21 @@ export default function WorkoutScreen() {
    *
    * Cheap: one document read, only on focus, and it no-ops when the
    * subscription already did its job.
+   *
+   * It must never win against an edit made while it was in flight. This reads
+   * the server, so a delete made a moment after the screen regained focus would
+   * otherwise be undone by a copy fetched before it — the exercise reappearing
+   * a second after it was removed.
    */
   useFocusEffect(
     useCallback(() => {
       if (!id) return;
       let cancelled = false;
+      const seqAtStart = editSeq.current;
       getWorkout(id)
         .then((fresh) => {
-          if (!cancelled && fresh) setWorkout(fresh);
+          if (cancelled || !fresh || editSeq.current !== seqAtStart) return;
+          setWorkout(fresh);
         })
         .catch(() => {
           // The subscription is the primary path; a failed top-up changes
@@ -265,7 +276,24 @@ export default function WorkoutScreen() {
     );
   }
 
+  /**
+   * Write the exercise list, and show it immediately.
+   *
+   * The local update is the point. This used to write and then wait for the
+   * subscription to echo the change back, which meant every edit on this screen
+   * was only as reliable as that echo — and on a freshly created workout it
+   * wasn't reliable at all: adding an exercise showed nothing, and deleting one
+   * left it sitting there looking like the tap had missed. Both were the same
+   * missing echo, and both went away by closing the screen and reopening it,
+   * which is exactly what a stale copy looks like.
+   *
+   * No rollback on failure by design: Firestore drops a rejected write from its
+   * local cache and raises a snapshot doing so, so the subscription puts the
+   * exercise back without this needing to know the write failed.
+   */
   async function saveExercises(exercises: WorkoutExercise[]) {
+    editSeq.current += 1;
+    setWorkout((current) => (current ? { ...current, exercises } : current));
     await updateWorkout(workout!.id, stripUndefined({ exercises }) as Partial<Workout>);
   }
 
@@ -585,10 +613,9 @@ export default function WorkoutScreen() {
             data={workout.exercises}
             keyExtractor={(ex) => ex.id}
             onDragEnd={({ data }) => {
-              // Apply the new order locally right away so the list doesn't
-              // snap back while the Firestore write round-trips.
-              setWorkout({ ...workout, exercises: data });
-              // orderIndex keeps other readers (like plato-web) in agreement.
+              // saveExercises shows the new order straight away, so the list
+              // doesn't snap back while the write round-trips. orderIndex keeps
+              // other readers (like plato-web) in agreement.
               saveExercises(data.map((ex, i) => ({ ...ex, orderIndex: i })));
             }}
             containerStyle={{ flex: 1 }}
@@ -880,7 +907,8 @@ function ExerciseCard({
           </Pressable>
         )}
         {!readOnly && (
-          <Pressable onPress={onRemove} hitSlop={8}>
+          // testID because the control is an icon with no text to find it by.
+          <Pressable onPress={onRemove} hitSlop={8} testID="remove-exercise">
             <Ionicons name="close" size={18} color={Palette.textTertiary} />
           </Pressable>
         )}
