@@ -689,12 +689,7 @@ function WorkoutRow({
               {total > 0 && isPlanned && ` · ${total} sets planned`}
             </Text>
           </View>
-          {isLive ? (
-            <View style={styles.liveBadge}>
-              <View style={styles.liveDot} />
-              <Text style={styles.liveText}>LIVE</Text>
-            </View>
-          ) : isPlanned ? (
+          {isPlanned ? (
             <View style={[styles.plannedBadge, { backgroundColor: theme.accentSoft }]}>
               <Text style={[styles.plannedText, { color: theme.accentText }]}>PLANNED</Text>
             </View>
@@ -955,27 +950,6 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: "700",
     fontVariant: ["tabular-nums"],
-  },
-  liveBadge: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-    backgroundColor: Palette.successSoft,
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: Radius.full,
-  },
-  liveDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: Palette.success,
-  },
-  liveText: {
-    fontSize: 11,
-    fontWeight: "700",
-    letterSpacing: 1,
-    color: Palette.success,
   },
   plannedBadge: {
     paddingHorizontal: 10,
