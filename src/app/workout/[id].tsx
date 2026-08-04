@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -15,12 +15,17 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import DraggableFlatList, { ScaleDecorator } from "react-native-draggable-flatlist";
 import ReanimatedSwipeable from "react-native-gesture-handler/ReanimatedSwipeable";
-import { useLocalSearchParams, useRouter, type ErrorBoundaryProps } from "expo-router";
+import {
+  useFocusEffect,
+  useLocalSearchParams,
+  useRouter,
+  type ErrorBoundaryProps,
+} from "expo-router";
 import Ionicons from "@expo/vector-icons/Ionicons";
 
 import { Button, Card, EmptyState } from "@/components/ui";
 import { FontScaleCap, Palette, Radius, Spacing } from "@/constants/theme";
-import { getCompletedWorkouts, reopenWorkout, saveAsTemplate, stripUndefined, subscribeWorkout, updateWorkout, upsertUserStats, computeStats, deleteWorkout } from "@/lib/data";
+import { getWorkout, getCompletedWorkouts, reopenWorkout, saveAsTemplate, stripUndefined, subscribeWorkout, updateWorkout, upsertUserStats, computeStats, deleteWorkout } from "@/lib/data";
 import { useWorkouts } from "@/hooks/use-workouts";
 import { isBodyweightExercise, isTimedExercise } from "@/lib/exercises";
 import { useRestTimer } from "@/context/RestTimerContext";
@@ -155,6 +160,37 @@ export default function WorkoutScreen() {
       setLoading(false);
     });
   }, [id]);
+
+  /**
+   * Re-read whenever this screen comes back to the front.
+   *
+   * Belt and braces, and deliberately so: adding an exercise to a freshly
+   * started workout sometimes left this screen showing none of it until it was
+   * closed and reopened, while the write itself had plainly landed. The
+   * subscription above should make that impossible and I could not find the
+   * hole, so this closes the symptom from the other side — coming back from the
+   * modal is exactly the moment the stale copy was being noticed.
+   *
+   * Cheap: one document read, only on focus, and it no-ops when the
+   * subscription already did its job.
+   */
+  useFocusEffect(
+    useCallback(() => {
+      if (!id) return;
+      let cancelled = false;
+      getWorkout(id)
+        .then((fresh) => {
+          if (!cancelled && fresh) setWorkout(fresh);
+        })
+        .catch(() => {
+          // The subscription is the primary path; a failed top-up changes
+          // nothing that was already on screen.
+        });
+      return () => {
+        cancelled = true;
+      };
+    }, [id])
+  );
 
   // Elapsed workout clock (only while in progress).
   const startedAtMs = workout?.startedAt?.getTime();
