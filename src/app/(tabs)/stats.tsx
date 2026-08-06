@@ -1,6 +1,5 @@
 import { useMemo } from "react";
 import { ScrollView, StyleSheet, Text, View, useWindowDimensions } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
 import Ionicons from "@expo/vector-icons/Ionicons";
 
 import { Card, EmptyState, SectionLabel } from "@/components/ui";
@@ -72,7 +71,7 @@ export default function StatsScreen() {
   }, [completed]);
 
   return (
-    <SafeAreaView style={styles.safe} edges={["top"]}>
+    <View style={styles.safe}>
       <ScrollView contentContainerStyle={styles.scroll}>
         <View style={styles.header}>
           <Text style={styles.title}>Statistics</Text>
@@ -149,7 +148,7 @@ export default function StatsScreen() {
           </Card>
         </View>
       </ScrollView>
-    </SafeAreaView>
+    </View>
   );
 }
 

@@ -1,6 +1,5 @@
 import { useMemo, useState } from "react";
 import { Alert, FlatList, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
 import { router } from "expo-router";
 import Ionicons from "@expo/vector-icons/Ionicons";
 
@@ -52,7 +51,7 @@ export default function ExercisesScreen() {
   }
 
   return (
-    <SafeAreaView style={styles.safe} edges={["top"]}>
+    <View style={styles.safe}>
       <View style={styles.header}>
         <View style={{ flex: 1, gap: 2 }}>
           <Text style={styles.title}>Exercises</Text>
@@ -126,7 +125,7 @@ export default function ExercisesScreen() {
           />
         )}
       />
-    </SafeAreaView>
+    </View>
   );
 }
 

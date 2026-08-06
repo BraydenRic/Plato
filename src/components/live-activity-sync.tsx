@@ -2,7 +2,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useEffect, useRef } from "react";
 
 import { startWorkoutActivity, stopWorkoutActivity, updateWorkoutActivity } from "@/lib/live-activity";
-import { completedSetCount, totalSetCount } from "@/lib/workout-utils";
+import { completedSetCount, liveWorkout, totalSetCount } from "@/lib/workout-utils";
 import { useWorkouts } from "@/hooks/use-workouts";
 import { useTheme } from "@/context/ThemeContext";
 import { useRestTimer } from "@/context/RestTimerContext";
@@ -30,12 +30,9 @@ export function LiveActivitySync() {
   // Serializes syncs so a fast start→finish can't interleave native calls.
   const chain = useRef(Promise.resolve());
 
-  // With several sessions open (cap is 5), the pill follows the newest one.
-  const current: Workout | undefined = active.reduce<Workout | undefined>(
-    (latest, w) =>
-      !latest || (w.startedAt?.getTime() ?? 0) > (latest.startedAt?.getTime() ?? 0) ? w : latest,
-    undefined
-  );
+  // With several sessions open (cap is 5), the pill follows the newest one —
+  // the same one the resume bar above the tabs offers, by construction.
+  const current: Workout | undefined = liveWorkout(active);
   const doneSets = current ? completedSetCount(current) : 0;
   const totalSets = current ? totalSetCount(current) : 0;
 

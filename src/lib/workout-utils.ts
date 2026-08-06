@@ -81,6 +81,23 @@ export function isActiveWorkout(workout: {
   return !workout.isTemplate && !workout.completedAt && !!workout.startedAt;
 }
 
+/**
+ * The one in-progress session the app speaks for: the most recently started.
+ *
+ * Up to MAX_ACTIVE_WORKOUTS can be live at once, but the two places that stand
+ * in for the workout while you're elsewhere — the Live Activity pill and the
+ * resume bar above the tabs — each have room for exactly one, and pointing at
+ * different sessions would be worse than either choice. So the pick is made
+ * once, here, instead of separately at each of them.
+ */
+export function liveWorkout(active: Workout[]): Workout | undefined {
+  return active.reduce<Workout | undefined>(
+    (latest, w) =>
+      !latest || (w.startedAt?.getTime() ?? 0) > (latest.startedAt?.getTime() ?? 0) ? w : latest,
+    undefined
+  );
+}
+
 // All of a user's custom exercises live in a single document, so cap them to
 // keep it well under Firestore's 1 MB limit. 200 is far more than anyone builds
 // by hand (the app ships ~177 defaults) while staying tiny on disk.
