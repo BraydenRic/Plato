@@ -90,7 +90,7 @@ it("reports the workout, its set progress and how long it's been running", () =>
   render(<ActiveWorkoutBar />);
 
   expect(screen.getByText("Push Day")).toBeTruthy();
-  expect(screen.getByText("2 of 4 sets")).toBeTruthy();
+  expect(screen.getByText("2/4 sets")).toBeTruthy();
   expect(screen.getByText("5:00")).toBeTruthy();
 });
 

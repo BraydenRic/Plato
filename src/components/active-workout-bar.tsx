@@ -63,11 +63,19 @@ function ResumeBar({ workout, topInset }: { workout: Workout; topInset: number }
 
   const done = completedSetCount(workout);
   const total = totalSetCount(workout);
-  const meta = total > 0 ? `${done} of ${total} sets` : "No sets yet";
+  // Same shorthand the Workouts list uses for an in-progress row.
+  const meta = total > 0 ? `${done}/${total} sets` : "No sets yet";
   const readout = resting ? `Rest ${formatClock(restLeft)}` : formatClock(elapsed);
 
   return (
     <View style={[styles.wrap, { paddingTop: topInset }]}>
+      {/*
+        One line, not two. Stacking the name over the set count read better in
+        isolation and came to ~56pt — taller than the nav bar it sits where, and
+        than the tab bar opposite it — which is exactly the height at which
+        permanent chrome starts crowding the screen it is supposed to be serving.
+        At 44pt it costs a row of the list underneath and nothing more.
+      */}
       <Pressable
         testID="active-workout-bar"
         accessibilityRole="button"
@@ -77,14 +85,17 @@ function ResumeBar({ workout, topInset }: { workout: Workout; topInset: number }
         onPress={() => router.push(`/workout/${workout.id}`)}
         style={({ pressed }) => [styles.bar, pressed && { opacity: 0.7 }]}>
         <View style={[styles.rule, { backgroundColor: theme.accent }]} />
-        <View style={styles.label}>
-          <Text style={styles.name} numberOfLines={1}>
-            {workout.name}
-          </Text>
-          <Text style={styles.meta} numberOfLines={1}>
-            {meta}
-          </Text>
-        </View>
+        <Text style={styles.name} numberOfLines={1}>
+          {workout.name}
+        </Text>
+        {/* Dim and small against the bright tabular clock beside it, so two
+            numbers sharing a corner don't read as one. */}
+        <Text
+          style={styles.meta}
+          numberOfLines={1}
+          maxFontSizeMultiplier={FontScaleCap.grid}>
+          {meta}
+        </Text>
         <Text
           style={[styles.readout, { color: theme.accentText }]}
           maxFontSizeMultiplier={FontScaleCap.grid}>
@@ -119,7 +130,9 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: Spacing.two,
     paddingHorizontal: Spacing.three,
-    paddingVertical: 10,
+    // 12 + a 15pt line + 12 + the 2pt track lands the strip on 44pt, the height
+    // of the nav bar it stands in for.
+    paddingVertical: 12,
   },
   rule: {
     position: "absolute",
@@ -128,11 +141,8 @@ const styles = StyleSheet.create({
     bottom: 0,
     width: 3,
   },
-  label: {
-    flex: 1,
-    gap: 2,
-  },
   name: {
+    flex: 1,
     fontSize: 15,
     fontWeight: "700",
     color: Palette.text,
