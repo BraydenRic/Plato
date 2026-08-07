@@ -5,6 +5,7 @@ import {
   completedSetCount,
   convertWeight,
   displayVolume,
+  estimatedOneRepMax,
   formatBodyweightLoad,
   formatClock,
   formatDuration,
@@ -656,5 +657,33 @@ describe("removing a weigh-in", () => {
 
   it("leaves the log alone when nothing was logged that day", () => {
     expect(withoutBodyweightEntry(log, new Date(2026, 7, 9))).toEqual(log);
+  });
+});
+
+describe("estimated one-rep max", () => {
+  it("makes added reps at the same weight read as progress", () => {
+    // The reported case: three weeks of 225, adding a rep each time, which the
+    // top-set line drew as flat.
+    const weeks = [7, 8, 9].map((reps) => estimatedOneRepMax(225, reps));
+
+    expect(weeks[0]).toBeLessThan(weeks[1]);
+    expect(weeks[1]).toBeLessThan(weeks[2]);
+    expect(weeks.map(Math.round)).toEqual([278, 285, 293]);
+  });
+
+  it("returns the weight itself for a single", () => {
+    // The one case where the estimate is not an estimate.
+    expect(estimatedOneRepMax(315, 1)).toBeCloseTo(315 * (1 + 1 / 30));
+  });
+
+  it("rates a lighter set for more reps above a heavier set for few", () => {
+    // 205×10 is worth more as a single than 225×3, which is why the chart picks
+    // the best set by this rather than by weight.
+    expect(estimatedOneRepMax(205, 10)).toBeGreaterThan(estimatedOneRepMax(225, 3));
+  });
+
+  it("counts a set with no reps as nothing", () => {
+    expect(estimatedOneRepMax(225, undefined)).toBe(0);
+    expect(estimatedOneRepMax(225, 0)).toBe(0);
   });
 });

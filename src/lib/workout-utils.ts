@@ -140,6 +140,27 @@ export function workoutVolumeLbs(workout: Workout, bodyweightLbs?: number): numb
   );
 }
 
+/**
+ * Epley's estimated one-rep max: what a set is "worth" as a single.
+ *
+ * The number that makes 225×7, 225×8, 225×9 read as the three weeks of
+ * progress they are, rather than as a flat line at 225. Weight alone cannot
+ * see reps, and reps alone cannot see weight.
+ *
+ * It is an estimate and it drifts. Epley is close over roughly 1–10 reps and
+ * increasingly generous past that — a set of twenty does not really predict the
+ * single it claims. Used for comparing a lifter against themselves over weeks,
+ * which is what this is for, that bias cancels out; used to pick an actual
+ * attempt, it does not.
+ *
+ * A single rep returns the weight itself, which is the one case where the
+ * estimate is not an estimate.
+ */
+export function estimatedOneRepMax(lbs: number, reps: number | undefined): number {
+  if (!reps || reps < 1) return 0;
+  return lbs * (1 + reps / 30);
+}
+
 /** Formats a bodyweight set's load: "BW", "BW+25", "BW-30". */
 export function formatBodyweightLoad(added: number | undefined, unit: "lbs" | "kg"): string {
   if (!added) return "BW";
