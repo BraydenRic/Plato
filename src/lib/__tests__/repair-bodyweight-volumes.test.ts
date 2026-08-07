@@ -1,4 +1,4 @@
-import { staleBodyweightVolumes } from "../repair-bodyweight-volumes";
+import { staleBodyweightVolumes, staleVolumesOnDay } from "../repair-bodyweight-volumes";
 import type { BodyweightEntry, Workout, WorkoutSet } from "@/types";
 
 /**
@@ -129,4 +129,42 @@ it("values each workout against its own day, not one shared weight", () => {
     { id: "a", totalVolume: 1950 },
     { id: "b", totalVolume: 1900 },
   ]);
+});
+
+describe("re-pricing a single day after its weigh-in is fixed", () => {
+  it("touches only workouts filed under the day that changed", () => {
+    const onThe4th = workout({ id: "a", sets: [bwSet(10)], scheduledFor: AUG_4, totalVolume: 0 });
+    const onThe5th = workout({ id: "b", sets: [bwSet(10)], scheduledFor: AUG_5, totalVolume: 0 });
+
+    expect(staleVolumesOnDay([onThe4th, onThe5th], log, AUG_4)).toEqual([
+      { id: "a", totalVolume: 1950 },
+    ]);
+  });
+
+  it("prices against the corrected number", () => {
+    // The typo: 250 was entered on the 4th, so the session was inflated.
+    const typo: BodyweightEntry[] = [{ date: AUG_4, lbs: 250 }];
+    const inflated = workout({ sets: [bwSet(10)], scheduledFor: AUG_4, totalVolume: 2500 });
+
+    const fixed: BodyweightEntry[] = [{ date: AUG_4, lbs: 190 }];
+    expect(staleVolumesOnDay([inflated], fixed, AUG_4)).toEqual([{ id: "w1", totalVolume: 1900 }]);
+    // And with the typo still in place there is nothing to correct.
+    expect(staleVolumesOnDay([inflated], typo, AUG_4)).toEqual([]);
+  });
+
+  it("falls back to the nearest remaining weigh-in when one is deleted", () => {
+    const onThe5th = workout({ sets: [bwSet(10)], scheduledFor: AUG_5, totalVolume: 1900 });
+
+    // The 5th's entry is gone; the 4th's 195 is what's left.
+    expect(staleVolumesOnDay([onThe5th], [{ date: AUG_4, lbs: 195 }], AUG_5)).toEqual([
+      { id: "w1", totalVolume: 1950 },
+    ]);
+  });
+
+  it("leaves stored volumes standing when the last weigh-in is deleted", () => {
+    const onThe4th = workout({ sets: [bwSet(10)], scheduledFor: AUG_4, totalVolume: 1950 });
+
+    // Emptying the log must never re-price a session at zero.
+    expect(staleVolumesOnDay([onThe4th], [], AUG_4)).toEqual([]);
+  });
 });

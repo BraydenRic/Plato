@@ -4,7 +4,7 @@ import { useEffect, useRef } from "react";
 import { useAuth } from "@/context/AuthContext";
 import { useBodyweight } from "@/hooks/use-bodyweight";
 import { useWorkouts } from "@/hooks/use-workouts";
-import { computeStats, updateWorkout, upsertUserStats } from "@/lib/data";
+import { applyVolumeCorrections } from "@/lib/apply-volume-corrections";
 import { staleBodyweightVolumes } from "@/lib/repair-bodyweight-volumes";
 
 /** Per account, and versioned so a future repair can be told apart from this one. */
@@ -40,24 +40,11 @@ export function BodyweightVolumeRepair() {
     (async () => {
       if (await AsyncStorage.getItem(key)) return;
 
-      const corrections = staleBodyweightVolumes(completed, log);
-      if (corrections.length > 0) {
-        // Sequential rather than all at once — this is background work behind a
-        // screen the user is already using, and it has nothing to race.
-        for (const correction of corrections) {
-          await updateWorkout(correction.id, { totalVolume: correction.totalVolume });
-        }
-
-        // The Stats tab derives from the workouts themselves, so it is already
-        // right by here. This is the stored lifetime doc, which only plato-web
-        // reads — recomputed from the corrected numbers rather than re-fetched,
-        // since we are holding them.
-        const corrected = new Map(corrections.map((c) => [c.id, c.totalVolume]));
-        const repaired = completed.map((w) =>
-          corrected.has(w.id) ? { ...w, totalVolume: corrected.get(w.id)! } : w
-        );
-        await upsertUserStats({ userId: dataUserId, ...computeStats(repaired) });
-      }
+      await applyVolumeCorrections(
+        staleBodyweightVolumes(completed, log),
+        completed,
+        dataUserId
+      );
 
       // Last, so a failure anywhere above leaves it unset and the next launch
       // picks the work back up.

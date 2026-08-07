@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 
 import { useAuth } from "@/context/AuthContext";
 import { getBodyweightLog, setBodyweightLog } from "@/lib/data";
-import { withBodyweightEntry } from "@/lib/workout-utils";
+import { withBodyweightEntry, withoutBodyweightEntry } from "@/lib/workout-utils";
 import type { BodyweightEntry } from "@/types";
 
 /**
@@ -59,5 +59,22 @@ export function useBodyweight() {
     [dataUserId, log]
   );
 
-  return { log, loading, record, latest: log.length > 0 ? log[log.length - 1] : null };
+  /**
+   * Drops a day's weigh-in.
+   *
+   * Optimistic like `record`, and a no-op when there was nothing on that day —
+   * so a double tap can't write the whole log back for no reason.
+   */
+  const remove = useCallback(
+    async (day: Date) => {
+      if (!dataUserId) return;
+      const next = withoutBodyweightEntry(log, day);
+      if (next.length === log.length) return;
+      setLog(next);
+      await setBodyweightLog(dataUserId, next);
+    },
+    [dataUserId, log]
+  );
+
+  return { log, loading, record, remove, latest: log.length > 0 ? log[log.length - 1] : null };
 }

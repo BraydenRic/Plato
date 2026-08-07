@@ -6,7 +6,6 @@ import { useRouter } from "expo-router";
 
 import { Button, Card, SectionLabel, Stepper } from "@/components/ui";
 import { Sparkline } from "@/components/sparkline";
-import { BodyweightChart } from "@/components/bodyweight-chart";
 import { useBodyweight } from "@/hooks/use-bodyweight";
 import { convertWeight } from "@/lib/workout-utils";
 import { Palette, Radius, Spacing, THEME_LIST } from "@/constants/theme";
@@ -49,7 +48,6 @@ export default function ProfileScreen() {
   const { defaultSets, setDefaultSets } = useDefaultSets();
   const { log: bodyweightLog, latest: latestWeight, record: recordWeight } = useBodyweight();
   const [sparkWidth, setSparkWidth] = useState(0);
-  const [chartOpen, setChartOpen] = useState(false);
 
   // Stored in lbs like every other weight; the card speaks the chosen unit.
   const shownWeight =
@@ -332,38 +330,27 @@ export default function ProfileScreen() {
               the feature being broken rather than as waiting for tomorrow. */}
           {bodyweightLog.length > 0 && (
             <Pressable
-              onPress={() => setChartOpen((open) => !open)}
+              onPress={() => router.push("/bodyweight")}
               accessibilityRole="button"
-              accessibilityLabel={chartOpen ? "Hide bodyweight history" : "Show bodyweight history"}
-              accessibilityState={{ expanded: chartOpen }}
+              accessibilityLabel="Bodyweight history"
               style={({ pressed }) => pressed && { opacity: 0.8 }}>
               <View
                 style={styles.bodyweightRow}
                 onLayout={(e) => setSparkWidth(e.nativeEvent.layout.width)}>
-                {chartOpen ? (
-                  <Text style={styles.bodyweightDelta}>History</Text>
-                ) : (
-                  <Sparkline
-                    values={bodyweightLog.map((e) => e.lbs)}
-                    color={theme.accent}
-                    width={Math.max(0, sparkWidth - 96)}
-                  />
-                )}
+                <Sparkline
+                  values={bodyweightLog.map((e) => e.lbs)}
+                  color={theme.accent}
+                  width={Math.max(0, sparkWidth - 96)}
+                />
                 <View style={styles.bodyweightTrailing}>
                   <Text style={styles.bodyweightDelta}>
                     {weightDelta > 0 ? `+${weightDelta}` : weightDelta} {unit}
                   </Text>
-                  <Ionicons
-                    name={chartOpen ? "chevron-up" : "chevron-down"}
-                    size={14}
-                    color={Palette.textTertiary}
-                  />
+                  <Ionicons name="chevron-forward" size={14} color={Palette.textTertiary} />
                 </View>
               </View>
             </Pressable>
           )}
-
-          {chartOpen && <BodyweightChart log={bodyweightLog} unit={unit} />}
         </Card>
 
         <View>

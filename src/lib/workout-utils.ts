@@ -347,6 +347,18 @@ export function withBodyweightEntry(
 }
 
 /**
+ * Drops the weigh-in on a day, if there is one.
+ *
+ * Addressed by day rather than by identity, for the same reason
+ * withBodyweightEntry replaces by day: there is only ever one reading per day,
+ * so the day *is* the identity.
+ */
+export function withoutBodyweightEntry(log: BodyweightEntry[], day: Date): BodyweightEntry[] {
+  const target = startOfDay(day).getTime();
+  return log.filter((entry) => startOfDay(entry.date).getTime() !== target);
+}
+
+/**
  * The weigh-in closest in time to `when`, or null if there are none.
  *
  * Nearest rather than most-recent-before, so a workout logged before someone

@@ -1,4 +1,4 @@
-import { bodyweightOn, workoutDay, workoutVolumeLbs } from "./workout-utils";
+import { bodyweightOn, sameDay, workoutDay, workoutVolumeLbs } from "./workout-utils";
 import type { BodyweightEntry, Workout } from "@/types";
 
 /**
@@ -87,4 +87,30 @@ export function staleBodyweightVolumes(
     corrections.push({ id: workout.id, totalVolume: correct });
   }
   return corrections;
+}
+
+/**
+ * The same correction, narrowed to the workouts filed under one day.
+ *
+ * What a *fixed* weigh-in needs. Typing 250 where you meant 190 inflates the
+ * volume of everything you lifted that day, and correcting the number is
+ * pointless if the workout it mispriced keeps the inflated figure. That is not
+ * the same as re-valuing history on a new weigh-in — the entry being corrected
+ * was wrong, and this only touches the day it was wrong on.
+ *
+ * Deleting a weigh-in comes through here too: with it gone, bodyweightOn falls
+ * to the nearest one that is left, which is what the rest of the app would have
+ * used all along. If nothing is left, staleBodyweightVolumes refuses to price
+ * anything and the stored numbers stand — better a stale volume than a zeroed
+ * one.
+ */
+export function staleVolumesOnDay(
+  completed: Workout[],
+  log: BodyweightEntry[],
+  day: Date
+): VolumeCorrection[] {
+  return staleBodyweightVolumes(
+    completed.filter((workout) => sameDay(workoutDay(workout), day)),
+    log
+  );
 }

@@ -1,8 +1,11 @@
 import {
+  MAX_BODYWEIGHT_ENTRIES,
   addDays,
+  bodyweightOn,
   completedSetCount,
   convertWeight,
   displayVolume,
+  formatBodyweightLoad,
   formatClock,
   formatDuration,
   formatVolume,
@@ -16,12 +19,10 @@ import {
   startOfDay,
   startOfWeek,
   totalSetCount,
+  withBodyweightEntry,
+  withoutBodyweightEntry,
   workoutDay,
   workoutVolumeLbs,
-  MAX_BODYWEIGHT_ENTRIES,
-  formatBodyweightLoad,
-  withBodyweightEntry,
-  bodyweightOn,
 } from "../workout-utils";
 import {
   daysAgo,
@@ -635,5 +636,25 @@ describe("formatBodyweightLoad", () => {
   it("converts the added load for a kg lifter", () => {
     // Banked in lbs, shown in the chosen unit.
     expect(formatBodyweightLoad(convertWeight(20, "kg", "lbs"), "kg")).toBe("BW+20");
+  });
+});
+
+describe("removing a weigh-in", () => {
+  const log = [
+    { date: new Date(2026, 7, 4, 7, 30), lbs: 195 },
+    { date: new Date(2026, 7, 5, 8, 0), lbs: 190 },
+  ];
+
+  it("drops the entry on that day", () => {
+    expect(withoutBodyweightEntry(log, new Date(2026, 7, 4))).toEqual([log[1]]);
+  });
+
+  it("matches on the day, not the moment it was logged", () => {
+    // The entry was recorded at 07:30; deleting it shouldn't require saying so.
+    expect(withoutBodyweightEntry(log, new Date(2026, 7, 4, 22, 15))).toEqual([log[1]]);
+  });
+
+  it("leaves the log alone when nothing was logged that day", () => {
+    expect(withoutBodyweightEntry(log, new Date(2026, 7, 9))).toEqual(log);
   });
 });
