@@ -115,18 +115,42 @@ export async function countActiveWorkouts(userId: string): Promise<number> {
     .filter(isActiveWorkout).length;
 }
 
-/** Live subscription to one workout — the workout screen's source of truth. */
+/**
+ * Live subscription to one workout — the workout screen's source of truth.
+ *
+ * The error callback is not optional in practice. A Firestore listener that
+ * errors is finished: it does not retry, and without a handler it takes the
+ * failure with it, so the screen simply stops receiving updates and there is
+ * nothing anywhere to say why. That is the shape of a bug that cost three
+ * builds — edits to a freshly created workout not appearing until it was
+ * closed and reopened — and the suspected cause is reachable from here: this
+ * attaches the moment the workout screen opens, which is before
+ * createWorkoutLocalFirst's write has necessarily reached the server, and the
+ * read rule tests `resource.data.userId` against a document that does not
+ * exist yet.
+ *
+ * Logged rather than surfaced. The screen has two other paths to the truth (its
+ * own edits render optimistically, and it re-reads on focus), so a dead
+ * listener is no longer something to interrupt anyone about — but it should
+ * never again be something nobody can see.
+ */
 export function subscribeWorkout(
   id: string,
   onChange: (workout: Workout | null) => void
 ): () => void {
-  return onSnapshot(doc(db, "workouts", id), (snap) => {
-    if (!snap.exists()) {
-      onChange(null);
-      return;
+  return onSnapshot(
+    doc(db, "workouts", id),
+    (snap) => {
+      if (!snap.exists()) {
+        onChange(null);
+        return;
+      }
+      onChange(workoutFromDoc(snap.id, snap.data() as Record<string, unknown>));
+    },
+    (e) => {
+      console.warn(`Live updates for workout ${id} stopped: ${e.code ?? e.message}`, e);
     }
-    onChange(workoutFromDoc(snap.id, snap.data() as Record<string, unknown>));
-  });
+  );
 }
 
 export async function getWorkout(id: string): Promise<Workout | null> {
