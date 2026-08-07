@@ -64,8 +64,7 @@ export function LiveActivitySync() {
       }
 
       if (t && t.workoutId === workout.id) {
-        const restEndsAt = rest?.workoutId === workout.id ? rest.endsAt : null;
-      if (updateWorkoutActivity(t.activityId, workout, doneSets, totalSets, theme, restEndsAt))
+        if (updateWorkoutActivity(t.activityId, workout, doneSets, totalSets, theme, restEndsAt))
           return;
         // The activity died underneath us — fall through and start a new one.
         tracked.current = null;

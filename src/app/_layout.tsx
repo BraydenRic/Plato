@@ -5,6 +5,7 @@ import { useEffect } from "react";
 import { ActivityIndicator, StyleSheet, Text, View } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 
+import { BodyweightVolumeRepair } from "@/components/bodyweight-volume-repair";
 import { LiveActivitySync } from "@/components/live-activity-sync";
 import { AuthProvider, useAuth } from "@/context/AuthContext";
 import { RestTimerProvider } from "@/context/RestTimerContext";
@@ -128,6 +129,7 @@ export default function RootLayout() {
                 <DefaultSetsProvider>
                   <StatusBar style="light" />
                   <LiveActivitySync />
+                  <BodyweightVolumeRepair />
                   <RootNavigator />
                 </DefaultSetsProvider>
               </SetTimerProvider>

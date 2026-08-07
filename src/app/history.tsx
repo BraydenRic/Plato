@@ -1,9 +1,9 @@
 import { useMemo } from "react";
 import { Alert, Pressable, SectionList, StyleSheet, Text, View } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import Ionicons from "@expo/vector-icons/Ionicons";
 
+import { ActiveWorkoutBar } from "@/components/active-workout-bar";
 import { Card, EmptyState } from "@/components/ui";
 import { Palette, Radius, Spacing } from "@/constants/theme";
 import { useWorkouts } from "@/hooks/use-workouts";
@@ -35,7 +35,10 @@ export default function HistoryScreen() {
   }
 
   return (
-    <SafeAreaView style={styles.safe} edges={["top"]}>
+    <View style={styles.safe}>
+      {/* History is pushed over the tabs, so it covers their copy of the bar and
+          needs its own — and takes over the top inset the same way. */}
+      <ActiveWorkoutBar />
       <View style={styles.header}>
         <Pressable onPress={() => router.back()} hitSlop={12} style={styles.backButton}>
           <Ionicons name="chevron-back" size={22} color={Palette.textSecondary} />
@@ -68,7 +71,7 @@ export default function HistoryScreen() {
           )}
         />
       )}
-    </SafeAreaView>
+    </View>
   );
 }
 
