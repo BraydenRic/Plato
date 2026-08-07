@@ -6,7 +6,7 @@ import { useTheme } from "@/context/ThemeContext";
 import { FontScaleCap, Palette, Radius, Spacing } from "@/constants/theme";
 import { useWeightUnit } from "@/context/UnitContext";
 import { useWorkouts } from "@/hooks/use-workouts";
-import { convertWeight, estimatedOneRepMax } from "@/lib/workout-utils";
+import { convertWeight, estimatedOneRepMax, formatWeight } from "@/lib/workout-utils";
 
 const CHART_HEIGHT = 150;
 const MAX_SESSIONS = 12;
@@ -104,7 +104,7 @@ export function ExerciseProgress({ exerciseId }: { exerciseId: string }) {
     );
   }
 
-  const show = (lbs: number) => `${convertWeight(lbs, "lbs", unit)}`;
+  const show = (lbs: number) => formatWeight(lbs, unit);
   const chartPoints = sessions.slice(-MAX_SESSIONS);
   const valueOf = (p: SessionPoint) => (metric === "e1rm" ? p.bestE1rm : p.top.lbs);
   const setOf = (p: SessionPoint) => (metric === "e1rm" ? p.best : p.top);
@@ -341,7 +341,7 @@ function TrendChart({
       {/* Y-axis labels live outside the SVG so they use the app's fonts. */}
       {gridValues.map((v, i) => (
         <Text key={i} style={[styles.gridLabel, { top: y(v) - 7, right: 0 }]}>
-          {convertWeight(v, "lbs", unit)}
+          {formatWeight(v, unit)}
         </Text>
       ))}
     </View>

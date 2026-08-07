@@ -194,6 +194,24 @@ export function convertWeight(value: number, from: "lbs" | "kg", to: "lbs" | "kg
   return Math.round(converted * 10) / 10;
 }
 
+/**
+ * A weight, ready to put on screen.
+ *
+ * convertWeight returns the value untouched when the units already match,
+ * which is right for filling an input — nobody wants their stored 102.55
+ * quietly rounded because they opened the keypad. It is wrong for reading:
+ * Epley on 200 for 10 is 266.666…, and six decimal places of an estimate is
+ * false precision dressed as detail.
+ *
+ * Nearest half, because that is the granularity a gym actually has. Plates
+ * come in 2.5 lb and 1.25 kg pairs, so a half is the smallest change anyone can
+ * make and a smaller one describes nothing. Whole numbers lose their ".0".
+ */
+export function formatWeight(lbs: number, unit: "lbs" | "kg"): string {
+  const rounded = Math.round(convertWeight(lbs, "lbs", unit) * 2) / 2;
+  return Number.isInteger(rounded) ? String(rounded) : rounded.toFixed(1);
+}
+
 // Volumes are stored in lbs; convert only at display time.
 export function displayVolume(lbs: number, unit: "lbs" | "kg"): string {
   if (unit === "kg") return `${formatVolume(lbs / KG_TO_LBS)} kg`;

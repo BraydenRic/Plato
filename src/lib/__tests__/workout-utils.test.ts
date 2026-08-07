@@ -10,6 +10,7 @@ import {
   formatClock,
   formatDuration,
   formatVolume,
+  formatWeight,
   liveSetSeconds,
   newId,
   previousSetsByExercise,
@@ -685,5 +686,35 @@ describe("estimated one-rep max", () => {
   it("counts a set with no reps as nothing", () => {
     expect(estimatedOneRepMax(225, undefined)).toBe(0);
     expect(estimatedOneRepMax(225, 0)).toBe(0);
+  });
+});
+
+describe("weights on screen", () => {
+  it("stops an estimate from claiming six decimal places", () => {
+    // The reported case: Epley on 200 for 10 reps is 266.666…, and lbs-to-lbs
+    // skips the rounding that a real conversion would have done.
+    expect(formatWeight(estimatedOneRepMax(200, 10), "lbs")).toBe("266.5");
+  });
+
+  it("drops the decimal on a whole number", () => {
+    expect(formatWeight(225, "lbs")).toBe("225");
+  });
+
+  it("keeps a half, because that is a real plate change", () => {
+    expect(formatWeight(102.5, "lbs")).toBe("102.5");
+  });
+
+  it("rounds to the nearest half either way", () => {
+    expect(formatWeight(266.7, "lbs")).toBe("266.5");
+    expect(formatWeight(266.8, "lbs")).toBe("267");
+  });
+
+  it("rounds in the unit on screen, not the one in storage", () => {
+    // 220.462 lb is exactly 100 kg, and both orderings agree on it — which is
+    // why it proved nothing on its own. 100.3 lb is 45.5 kg, but rounded to a
+    // half-pound first it becomes 100.5 lb, which is 45.6 kg. A viewer in kg
+    // should see kg halves.
+    expect(formatWeight(220.462, "kg")).toBe("100");
+    expect(formatWeight(100.3, "kg")).toBe("45.5");
   });
 });
