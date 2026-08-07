@@ -7,7 +7,7 @@ import { ExerciseProgress } from "@/components/exercise-progress";
 import { MuscleMap } from "@/components/muscle-map";
 import { SectionLabel } from "@/components/ui";
 import { Palette, Radius, Spacing } from "@/constants/theme";
-import { formGuideFor } from "@/lib/exercise-form";
+import { formGuideFor, type FormFault } from "@/lib/exercise-form";
 import { useExerciseLibrary } from "@/hooks/use-exercise-library";
 import { useTheme } from "@/context/ThemeContext";
 
@@ -119,7 +119,7 @@ export default function ExerciseDetailScreen() {
               <View style={styles.guideBody}>
                 <FormSection label="Set up" lines={guide.setup} />
                 <FormSection label="The lift" lines={guide.execution} />
-                <FormSection label="Watch for" lines={guide.watchFor} accent={theme.accentText} />
+                <FaultSection label="Watch for" faults={guide.watchFor} accent={theme.accentText} />
               </View>
             )}
           </View>
@@ -165,6 +165,38 @@ function FormSection({
         <View key={line} style={styles.formLine}>
           <View style={[styles.formDot, accent ? { backgroundColor: accent } : null]} />
           <Text style={styles.formText}>{line}</Text>
+        </View>
+      ))}
+    </View>
+  );
+}
+
+/**
+ * The mistakes, each with what to do about it.
+ *
+ * The fix sits under the mistake rather than beside it, because the mistake is
+ * what you scan for and the fix is what you read once you have found yourself
+ * in one.
+ */
+function FaultSection({
+  label,
+  faults,
+  accent,
+}: {
+  label: string;
+  faults: FormFault[];
+  accent: string;
+}) {
+  return (
+    <View style={styles.formSection}>
+      <SectionLabel>{label}</SectionLabel>
+      {faults.map((fault) => (
+        <View key={fault.mistake} style={styles.formLine}>
+          <View style={[styles.formDot, { backgroundColor: accent }]} />
+          <View style={styles.faultBody}>
+            <Text style={styles.formText}>{fault.mistake}</Text>
+            <Text style={styles.faultFix}>{fault.fix}</Text>
+          </View>
         </View>
       ))}
     </View>
@@ -267,6 +299,15 @@ const styles = StyleSheet.create({
     backgroundColor: Palette.textTertiary,
     // Sits on the first line's optical centre rather than the top of the box.
     marginTop: 8,
+  },
+  faultBody: {
+    flex: 1,
+    gap: 3,
+  },
+  faultFix: {
+    fontSize: 13,
+    lineHeight: 20,
+    color: Palette.textTertiary,
   },
   formText: {
     flex: 1,

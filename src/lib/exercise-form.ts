@@ -21,13 +21,29 @@ import { EXERCISES } from "./exercises";
  * eyes on you, and anything that hurts is a reason to stop rather than to read
  * harder.
  */
+/**
+ * A mistake and what to do about it.
+ *
+ * Two fields rather than one sentence, because one sentence kept turning into
+ * half of one. "Getting into position with the bells already overhead" names
+ * something without saying what is wrong with it or what to do instead, and a
+ * reader who did not already know the answer learned nothing. The shape is what
+ * stops that: there is nowhere to put the mistake without also putting the fix.
+ */
+export interface FormFault {
+  /** What people actually do. */
+  mistake: string;
+  /** Why it matters, or what to do instead. */
+  fix: string;
+}
+
 export interface FormGuide {
   /** Getting into position before the first rep. */
   setup: string[];
   /** The rep itself. */
   execution: string[];
-  /** The mistakes that actually happen, and what they cost. */
-  watchFor: string[];
+  /** The mistakes that actually happen, and what to do about each. */
+  watchFor: FormFault[];
 }
 
 export const FORM_GUIDES: Record<string, FormGuide> = {
@@ -43,8 +59,14 @@ export const FORM_GUIDES: Record<string, FormGuide> = {
       "Touch the chest without bouncing, then press back over the shoulders.",
     ],
     watchFor: [
-      "Hips lifting off the bench to grind a rep out.",
-      "Elbows flaring straight out to the sides, which hands the shoulder the load.",
+      {
+        mistake: "Hips lifting off the bench to grind a rep out.",
+        fix: "Drop the weight. A rep you can only finish by arching is not a rep at that weight, and it puts the load on your lower back.",
+      },
+      {
+        mistake: "Elbows flaring straight out to the sides, which hands the shoulder the load.",
+        fix: "Think about tucking them to about 45 degrees from your ribs — closer to your sides than straight out.",
+      },
     ],
   },
   "incline-bench": {
@@ -57,8 +79,14 @@ export const FORM_GUIDES: Record<string, FormGuide> = {
       "Press up and slightly back, finishing over the shoulders.",
     ],
     watchFor: [
-      "Chasing a steeper incline and losing the upper chest to the front delt.",
-      "Bar drifting down toward the sternum as the set gets hard.",
+      {
+        mistake: "Chasing a steeper incline and losing the upper chest to the front delt.",
+        fix: "Stay between 30 and 45 degrees. Past that your shoulders take over and it stops being a chest exercise.",
+      },
+      {
+        mistake: "Bar drifting down toward the sternum as the set gets hard.",
+        fix: "Aim for just below the collarbone every rep. If you can't, the set is over.",
+      },
     ],
   },
   "decline-bench": {
@@ -71,8 +99,14 @@ export const FORM_GUIDES: Record<string, FormGuide> = {
       "Press back up in a straight line over the shoulders.",
     ],
     watchFor: [
-      "Sitting up to unrack — have a spotter hand it off if you can.",
-      "Head rush on the way up if you have been decline for a long set.",
+      {
+        mistake: "Sitting up to unrack — have a spotter hand it off if you can.",
+        fix: "Getting a heavy bar out of the rack from a decline is awkward and easy to lose. Ask for a hand-off.",
+      },
+      {
+        mistake: "Head rush on the way up if you have been decline for a long set.",
+        fix: "Sit up slowly between sets. Being upside down under load pools blood in your head.",
+      },
     ],
   },
   "db-bench-press": {
@@ -85,8 +119,14 @@ export const FORM_GUIDES: Record<string, FormGuide> = {
       "Press up and slightly together without clashing them at the top.",
     ],
     watchFor: [
-      "Letting the elbows drop far below the bench line.",
-      "Dropping the bells at the end of a set instead of sitting up with them.",
+      {
+        mistake: "Letting the elbows drop far below the bench line.",
+        fix: "Stop when your upper arms are level with your torso. Deeper stretches the front of the shoulder more than it works the chest.",
+      },
+      {
+        mistake: "Dropping the bells at the end of a set instead of sitting up with them.",
+        fix: "Bring them to your chest, then sit up with them — that is how you protect your shoulders and the gym floor.",
+      },
     ],
   },
   "incline-db-press": {
@@ -99,8 +139,14 @@ export const FORM_GUIDES: Record<string, FormGuide> = {
       "Press up over the shoulders, stopping short of clashing the bells.",
     ],
     watchFor: [
-      "Shrugging the shoulders up toward the ears as you press.",
-      "Arching hard off the bench to turn it back into a flat press.",
+      {
+        mistake: "Shrugging the shoulders up toward the ears as you press.",
+        fix: "Keep your shoulder blades pinned down against the bench so the chest presses, not the traps.",
+      },
+      {
+        mistake: "Arching hard off the bench to turn it back into a flat press.",
+        fix: "If you are arching to move the weight, the incline is too heavy. Go lighter and keep your back on the pad.",
+      },
     ],
   },
   "decline-db-press": {
@@ -113,8 +159,14 @@ export const FORM_GUIDES: Record<string, FormGuide> = {
       "Press back up over the shoulders.",
     ],
     watchFor: [
-      "Getting into position with the bells already overhead.",
-      "Letting the bells wander apart at the bottom.",
+      {
+        mistake: "Getting into position with the bells already overhead.",
+        fix: "Rest them on your thighs and kick them up as you lie back. On a decline you cannot recover a bell that gets away from you overhead.",
+      },
+      {
+        mistake: "Letting the bells wander apart at the bottom.",
+        fix: "Keep them stacked over your elbows. Drifting wide turns a press into a fly your shoulders did not sign up for.",
+      },
     ],
   },
   "machine-chest-press": {
@@ -127,8 +179,14 @@ export const FORM_GUIDES: Record<string, FormGuide> = {
       "Return under control until you feel the chest stretch.",
     ],
     watchFor: [
-      "Seat too high, which turns it into an incline press for the shoulders.",
-      "Letting the weight stack touch down between reps.",
+      {
+        mistake: "Seat too high, which turns it into an incline press for the shoulders.",
+        fix: "The handles should line up with the middle of your chest before you start.",
+      },
+      {
+        mistake: "Letting the weight stack touch down between reps.",
+        fix: "Stop just short. Resting the stack drops the tension and gives you a break you did not earn.",
+      },
     ],
   },
   "incline-machine-press": {
@@ -141,7 +199,10 @@ export const FORM_GUIDES: Record<string, FormGuide> = {
       "Lower until you feel the stretch, not until the stack lands.",
     ],
     watchFor: [
-      "Pushing the head forward off the pad to finish a rep.",
+      {
+        mistake: "Pushing the head forward off the pad to finish a rep.",
+        fix: "Keep your head back. If the rep needs your neck, it needs less weight.",
+      },
     ],
   },
   "smith-bench-press": {
@@ -154,8 +215,14 @@ export const FORM_GUIDES: Record<string, FormGuide> = {
       "Twist to re-hook only once the rep is finished.",
     ],
     watchFor: [
-      "Bench positioned so the fixed bar meets the throat or the belly.",
-      "Relying on the rails and letting the setup get sloppy.",
+      {
+        mistake: "Bench positioned so the fixed bar meets the throat or the belly.",
+        fix: "Move the bench until the bar lands on your mid-chest, then set up. The rails will not correct a bad position.",
+      },
+      {
+        mistake: "Relying on the rails and letting the setup get sloppy.",
+        fix: "Set your shoulder blades and feet exactly as you would with a free bar.",
+      },
     ],
   },
   "smith-incline-press": {
@@ -167,7 +234,10 @@ export const FORM_GUIDES: Record<string, FormGuide> = {
       "Lower to the upper chest, press back up, re-hook at the end of the set.",
     ],
     watchFor: [
-      "Bench drifting out of position between sets.",
+      {
+        mistake: "Bench drifting out of position between sets.",
+        fix: "Check it each time. A few inches changes where the fixed bar meets your chest.",
+      },
     ],
   },
   "pec-deck": {
@@ -180,8 +250,14 @@ export const FORM_GUIDES: Record<string, FormGuide> = {
       "Open back up until you feel the stretch, not until the stack lands.",
     ],
     watchFor: [
-      "Turning it into a press by bending and straightening the elbows.",
-      "Going so deep at the back that the shoulder takes the stretch.",
+      {
+        mistake: "Turning it into a press by bending and straightening the elbows.",
+        fix: "Fix a slight bend and keep it there. The movement happens at the shoulder, not the elbow.",
+      },
+      {
+        mistake: "Going so deep at the back that the shoulder takes the stretch.",
+        fix: "Stop when you feel your chest stretch, not when the machine runs out of travel.",
+      },
     ],
   },
   "dumbbell-fly": {
@@ -194,8 +270,14 @@ export const FORM_GUIDES: Record<string, FormGuide> = {
       "Bring them back together over the chest along the same arc.",
     ],
     watchFor: [
-      "Going far heavier than the movement allows and pressing instead.",
-      "Dropping so deep the shoulders take the strain.",
+      {
+        mistake: "Going far heavier than the movement allows and pressing instead.",
+        fix: "Flyes are a stretch exercise. If you have to press it up, halve the weight.",
+      },
+      {
+        mistake: "Dropping so deep the shoulders take the strain.",
+        fix: "Stop at chest level. Below that the stretch is on the front of your shoulder, not the chest.",
+      },
     ],
   },
   "incline-db-fly": {
@@ -207,7 +289,10 @@ export const FORM_GUIDES: Record<string, FormGuide> = {
       "Open wide to a stretch, then arc back together over the upper chest.",
     ],
     watchFor: [
-      "Letting the elbow angle open and close — that makes it a press.",
+      {
+        mistake: "Letting the elbow angle open and close — that makes it a press.",
+        fix: "Set the bend at the start and hold it the whole set.",
+      },
     ],
   },
   "cable-crossover": {
@@ -220,8 +305,14 @@ export const FORM_GUIDES: Record<string, FormGuide> = {
       "Let them travel back out until you feel the stretch.",
     ],
     watchFor: [
-      "Leaning so far forward the lower back does the work.",
-      "Snapping the elbows straight at the bottom.",
+      {
+        mistake: "Leaning so far forward the lower back does the work.",
+        fix: "Hinge a little and stay there. If your back is fatiguing before your chest, you have leaned too far.",
+      },
+      {
+        mistake: "Snapping the elbows straight at the bottom.",
+        fix: "Keep a soft bend throughout. Locking out under a cable puts the whole load on the joint.",
+      },
     ],
   },
   "low-cable-fly": {
@@ -234,7 +325,10 @@ export const FORM_GUIDES: Record<string, FormGuide> = {
       "Lower along the same arc under control.",
     ],
     watchFor: [
-      "Shrugging the shoulders to finish the rep.",
+      {
+        mistake: "Shrugging the shoulders to finish the rep.",
+        fix: "Stop the rep where your chest stops working. Shrugging just adds trap to a chest exercise.",
+      },
     ],
   },
   "high-cable-fly": {
@@ -247,7 +341,10 @@ export const FORM_GUIDES: Record<string, FormGuide> = {
       "Return along the same path to a stretch.",
     ],
     watchFor: [
-      "Turning it into a pushdown by driving with the triceps.",
+      {
+        mistake: "Turning it into a pushdown by driving with the triceps.",
+        fix: "Lead with the upper arms and keep the elbow angle fixed.",
+      },
     ],
   },
   "incline-cable-fly": {
@@ -260,7 +357,10 @@ export const FORM_GUIDES: Record<string, FormGuide> = {
       "Open back out to a stretch under control.",
     ],
     watchFor: [
-      "Bench positioned so the cables drag on the frame.",
+      {
+        mistake: "Bench positioned so the cables drag on the frame.",
+        fix: "Move the bench out until the cables run clear through the whole arc.",
+      },
     ],
   },
   "push-up": {
@@ -273,8 +373,14 @@ export const FORM_GUIDES: Record<string, FormGuide> = {
       "Press back up and finish with the shoulder blades spread.",
     ],
     watchFor: [
-      "Hips sagging or piking up to shorten the rep.",
-      "Head reaching for the floor ahead of the chest.",
+      {
+        mistake: "Hips sagging or piking up to shorten the rep.",
+        fix: "Squeeze your glutes and abs so you move as one piece. If you cannot hold the line, do them on your knees.",
+      },
+      {
+        mistake: "Head reaching for the floor ahead of the chest.",
+        fix: "Your chest should touch first. Leading with your head hides half the range.",
+      },
     ],
   },
   "dips-chest": {
@@ -287,8 +393,14 @@ export const FORM_GUIDES: Record<string, FormGuide> = {
       "Press back up, keeping the forward lean throughout.",
     ],
     watchFor: [
-      "Dropping below a comfortable shoulder stretch.",
-      "Losing the forward lean, which turns it into a triceps dip.",
+      {
+        mistake: "Dropping below a comfortable shoulder stretch.",
+        fix: "Stop where it stops feeling like a stretch and starts feeling like a pinch. That depth is yours and it will improve.",
+      },
+      {
+        mistake: "Losing the forward lean, which turns it into a triceps dip.",
+        fix: "Stay leaned over the whole set. Upright is a different exercise.",
+      },
     ],
   },
   "weighted-dips-chest": {
@@ -300,7 +412,10 @@ export const FORM_GUIDES: Record<string, FormGuide> = {
       "Lower under control to upper arms parallel, then press back up.",
     ],
     watchFor: [
-      "Adding weight before the bodyweight version is comfortable and controlled.",
+      {
+        mistake: "Adding weight before the bodyweight version is comfortable and controlled.",
+        fix: "Get to about ten clean bodyweight dips first. The belt multiplies whatever your form already is.",
+      },
     ],
   },
   "landmine-press": {
@@ -313,7 +428,10 @@ export const FORM_GUIDES: Record<string, FormGuide> = {
       "Return to the shoulder under control.",
     ],
     watchFor: [
-      "Twisting the torso to help the press.",
+      {
+        mistake: "Twisting the torso to help the press.",
+        fix: "Square your hips and shoulders to the bar and let the arm do the work.",
+      },
     ],
   },
   "svend-press": {
@@ -326,7 +444,10 @@ export const FORM_GUIDES: Record<string, FormGuide> = {
       "Draw them back to the chest keeping the squeeze on.",
     ],
     watchFor: [
-      "Letting the squeeze go mid-rep, which is the entire exercise.",
+      {
+        mistake: "Letting the squeeze go mid-rep, which is the entire exercise.",
+        fix: "Press the plates together hard the whole time. The load is the squeeze, not the weight.",
+      },
     ],
   },
   "deadlift": {
@@ -341,8 +462,14 @@ export const FORM_GUIDES: Record<string, FormGuide> = {
       "Stand tall and lock the hips; do not lean back at the top.",
     ],
     watchFor: [
-      "Rounding the lower back once the weight gets heavy.",
-      "The bar swinging out away from the shins and pulling you forward.",
+      {
+        mistake: "Rounding the lower back once the weight gets heavy.",
+        fix: "Stop the set. A rounded pull is the single most reliable way to hurt your back, and no rep is worth it.",
+      },
+      {
+        mistake: "The bar swinging out away from the shins and pulling you forward.",
+        fix: "Drag it up your legs. If it swings out, your hips started too high.",
+      },
     ],
   },
   "rack-pull": {
@@ -355,8 +482,14 @@ export const FORM_GUIDES: Record<string, FormGuide> = {
       "Lower back to the pins under control rather than dropping it.",
     ],
     watchFor: [
-      "Loading far heavier than a deadlift and letting the back round.",
-      "Bouncing the bar off the pins to start the next rep.",
+      {
+        mistake: "Loading far heavier than a deadlift and letting the back round.",
+        fix: "The shorter range tempts you to overload it. Use a weight you could hold position with for the full set.",
+      },
+      {
+        mistake: "Bouncing the bar off the pins to start the next rep.",
+        fix: "Come to a full stop each rep. The bounce loads your spine with a shock you did not choose.",
+      },
     ],
   },
   "pull-up": {
@@ -369,8 +502,14 @@ export const FORM_GUIDES: Record<string, FormGuide> = {
       "Lower all the way to straight arms under control.",
     ],
     watchFor: [
-      "Kipping or swinging to get the last rep.",
-      "Stopping halfway down and losing the stretch at the bottom.",
+      {
+        mistake: "Kipping or swinging to get the last rep.",
+        fix: "End the set. Swinging trains your hips, not your back — use a band or a machine if you need more reps.",
+      },
+      {
+        mistake: "Stopping halfway down and losing the stretch at the bottom.",
+        fix: "Straighten your arms fully every rep. The bottom is where the lat actually grows.",
+      },
     ],
   },
   "wide-pull-up": {
@@ -383,7 +522,10 @@ export const FORM_GUIDES: Record<string, FormGuide> = {
       "Lower to a full hang under control.",
     ],
     watchFor: [
-      "Going so wide the range shrinks to a few inches.",
+      {
+        mistake: "Going so wide the range shrinks to a few inches.",
+        fix: "Come in until you can pull your chest to the bar. Wide does not mean better.",
+      },
     ],
   },
   "chin-up": {
@@ -396,7 +538,10 @@ export const FORM_GUIDES: Record<string, FormGuide> = {
       "Lower to straight arms.",
     ],
     watchFor: [
-      "Letting the elbows drift forward, which hands the work to the biceps alone.",
+      {
+        mistake: "Letting the elbows drift forward, which hands the work to the biceps alone.",
+        fix: "Pull your elbows down to your sides, not out in front of you.",
+      },
     ],
   },
   "inverted-row": {
@@ -409,7 +554,10 @@ export const FORM_GUIDES: Record<string, FormGuide> = {
       "Lower under control to straight arms.",
     ],
     watchFor: [
-      "Hips sagging so the body bends instead of the arms.",
+      {
+        mistake: "Hips sagging so the body bends instead of the arms.",
+        fix: "Squeeze your glutes and hold a straight line from your head to your heels.",
+      },
     ],
   },
   "barbell-row": {
@@ -422,8 +570,14 @@ export const FORM_GUIDES: Record<string, FormGuide> = {
       "Lower under control without letting the torso rise.",
     ],
     watchFor: [
-      "Standing up a little on each rep to heave the weight.",
-      "Rowing to the chest, which turns it into a rear-delt exercise.",
+      {
+        mistake: "Standing up a little on each rep to heave the weight.",
+        fix: "Pick a torso angle and hold it for the whole set. If it rises, the weight is too heavy.",
+      },
+      {
+        mistake: "Rowing to the chest, which turns it into a rear-delt exercise.",
+        fix: "Row to your lower ribs or belly button to hit the lats.",
+      },
     ],
   },
   "pendlay-row": {
@@ -436,7 +590,10 @@ export const FORM_GUIDES: Record<string, FormGuide> = {
       "Reset the position before each rep — every rep starts dead.",
     ],
     watchFor: [
-      "Letting the torso rise as you get tired, which makes it a barbell row.",
+      {
+        mistake: "Letting the torso rise as you get tired, which makes it a barbell row.",
+        fix: "Reset flat before every rep. If you cannot, you have run out of Pendlay rows for today.",
+      },
     ],
   },
   "dumbbell-row": {
@@ -449,8 +606,14 @@ export const FORM_GUIDES: Record<string, FormGuide> = {
       "Lower all the way to a stretch.",
     ],
     watchFor: [
-      "Twisting the torso to lift more than the back can.",
-      "Yanking with the arm and never moving the shoulder blade.",
+      {
+        mistake: "Twisting the torso to lift more than the back can.",
+        fix: "Keep your shoulders square to the bench. The rotation is your body borrowing from your obliques.",
+      },
+      {
+        mistake: "Yanking with the arm and never moving the shoulder blade.",
+        fix: "Let the shoulder blade travel at the bottom and pull it back at the top — that is the range the lat works through.",
+      },
     ],
   },
   "chest-supported-row": {
@@ -463,7 +626,10 @@ export const FORM_GUIDES: Record<string, FormGuide> = {
       "Lower to a full stretch.",
     ],
     watchFor: [
-      "Peeling the chest off the pad, which gives the lower back the load.",
+      {
+        mistake: "Peeling the chest off the pad, which gives the lower back the load.",
+        fix: "Stay glued to the pad. Being unable to cheat is the entire reason to use this machine.",
+      },
     ],
   },
   "machine-row": {
@@ -476,7 +642,10 @@ export const FORM_GUIDES: Record<string, FormGuide> = {
       "Return to a stretch without letting the stack land.",
     ],
     watchFor: [
-      "Leaning back to move a heavier stack.",
+      {
+        mistake: "Leaning back to move a heavier stack.",
+        fix: "Keep your torso still and let your arms and shoulder blades do the work.",
+      },
     ],
   },
   "meadows-row": {
@@ -489,7 +658,10 @@ export const FORM_GUIDES: Record<string, FormGuide> = {
       "Lower to a deep stretch under control.",
     ],
     watchFor: [
-      "Rotating the torso open instead of keeping it square.",
+      {
+        mistake: "Rotating the torso open instead of keeping it square.",
+        fix: "Face the same direction the whole set; the twist is your back giving up range to your hips.",
+      },
     ],
   },
   "cable-row": {
@@ -502,8 +674,14 @@ export const FORM_GUIDES: Record<string, FormGuide> = {
       "Let it travel back out to a full stretch.",
     ],
     watchFor: [
-      "Rocking back and forth from the hips to swing the stack.",
-      "Shrugging the shoulders at the finish.",
+      {
+        mistake: "Rocking back and forth from the hips to swing the stack.",
+        fix: "Keep your torso upright and still. Only your arms and shoulder blades should move.",
+      },
+      {
+        mistake: "Shrugging the shoulders at the finish.",
+        fix: "Pull your shoulder blades back and down, not up.",
+      },
     ],
   },
   "t-bar-row": {
@@ -516,7 +694,10 @@ export const FORM_GUIDES: Record<string, FormGuide> = {
       "Lower to a stretch keeping the torso angle fixed.",
     ],
     watchFor: [
-      "Standing up through the rep to heave the weight.",
+      {
+        mistake: "Standing up through the rep to heave the weight.",
+        fix: "Hold your hinge. Rising to lift is the sign to drop a plate.",
+      },
     ],
   },
   "lat-pulldown": {
@@ -529,8 +710,14 @@ export const FORM_GUIDES: Record<string, FormGuide> = {
       "Let it rise to a full stretch with the shoulders coming up.",
     ],
     watchFor: [
-      "Leaning back further and further to turn it into a row.",
-      "Pulling behind the neck, which asks a lot of the shoulder for nothing.",
+      {
+        mistake: "Leaning back further and further to turn it into a row.",
+        fix: "Pick a slight lean and keep it. Growing lean means the weight is winning.",
+      },
+      {
+        mistake: "Pulling behind the neck, which asks a lot of the shoulder for nothing.",
+        fix: "Pull to your upper chest instead. It works the same muscle without the shoulder position.",
+      },
     ],
   },
   "wide-grip-pulldown": {
@@ -543,7 +730,10 @@ export const FORM_GUIDES: Record<string, FormGuide> = {
       "Return to a full stretch.",
     ],
     watchFor: [
-      "A grip so wide the bar only travels a few inches.",
+      {
+        mistake: "A grip so wide the bar only travels a few inches.",
+        fix: "Narrow it until you get a full stretch at the top and the bar to your collarbone at the bottom.",
+      },
     ],
   },
   "neutral-grip-pulldown": {
@@ -556,7 +746,10 @@ export const FORM_GUIDES: Record<string, FormGuide> = {
       "Let the arms extend fully at the top.",
     ],
     watchFor: [
-      "Rocking the torso to get the last couple of reps.",
+      {
+        mistake: "Rocking the torso to get the last couple of reps.",
+        fix: "Sit still. When the rocking starts, the set is done.",
+      },
     ],
   },
   "single-arm-pulldown": {
@@ -569,7 +762,10 @@ export const FORM_GUIDES: Record<string, FormGuide> = {
       "Return to a full overhead stretch.",
     ],
     watchFor: [
-      "Twisting the torso to pull, rather than letting the lat do it.",
+      {
+        mistake: "Twisting the torso to pull, rather than letting the lat do it.",
+        fix: "Stay square and think about driving the elbow down past your ribs.",
+      },
     ],
   },
   "straight-arm-pulldown": {
@@ -582,7 +778,10 @@ export const FORM_GUIDES: Record<string, FormGuide> = {
       "Let it rise back to shoulder height under control.",
     ],
     watchFor: [
-      "Bending and straightening the elbows — that makes it a pushdown.",
+      {
+        mistake: "Bending and straightening the elbows — that makes it a pushdown.",
+        fix: "Lock a slight bend in and move only at the shoulder.",
+      },
     ],
   },
   "cable-pullover": {
@@ -595,7 +794,10 @@ export const FORM_GUIDES: Record<string, FormGuide> = {
       "Let it travel back overhead to a stretch.",
     ],
     watchFor: [
-      "Letting the elbows collapse and turning it into a triceps movement.",
+      {
+        mistake: "Letting the elbows collapse and turning it into a triceps movement.",
+        fix: "Hold the elbow angle fixed; the arc should come from your shoulders.",
+      },
     ],
   },
   "face-pull": {
@@ -608,8 +810,14 @@ export const FORM_GUIDES: Record<string, FormGuide> = {
       "Finish with the elbows high and the shoulder blades squeezed.",
     ],
     watchFor: [
-      "Pulling to the chest with low elbows, which is just a row.",
-      "Loading it so heavy that the whole body leans back.",
+      {
+        mistake: "Pulling to the chest with low elbows, which is just a row.",
+        fix: "Keep your elbows at or above shoulder height and split the rope past your ears.",
+      },
+      {
+        mistake: "Loading it so heavy that the whole body leans back.",
+        fix: "Face pulls work light. If you are counterbalancing, take plates off.",
+      },
     ],
   },
   "barbell-shrug": {
@@ -622,8 +830,14 @@ export const FORM_GUIDES: Record<string, FormGuide> = {
       "Lower under control to a full stretch.",
     ],
     watchFor: [
-      "Rolling the shoulders, which adds nothing and grinds the joint.",
-      "Bending the elbows to turn it into a half-row.",
+      {
+        mistake: "Rolling the shoulders, which adds nothing and grinds the joint.",
+        fix: "Shrug straight up and straight down.",
+      },
+      {
+        mistake: "Bending the elbows to turn it into a half-row.",
+        fix: "Keep your arms straight; your traps do not need help from your biceps.",
+      },
     ],
   },
   "dumbbell-shrug": {
@@ -635,7 +849,10 @@ export const FORM_GUIDES: Record<string, FormGuide> = {
       "Shrug straight up, pause, and lower to a stretch.",
     ],
     watchFor: [
-      "Leaning side to side to alternate the effort.",
+      {
+        mistake: "Leaning side to side to alternate the effort.",
+        fix: "Stand square and shrug both together.",
+      },
     ],
   },
   "back-extension": {
@@ -648,7 +865,10 @@ export const FORM_GUIDES: Record<string, FormGuide> = {
       "Drive the hips into the pad to return to a straight line.",
     ],
     watchFor: [
-      "Hyperextending at the top and cranking the lower back backwards.",
+      {
+        mistake: "Hyperextending at the top and cranking the lower back backwards.",
+        fix: "Stop at a straight line from your head to your heels. Past that you are just compressing your spine.",
+      },
     ],
   },
   "ohp": {
@@ -661,8 +881,14 @@ export const FORM_GUIDES: Record<string, FormGuide> = {
       "Once it clears, push the head through so the bar finishes over the mid-foot.",
     ],
     watchFor: [
-      "Leaning back from the lower back instead of bracing the midsection.",
-      "Pressing around the face and finishing with the bar out in front.",
+      {
+        mistake: "Leaning back from the lower back instead of bracing the midsection.",
+        fix: "Squeeze your glutes and pull your ribs down before you press. If you still have to lean, the weight is too heavy.",
+      },
+      {
+        mistake: "Pressing around the face and finishing with the bar out in front.",
+        fix: "Move your head back an inch, press straight up, then push your head through so the bar ends over the middle of your foot.",
+      },
     ],
   },
   "dumbbell-ohp": {
@@ -675,8 +901,14 @@ export const FORM_GUIDES: Record<string, FormGuide> = {
       "Lower to ear height under control.",
     ],
     watchFor: [
-      "Arching the lower back to press a weight the shoulders cannot.",
-      "Clashing the bells overhead.",
+      {
+        mistake: "Arching the lower back to press a weight the shoulders cannot.",
+        fix: "Brace your midsection and drop the weight. A pressed rep that bends your back is a back exercise.",
+      },
+      {
+        mistake: "Clashing the bells overhead.",
+        fix: "Stop them a few inches apart. Banging them together costs you nothing and risks your wrists.",
+      },
     ],
   },
   "seated-db-press": {
@@ -689,7 +921,10 @@ export const FORM_GUIDES: Record<string, FormGuide> = {
       "Lower under control to about ear height.",
     ],
     watchFor: [
-      "Sliding the hips forward and arching off the backrest.",
+      {
+        mistake: "Sliding the hips forward and arching off the backrest.",
+        fix: "Sit right back into the seat and keep your ribs down against the pad.",
+      },
     ],
   },
   "machine-shoulder-press": {
@@ -702,7 +937,10 @@ export const FORM_GUIDES: Record<string, FormGuide> = {
       "Lower under control until the handles reach the shoulders.",
     ],
     watchFor: [
-      "Seat too low, which forces the shoulder into an awkward start.",
+      {
+        mistake: "Seat too low, which forces the shoulder into an awkward start.",
+        fix: "Raise it until the handles start level with your shoulders.",
+      },
     ],
   },
   "smith-shoulder-press": {
@@ -715,7 +953,10 @@ export const FORM_GUIDES: Record<string, FormGuide> = {
       "Re-hook once the set is finished.",
     ],
     watchFor: [
-      "Bench placed so the bar travels well in front of the shoulders.",
+      {
+        mistake: "Bench placed so the bar travels well in front of the shoulders.",
+        fix: "Shift the bench until the fixed path passes close to your face. The Smith will not adjust to you.",
+      },
     ],
   },
   "arnold-press": {
@@ -728,7 +969,10 @@ export const FORM_GUIDES: Record<string, FormGuide> = {
       "Reverse the rotation exactly on the way down.",
     ],
     watchFor: [
-      "Rushing the rotation so it happens after the press rather than during it.",
+      {
+        mistake: "Rushing the rotation so it happens after the press rather than during it.",
+        fix: "Turn your palms gradually as you press, finishing the rotation exactly as your arms straighten.",
+      },
     ],
   },
   "lateral-raise": {
@@ -741,8 +985,14 @@ export const FORM_GUIDES: Record<string, FormGuide> = {
       "Lower slowly — most of the value is on the way down.",
     ],
     watchFor: [
-      "Swinging the weight up with the hips.",
-      "Shrugging, which hands the work to the traps.",
+      {
+        mistake: "Swinging the weight up with the hips.",
+        fix: "Stand still and go lighter. Lateral raises are small-muscle work and swinging skips the muscle entirely.",
+      },
+      {
+        mistake: "Shrugging, which hands the work to the traps.",
+        fix: "Keep your shoulders pressed down and stop the raise at shoulder height.",
+      },
     ],
   },
   "cable-lateral-raise": {
@@ -755,7 +1005,10 @@ export const FORM_GUIDES: Record<string, FormGuide> = {
       "Lower slowly all the way down.",
     ],
     watchFor: [
-      "Leaning away from the stack to cheat the last reps.",
+      {
+        mistake: "Leaning away from the stack to cheat the last reps.",
+        fix: "Stand upright. When you start counterbalancing, the set is finished.",
+      },
     ],
   },
   "machine-lateral-raise": {
@@ -768,7 +1021,10 @@ export const FORM_GUIDES: Record<string, FormGuide> = {
       "Lower under control without letting the stack land.",
     ],
     watchFor: [
-      "Pushing with the hands rather than leading with the elbows.",
+      {
+        mistake: "Pushing with the hands rather than leading with the elbows.",
+        fix: "Drive your elbows out and up; your hands are just along for the ride.",
+      },
     ],
   },
   "front-raise": {
@@ -781,7 +1037,10 @@ export const FORM_GUIDES: Record<string, FormGuide> = {
       "Lower under control.",
     ],
     watchFor: [
-      "Rocking back to swing the bells up.",
+      {
+        mistake: "Rocking back to swing the bells up.",
+        fix: "Brace and go lighter. If your torso moves, your front delts are not doing the work.",
+      },
     ],
   },
   "cable-front-raise": {
@@ -794,7 +1053,10 @@ export const FORM_GUIDES: Record<string, FormGuide> = {
       "Lower slowly.",
     ],
     watchFor: [
-      "Leaning back as the set gets hard.",
+      {
+        mistake: "Leaning back as the set gets hard.",
+        fix: "Stay upright and stop when you cannot. The lean is your hips taking over.",
+      },
     ],
   },
   "plate-front-raise": {
@@ -806,7 +1068,10 @@ export const FORM_GUIDES: Record<string, FormGuide> = {
       "Raise to eye level, then lower under control.",
     ],
     watchFor: [
-      "Using the hips to start each rep.",
+      {
+        mistake: "Using the hips to start each rep.",
+        fix: "Start each rep from a dead stop with your torso still.",
+      },
     ],
   },
   "reverse-fly": {
@@ -819,8 +1084,14 @@ export const FORM_GUIDES: Record<string, FormGuide> = {
       "Squeeze the shoulder blades, then lower to a stretch.",
     ],
     watchFor: [
-      "Standing up through the rep.",
-      "Going heavy enough that it becomes a row.",
+      {
+        mistake: "Standing up through the rep.",
+        fix: "Hold your hinge for the whole set. Rising is your lower back joining in.",
+      },
+      {
+        mistake: "Going heavy enough that it becomes a row.",
+        fix: "Rear delts are small. Use a weight you can raise with straight-ish arms and no elbow bend.",
+      },
     ],
   },
   "rear-delt-machine": {
@@ -833,7 +1104,10 @@ export const FORM_GUIDES: Record<string, FormGuide> = {
       "Return under control to a stretch.",
     ],
     watchFor: [
-      "Pulling with the elbows tucked, which makes it a row.",
+      {
+        mistake: "Pulling with the elbows tucked, which makes it a row.",
+        fix: "Sweep your arms wide and back, elbows away from your body.",
+      },
     ],
   },
   "cable-rear-delt": {
@@ -846,7 +1120,10 @@ export const FORM_GUIDES: Record<string, FormGuide> = {
       "Return under control.",
     ],
     watchFor: [
-      "Letting the elbows bend and straighten through the rep.",
+      {
+        mistake: "Letting the elbows bend and straighten through the rep.",
+        fix: "Fix a slight bend and hold it — the movement is at the shoulder.",
+      },
     ],
   },
   "upright-row": {
@@ -859,8 +1136,10 @@ export const FORM_GUIDES: Record<string, FormGuide> = {
       "Lower under control.",
     ],
     watchFor: [
-      "A narrow grip pulled to the chin — hard on the shoulder for many people.",
-      "Stop and switch to lateral raises if it pinches.",
+      {
+        mistake: "A narrow grip pulled to the chin — hard on the shoulder for many people.",
+        fix: "Widen to shoulder width and stop at chest height. If it still pinches, do lateral raises instead — you lose nothing.",
+      },
     ],
   },
   "landmine-shoulder-press": {
@@ -873,7 +1152,10 @@ export const FORM_GUIDES: Record<string, FormGuide> = {
       "Return to the shoulder under control.",
     ],
     watchFor: [
-      "Twisting the torso into the press.",
+      {
+        mistake: "Twisting the torso into the press.",
+        fix: "Square your hips and shoulders and let the arm press on its own.",
+      },
     ],
   },
   "barbell-curl": {
@@ -886,8 +1168,14 @@ export const FORM_GUIDES: Record<string, FormGuide> = {
       "Lower all the way to straight arms.",
     ],
     watchFor: [
-      "Swinging the hips to start each rep.",
-      "Stopping halfway down, which skips the part that builds the most.",
+      {
+        mistake: "Swinging the hips to start each rep.",
+        fix: "Stand still, or put your back against a wall. Momentum takes the work off the muscle you came for.",
+      },
+      {
+        mistake: "Stopping halfway down, which skips the part that builds the most.",
+        fix: "Straighten your arms fully every rep. The stretched position does most of the growing.",
+      },
     ],
   },
   "ez-bar-curl": {
@@ -899,7 +1187,10 @@ export const FORM_GUIDES: Record<string, FormGuide> = {
       "Curl to shoulder height, lower to full extension.",
     ],
     watchFor: [
-      "Letting the elbows travel forward at the top.",
+      {
+        mistake: "Letting the elbows travel forward at the top.",
+        fix: "Keep them pinned at your sides. Once they swing forward, your shoulders are lifting the weight.",
+      },
     ],
   },
   "dumbbell-curl": {
@@ -912,7 +1203,10 @@ export const FORM_GUIDES: Record<string, FormGuide> = {
       "Lower fully under control.",
     ],
     watchFor: [
-      "Leaning back to heave the bells up.",
+      {
+        mistake: "Leaning back to heave the bells up.",
+        fix: "Brace and go lighter. The lean is your lower back curling for you.",
+      },
     ],
   },
   "hammer-curl": {
@@ -925,7 +1219,10 @@ export const FORM_GUIDES: Record<string, FormGuide> = {
       "Lower to straight arms.",
     ],
     watchFor: [
-      "Rotating the palms, which turns it into a standard curl.",
+      {
+        mistake: "Rotating the palms, which turns it into a standard curl.",
+        fix: "Keep your palms facing each other the whole way — that neutral grip is the point.",
+      },
     ],
   },
   "incline-hammer-curl": {
@@ -937,7 +1234,10 @@ export const FORM_GUIDES: Record<string, FormGuide> = {
       "Curl up keeping the elbows still, then lower to a deep stretch.",
     ],
     watchFor: [
-      "Swinging the shoulders forward to start the rep.",
+      {
+        mistake: "Swinging the shoulders forward to start the rep.",
+        fix: "Let your arms hang behind you and keep them there. That stretch is why you chose the incline.",
+      },
     ],
   },
   "incline-curl": {
@@ -949,7 +1249,10 @@ export const FORM_GUIDES: Record<string, FormGuide> = {
       "Curl up without moving the elbows, then lower to a full stretch.",
     ],
     watchFor: [
-      "Letting the shoulders roll forward, which kills the stretch that makes this useful.",
+      {
+        mistake: "Letting the shoulders roll forward, which kills the stretch that makes this useful.",
+        fix: "Keep your shoulders back against the bench and let only your elbows move.",
+      },
     ],
   },
   "preacher-curl": {
@@ -962,7 +1265,10 @@ export const FORM_GUIDES: Record<string, FormGuide> = {
       "Lower slowly to nearly straight — this bottom is where injuries happen if you drop it.",
     ],
     watchFor: [
-      "Bouncing out of the bottom with a heavy weight.",
+      {
+        mistake: "Bouncing out of the bottom with a heavy weight.",
+        fix: "Lower slowly and pause. A preacher bench puts your elbow in its weakest position at the bottom.",
+      },
     ],
   },
   "spider-curl": {
@@ -974,7 +1280,10 @@ export const FORM_GUIDES: Record<string, FormGuide> = {
       "Curl up to a hard squeeze, then lower to straight arms.",
     ],
     watchFor: [
-      "Rocking the chest off the pad.",
+      {
+        mistake: "Rocking the chest off the pad.",
+        fix: "Stay flat against it. Rocking is how you turn a strict curl into a sloppy one.",
+      },
     ],
   },
   "cable-curl": {
@@ -986,7 +1295,10 @@ export const FORM_GUIDES: Record<string, FormGuide> = {
       "Curl up to shoulder height, lower under control.",
     ],
     watchFor: [
-      "Letting the stack land between reps.",
+      {
+        mistake: "Letting the stack land between reps.",
+        fix: "Stop just short of the bottom so tension stays on the whole set.",
+      },
     ],
   },
   "cable-hammer-curl": {
@@ -998,7 +1310,10 @@ export const FORM_GUIDES: Record<string, FormGuide> = {
       "Curl up keeping the palms facing each other, then lower fully.",
     ],
     watchFor: [
-      "Pulling the rope apart at the top instead of just curling.",
+      {
+        mistake: "Pulling the rope apart at the top instead of just curling.",
+        fix: "Keep your hands the same distance apart and just curl.",
+      },
     ],
   },
   "high-cable-curl": {
@@ -1011,7 +1326,10 @@ export const FORM_GUIDES: Record<string, FormGuide> = {
       "Return to straight arms under control.",
     ],
     watchFor: [
-      "Letting the elbows fall as you tire.",
+      {
+        mistake: "Letting the elbows fall as you tire.",
+        fix: "Hold them at shoulder height. Dropping them turns the curl into a pulldown.",
+      },
     ],
   },
   "concentration-curl": {
@@ -1023,7 +1341,10 @@ export const FORM_GUIDES: Record<string, FormGuide> = {
       "Curl to the shoulder, squeeze, and lower to full extension.",
     ],
     watchFor: [
-      "Using the leg to push the arm up.",
+      {
+        mistake: "Using the leg to push the arm up.",
+        fix: "Brace your elbow against your thigh but do not push with it — the arm lifts alone.",
+      },
     ],
   },
   "zottman-curl": {
@@ -1036,7 +1357,10 @@ export const FORM_GUIDES: Record<string, FormGuide> = {
       "Lower slowly in the palms-down position, then rotate back.",
     ],
     watchFor: [
-      "Rushing the lowering phase, which is the whole point of the movement.",
+      {
+        mistake: "Rushing the lowering phase, which is the whole point of the movement.",
+        fix: "Take three seconds down with your palm facing the floor. That eccentric is why Zottman curls exist.",
+      },
     ],
   },
   "machine-curl": {
@@ -1048,7 +1372,10 @@ export const FORM_GUIDES: Record<string, FormGuide> = {
       "Curl up to a squeeze, lower to nearly straight.",
     ],
     watchFor: [
-      "Elbows off the pivot, which loads the joint at an angle.",
+      {
+        mistake: "Elbows off the pivot, which loads the joint at an angle.",
+        fix: "Adjust the seat until your elbows sit right on the machine's hinge.",
+      },
     ],
   },
   "close-grip-bench": {
@@ -1061,8 +1388,14 @@ export const FORM_GUIDES: Record<string, FormGuide> = {
       "Press back up, driving through the triceps.",
     ],
     watchFor: [
-      "Gripping so narrow the hands touch, which strains the wrists.",
-      "Letting the elbows flare, which hands it back to the chest.",
+      {
+        mistake: "Gripping so narrow the hands touch, which strains the wrists.",
+        fix: "Set your hands about shoulder width. Close-grip means closer than normal, not touching.",
+      },
+      {
+        mistake: "Letting the elbows flare, which hands it back to the chest.",
+        fix: "Tuck them close to your ribs the whole way down.",
+      },
     ],
   },
   "jm-press": {
@@ -1075,7 +1408,10 @@ export const FORM_GUIDES: Record<string, FormGuide> = {
       "Press back up along the same path.",
     ],
     watchFor: [
-      "Going heavy before the movement is grooved — it is hard on the elbows.",
+      {
+        mistake: "Going heavy before the movement is grooved — it is hard on the elbows.",
+        fix: "Learn the path with an empty bar for a few sessions before adding plates.",
+      },
     ],
   },
   "skull-crusher": {
@@ -1088,8 +1424,14 @@ export const FORM_GUIDES: Record<string, FormGuide> = {
       "Press back up without letting the upper arms drift.",
     ],
     watchFor: [
-      "Flaring the elbows out to move more weight.",
-      "Letting the upper arms swing, which turns it into a press.",
+      {
+        mistake: "Flaring the elbows out to move more weight.",
+        fix: "Keep them pointing at the ceiling. Flaring recruits your chest and cheats the triceps.",
+      },
+      {
+        mistake: "Letting the upper arms swing, which turns it into a press.",
+        fix: "Freeze your upper arms and bend only at the elbow.",
+      },
     ],
   },
   "tricep-pushdown": {
@@ -1102,8 +1444,14 @@ export const FORM_GUIDES: Record<string, FormGuide> = {
       "Let the bar rise until the forearms are past parallel.",
     ],
     watchFor: [
-      "Leaning over the bar and pressing with the chest.",
-      "Elbows drifting forward and back through the rep.",
+      {
+        mistake: "Leaning over the bar and pressing with the chest.",
+        fix: "Stand tall with a small lean and keep your elbows at your sides.",
+      },
+      {
+        mistake: "Elbows drifting forward and back through the rep.",
+        fix: "Pin them to your ribs; only your forearms should move.",
+      },
     ],
   },
   "rope-pushdown": {
@@ -1116,7 +1464,10 @@ export const FORM_GUIDES: Record<string, FormGuide> = {
       "Return under control to a stretch.",
     ],
     watchFor: [
-      "Never separating the rope, which loses the best part of the contraction.",
+      {
+        mistake: "Never separating the rope, which loses the best part of the contraction.",
+        fix: "Spread the ends apart at the bottom and squeeze.",
+      },
     ],
   },
   "single-arm-pushdown": {
@@ -1129,7 +1480,10 @@ export const FORM_GUIDES: Record<string, FormGuide> = {
       "Return under control.",
     ],
     watchFor: [
-      "Letting the shoulder rotate to help.",
+      {
+        mistake: "Letting the shoulder rotate to help.",
+        fix: "Keep your upper arm still and square. If it turns, go lighter.",
+      },
     ],
   },
   "reverse-grip-pushdown": {
@@ -1141,7 +1495,10 @@ export const FORM_GUIDES: Record<string, FormGuide> = {
       "Push down to straight arms, squeeze, and return under control.",
     ],
     watchFor: [
-      "Gripping so hard the forearms fail before the triceps do.",
+      {
+        mistake: "Gripping so hard the forearms fail before the triceps do.",
+        fix: "Hold the bar just firmly enough to control it — this is a triceps exercise.",
+      },
     ],
   },
   "overhead-tricep": {
@@ -1154,7 +1511,10 @@ export const FORM_GUIDES: Record<string, FormGuide> = {
       "Press back up without letting the elbows flare.",
     ],
     watchFor: [
-      "Arching the lower back to get the weight overhead.",
+      {
+        mistake: "Arching the lower back to get the weight overhead.",
+        fix: "Brace your midsection and pull your ribs down. If you cannot get it overhead braced, it is too heavy.",
+      },
     ],
   },
   "cable-overhead-extension": {
@@ -1167,7 +1527,10 @@ export const FORM_GUIDES: Record<string, FormGuide> = {
       "Lower to a deep stretch behind the head.",
     ],
     watchFor: [
-      "Letting the elbows flare wide as the set gets hard.",
+      {
+        mistake: "Letting the elbows flare wide as the set gets hard.",
+        fix: "Keep them pointing forward and close to your head.",
+      },
     ],
   },
   "db-overhead-extension": {
@@ -1179,7 +1542,10 @@ export const FORM_GUIDES: Record<string, FormGuide> = {
       "Lower behind the head to a stretch, then press back up.",
     ],
     watchFor: [
-      "Dropping the bell behind the head faster than you can control.",
+      {
+        mistake: "Dropping the bell behind the head faster than you can control.",
+        fix: "Lower it deliberately. Behind your head is the one place you cannot catch it.",
+      },
     ],
   },
   "machine-tricep-extension": {
@@ -1191,7 +1557,10 @@ export const FORM_GUIDES: Record<string, FormGuide> = {
       "Extend to straight arms, squeeze, return under control.",
     ],
     watchFor: [
-      "Letting the stack land at the top of each rep.",
+      {
+        mistake: "Letting the stack land at the top of each rep.",
+        fix: "Stop just short so tension stays on.",
+      },
     ],
   },
   "dips-tricep": {
@@ -1204,8 +1573,14 @@ export const FORM_GUIDES: Record<string, FormGuide> = {
       "Press back to lockout staying upright.",
     ],
     watchFor: [
-      "Leaning forward, which shifts the work to the chest.",
-      "Dropping deeper than the shoulder is comfortable with.",
+      {
+        mistake: "Leaning forward, which shifts the work to the chest.",
+        fix: "Stay as upright as you can hold. Forward lean is a chest dip.",
+      },
+      {
+        mistake: "Dropping deeper than the shoulder is comfortable with.",
+        fix: "Stop at upper arms parallel. Deeper adds shoulder strain, not triceps.",
+      },
     ],
   },
   "bench-dips": {
@@ -1218,7 +1593,10 @@ export const FORM_GUIDES: Record<string, FormGuide> = {
       "Press back up to straight arms.",
     ],
     watchFor: [
-      "Going very deep — this position is hard on the front of the shoulder.",
+      {
+        mistake: "Going very deep — this position is hard on the front of the shoulder.",
+        fix: "Stop at upper arms parallel. Bench dips put your shoulder in a rotated position that does not like depth.",
+      },
     ],
   },
   "diamond-push-up": {
@@ -1231,7 +1609,10 @@ export const FORM_GUIDES: Record<string, FormGuide> = {
       "Press back to straight arms.",
     ],
     watchFor: [
-      "Hips sagging as the triceps tire.",
+      {
+        mistake: "Hips sagging as the triceps tire.",
+        fix: "Squeeze your glutes and hold the line, or drop to your knees for the last reps.",
+      },
     ],
   },
   "kickback": {
@@ -1244,7 +1625,10 @@ export const FORM_GUIDES: Record<string, FormGuide> = {
       "Return to 90° under control.",
     ],
     watchFor: [
-      "Swinging the upper arm instead of moving only at the elbow.",
+      {
+        mistake: "Swinging the upper arm instead of moving only at the elbow.",
+        fix: "Pin your upper arm parallel to your torso and hold it there.",
+      },
     ],
   },
   "wrist-curl": {
@@ -1257,7 +1641,10 @@ export const FORM_GUIDES: Record<string, FormGuide> = {
       "Lower under control.",
     ],
     watchFor: [
-      "Lifting the forearms off the bench to help.",
+      {
+        mistake: "Lifting the forearms off the bench to help.",
+        fix: "Keep them flat. If they lift, the weight is too heavy for your wrists.",
+      },
     ],
   },
   "dumbbell-wrist-curl": {
@@ -1269,7 +1656,10 @@ export const FORM_GUIDES: Record<string, FormGuide> = {
       "Curl the wrist up, then lower to a full stretch.",
     ],
     watchFor: [
-      "Rushing — this one responds to slow reps.",
+      {
+        mistake: "Rushing — this one responds to slow reps.",
+        fix: "Take two seconds up and two down, and let the bar roll to your fingertips at the bottom.",
+      },
     ],
   },
   "machine-wrist-curl": {
@@ -1281,7 +1671,10 @@ export const FORM_GUIDES: Record<string, FormGuide> = {
       "Curl up, squeeze, lower to a stretch.",
     ],
     watchFor: [
-      "Loading so heavy the wrist cannot complete the range.",
+      {
+        mistake: "Loading so heavy the wrist cannot complete the range.",
+        fix: "Drop the weight until you can go from a full stretch to a full curl.",
+      },
     ],
   },
   "reverse-wrist-curl": {
@@ -1293,7 +1686,10 @@ export const FORM_GUIDES: Record<string, FormGuide> = {
       "Lift the back of the hand toward the ceiling, then lower under control.",
     ],
     watchFor: [
-      "Going too heavy; this side of the forearm is far weaker.",
+      {
+        mistake: "Going too heavy; this side of the forearm is far weaker.",
+        fix: "Start with about a third of what you use palms-up.",
+      },
     ],
   },
   "dumbbell-reverse-wrist-curl": {
@@ -1305,7 +1701,10 @@ export const FORM_GUIDES: Record<string, FormGuide> = {
       "Raise the back of the hand, squeeze, lower slowly.",
     ],
     watchFor: [
-      "Letting the elbow lift to help.",
+      {
+        mistake: "Letting the elbow lift to help.",
+        fix: "Brace your forearm down and move only at the wrist.",
+      },
     ],
   },
   "machine-reverse-wrist-curl": {
@@ -1317,7 +1716,10 @@ export const FORM_GUIDES: Record<string, FormGuide> = {
       "Extend the wrists up, then lower under control.",
     ],
     watchFor: [
-      "Adding weight faster than the wrists adapt.",
+      {
+        mistake: "Adding weight faster than the wrists adapt.",
+        fix: "Add small increments over weeks. Wrists complain louder and longer than most joints.",
+      },
     ],
   },
   "behind-back-wrist-curl": {
@@ -1330,7 +1732,10 @@ export const FORM_GUIDES: Record<string, FormGuide> = {
       "Lower under control.",
     ],
     watchFor: [
-      "Bending the elbows to help.",
+      {
+        mistake: "Bending the elbows to help.",
+        fix: "Keep your arms straight; the bar should only move because your wrists moved.",
+      },
     ],
   },
   "reverse-barbell-curl": {
@@ -1343,7 +1748,10 @@ export const FORM_GUIDES: Record<string, FormGuide> = {
       "Lower to straight arms.",
     ],
     watchFor: [
-      "Loading it like a normal curl — this is much harder, so go lighter.",
+      {
+        mistake: "Loading it like a normal curl — this is much harder, so go lighter.",
+        fix: "Start about 40% below your usual curl. The palms-down grip is a big disadvantage.",
+      },
     ],
   },
   "wrist-roller": {
@@ -1356,7 +1764,10 @@ export const FORM_GUIDES: Record<string, FormGuide> = {
       "Lowering under control is where most of the work is.",
     ],
     watchFor: [
-      "Letting the arms drop as the shoulders tire.",
+      {
+        mistake: "Letting the arms drop as the shoulders tire.",
+        fix: "Hold them out at shoulder height, and stop the set when you cannot.",
+      },
     ],
   },
   "farmers-carry": {
@@ -1369,7 +1780,10 @@ export const FORM_GUIDES: Record<string, FormGuide> = {
       "Keep the ribs down and do not let the torso lean.",
     ],
     watchFor: [
-      "Leaning back or to one side under the load.",
+      {
+        mistake: "Leaning back or to one side under the load.",
+        fix: "Stand tall with your ribs down. If you are leaning, the weight is too heavy to carry safely.",
+      },
     ],
   },
   "plate-pinch": {
@@ -1382,7 +1796,10 @@ export const FORM_GUIDES: Record<string, FormGuide> = {
       "Set them down deliberately rather than dropping them.",
     ],
     watchFor: [
-      "Dropping plates on your feet — do this over a mat or a rack.",
+      {
+        mistake: "Dropping plates on your feet — do this over a mat or a rack.",
+        fix: "Stand over a mat or in a rack, and set them down rather than releasing them.",
+      },
     ],
   },
   "dead-hang": {
@@ -1394,7 +1811,10 @@ export const FORM_GUIDES: Record<string, FormGuide> = {
       "Hold for time, breathing steadily.",
     ],
     watchFor: [
-      "Hanging completely limp at the shoulder for long periods.",
+      {
+        mistake: "Hanging completely limp at the shoulder for long periods.",
+        fix: "Keep a little tension in your shoulders rather than sinking into the joint.",
+      },
     ],
   },
   "squat": {
@@ -1409,8 +1829,14 @@ export const FORM_GUIDES: Record<string, FormGuide> = {
       "Drive up through the whole foot, hips and chest rising together.",
     ],
     watchFor: [
-      "Knees caving in as you come out of the hole.",
-      "The chest dropping so the hips shoot up first and it becomes a good morning.",
+      {
+        mistake: "Knees caving in as you come out of the hole.",
+        fix: "Push your knees out toward your little toes on the way up. If they still cave, the weight is too heavy.",
+      },
+      {
+        mistake: "The chest dropping so the hips shoot up first and it becomes a good morning.",
+        fix: "Drive your chest and hips up together. If your hips lead, lower the weight and film a set.",
+      },
     ],
   },
   "front-squat": {
@@ -1423,8 +1849,14 @@ export const FORM_GUIDES: Record<string, FormGuide> = {
       "Drive up without letting the elbows drop.",
     ],
     watchFor: [
-      "Elbows dropping, which dumps the bar forward.",
-      "Chasing depth at the cost of an upright torso.",
+      {
+        mistake: "Elbows dropping, which dumps the bar forward.",
+        fix: "Keep them high and pointing forward the whole rep — the bar sits on them, not your hands.",
+      },
+      {
+        mistake: "Chasing depth at the cost of an upright torso.",
+        fix: "Stop where you can stay vertical. Depth you cannot hold position in is not depth.",
+      },
     ],
   },
   "goblet-squat": {
@@ -1437,7 +1869,10 @@ export const FORM_GUIDES: Record<string, FormGuide> = {
       "Stand back up, keeping the weight tight to the chest.",
     ],
     watchFor: [
-      "Letting the weight drift away from the body.",
+      {
+        mistake: "Letting the weight drift away from the body.",
+        fix: "Keep it tight against your chest; away from you it becomes a lower-back exercise.",
+      },
     ],
   },
   "smith-squat": {
@@ -1450,7 +1885,10 @@ export const FORM_GUIDES: Record<string, FormGuide> = {
       "Re-hook only once the set is done.",
     ],
     watchFor: [
-      "Feet placed under the bar, which forces the knees forward awkwardly.",
+      {
+        mistake: "Feet placed under the bar, which forces the knees forward awkwardly.",
+        fix: "Step your feet slightly forward of the bar so the fixed path suits your hips.",
+      },
     ],
   },
   "box-squat": {
@@ -1463,7 +1901,10 @@ export const FORM_GUIDES: Record<string, FormGuide> = {
       "Drive up off the box without rocking.",
     ],
     watchFor: [
-      "Crashing down onto the box, which loads the spine sharply.",
+      {
+        mistake: "Crashing down onto the box, which loads the spine sharply.",
+        fix: "Sit back and touch under control, then pause without relaxing.",
+      },
     ],
   },
   "safety-bar-squat": {
@@ -1476,7 +1917,10 @@ export const FORM_GUIDES: Record<string, FormGuide> = {
       "Drive up through the whole foot.",
     ],
     watchFor: [
-      "Letting the bar's forward pull turn it into a good morning.",
+      {
+        mistake: "Letting the bar's forward pull turn it into a good morning.",
+        fix: "Fight to keep your chest up and expect to use less weight than a straight bar.",
+      },
     ],
   },
   "hack-squat": {
@@ -1489,7 +1933,10 @@ export const FORM_GUIDES: Record<string, FormGuide> = {
       "Drive back up without locking the knees hard at the top.",
     ],
     watchFor: [
-      "Hips peeling off the pad at the bottom.",
+      {
+        mistake: "Hips peeling off the pad at the bottom.",
+        fix: "Stop just above the depth where they lift. That point is your range today.",
+      },
     ],
   },
   "pendulum-squat": {
@@ -1502,7 +1949,10 @@ export const FORM_GUIDES: Record<string, FormGuide> = {
       "The arc lets you go deeper than a hack squat — use it.",
     ],
     watchFor: [
-      "Bouncing out of the bottom.",
+      {
+        mistake: "Bouncing out of the bottom.",
+        fix: "Pause briefly at the deepest point and drive up from a dead stop.",
+      },
     ],
   },
   "belt-squat": {
@@ -1515,7 +1965,10 @@ export const FORM_GUIDES: Record<string, FormGuide> = {
       "Drive up through the whole foot.",
     ],
     watchFor: [
-      "Pulling hard on the handles to assist the lift.",
+      {
+        mistake: "Pulling hard on the handles to assist the lift.",
+        fix: "Rest your hands there for balance only; the legs do the work.",
+      },
     ],
   },
   "leg-press": {
@@ -1528,8 +1981,14 @@ export const FORM_GUIDES: Record<string, FormGuide> = {
       "Press back up without snapping the knees straight.",
     ],
     watchFor: [
-      "Lowering so far the hips curl off the pad — that rounds the lower back under load.",
-      "Locking the knees hard at the top.",
+      {
+        mistake: "Lowering so far the hips curl off the pad — that rounds the lower back under load.",
+        fix: "Stop where your hips start to lift. That is the bottom of your safe range.",
+      },
+      {
+        mistake: "Locking the knees hard at the top.",
+        fix: "Stop just short of straight and keep tension on the muscle.",
+      },
     ],
   },
   "single-leg-press": {
@@ -1542,7 +2001,10 @@ export const FORM_GUIDES: Record<string, FormGuide> = {
       "Press back up without locking out.",
     ],
     watchFor: [
-      "Letting the hip rotate as you tire.",
+      {
+        mistake: "Letting the hip rotate as you tire.",
+        fix: "Keep your hips square to the pad. When they twist, the set is done.",
+      },
     ],
   },
   "lunges": {
@@ -1555,8 +2017,14 @@ export const FORM_GUIDES: Record<string, FormGuide> = {
       "Push back to the start through the front heel.",
     ],
     watchFor: [
-      "The front knee collapsing inward.",
-      "Leaning the torso over the front thigh.",
+      {
+        mistake: "The front knee collapsing inward.",
+        fix: "Track your knee over your second toe. Slow down and go lighter until it holds.",
+      },
+      {
+        mistake: "Leaning the torso over the front thigh.",
+        fix: "Stay upright. Leaning shifts the work off the leg and onto your lower back.",
+      },
     ],
   },
   "walking-lunge": {
@@ -1569,7 +2037,10 @@ export const FORM_GUIDES: Record<string, FormGuide> = {
       "Keep the torso upright throughout.",
     ],
     watchFor: [
-      "Short steps that put all the load on the front knee.",
+      {
+        mistake: "Short steps that put all the load on the front knee.",
+        fix: "Take a longer stride so your hip and glute share the work.",
+      },
     ],
   },
   "reverse-lunge": {
@@ -1582,7 +2053,10 @@ export const FORM_GUIDES: Record<string, FormGuide> = {
       "Drive through the front heel to return.",
     ],
     watchFor: [
-      "Stepping back so far the front heel lifts.",
+      {
+        mistake: "Stepping back so far the front heel lifts.",
+        fix: "Shorten the step until your front foot stays flat.",
+      },
     ],
   },
   "bulgarian-squat": {
@@ -1595,8 +2069,14 @@ export const FORM_GUIDES: Record<string, FormGuide> = {
       "Drive up through the front heel.",
     ],
     watchFor: [
-      "Front foot too close, which jams the knee forward.",
-      "Bouncing the back knee off the ground.",
+      {
+        mistake: "Front foot too close, which jams the knee forward.",
+        fix: "Move it further forward until your shin is roughly vertical at the bottom.",
+      },
+      {
+        mistake: "Bouncing the back knee off the ground.",
+        fix: "Stop an inch short of the floor and reverse from there.",
+      },
     ],
   },
   "step-up": {
@@ -1609,7 +2089,10 @@ export const FORM_GUIDES: Record<string, FormGuide> = {
       "Lower under control rather than dropping down.",
     ],
     watchFor: [
-      "Pushing off the trailing foot to launch yourself up.",
+      {
+        mistake: "Pushing off the trailing foot to launch yourself up.",
+        fix: "Let the back foot rest and drive entirely through the foot on the box.",
+      },
     ],
   },
   "sissy-squat": {
@@ -1622,7 +2105,10 @@ export const FORM_GUIDES: Record<string, FormGuide> = {
       "Return by contracting the quads.",
     ],
     watchFor: [
-      "Going deeper than the knees are ready for — build to this one slowly.",
+      {
+        mistake: "Going deeper than the knees are ready for — build to this one slowly.",
+        fix: "Use a support and a small range at first, adding depth over weeks.",
+      },
     ],
   },
   "leg-extension": {
@@ -1635,8 +2121,14 @@ export const FORM_GUIDES: Record<string, FormGuide> = {
       "Lower under control without letting the stack land.",
     ],
     watchFor: [
-      "Knees off the pivot, which loads the joint at an angle.",
-      "Slamming into lockout with a heavy stack.",
+      {
+        mistake: "Knees off the pivot, which loads the joint at an angle.",
+        fix: "Adjust the seat until your knee lines up with the machine's hinge.",
+      },
+      {
+        mistake: "Slamming into lockout with a heavy stack.",
+        fix: "Squeeze into the top rather than kicking into it.",
+      },
     ],
   },
   "romanian-dl": {
@@ -1649,8 +2141,14 @@ export const FORM_GUIDES: Record<string, FormGuide> = {
       "Stop when the hamstrings run out of stretch, then drive the hips forward.",
     ],
     watchFor: [
-      "Bending the knees more to reach lower — this is a hip hinge, not a squat.",
-      "Rounding the lower back at the bottom.",
+      {
+        mistake: "Bending the knees more to reach lower — this is a hip hinge, not a squat.",
+        fix: "Set a soft knee bend at the start and keep it fixed; go lower only by pushing your hips further back.",
+      },
+      {
+        mistake: "Rounding the lower back at the bottom.",
+        fix: "Stop where your hamstrings stop stretching. Past that your spine is taking the range.",
+      },
     ],
   },
   "good-morning": {
@@ -1663,8 +2161,14 @@ export const FORM_GUIDES: Record<string, FormGuide> = {
       "Drive the hips forward to stand.",
     ],
     watchFor: [
-      "Going far heavier than the hinge can control.",
-      "Rounding the back to reach lower.",
+      {
+        mistake: "Going far heavier than the hinge can control.",
+        fix: "Good mornings work light. If your back rounds at all, halve it.",
+      },
+      {
+        mistake: "Rounding the back to reach lower.",
+        fix: "Keep a flat back and let the range be what it is.",
+      },
     ],
   },
   "leg-curl": {
@@ -1677,7 +2181,10 @@ export const FORM_GUIDES: Record<string, FormGuide> = {
       "Lower under control to nearly straight.",
     ],
     watchFor: [
-      "Hips lifting off the pad to swing the weight.",
+      {
+        mistake: "Hips lifting off the pad to swing the weight.",
+        fix: "Press your hips down and go lighter — lifting them is your lower back joining in.",
+      },
     ],
   },
   "seated-leg-curl": {
@@ -1690,7 +2197,10 @@ export const FORM_GUIDES: Record<string, FormGuide> = {
       "Return under control to a stretch.",
     ],
     watchFor: [
-      "Sliding forward in the seat as the set goes on.",
+      {
+        mistake: "Sliding forward in the seat as the set goes on.",
+        fix: "Clamp the thigh pad tighter and sit right back before each set.",
+      },
     ],
   },
   "nordic-curl": {
@@ -1703,7 +2213,10 @@ export const FORM_GUIDES: Record<string, FormGuide> = {
       "Catch with the hands and push back just enough to return.",
     ],
     watchFor: [
-      "Attempting full reps before you can control the lowering — start with a band or a partial.",
+      {
+        mistake: "Attempting full reps before you can control the lowering — start with a band or a partial.",
+        fix: "Loop a band under your chest, or lower only partway, until you can control the whole descent.",
+      },
     ],
   },
   "glute-ham-raise": {
@@ -1716,7 +2229,10 @@ export const FORM_GUIDES: Record<string, FormGuide> = {
       "Keep the hips extended the whole way — do not fold.",
     ],
     watchFor: [
-      "Hinging at the hips to make it easier.",
+      {
+        mistake: "Hinging at the hips to make it easier.",
+        fix: "Keep your hips straight and let your hamstrings do all of it.",
+      },
     ],
   },
   "adductor-machine": {
@@ -1728,7 +2244,10 @@ export const FORM_GUIDES: Record<string, FormGuide> = {
       "Squeeze the legs together, pause, and open under control.",
     ],
     watchFor: [
-      "Setting the start position wider than the groin is warmed up for.",
+      {
+        mistake: "Setting the start position wider than the groin is warmed up for.",
+        fix: "Start narrow and open the range up over a few sets.",
+      },
     ],
   },
   "calf-raise": {
@@ -1741,7 +2260,10 @@ export const FORM_GUIDES: Record<string, FormGuide> = {
       "Lower until you feel a full stretch in the calf.",
     ],
     watchFor: [
-      "Bouncing through short, fast reps with no pause at either end.",
+      {
+        mistake: "Bouncing through short, fast reps with no pause at either end.",
+        fix: "Pause a second at the top and get a full stretch at the bottom.",
+      },
     ],
   },
   "seated-calf-raise": {
@@ -1753,7 +2275,10 @@ export const FORM_GUIDES: Record<string, FormGuide> = {
       "Rise to a full contraction, pause, and lower to a deep stretch.",
     ],
     watchFor: [
-      "Rushing the reps and skipping the stretch.",
+      {
+        mistake: "Rushing the reps and skipping the stretch.",
+        fix: "Let your heels drop fully and pause there before each rep.",
+      },
     ],
   },
   "leg-press-calf-raise": {
@@ -1765,7 +2290,10 @@ export const FORM_GUIDES: Record<string, FormGuide> = {
       "Push the platform away with the toes, then lower to a full stretch.",
     ],
     watchFor: [
-      "Letting the knees bend and turning it into a partial press.",
+      {
+        mistake: "Letting the knees bend and turning it into a partial press.",
+        fix: "Keep your legs almost straight; only your ankles should move.",
+      },
     ],
   },
   "donkey-calf-raise": {
@@ -1777,7 +2305,10 @@ export const FORM_GUIDES: Record<string, FormGuide> = {
       "Rise onto the toes, pause, lower to a stretch.",
     ],
     watchFor: [
-      "Bending the knees to bounce the weight up.",
+      {
+        mistake: "Bending the knees to bounce the weight up.",
+        fix: "Keep the legs straight and drive through the balls of your feet.",
+      },
     ],
   },
   "tibialis-raise": {
@@ -1790,7 +2321,10 @@ export const FORM_GUIDES: Record<string, FormGuide> = {
       "Lower under control.",
     ],
     watchFor: [
-      "Rushing — this muscle responds to slow, full-range reps.",
+      {
+        mistake: "Rushing — this muscle responds to slow, full-range reps.",
+        fix: "Take two seconds up and two down through the fullest range you have.",
+      },
     ],
   },
   "hip-thrust": {
@@ -1803,8 +2337,14 @@ export const FORM_GUIDES: Record<string, FormGuide> = {
       "Squeeze hard at the top, then lower under control.",
     ],
     watchFor: [
-      "Arching the lower back at the top instead of finishing with the glutes.",
-      "Feet too far forward, which hands the work to the hamstrings.",
+      {
+        mistake: "Arching the lower back at the top instead of finishing with the glutes.",
+        fix: "Tuck your ribs down and finish by squeezing your glutes, not by leaning back.",
+      },
+      {
+        mistake: "Feet too far forward, which hands the work to the hamstrings.",
+        fix: "Move them back until your shins are vertical at the top.",
+      },
     ],
   },
   "machine-hip-thrust": {
@@ -1817,7 +2357,10 @@ export const FORM_GUIDES: Record<string, FormGuide> = {
       "Lower under control without letting the stack land.",
     ],
     watchFor: [
-      "Pushing through the toes rather than the heels.",
+      {
+        mistake: "Pushing through the toes rather than the heels.",
+        fix: "Drive through your heels; you should be able to lift your toes.",
+      },
     ],
   },
   "single-leg-hip-thrust": {
@@ -1830,7 +2373,10 @@ export const FORM_GUIDES: Record<string, FormGuide> = {
       "Lower under control keeping the hips square.",
     ],
     watchFor: [
-      "Letting the raised side of the hip drop through the rep.",
+      {
+        mistake: "Letting the raised side of the hip drop through the rep.",
+        fix: "Keep your hips level. If one side sags, the working glute is not strong enough yet.",
+      },
     ],
   },
   "b-stance-hip-thrust": {
@@ -1843,7 +2389,10 @@ export const FORM_GUIDES: Record<string, FormGuide> = {
       "Lower under control.",
     ],
     watchFor: [
-      "Pushing evenly through both feet, which makes it an ordinary thrust.",
+      {
+        mistake: "Pushing evenly through both feet, which makes it an ordinary thrust.",
+        fix: "Keep the kickstand heel light — most of the drive comes from the planted foot.",
+      },
     ],
   },
   "glute-bridge": {
@@ -1856,7 +2405,10 @@ export const FORM_GUIDES: Record<string, FormGuide> = {
       "Squeeze, then lower under control.",
     ],
     watchFor: [
-      "Pushing the hips so high the lower back takes over.",
+      {
+        mistake: "Pushing the hips so high the lower back takes over.",
+        fix: "Stop at a straight line from your knees to your shoulders.",
+      },
     ],
   },
   "cable-pull-through": {
@@ -1869,8 +2421,14 @@ export const FORM_GUIDES: Record<string, FormGuide> = {
       "Finish standing tall with a glute squeeze.",
     ],
     watchFor: [
-      "Squatting instead of hinging.",
-      "Leaning back at the top.",
+      {
+        mistake: "Squatting instead of hinging.",
+        fix: "Push your hips back rather than bending your knees; your shins should stay near vertical.",
+      },
+      {
+        mistake: "Leaning back at the top.",
+        fix: "Finish standing tall with a glute squeeze, not leaning backwards.",
+      },
     ],
   },
   "cable-kickback": {
@@ -1883,7 +2441,10 @@ export const FORM_GUIDES: Record<string, FormGuide> = {
       "Return under control without letting the stack land.",
     ],
     watchFor: [
-      "Arching the lower back to get more range.",
+      {
+        mistake: "Arching the lower back to get more range.",
+        fix: "Keep your ribs down and let the range be whatever your hip gives you.",
+      },
     ],
   },
   "reverse-hyper": {
@@ -1896,7 +2457,10 @@ export const FORM_GUIDES: Record<string, FormGuide> = {
       "Lower under control rather than letting them fall.",
     ],
     watchFor: [
-      "Using momentum so the machine swings you instead of the other way round.",
+      {
+        mistake: "Using momentum so the machine swings you instead of the other way round.",
+        fix: "Control both directions. If the machine is throwing you, go lighter.",
+      },
     ],
   },
   "sumo-dl": {
@@ -1910,8 +2474,14 @@ export const FORM_GUIDES: Record<string, FormGuide> = {
       "Lock the hips out at the top without leaning back.",
     ],
     watchFor: [
-      "Hips rising first and turning it into a stiff-legged pull.",
-      "Knees caving in off the floor.",
+      {
+        mistake: "Hips rising first and turning it into a stiff-legged pull.",
+        fix: "Push the floor apart with your legs so hips and shoulders rise together.",
+      },
+      {
+        mistake: "Knees caving in off the floor.",
+        fix: "Screw your feet into the floor and push your knees out over your toes.",
+      },
     ],
   },
   "curtsy-lunge": {
@@ -1924,7 +2494,10 @@ export const FORM_GUIDES: Record<string, FormGuide> = {
       "Drive back up through the front heel.",
     ],
     watchFor: [
-      "Crossing so far behind that the hips and knee twist.",
+      {
+        mistake: "Crossing so far behind that the hips and knee twist.",
+        fix: "Step back and across only as far as your hips stay square.",
+      },
     ],
   },
   "abduction-machine": {
@@ -1936,7 +2509,10 @@ export const FORM_GUIDES: Record<string, FormGuide> = {
       "Push the knees apart, pause at the end, and return under control.",
     ],
     watchFor: [
-      "Slamming the stack back down between reps.",
+      {
+        mistake: "Slamming the stack back down between reps.",
+        fix: "Return under control and stop just short of the bottom.",
+      },
     ],
   },
   "banded-lateral-walk": {
@@ -1949,7 +2525,10 @@ export const FORM_GUIDES: Record<string, FormGuide> = {
       "Do not let the feet come all the way together between steps.",
     ],
     watchFor: [
-      "Standing tall, which takes the tension off the glutes.",
+      {
+        mistake: "Standing tall, which takes the tension off the glutes.",
+        fix: "Stay in a quarter squat the whole way across.",
+      },
     ],
   },
   "frog-pump": {
@@ -1961,7 +2540,10 @@ export const FORM_GUIDES: Record<string, FormGuide> = {
       "Drive the hips up by squeezing the glutes, then lower under control.",
     ],
     watchFor: [
-      "Pushing through the outside of the feet instead of squeezing the glutes.",
+      {
+        mistake: "Pushing through the outside of the feet instead of squeezing the glutes.",
+        fix: "Press your heels together and drive from the glutes.",
+      },
     ],
   },
   "plank": {
@@ -1974,8 +2556,14 @@ export const FORM_GUIDES: Record<string, FormGuide> = {
       "Stop the set when the hips start to drop, not when the clock says so.",
     ],
     watchFor: [
-      "Hips sagging toward the floor, which loads the lower back.",
-      "Piking the hips up to make it easier.",
+      {
+        mistake: "Hips sagging toward the floor, which loads the lower back.",
+        fix: "Squeeze your glutes and abs; end the set when the sag starts rather than holding a broken position.",
+      },
+      {
+        mistake: "Piking the hips up to make it easier.",
+        fix: "Lower your hips until your body is one straight line, even if that shortens the hold.",
+      },
     ],
   },
   "side-plank": {
@@ -1988,7 +2576,10 @@ export const FORM_GUIDES: Record<string, FormGuide> = {
       "Breathe steadily rather than holding your breath.",
     ],
     watchFor: [
-      "Letting the bottom hip sink toward the floor.",
+      {
+        mistake: "Letting the bottom hip sink toward the floor.",
+        fix: "Push the floor away and lift your hip back to a straight line, or drop to your knee.",
+      },
     ],
   },
   "hollow-hold": {
@@ -2001,7 +2592,10 @@ export const FORM_GUIDES: Record<string, FormGuide> = {
       "The lower back must stay flat — raise the legs higher if it lifts.",
     ],
     watchFor: [
-      "Letting the lower back arch off the floor, which is the whole point of the position.",
+      {
+        mistake: "Letting the lower back arch off the floor, which is the whole point of the position.",
+        fix: "Raise your legs higher until your back presses flat again.",
+      },
     ],
   },
   "crunch": {
@@ -2014,8 +2608,14 @@ export const FORM_GUIDES: Record<string, FormGuide> = {
       "Lower under control.",
     ],
     watchFor: [
-      "Pulling on the head with the hands.",
-      "Turning it into a sit-up by hinging at the hip.",
+      {
+        mistake: "Pulling on the head with the hands.",
+        fix: "Rest your fingertips at your temples and lead with your ribs, not your neck.",
+      },
+      {
+        mistake: "Turning it into a sit-up by hinging at the hip.",
+        fix: "Only lift your shoulder blades off the floor; your lower back stays down.",
+      },
     ],
   },
   "sit-up": {
@@ -2027,7 +2627,10 @@ export const FORM_GUIDES: Record<string, FormGuide> = {
       "Curl up to a seated position, then lower under control.",
     ],
     watchFor: [
-      "Yanking the neck forward to start each rep.",
+      {
+        mistake: "Yanking the neck forward to start each rep.",
+        fix: "Keep your chin in a neutral spot and curl up from your abs.",
+      },
     ],
   },
   "decline-sit-up": {
@@ -2040,7 +2643,10 @@ export const FORM_GUIDES: Record<string, FormGuide> = {
       "Lower under control to a stretch.",
     ],
     watchFor: [
-      "Dropping back fast at the end of the rep.",
+      {
+        mistake: "Dropping back fast at the end of the rep.",
+        fix: "Lower under control. The way down is half the work.",
+      },
     ],
   },
   "bicycle-crunch": {
@@ -2053,7 +2659,10 @@ export const FORM_GUIDES: Record<string, FormGuide> = {
       "Alternate at a controlled pace.",
     ],
     watchFor: [
-      "Racing through reps and yanking the neck side to side.",
+      {
+        mistake: "Racing through reps and yanking the neck side to side.",
+        fix: "Slow down and rotate from your ribs; your hands are only resting on your head.",
+      },
     ],
   },
   "reverse-crunch": {
@@ -2066,7 +2675,10 @@ export const FORM_GUIDES: Record<string, FormGuide> = {
       "Lower under control without letting the feet touch down.",
     ],
     watchFor: [
-      "Swinging the legs to generate the momentum.",
+      {
+        mistake: "Swinging the legs to generate the momentum.",
+        fix: "Start each rep from still and curl your hips off the floor deliberately.",
+      },
     ],
   },
   "cable-crunch": {
@@ -2079,7 +2691,10 @@ export const FORM_GUIDES: Record<string, FormGuide> = {
       "Return under control to a stretch.",
     ],
     watchFor: [
-      "Hinging at the hips, which makes it a pulldown with your abs along for the ride.",
+      {
+        mistake: "Hinging at the hips, which makes it a pulldown with your abs along for the ride.",
+        fix: "Keep your hips fixed and round your spine down toward your thighs.",
+      },
     ],
   },
   "ab-crunch-machine": {
@@ -2092,7 +2707,10 @@ export const FORM_GUIDES: Record<string, FormGuide> = {
       "Return under control.",
     ],
     watchFor: [
-      "Pulling the handles with the lats to move the stack.",
+      {
+        mistake: "Pulling the handles with the lats to move the stack.",
+        fix: "Hold the handles loosely and crunch with your abs.",
+      },
     ],
   },
   "hanging-leg-raise": {
@@ -2105,8 +2723,14 @@ export const FORM_GUIDES: Record<string, FormGuide> = {
       "Lower under control without swinging.",
     ],
     watchFor: [
-      "Swinging into each rep, which makes it momentum rather than abs.",
-      "Stopping at hip height without curling the pelvis, which skips the abs entirely.",
+      {
+        mistake: "Swinging into each rep, which makes it momentum rather than abs.",
+        fix: "Pause hanging still between reps, and use straps if your grip gives out first.",
+      },
+      {
+        mistake: "Stopping at hip height without curling the pelvis, which skips the abs entirely.",
+        fix: "Finish by tilting your pelvis up toward your ribs at the top.",
+      },
     ],
   },
   "leg-raise": {
@@ -2119,7 +2743,10 @@ export const FORM_GUIDES: Record<string, FormGuide> = {
       "That point is your range — it will improve.",
     ],
     watchFor: [
-      "Letting the lower back peel off the floor on the way down.",
+      {
+        mistake: "Letting the lower back peel off the floor on the way down.",
+        fix: "Stop lowering at the point it lifts. That range will grow.",
+      },
     ],
   },
   "toes-to-bar": {
@@ -2132,7 +2759,10 @@ export const FORM_GUIDES: Record<string, FormGuide> = {
       "Lower under control.",
     ],
     watchFor: [
-      "Kipping so hard the movement becomes a swing.",
+      {
+        mistake: "Kipping so hard the movement becomes a swing.",
+        fix: "Control the descent and pause at the bottom before the next rep.",
+      },
     ],
   },
   "flutter-kick": {
@@ -2145,7 +2775,10 @@ export const FORM_GUIDES: Record<string, FormGuide> = {
       "Keep the legs low enough to be hard, high enough to hold position.",
     ],
     watchFor: [
-      "Letting the lower back lift as the set goes on.",
+      {
+        mistake: "Letting the lower back lift as the set goes on.",
+        fix: "Raise your legs a little higher, or end the set.",
+      },
     ],
   },
   "v-up": {
@@ -2158,7 +2791,10 @@ export const FORM_GUIDES: Record<string, FormGuide> = {
       "Lower under control without touching down.",
     ],
     watchFor: [
-      "Throwing the arms to generate momentum.",
+      {
+        mistake: "Throwing the arms to generate momentum.",
+        fix: "Move your arms and legs at the same speed and keep your back flat.",
+      },
     ],
   },
   "ab-rollout": {
@@ -2171,7 +2807,10 @@ export const FORM_GUIDES: Record<string, FormGuide> = {
       "Range comes with time — do not chase it.",
     ],
     watchFor: [
-      "Letting the hips sag and the lower back arch at full extension.",
+      {
+        mistake: "Letting the hips sag and the lower back arch at full extension.",
+        fix: "Roll out only as far as you can hold a flat back, and build the range over weeks.",
+      },
     ],
   },
   "dead-bug": {
@@ -2184,7 +2823,10 @@ export const FORM_GUIDES: Record<string, FormGuide> = {
       "The lower back stays flat the whole time.",
     ],
     watchFor: [
-      "Moving so far that the back arches — shorten the range instead.",
+      {
+        mistake: "Moving so far that the back arches — shorten the range instead.",
+        fix: "Stop each limb where your back stays flat; a smaller range done properly is the exercise.",
+      },
     ],
   },
   "russian-twist": {
@@ -2197,7 +2839,10 @@ export const FORM_GUIDES: Record<string, FormGuide> = {
       "Control the turn at each end.",
     ],
     watchFor: [
-      "Swinging the arms while the torso stays still.",
+      {
+        mistake: "Swinging the arms while the torso stays still.",
+        fix: "Rotate from your ribs and let your arms follow.",
+      },
     ],
   },
   "pallof-press": {
@@ -2210,7 +2855,10 @@ export const FORM_GUIDES: Record<string, FormGuide> = {
       "Return to the chest without letting the torso turn.",
     ],
     watchFor: [
-      "Letting the torso rotate toward the stack — resisting that is the exercise.",
+      {
+        mistake: "Letting the torso rotate toward the stack — resisting that is the exercise.",
+        fix: "Brace and refuse the twist. If you cannot, take weight off.",
+      },
     ],
   },
   "woodchopper": {
@@ -2223,7 +2871,10 @@ export const FORM_GUIDES: Record<string, FormGuide> = {
       "Return under control along the same path.",
     ],
     watchFor: [
-      "Pulling with the arms while the torso stays square.",
+      {
+        mistake: "Pulling with the arms while the torso stays square.",
+        fix: "Turn from your midsection and let your arms stay in front of your chest.",
+      },
     ],
   },
   "running": {
@@ -2236,7 +2887,10 @@ export const FORM_GUIDES: Record<string, FormGuide> = {
       "Hold a pace you could just about hold a conversation at, unless intervals are the plan.",
     ],
     watchFor: [
-      "Adding distance and pace in the same week — pick one.",
+      {
+        mistake: "Adding distance and pace in the same week — pick one.",
+        fix: "Increase one variable at a time, by about ten percent, and hold the other steady.",
+      },
     ],
   },
   "treadmill": {
@@ -2249,7 +2903,10 @@ export const FORM_GUIDES: Record<string, FormGuide> = {
       "Step onto the side rails to change anything rather than fumbling mid-stride.",
     ],
     watchFor: [
-      "Holding the rails, which takes load off and skews the calorie readout.",
+      {
+        mistake: "Holding the rails, which takes load off and skews the calorie readout.",
+        fix: "Let go and slow down until you can. The number on the console is only true hands-free.",
+      },
     ],
   },
   "incline-walk": {
@@ -2262,7 +2919,10 @@ export const FORM_GUIDES: Record<string, FormGuide> = {
       "Raise the incline before the speed if it gets easy.",
     ],
     watchFor: [
-      "Gripping the handles, which removes most of the point of the incline.",
+      {
+        mistake: "Gripping the handles, which removes most of the point of the incline.",
+        fix: "Drop the speed until you can walk hands-free at that incline.",
+      },
     ],
   },
   "walking": {
@@ -2275,7 +2935,10 @@ export const FORM_GUIDES: Record<string, FormGuide> = {
       "Steady time on feet is the goal, not intensity.",
     ],
     watchFor: [
-      "Treating it as too easy to log — it adds up.",
+      {
+        mistake: "Treating it as too easy to log — it adds up.",
+        fix: "Log it. Steady walking is most people's largest source of weekly activity.",
+      },
     ],
   },
   "cycling": {
@@ -2288,7 +2951,10 @@ export const FORM_GUIDES: Record<string, FormGuide> = {
       "Adjust resistance rather than just spinning faster.",
     ],
     watchFor: [
-      "Saddle too low, which grinds the knees over long sessions.",
+      {
+        mistake: "Saddle too low, which grinds the knees over long sessions.",
+        fix: "Raise it until your knee is almost straight at the bottom of the pedal stroke.",
+      },
     ],
   },
   "assault-bike": {
@@ -2301,7 +2967,10 @@ export const FORM_GUIDES: Record<string, FormGuide> = {
       "Resistance rises with effort, so pace yourself early in an interval.",
     ],
     watchFor: [
-      "Opening at full effort and having nothing left after twenty seconds.",
+      {
+        mistake: "Opening at full effort and having nothing left after twenty seconds.",
+        fix: "Start at about eighty percent and build. Resistance rises with your effort, so it punishes a fast start.",
+      },
     ],
   },
   "elliptical": {
@@ -2314,7 +2983,10 @@ export const FORM_GUIDES: Record<string, FormGuide> = {
       "Change resistance rather than just moving faster.",
     ],
     watchFor: [
-      "Leaning on the fixed handles and coasting.",
+      {
+        mistake: "Leaning on the fixed handles and coasting.",
+        fix: "Stand tall and use the moving handles, or let go entirely.",
+      },
     ],
   },
   "rowing": {
@@ -2327,7 +2999,10 @@ export const FORM_GUIDES: Record<string, FormGuide> = {
       "The legs do most of the work — the arms finish the stroke.",
     ],
     watchFor: [
-      "Pulling with the arms first and heaving the back.",
+      {
+        mistake: "Pulling with the arms first and heaving the back.",
+        fix: "Legs, then body, then arms — in that order every stroke.",
+      },
     ],
   },
   "ski-erg": {
@@ -2340,7 +3015,10 @@ export const FORM_GUIDES: Record<string, FormGuide> = {
       "Return to overhead under control.",
     ],
     watchFor: [
-      "Pulling with the arms only and never using the hinge.",
+      {
+        mistake: "Pulling with the arms only and never using the hinge.",
+        fix: "Hinge at your hips on every pull; your arms just finish the stroke.",
+      },
     ],
   },
   "stairmaster": {
@@ -2353,7 +3031,10 @@ export const FORM_GUIDES: Record<string, FormGuide> = {
       "Let the legs carry you rather than leaning on the rails.",
     ],
     watchFor: [
-      "Hanging off the handles, which makes the readout meaningless.",
+      {
+        mistake: "Hanging off the handles, which makes the readout meaningless.",
+        fix: "Rest your hands lightly and slow the pace until your legs carry you.",
+      },
     ],
   },
   "jump-rope": {
@@ -2366,7 +3047,10 @@ export const FORM_GUIDES: Record<string, FormGuide> = {
       "Keep the jumps low — barely off the floor is enough.",
     ],
     watchFor: [
-      "Jumping far higher than the rope needs, which tires the calves quickly.",
+      {
+        mistake: "Jumping far higher than the rope needs, which tires the calves quickly.",
+        fix: "Barely leave the floor — an inch is plenty.",
+      },
     ],
   },
   "battle-ropes": {
@@ -2379,7 +3063,10 @@ export const FORM_GUIDES: Record<string, FormGuide> = {
       "Keep the hips loaded rather than standing upright.",
     ],
     watchFor: [
-      "Standing tall and flailing with the arms alone.",
+      {
+        mistake: "Standing tall and flailing with the arms alone.",
+        fix: "Stay in a quarter squat and drive the waves from your hips.",
+      },
     ],
   },
   "burpees": {
@@ -2392,7 +3079,10 @@ export const FORM_GUIDES: Record<string, FormGuide> = {
       "Keep the hips from sagging in the plank position.",
     ],
     watchFor: [
-      "Letting the lower back sag on the way down as you tire.",
+      {
+        mistake: "Letting the lower back sag on the way down as you tire.",
+        fix: "Brace your midsection, or step your feet back instead of jumping them.",
+      },
     ],
   },
   "box-jump": {
@@ -2405,8 +3095,14 @@ export const FORM_GUIDES: Record<string, FormGuide> = {
       "Step back down rather than jumping down.",
     ],
     watchFor: [
-      "Jumping down between reps, which is where achilles injuries come from.",
-      "Picking a box height you can barely reach.",
+      {
+        mistake: "Jumping down between reps, which is where achilles injuries come from.",
+        fix: "Step down one foot at a time, every rep, no exceptions.",
+      },
+      {
+        mistake: "Picking a box height you can barely reach.",
+        fix: "Choose one you can land on softly with room to spare. Box jumps train power, not courage.",
+      },
     ],
   },
   "sled-push": {
@@ -2419,7 +3115,10 @@ export const FORM_GUIDES: Record<string, FormGuide> = {
       "Steady effort beats sprinting for the first five metres.",
     ],
     watchFor: [
-      "Letting the hips rise so the back rounds under the push.",
+      {
+        mistake: "Letting the hips rise so the back rounds under the push.",
+        fix: "Keep a straight line from your head to your heels and drive with your legs.",
+      },
     ],
   },
 };

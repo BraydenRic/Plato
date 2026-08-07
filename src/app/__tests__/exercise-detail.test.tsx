@@ -77,6 +77,17 @@ it("opens all three sections on the first tap", () => {
   expect(screen.getByText(/Eyes under the bar/)).toBeTruthy();
 });
 
+it("shows what to do about a mistake, not just the mistake", () => {
+  render(<ExerciseDetailScreen />);
+
+  fireEvent.press(toggle());
+
+  // The complaint that produced this shape: naming a fault without saying what
+  // to do left a reader who didn't already know none the wiser.
+  expect(screen.getByText(/Hips lifting off the bench/)).toBeTruthy();
+  expect(screen.getByText(/Drop the weight/)).toBeTruthy();
+});
+
 it("folds it away again on a second tap", () => {
   render(<ExerciseDetailScreen />);
 
