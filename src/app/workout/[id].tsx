@@ -307,6 +307,26 @@ export default function WorkoutScreen() {
     await updateWorkout(workout!.id, stripUndefined({ exercises }) as Partial<Workout>);
   }
 
+  /**
+   * Saves a new title.
+   *
+   * Both title fields — the template editor's and the workout's — used to fire
+   * this write and drop the promise on the floor. A failure was invisible in
+   * the worst way: the name you typed stays on screen, because onChangeText put
+   * it in local state before the write ever happened, and the old one comes
+   * back on the next load, long after you would connect the two events.
+   *
+   * The edit counter goes up for the same reason it does above — a focus
+   * re-read that started before this landed must not put the old name back.
+   */
+  function renameWorkout(name: string) {
+    editSeq.current += 1;
+    setWorkout((current) => (current ? { ...current, name } : current));
+    updateWorkout(workout!.id, { name }).catch(() => {
+      Alert.alert("Couldn't rename", "Check your connection and try again.");
+    });
+  }
+
   // Move the keyboard to the next set input in reading order: within a set
   // weight → reps, then on to the next set, then the next exercise. Focusing a
   // new field blurs the current one, which commits its value automatically.
@@ -638,8 +658,7 @@ export default function WorkoutScreen() {
                   value={workout.name}
                   onChangeText={(name) => setWorkout({ ...workout, name })}
                   onEndEditing={(e) => {
-                    const name = e.nativeEvent.text.trim() || "Workout";
-                    updateWorkout(workout.id, { name });
+                    renameWorkout(e.nativeEvent.text.trim() || "Workout");
                   }}
                 />
                 <View style={styles.summaryRow}>
@@ -687,8 +706,7 @@ export default function WorkoutScreen() {
               onFocus={() => setKeypadOpen(false)}
               onChangeText={(name) => setWorkout({ ...workout, name })}
               onEndEditing={(e) => {
-                const name = e.nativeEvent.text.trim() || "Workout";
-                updateWorkout(workout.id, { name });
+                renameWorkout(e.nativeEvent.text.trim() || "Workout");
               }}
               editable={!isDone}
             />
@@ -793,7 +811,9 @@ export default function WorkoutScreen() {
                   );
                   return;
                 }
-                updateWorkout(workout.id, { startedAt: new Date() });
+                updateWorkout(workout.id, { startedAt: new Date() }).catch(() => {
+                  Alert.alert("Couldn't start workout", "Check your connection and try again.");
+                });
               }}
             />
           ) : (

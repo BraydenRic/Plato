@@ -53,7 +53,6 @@ function workoutFromDoc(id: string, data: Record<string, unknown>): Workout {
     userId: data.userId as string,
     name: data.name as string,
     isTemplate: Boolean(data.isTemplate),
-    notes: data.notes as string | undefined,
     exercises: sanitizeExercises(data.exercises, data.name),
     createdAt: toDate(data.createdAt) ?? new Date(),
     scheduledFor: toDate(data.scheduledFor),

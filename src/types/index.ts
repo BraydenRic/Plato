@@ -39,7 +39,6 @@ export interface WorkoutExercise {
   exercise: Exercise;
   orderIndex: number;
   sets: WorkoutSet[];
-  notes?: string;
 }
 
 export interface Workout {
@@ -52,7 +51,6 @@ export interface Workout {
   startedAt?: Date;
   completedAt?: Date;
   isTemplate: boolean;
-  notes?: string;
   exercises: WorkoutExercise[];
   durationMinutes?: number;
   totalVolume?: number;
@@ -81,14 +79,6 @@ export interface UserStatistics {
   lastWorkoutDate?: Date;
 }
 
-export interface ScheduledWorkout {
-  id: string;
-  userId: string;
-  templateId: string;
-  scheduledDate: Date;
-  isCompleted: boolean;
-  completedWorkoutId?: string;
-}
 
 export type MuscleGroup =
   | "All"

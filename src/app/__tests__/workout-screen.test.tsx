@@ -279,3 +279,41 @@ describe("what a bodyweight set is valued against", () => {
     expect(screen.getByText(/BW 190 lbs/)).toBeTruthy();
   });
 });
+
+describe("renaming a workout", () => {
+  const titleField = () => screen.getByDisplayValue("Push day");
+
+  it("saves the new name", async () => {
+    await loadWith(["Bench Press"]);
+
+    fireEvent(titleField(), "endEditing", { nativeEvent: { text: "Chest day" } });
+
+    expect(mockUpdateWorkout).toHaveBeenCalledWith("w1", { name: "Chest day" });
+  });
+
+  it("falls back to a name rather than saving a blank one", async () => {
+    await loadWith(["Bench Press"]);
+
+    fireEvent(titleField(), "endEditing", { nativeEvent: { text: "   " } });
+
+    expect(mockUpdateWorkout).toHaveBeenCalledWith("w1", { name: "Workout" });
+  });
+
+  it("says so when the rename fails to save", async () => {
+    // The bug: this write's promise was dropped. A failure left the name you
+    // typed on screen — it is already in local state — with the old one
+    // returning on the next load, far too late to connect the two.
+    const alert = jest.spyOn(Alert, "alert").mockImplementation(() => {});
+    mockUpdateWorkout.mockRejectedValueOnce(new Error("offline") as never);
+    await loadWith(["Bench Press"]);
+
+    await act(async () => {
+      fireEvent(titleField(), "endEditing", { nativeEvent: { text: "Chest day" } });
+    });
+
+    expect(alert).toHaveBeenCalledWith(
+      "Couldn't rename",
+      expect.stringContaining("connection")
+    );
+  });
+});
