@@ -314,16 +314,42 @@ export default function ProfileScreen() {
         )}
 
         <Card style={styles.bodyweightCard}>
-          {/* Tapping the summary logs; the chevron expands. Two targets rather
-              than one so opening the history doesn't put a keyboard up. */}
-          <Pressable onPress={logBodyweight} style={({ pressed }) => pressed && { opacity: 0.8 }}>
-            <View style={styles.bodyweightRow}>
-              <Text style={styles.prefTitle}>Bodyweight</Text>
-              <Text style={[styles.bodyweightValue, { color: theme.accentText }]}>
-                {shownWeight != null ? `${shownWeight} ${unit}` : "Add"}
-              </Text>
-            </View>
-          </Pressable>
+          {/*
+            The card navigates; only the + logs.
+
+            This row used to raise the weigh-in prompt itself, which put a
+            keyboard up every time the top of the card was brushed on the way
+            past — and this is the one control on the screen whose whole job is
+            to be tapped rarely and on purpose. A misfire now costs a screen you
+            can swipe out of, rather than a keyboard and a number you didn't
+            mean to type.
+          */}
+          <View style={styles.bodyweightRow}>
+            <Pressable
+              onPress={() => router.push("/bodyweight")}
+              accessibilityRole="button"
+              accessibilityLabel="Bodyweight history"
+              style={({ pressed }) => [{ flex: 1 }, pressed && { opacity: 0.8 }]}>
+              <View style={styles.bodyweightRow}>
+                <Text style={styles.prefTitle}>Bodyweight</Text>
+                <Text style={[styles.bodyweightValue, { color: theme.accentText }]}>
+                  {shownWeight != null ? `${shownWeight} ${unit}` : "—"}
+                </Text>
+              </View>
+            </Pressable>
+            <Pressable
+              onPress={logBodyweight}
+              hitSlop={8}
+              accessibilityRole="button"
+              accessibilityLabel="Log today's weigh-in"
+              style={({ pressed }) => [
+                styles.weighInButton,
+                { backgroundColor: theme.accent },
+                pressed && { opacity: 0.75 },
+              ]}>
+              <Ionicons name="add" size={18} color={theme.onAccent} />
+            </Pressable>
+          </View>
 
           {/* Shown from the first weigh-in, not the second. Gating on a trend
               meant logging a weight and seeing nothing change, which reads as
@@ -537,6 +563,13 @@ const styles = StyleSheet.create({
   },
   bodyweightCard: {
     gap: Spacing.two,
+  },
+  weighInButton: {
+    width: 30,
+    height: 30,
+    borderRadius: Radius.full,
+    alignItems: "center",
+    justifyContent: "center",
   },
   bodyweightRow: {
     flexDirection: "row",

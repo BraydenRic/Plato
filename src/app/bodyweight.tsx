@@ -7,13 +7,10 @@ import { ActiveWorkoutBar } from "@/components/active-workout-bar";
 import { BodyweightChart } from "@/components/bodyweight-chart";
 import { Button, Card, EmptyState, SectionLabel } from "@/components/ui";
 import { FontScaleCap, Palette, Radius, Spacing } from "@/constants/theme";
-import { useAuth } from "@/context/AuthContext";
 import { useTheme } from "@/context/ThemeContext";
 import { useWeightUnit } from "@/context/UnitContext";
 import { useBodyweight } from "@/hooks/use-bodyweight";
 import { useWorkouts } from "@/hooks/use-workouts";
-import { applyVolumeCorrections } from "@/lib/apply-volume-corrections";
-import { staleVolumesOnDay } from "@/lib/repair-bodyweight-volumes";
 import { convertWeight, relativeDay, sameDay, workoutDay } from "@/lib/workout-utils";
 import type { BodyweightEntry } from "@/types";
 
@@ -34,7 +31,6 @@ export default function BodyweightScreen() {
   const router = useRouter();
   const theme = useTheme();
   const { unit } = useWeightUnit();
-  const { dataUserId } = useAuth();
   const { log, loading, record, remove } = useBodyweight();
   const { completed } = useWorkouts();
   const [rangeKey, setRangeKey] = useState<(typeof RANGES)[number]["key"]>("3M");
@@ -63,28 +59,11 @@ export default function BodyweightScreen() {
     return completed.filter((w) => sameDay(workoutDay(w), day));
   }
 
-  /**
-   * Re-prices the workouts on a day whose weigh-in just changed.
-   *
-   * Fire-and-forget: the log on screen is already correct, and the volumes are
-   * on other screens. A failure leaves them stale rather than wrong-and-hidden,
-   * and the launch repair is not the fix for that — it has already run.
-   */
-  function repriceDay(day: Date, nextLog: BodyweightEntry[]) {
-    if (!dataUserId) return;
-    applyVolumeCorrections(
-      staleVolumesOnDay(completed, nextLog, day),
-      completed,
-      dataUserId
-    ).catch((e) => console.warn("Couldn't re-price that day's workouts", e));
-  }
-
   function saveWeight(value: string | undefined, day: Date) {
     const entered = Number((value ?? "").trim());
     if (!Number.isFinite(entered) || entered <= 0) return;
     const lbs = convertWeight(entered, unit, "lbs");
     record(lbs, day)
-      .then(() => repriceDay(day, withEntry(log, day, lbs)))
       .catch((e) => {
         console.warn("Couldn't save the weigh-in", e);
         Alert.alert("Couldn't save", "Check your connection and try again.");
@@ -93,7 +72,6 @@ export default function BodyweightScreen() {
 
   function deleteEntry(entry: BodyweightEntry) {
     remove(entry.date)
-      .then(() => repriceDay(entry.date, withoutEntry(log, entry.date)))
       .catch((e) => {
         console.warn("Couldn't delete the weigh-in", e);
         Alert.alert("Couldn't delete", "Check your connection and try again.");
@@ -254,18 +232,6 @@ export default function BodyweightScreen() {
       </ScrollView>
     </View>
   );
-}
-
-// Local mirrors of the store helpers, used only to hand repriceDay the log as
-// it will be once the write lands — `log` in this render is still the old one.
-function withEntry(log: BodyweightEntry[], day: Date, lbs: number): BodyweightEntry[] {
-  return [...log.filter((e) => !sameDay(e.date, day)), { date: day, lbs }].sort(
-    (a, b) => a.date.getTime() - b.date.getTime()
-  );
-}
-
-function withoutEntry(log: BodyweightEntry[], day: Date): BodyweightEntry[] {
-  return log.filter((e) => !sameDay(e.date, day));
 }
 
 const styles = StyleSheet.create({

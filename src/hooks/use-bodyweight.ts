@@ -1,7 +1,10 @@
 import { useCallback, useEffect, useState } from "react";
 
 import { useAuth } from "@/context/AuthContext";
+import { useWorkouts } from "@/hooks/use-workouts";
+import { applyVolumeCorrections } from "@/lib/apply-volume-corrections";
 import { getBodyweightLog, setBodyweightLog } from "@/lib/data";
+import { staleVolumesOnDay } from "@/lib/repair-bodyweight-volumes";
 import { withBodyweightEntry, withoutBodyweightEntry } from "@/lib/workout-utils";
 import type { BodyweightEntry } from "@/types";
 
@@ -14,6 +17,7 @@ import type { BodyweightEntry } from "@/types";
  */
 export function useBodyweight() {
   const { dataUserId } = useAuth();
+  const { completed } = useWorkouts();
   const [log, setLog] = useState<BodyweightEntry[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -47,6 +51,29 @@ export function useBodyweight() {
     };
   }, [dataUserId]);
 
+  /**
+   * Re-prices the workouts filed under a day whose weigh-in just changed.
+   *
+   * Lives in the hook rather than at the call sites because it had already
+   * drifted: the Bodyweight screen re-priced and Profile's prompt didn't, so
+   * the same weigh-in left a different volume behind depending on which screen
+   * you typed it into. Anything that can change the log goes through here now.
+   *
+   * Fire-and-forget. The log on screen is already right; the volumes are on
+   * other screens, and a failure leaves them stale rather than wrong-and-hidden.
+   */
+  const reprice = useCallback(
+    (day: Date, nextLog: BodyweightEntry[]) => {
+      if (!dataUserId) return;
+      applyVolumeCorrections(
+        staleVolumesOnDay(completed, nextLog, day),
+        completed,
+        dataUserId
+      ).catch((e) => console.warn("Couldn't re-price that day's workouts", e));
+    },
+    [completed, dataUserId]
+  );
+
   const record = useCallback(
     async (lbs: number, when: Date = new Date()) => {
       if (!dataUserId || !Number.isFinite(lbs) || lbs <= 0) return;
@@ -55,8 +82,9 @@ export function useBodyweight() {
       const next = withBodyweightEntry(log, { date: when, lbs });
       setLog(next);
       await setBodyweightLog(dataUserId, next);
+      reprice(when, next);
     },
-    [dataUserId, log]
+    [dataUserId, log, reprice]
   );
 
   /**
@@ -72,8 +100,9 @@ export function useBodyweight() {
       if (next.length === log.length) return;
       setLog(next);
       await setBodyweightLog(dataUserId, next);
+      reprice(day, next);
     },
-    [dataUserId, log]
+    [dataUserId, log, reprice]
   );
 
   return { log, loading, record, remove, latest: log.length > 0 ? log[log.length - 1] : null };

@@ -13,7 +13,6 @@ import type { BodyweightEntry, Workout } from "@/types";
 
 const mockRecord = jest.fn(async () => {});
 const mockRemove = jest.fn(async () => {});
-const mockApply = jest.fn(async () => {});
 let mockLog: BodyweightEntry[] = [];
 
 jest.mock("@/hooks/use-bodyweight", () => ({
@@ -59,10 +58,6 @@ const pullDay = (): Workout => ({
 
 jest.mock("@/hooks/use-workouts", () => ({
   useWorkouts: () => ({ completed: mockCompleted, active: [], loading: false }),
-}));
-
-jest.mock("@/lib/apply-volume-corrections", () => ({
-  applyVolumeCorrections: (...args: unknown[]) => mockApply(...(args as [])),
 }));
 
 jest.mock("@/context/AuthContext", () => ({ useAuth: () => ({ dataUserId: "u1" }) }));
@@ -145,31 +140,14 @@ it("saves the corrected weight", async () => {
   await waitFor(() => expect(mockRecord).toHaveBeenCalledWith(190, AUG_4));
 });
 
-it("re-prices that day's workouts against the corrected weight", async () => {
-  const { buttons } = openAug4();
-
-  press(buttons, "Save", "190");
-
-  // 10 pull-ups at 190, down from the 2500 the typo produced.
-  await waitFor(() =>
-    expect(mockApply).toHaveBeenCalledWith(
-      [{ id: "w1", totalVolume: 1900 }],
-      expect.anything(),
-      "u1"
-    )
-  );
-});
-
-it("deletes a weigh-in and re-prices against what is left", async () => {
+it("deletes a weigh-in", async () => {
   const { buttons } = openAug4();
 
   press(buttons, "Delete");
 
+  // What follows from it — re-pricing that day — is useBodyweight's job now,
+  // and has its own tests.
   await waitFor(() => expect(mockRemove).toHaveBeenCalledWith(AUG_4));
-  // The 4th is gone, so the nearest remaining weigh-in is the 5th's 191.
-  await waitFor(() =>
-    expect(mockApply).toHaveBeenCalledWith([{ id: "w1", totalVolume: 1910 }], expect.anything(), "u1")
-  );
 });
 
 it("ignores a value that isn't a weight", async () => {
@@ -178,7 +156,6 @@ it("ignores a value that isn't a weight", async () => {
   press(buttons, "Save", "not a number");
 
   expect(mockRecord).not.toHaveBeenCalled();
-  expect(mockApply).not.toHaveBeenCalled();
 });
 
 it("ignores zero and negative weights", () => {
