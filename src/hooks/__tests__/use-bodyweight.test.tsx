@@ -19,6 +19,10 @@ const mockApply = jest.fn(async () => {});
 let mockStored: BodyweightEntry[] = [];
 let mockCompleted: Workout[] = [];
 let mockUserId: string | null = "u1";
+// The hook keeps the last read per user for the life of the process, which is
+// the point of it — so each test gets its own account rather than inheriting
+// whatever the one before it wrote.
+let testUser = 0;
 
 jest.mock("@/context/AuthContext", () => ({ useAuth: () => ({ dataUserId: mockUserId }) }));
 jest.mock("@/hooks/use-workouts", () => ({
@@ -65,7 +69,7 @@ const pullDay = (): Workout => ({
 
 beforeEach(() => {
   jest.clearAllMocks();
-  mockUserId = "u1";
+  mockUserId = `u${++testUser}`;
   mockCompleted = [pullDay()];
   mockStored = [
     { date: AUG_4, lbs: 250 },
@@ -95,7 +99,11 @@ it("re-prices that day's workouts when a weigh-in is corrected", async () => {
 
   // 10 pull-ups at the corrected 190, down from the 2500 the typo produced.
   await waitFor(() =>
-    expect(mockApply).toHaveBeenCalledWith([{ id: "w1", totalVolume: 1900 }], expect.anything(), "u1")
+    expect(mockApply).toHaveBeenCalledWith(
+      [{ id: "w1", totalVolume: 1900 }],
+      expect.anything(),
+      mockUserId
+    )
   );
 });
 
@@ -108,7 +116,11 @@ it("re-prices against what is left when a weigh-in is deleted", async () => {
 
   // With the 4th gone, the nearest remaining weigh-in is the 5th's 191.
   await waitFor(() =>
-    expect(mockApply).toHaveBeenCalledWith([{ id: "w1", totalVolume: 1910 }], expect.anything(), "u1")
+    expect(mockApply).toHaveBeenCalledWith(
+      [{ id: "w1", totalVolume: 1910 }],
+      expect.anything(),
+      mockUserId
+    )
   );
 });
 
@@ -148,4 +160,48 @@ it("does the same thing whichever screen the weigh-in came from", async () => {
   });
 
   expect(mockApply.mock.calls.length).toBe(named + 1);
+});
+
+describe("opening a second screen that needs the log", () => {
+  it("paints the log it already read on the very first render", async () => {
+    // First screen: nothing cached, so it waits for the read.
+    const first = await loaded();
+    expect(first.result.current.log).toHaveLength(2);
+
+    // Second screen, same session — Profile -> Bodyweight. Every render is
+    // recorded, because the one that matters is the first: settling correctly
+    // after an effect is exactly what the old code did, and it is what put
+    // "Nothing weighed in this range" on screen for a beat on the way there.
+    const renders: { entries: number; loading: boolean }[] = [];
+    renderHook(() => {
+      const bodyweight = useBodyweight();
+      renders.push({ entries: bodyweight.log.length, loading: bodyweight.loading });
+      return bodyweight;
+    });
+
+    expect(renders[0]).toEqual({ entries: 2, loading: false });
+  });
+
+  it("keeps an edit rather than repainting the version it last read", async () => {
+    const { result } = await loaded();
+    await act(async () => {
+      await result.current.record(190, AUG_4);
+    });
+
+    const next = renderHook(() => useBodyweight());
+
+    expect(next.result.current.log.find((e) => e.date.getTime() === AUG_4.getTime())?.lbs).toBe(190);
+  });
+
+  it("never hands one account's log to another", async () => {
+    await loaded();
+
+    mockUserId = `other-${testUser}`;
+    mockStored = [{ date: AUG_5, lbs: 140 }];
+    const other = renderHook(() => useBodyweight());
+
+    expect(other.result.current.log).toEqual([]);
+    await waitFor(() => expect(other.result.current.log).toHaveLength(1));
+    expect(other.result.current.log[0].lbs).toBe(140);
+  });
 });

@@ -134,7 +134,9 @@ export function BodyweightChart({
   // height as you pick it up and put it down.
   const shownIndex = scrubbed ?? log.length - 1;
   const shownEntry = log[shownIndex];
-  const shownValue = geometry?.values[shownIndex];
+  // Taken from the log rather than from the geometry, which does not exist
+  // until the view has been measured — otherwise the first frame reads "—".
+  const shownValue = convertWeight(shownEntry.lbs, "lbs", unit);
 
   return (
     <View onLayout={(e) => setWidth(e.nativeEvent.layout.width)}>
@@ -149,9 +151,11 @@ export function BodyweightChart({
         <Text
           style={[styles.readoutValue, { color: theme.accentText }]}
           maxFontSizeMultiplier={FontScaleCap.grid}>
-          {shownValue != null ? `${shownValue.toFixed(1)} ${unit}` : "—"}
+          {`${shownValue.toFixed(1)} ${unit}`}
         </Text>
       </View>
+
+      {!geometry && <View style={{ height }} />}
 
       {geometry && (
         <>

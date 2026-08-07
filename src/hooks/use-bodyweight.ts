@@ -9,6 +9,20 @@ import { withBodyweightEntry, withoutBodyweightEntry } from "@/lib/workout-utils
 import type { BodyweightEntry } from "@/types";
 
 /**
+ * The last log read, per user, for the life of the process.
+ *
+ * The fetch is per-mount, which was invisible while one screen used this and
+ * obvious the moment two did: opening Bodyweight from Profile started from an
+ * empty log and showed "Nothing weighed in this range" until the read came
+ * back. Seeding from here paints the real chart on the first frame and lets the
+ * read confirm it silently.
+ *
+ * Keyed by user so a different account never inherits one, and process-scoped
+ * so it cannot go stale across launches.
+ */
+const lastRead = new Map<string, BodyweightEntry[]>();
+
+/**
  * The weigh-in log, oldest first.
  *
  * Fetched rather than subscribed: unlike workouts, this changes only when the
@@ -18,8 +32,10 @@ import type { BodyweightEntry } from "@/types";
 export function useBodyweight() {
   const { dataUserId } = useAuth();
   const { completed } = useWorkouts();
-  const [log, setLog] = useState<BodyweightEntry[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [log, setLog] = useState<BodyweightEntry[]>(
+    () => (dataUserId ? lastRead.get(dataUserId) : undefined) ?? []
+  );
+  const [loading, setLoading] = useState(() => !(dataUserId && lastRead.has(dataUserId)));
 
   useEffect(() => {
     let cancelled = false;
@@ -28,9 +44,14 @@ export function useBodyweight() {
       setLoading(false);
       return;
     }
-    setLoading(true);
+    // Only an unseeded screen waits. One that already has the log refreshes
+    // underneath what is on screen rather than blanking it first.
+    const seed = lastRead.get(dataUserId);
+    if (seed) setLog(seed);
+    setLoading(!seed);
     getBodyweightLog(dataUserId)
       .then((entries) => {
+        lastRead.set(dataUserId, entries);
         if (!cancelled) setLog(entries);
       })
       .catch((e) => {
@@ -81,6 +102,7 @@ export function useBodyweight() {
       // a failure leaves the log as the server has it on the next read.
       const next = withBodyweightEntry(log, { date: when, lbs });
       setLog(next);
+      lastRead.set(dataUserId, next);
       await setBodyweightLog(dataUserId, next);
       reprice(when, next);
     },
@@ -99,6 +121,7 @@ export function useBodyweight() {
       const next = withoutBodyweightEntry(log, day);
       if (next.length === log.length) return;
       setLog(next);
+      lastRead.set(dataUserId, next);
       await setBodyweightLog(dataUserId, next);
       reprice(day, next);
     },
