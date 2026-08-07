@@ -9,7 +9,7 @@ import { useTheme } from "@/context/ThemeContext";
 import { useWorkouts } from "@/hooks/use-workouts";
 import { computeStats } from "@/lib/data";
 import { useWeightUnit } from "@/context/UnitContext";
-import { addDays, displayVolume, formatDuration, startOfWeek, workoutVolumeLbs } from "@/lib/workout-utils";
+import { addDays, displayVolume, formatDuration, setsByCategory, startOfWeek, workoutVolumeLbs } from "@/lib/workout-utils";
 
 const CHART_DAYS = 14;
 
@@ -45,6 +45,23 @@ export default function StatsScreen() {
   }, [completed]);
 
   const maxVolume = Math.max(...chart.map((d) => d.volume), 1);
+
+  const thisWeek = useMemo(() => {
+    const start = startOfWeek(new Date());
+    const end = addDays(start, 7);
+    return completed.filter((w) => w.completedAt! >= start && w.completedAt! < end);
+  }, [completed]);
+
+  /**
+   * How much of each thing you actually did this week.
+   *
+   * The diagram above answers "did I train chest", which is the question you
+   * already know the answer to. This answers "how much", which is the one that
+   * changes next week — one set of chest and twenty look identical on a body
+   * map.
+   */
+  const weekSets = useMemo(() => setsByCategory(thisWeek), [thisWeek]);
+  const mostSets = weekSets[0]?.sets ?? 1;
 
   // Weekly muscle recap: a muscle is "primary" if any exercise this week
   // targeted it first; muscles hit only in passing get the secondary shade.
@@ -109,6 +126,29 @@ export default function StatsScreen() {
               musclesWorked={weekMuscles.primary}
               secondaryMuscles={weekMuscles.secondary}
             />
+            {weekSets.length > 0 && (
+              <View style={styles.setRows}>
+                {weekSets.map((row) => (
+                  <View key={row.category} style={styles.setRow}>
+                    <Text style={styles.setCategory} numberOfLines={1}>
+                      {row.category}
+                    </Text>
+                    <View style={styles.setTrack}>
+                      <View
+                        style={[
+                          styles.setBar,
+                          { width: `${(row.sets / mostSets) * 100}%`, backgroundColor: theme.accent },
+                        ]}
+                      />
+                    </View>
+                    <Text style={styles.setCount} maxFontSizeMultiplier={FontScaleCap.grid}>
+                      {row.sets}
+                    </Text>
+                  </View>
+                ))}
+              </View>
+            )}
+
             <Text style={styles.muscleCaption}>
               {weekMuscles.workoutCount === 0
                 ? "Nothing logged yet this week — the body fills in as you train."
@@ -239,6 +279,39 @@ const styles = StyleSheet.create({
   },
   muscleCard: {
     gap: Spacing.two,
+  },
+  setRows: {
+    gap: 5,
+  },
+  setRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.two,
+  },
+  setCategory: {
+    width: 78,
+    fontSize: 12,
+    fontWeight: "600",
+    color: Palette.textSecondary,
+  },
+  setTrack: {
+    flex: 1,
+    height: 5,
+    borderRadius: 3,
+    backgroundColor: Palette.surfaceRaised,
+    overflow: "hidden",
+  },
+  setBar: {
+    height: 5,
+    borderRadius: 3,
+  },
+  setCount: {
+    minWidth: 22,
+    textAlign: "right",
+    fontSize: 12,
+    fontWeight: "700",
+    color: Palette.text,
+    fontVariant: ["tabular-nums"],
   },
   muscleCaption: {
     fontSize: 12,

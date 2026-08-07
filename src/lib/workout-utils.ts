@@ -365,6 +365,34 @@ export function reopenTiming(workout: Workout): ReopenTiming {
 }
 
 
+/**
+ * Completed sets per exercise category, heaviest first.
+ *
+ * By category rather than by muscle, and that choice does more work than it
+ * looks like. A set of bench works chest, triceps and shoulders, so counting it
+ * against each would make ten sets of pressing read as ten of everything —
+ * avoidable only by counting halves, which invites "why is my triceps 5.5".
+ * An exercise belongs to exactly one category, so a set is one set and the
+ * numbers are just true.
+ *
+ * Only completed sets count. A set you wrote down and did not do is not volume.
+ */
+export function setsByCategory(workouts: Workout[]): { category: string; sets: number }[] {
+  const counts = new Map<string, number>();
+  for (const workout of workouts) {
+    for (const exercise of workout.exercises) {
+      const done = exercise.sets.filter((set) => set.isCompleted).length;
+      if (done === 0) continue;
+      const category = exercise.exercise.category;
+      counts.set(category, (counts.get(category) ?? 0) + done);
+    }
+  }
+  return [...counts.entries()]
+    .map(([category, sets]) => ({ category, sets }))
+    // Ties broken by name so the order cannot flicker between renders.
+    .sort((a, b) => b.sets - a.sets || a.category.localeCompare(b.category));
+}
+
 // ── Bodyweight ───────────────────────────────────────────────────────────────
 
 /**

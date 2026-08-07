@@ -18,6 +18,7 @@ import {
   reopenTiming,
   sameDay,
   setVolumeLbs,
+  setsByCategory,
   startOfDay,
   startOfWeek,
   totalSetCount,
@@ -26,6 +27,7 @@ import {
   workoutDay,
   workoutVolumeLbs,
 } from "../workout-utils";
+import type { Workout } from "@/types";
 import {
   daysAgo,
   emptySet,
@@ -716,5 +718,77 @@ describe("weights on screen", () => {
     // should see kg halves.
     expect(formatWeight(220.462, "kg")).toBe("100");
     expect(formatWeight(100.3, "kg")).toBe("45.5");
+  });
+});
+
+describe("sets per category", () => {
+  const exercise = (id: string, category: string, done: number, planned = 0) => ({
+    id,
+    exerciseId: id,
+    exercise: { id, name: id, category, musclesWorked: ["x"], description: "" },
+    orderIndex: 0,
+    sets: [
+      ...Array.from({ length: done }, (_, i) => ({
+        id: `${id}-d${i}`,
+        weightUnit: "lbs" as const,
+        isCompleted: true,
+      })),
+      ...Array.from({ length: planned }, (_, i) => ({
+        id: `${id}-p${i}`,
+        weightUnit: "lbs" as const,
+        isCompleted: false,
+      })),
+    ],
+  });
+
+  const workout = (...exercises: ReturnType<typeof exercise>[]) =>
+    ({
+      id: "w",
+      userId: "u",
+      name: "w",
+      isTemplate: false,
+      createdAt: new Date(),
+      exercises,
+    }) as Workout;
+
+  it("adds a category up across exercises and workouts", () => {
+    const result = setsByCategory([
+      workout(exercise("bench", "Chest", 3), exercise("fly", "Chest", 3)),
+      workout(exercise("row", "Back", 4)),
+    ]);
+
+    expect(result).toEqual([
+      { category: "Chest", sets: 6 },
+      { category: "Back", sets: 4 },
+    ]);
+  });
+
+  it("counts a set once, in one category", () => {
+    // The reason this counts categories rather than muscles: bench works chest,
+    // triceps and shoulders, and counting it against each would read ten sets
+    // of pressing as ten of everything.
+    const result = setsByCategory([workout(exercise("bench", "Chest", 10))]);
+
+    expect(result).toEqual([{ category: "Chest", sets: 10 }]);
+  });
+
+  it("ignores sets that were written down but not done", () => {
+    const result = setsByCategory([workout(exercise("squat", "Legs", 2, 3))]);
+
+    expect(result).toEqual([{ category: "Legs", sets: 2 }]);
+  });
+
+  it("leaves out a category with nothing completed in it", () => {
+    const result = setsByCategory([workout(exercise("curl", "Biceps", 0, 4))]);
+
+    expect(result).toEqual([]);
+  });
+
+  it("orders by size, then by name so it cannot flicker", () => {
+    const result = setsByCategory([
+      workout(exercise("a", "Shoulders", 3), exercise("b", "Back", 3), exercise("c", "Legs", 9)),
+    ]);
+
+    expect(result.map((r) => r.category)).toEqual(["Legs", "Back", "Shoulders"]);
   });
 });
