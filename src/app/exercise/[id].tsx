@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { router, useLocalSearchParams } from "expo-router";
 import Ionicons from "@expo/vector-icons/Ionicons";
@@ -16,6 +17,7 @@ export default function ExerciseDetailScreen() {
   const theme = useTheme();
   const exercise = exercises.find((e) => e.id === id);
   const guide = exercise ? formGuideFor(exercise.id) : undefined;
+  const [guideOpen, setGuideOpen] = useState(false);
 
   function confirmDelete() {
     if (!exercise) return;
@@ -78,14 +80,49 @@ export default function ExerciseDetailScreen() {
 
         <Text style={styles.description}>{exercise.description}</Text>
 
-        {/* Only the bundled exercises have a guide; a custom one shows its own
-            description and nothing else, rather than three empty headings. */}
+        {/*
+          Folded away by default.
+
+          Three sections of cues is the right amount when you came here to learn
+          the movement, and too much every other time — which is most times,
+          since this screen is also how you check what you lifted last. Behind
+          one tap it costs a row; open by default it pushed the progress chart
+          off the bottom of the screen.
+
+          Collapsed again on every visit rather than remembered. The state that
+          suits you changes with why you opened the screen, not with what you
+          chose last week.
+
+          Only the bundled exercises have a guide; a custom one shows its own
+          description and no toggle at all, rather than one that opens onto
+          nothing.
+        */}
         {guide && (
-          <>
-            <FormSection label="Set up" lines={guide.setup} />
-            <FormSection label="The lift" lines={guide.execution} />
-            <FormSection label="Watch for" lines={guide.watchFor} accent={theme.accentText} />
-          </>
+          <View style={styles.guide}>
+            <Pressable
+              onPress={() => setGuideOpen((open) => !open)}
+              accessibilityRole="button"
+              accessibilityState={{ expanded: guideOpen }}
+              accessibilityLabel={`How to do it. ${guideOpen ? "Collapse" : "Expand"}.`}
+              style={({ pressed }) => [styles.guideToggle, pressed && { opacity: 0.7 }]}>
+              <Text style={[styles.guideToggleText, { color: theme.accentText }]}>
+                How to do it
+              </Text>
+              <Ionicons
+                name={guideOpen ? "chevron-up" : "chevron-down"}
+                size={16}
+                color={theme.accentText}
+              />
+            </Pressable>
+
+            {guideOpen && (
+              <View style={styles.guideBody}>
+                <FormSection label="Set up" lines={guide.setup} />
+                <FormSection label="The lift" lines={guide.execution} />
+                <FormSection label="Watch for" lines={guide.watchFor} accent={theme.accentText} />
+              </View>
+            )}
+          </View>
         )}
 
         <View>
@@ -195,6 +232,25 @@ const styles = StyleSheet.create({
     fontSize: 14,
     lineHeight: 21,
     color: Palette.textSecondary,
+  },
+  guide: {
+    gap: Spacing.three,
+  },
+  guideToggle: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingVertical: Spacing.two,
+    borderTopWidth: 1,
+    borderBottomWidth: 1,
+    borderColor: Palette.border,
+  },
+  guideToggleText: {
+    fontSize: 14,
+    fontWeight: "700",
+  },
+  guideBody: {
+    gap: Spacing.four,
   },
   formSection: {
     gap: Spacing.two,
