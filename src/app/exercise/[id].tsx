@@ -6,6 +6,7 @@ import { ExerciseProgress } from "@/components/exercise-progress";
 import { MuscleMap } from "@/components/muscle-map";
 import { SectionLabel } from "@/components/ui";
 import { Palette, Radius, Spacing } from "@/constants/theme";
+import { formGuideFor } from "@/lib/exercise-form";
 import { useExerciseLibrary } from "@/hooks/use-exercise-library";
 import { useTheme } from "@/context/ThemeContext";
 
@@ -14,6 +15,7 @@ export default function ExerciseDetailScreen() {
   const { exercises, deleteExercise } = useExerciseLibrary();
   const theme = useTheme();
   const exercise = exercises.find((e) => e.id === id);
+  const guide = exercise ? formGuideFor(exercise.id) : undefined;
 
   function confirmDelete() {
     if (!exercise) return;
@@ -76,6 +78,16 @@ export default function ExerciseDetailScreen() {
 
         <Text style={styles.description}>{exercise.description}</Text>
 
+        {/* Only the bundled exercises have a guide; a custom one shows its own
+            description and nothing else, rather than three empty headings. */}
+        {guide && (
+          <>
+            <FormSection label="Set up" lines={guide.setup} />
+            <FormSection label="The lift" lines={guide.execution} />
+            <FormSection label="Watch for" lines={guide.watchFor} accent={theme.accentText} />
+          </>
+        )}
+
         <View>
           <SectionLabel>Your progress</SectionLabel>
           <ExerciseProgress exerciseId={exercise.id} />
@@ -88,6 +100,36 @@ export default function ExerciseDetailScreen() {
           </View>
         </View>
       </ScrollView>
+    </View>
+  );
+}
+
+/**
+ * One block of the form guide.
+ *
+ * The marker is a dot rather than a number: these are things that are true at
+ * the same time, not steps in an order, and numbering them would promise a
+ * sequence the content does not have. "Watch for" takes the accent so the
+ * mistakes read as the part worth slowing down on.
+ */
+function FormSection({
+  label,
+  lines,
+  accent,
+}: {
+  label: string;
+  lines: string[];
+  accent?: string;
+}) {
+  return (
+    <View style={styles.formSection}>
+      <SectionLabel>{label}</SectionLabel>
+      {lines.map((line) => (
+        <View key={line} style={styles.formLine}>
+          <View style={[styles.formDot, accent ? { backgroundColor: accent } : null]} />
+          <Text style={styles.formText}>{line}</Text>
+        </View>
+      ))}
     </View>
   );
 }
@@ -150,6 +192,28 @@ const styles = StyleSheet.create({
     fontWeight: "600",
   },
   description: {
+    fontSize: 14,
+    lineHeight: 21,
+    color: Palette.textSecondary,
+  },
+  formSection: {
+    gap: Spacing.two,
+  },
+  formLine: {
+    flexDirection: "row",
+    gap: Spacing.two,
+    paddingRight: Spacing.two,
+  },
+  formDot: {
+    width: 4,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: Palette.textTertiary,
+    // Sits on the first line's optical centre rather than the top of the box.
+    marginTop: 8,
+  },
+  formText: {
+    flex: 1,
     fontSize: 14,
     lineHeight: 21,
     color: Palette.textSecondary,
