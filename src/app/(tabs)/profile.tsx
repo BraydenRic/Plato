@@ -7,7 +7,7 @@ import { useRouter } from "expo-router";
 import { Button, Card, SectionLabel, Stepper } from "@/components/ui";
 import { Sparkline } from "@/components/sparkline";
 import { useBodyweight } from "@/hooks/use-bodyweight";
-import { convertWeight } from "@/lib/workout-utils";
+import { convertWeight, relativeDay, sameDay } from "@/lib/workout-utils";
 import { Palette, Radius, Spacing, THEME_LIST } from "@/constants/theme";
 import { useAuth } from "@/context/AuthContext";
 import { REST_OPTIONS, nearestRestIndex, useRestTimer } from "@/context/RestTimerContext";
@@ -52,6 +52,9 @@ export default function ProfileScreen() {
   // Stored in lbs like every other weight; the card speaks the chosen unit.
   const shownWeight =
     latestWeight != null ? Math.round(convertWeight(latestWeight.lbs, "lbs", unit)) : null;
+  // Whether the newest weigh-in is actually today's, which is what decides
+  // whether the number on this card is current or just the last one there was.
+  const weighedInToday = latestWeight != null && sameDay(latestWeight.date, new Date());
   // Against the oldest weigh-in on the card, which is what the line draws.
   const weightDelta =
     bodyweightLog.length > 1
@@ -328,13 +331,33 @@ export default function ProfileScreen() {
             <Pressable
               onPress={() => router.push("/bodyweight")}
               accessibilityRole="button"
-              accessibilityLabel="Bodyweight history"
+              accessibilityLabel={
+                latestWeight == null
+                  ? "Bodyweight, none logged yet. Opens history."
+                  : `Bodyweight, ${shownWeight} ${unit}, logged ${relativeDay(latestWeight.date)}. Opens history.`
+              }
               style={({ pressed }) => [{ flex: 1 }, pressed && { opacity: 0.8 }]}>
               <View style={styles.bodyweightRow}>
                 <Text style={styles.prefTitle}>Bodyweight</Text>
-                <Text style={[styles.bodyweightValue, { color: theme.accentText }]}>
-                  {shownWeight != null ? `${shownWeight} ${unit}` : "—"}
-                </Text>
+                {/*
+                  The figure only wears the accent when it is today's. Left
+                  accented regardless, a weigh-in from last Tuesday read as this
+                  morning's — and this card is the one place the number is seen
+                  without its date attached. Dropping to grey and naming the day
+                  says which it is without taking the number away.
+                */}
+                <View style={styles.bodyweightReading}>
+                  <Text
+                    style={[
+                      styles.bodyweightValue,
+                      { color: weighedInToday ? theme.accentText : Palette.textSecondary },
+                    ]}>
+                    {shownWeight != null ? `${shownWeight} ${unit}` : "—"}
+                  </Text>
+                  {latestWeight != null && !weighedInToday && (
+                    <Text style={styles.bodyweightWhen}>· {relativeDay(latestWeight.date)}</Text>
+                  )}
+                </View>
               </View>
             </Pressable>
             <Pressable
@@ -576,6 +599,15 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "space-between",
     gap: Spacing.three,
+  },
+  bodyweightReading: {
+    flexDirection: "row",
+    alignItems: "baseline",
+    gap: 5,
+  },
+  bodyweightWhen: {
+    fontSize: 13,
+    color: Palette.textTertiary,
   },
   bodyweightValue: {
     fontSize: 15,
