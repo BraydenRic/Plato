@@ -67,6 +67,17 @@ function workoutFromDoc(id: string, data: Record<string, unknown>): Workout {
 
 // ── Workouts ──────────────────────────────────────────────────────────────────
 
+/**
+ * The one query in the app that needs a composite index: two equality filters
+ * plus an orderBy on a third field. Declared in firestore.indexes.json — every
+ * other read here is a single `where` with the sort done client-side, which is
+ * why none of them needed one.
+ *
+ * Without the index this throws `failed-precondition`, and the only caller is
+ * the guest→account migration, which catches it and tells the user it will try
+ * again next launch. It then fails the same way every launch, with their
+ * workouts stuck on the device.
+ */
 export async function getWorkouts(userId: string, templatesOnly = false): Promise<Workout[]> {
   const q = query(
     collection(db, "workouts"),
@@ -181,13 +192,27 @@ export async function deleteWorkout(workout: Workout): Promise<void> {
   }
 }
 
-// Wipes everything the user owns, for account deletion (App Store requires
-// in-app account deletion). The auth user itself is deleted afterwards.
+/**
+ * Wipes everything the user owns, for account deletion (App Store requires
+ * in-app account deletion). The auth user itself is deleted afterwards.
+ *
+ * Every per-user collection has to be listed here — there is no wildcard, and
+ * the same guarantee that the rules file makes ("every collection is per-user")
+ * is what makes forgetting one invisible: the data stays behind under a uid
+ * nobody can sign in as any more, so nothing ever surfaces the omission.
+ * weeklyPlans and bodyweight were both missed exactly that way, and bodyweight
+ * is a log of someone's weight. The guest path has never had the problem, since
+ * it drops one blob that holds the lot.
+ *
+ * account-data-coverage.test.ts fails if a collection is used but not wiped.
+ */
 export async function deleteAllUserData(userId: string): Promise<void> {
   const snap = await getDocs(query(collection(db, "workouts"), where("userId", "==", userId)));
   await Promise.all(snap.docs.map((d) => deleteDoc(d.ref)));
   await deleteDoc(doc(db, "exerciseLibrary", userId));
   await deleteDoc(doc(db, "userStats", userId));
+  await deleteDoc(doc(db, "weeklyPlans", userId));
+  await deleteDoc(doc(db, "bodyweight", userId));
 }
 
 // ── Exercise library ─────────────────────────────────────────────────────────
