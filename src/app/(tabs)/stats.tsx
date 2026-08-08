@@ -128,6 +128,10 @@ export default function StatsScreen() {
             />
             {weekSets.length > 0 && (
               <View style={styles.setRows}>
+                {/* The numbers are bare, and a bare number next to a muscle
+                    name could be sets, reps or pounds. Said once above the
+                    column rather than repeated on all six rows. */}
+                <Text style={styles.setHeading}>Sets completed this week</Text>
                 {weekSets.map((row) => (
                   <View key={row.category} style={styles.setRow}>
                     <Text style={styles.setCategory} numberOfLines={1}>
@@ -282,6 +286,14 @@ const styles = StyleSheet.create({
   },
   setRows: {
     gap: 5,
+  },
+  setHeading: {
+    fontSize: 10,
+    fontWeight: "600",
+    letterSpacing: 0.6,
+    textTransform: "uppercase",
+    color: Palette.textTertiary,
+    marginBottom: 1,
   },
   setRow: {
     flexDirection: "row",
