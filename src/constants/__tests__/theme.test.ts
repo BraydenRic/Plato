@@ -193,17 +193,24 @@ describe.each(MODES)("the muscle map in %s mode", (mode) => {
   it.each(themes)("%s can draw two levels of itself at once", (_label, theme) => {
     // Graphite shipped with both tokens set to white, so the two groups came
     // out identical and the diagram said nothing — this is that bug, pinned.
+    //
+    // A lower bar than visibility below, deliberately: cyan has run at 28 in
+    // dark mode since launch and reads fine, because failing here only blurs
+    // *which* of two clearly-visible groups you're looking at.
     expect(deltaE(theme.figure.primary, theme.figure.secondary)).toBeGreaterThan(25);
   });
 
   it.each(themes)("%s keeps both tones off the body they sit on", (_label, theme) => {
-    // Worked muscles have to read as highlighted against the unworked body, or
-    // dialling a tone down far enough to differ from the other just loses it
-    // into the figure instead. The body follows the mode, so this is a
-    // different comparison in each — a tone tuned to be pale against dark grey
-    // is exactly the one that vanishes against light grey.
-    expect(deltaE(theme.figure.primary, body)).toBeGreaterThan(25);
-    expect(deltaE(theme.figure.secondary, body)).toBeGreaterThan(25);
+    // The stricter of the two bars, because failing this one means not seeing a
+    // worked muscle at all. 25 was too generous: Graphite's light secondary
+    // cleared it at ΔE 29 and was still reported as hard to pick out on a
+    // phone, so the bar moved to where that value would have failed.
+    //
+    // The body follows the mode, so this is a different comparison in each — a
+    // tone tuned to be pale against dark grey is exactly the one that vanishes
+    // against light grey.
+    expect(deltaE(theme.figure.primary, body)).toBeGreaterThan(32);
+    expect(deltaE(theme.figure.secondary, body)).toBeGreaterThan(32);
   });
 
   it("keeps the silhouette readable against the card without shouting", () => {
@@ -237,8 +244,8 @@ describe.each(MODES)("the muscle map legend in %s mode", (mode) => {
   });
 
   it.each(themes)("%s shows both swatches against that ring", (_label, theme) => {
-    expect(deltaE(theme.figure.primary, body)).toBeGreaterThan(25);
-    expect(deltaE(theme.figure.secondary, body)).toBeGreaterThan(25);
+    expect(deltaE(theme.figure.primary, body)).toBeGreaterThan(32);
+    expect(deltaE(theme.figure.secondary, body)).toBeGreaterThan(32);
   });
 });
 

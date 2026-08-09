@@ -353,7 +353,11 @@ export const THEMES: Record<ThemeId, Theme> = {
       accentSoft: "rgba(24,24,27,0.10)",
       accentText: "#18181b",
       onAccent: "#fafafa",
-      figure: { primary: "#18181b", secondary: "#71717a" },
+      // Pushed apart from the accent on purpose. Greyscale has only lightness to
+      // separate with, so on a light body zinc-500 sat ΔE 29 from it — over the
+      // old bar and still hard to pick out on a phone. Dropping the pair to
+      // near-black and zinc-600 buys 38 without closing the gap between them.
+      figure: { primary: "#0a0a0c", secondary: "#5b5b64" },
     },
     activityTint: "#fafafa",
     // #fafafa is the white glyph already shipping in the bundle, so this theme
