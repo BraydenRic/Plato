@@ -64,6 +64,7 @@
         }
       ],
       "expo-apple-authentication",
+      "./plugins/with-silent-icon-change",
       "./plugins/with-live-activity-rest-timer",
       [
         "expo-live-activity",
