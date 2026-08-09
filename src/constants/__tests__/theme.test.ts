@@ -4,6 +4,7 @@ import {
   DEFAULT_APPEARANCE,
   DEFAULT_THEME_ID,
   FIGURE_BODY,
+  FIGURE_SEAM,
   PALETTES,
   THEMES,
   THEME_LIST,
@@ -185,30 +186,60 @@ describe.each(MODES)("every theme in %s mode", (mode) => {
   });
 });
 
-describe("the muscle map's two tones", () => {
-  // These don't follow the mode, because the figure they're drawn on doesn't:
-  // the highlighter library bakes FIGURE_BODY into its own paths, so a light
-  // page still gets a dark body. Judging them against the page would be judging
-  // them against the wrong thing.
-  it.each(THEME_LIST.map((t): [string, Theme] => [t.label, t]))(
-    "%s can draw two levels of itself at once",
-    (_label, theme) => {
-      // Graphite shipped with both tokens set to white, so the two groups came
-      // out identical and the diagram said nothing — this is that bug, pinned.
-      expect(deltaE(theme.figure.primary, theme.figure.secondary)).toBeGreaterThan(25);
-    }
-  );
+describe.each(MODES)("the muscle map in %s mode", (mode) => {
+  const body = FIGURE_BODY[mode];
+  const themes = THEME_LIST.map((t): [string, ResolvedTheme] => [t.label, resolveTheme(t, mode)]);
 
-  it.each(THEME_LIST.map((t): [string, Theme] => [t.label, t]))(
-    "%s keeps both tones off the body grey they sit on",
-    (_label, theme) => {
-      // Worked muscles have to read as highlighted against the unworked body,
-      // or dialling a tone down far enough to differ from the other just loses
-      // it into the figure instead.
-      expect(deltaE(theme.figure.primary, FIGURE_BODY)).toBeGreaterThan(25);
-      expect(deltaE(theme.figure.secondary, FIGURE_BODY)).toBeGreaterThan(25);
-    }
-  );
+  it.each(themes)("%s can draw two levels of itself at once", (_label, theme) => {
+    // Graphite shipped with both tokens set to white, so the two groups came
+    // out identical and the diagram said nothing — this is that bug, pinned.
+    expect(deltaE(theme.figure.primary, theme.figure.secondary)).toBeGreaterThan(25);
+  });
+
+  it.each(themes)("%s keeps both tones off the body they sit on", (_label, theme) => {
+    // Worked muscles have to read as highlighted against the unworked body, or
+    // dialling a tone down far enough to differ from the other just loses it
+    // into the figure instead. The body follows the mode, so this is a
+    // different comparison in each — a tone tuned to be pale against dark grey
+    // is exactly the one that vanishes against light grey.
+    expect(deltaE(theme.figure.primary, body)).toBeGreaterThan(25);
+    expect(deltaE(theme.figure.secondary, body)).toBeGreaterThan(25);
+  });
+
+  it("keeps the silhouette readable against the card without shouting", () => {
+    // Matched across modes on purpose: the figure should read with the same
+    // weight either way, rather than as a dark slab dropped on a white card.
+    const onCard = contrast(body, PALETTES[mode].surface);
+    expect(onCard).toBeGreaterThanOrEqual(1.3);
+    expect(onCard).toBeLessThan(3);
+  });
+
+  it("keeps the seam behind the muscles rather than beside them", () => {
+    // It stands for the layer *under* the shapes, so it reads as a seam only
+    // while it is darker than the fill — in both modes.
+    expect(luminance(FIGURE_SEAM[mode])).toBeLessThan(luminance(body));
+  });
+});
+
+describe.each(MODES)("the muscle map legend in %s mode", (mode) => {
+  /*
+   * The legend swatches are drawn on the card, not on the figure — which is how
+   * Graphite shipped a white "Primary" dot onto a white card in light mode. They
+   * now sit on a ring of the body colour, so what has to hold is that the ring
+   * is discernible on the card and the tone is discernible on the ring. Testing
+   * the tone against the card directly was the check that never existed.
+   */
+  const body = FIGURE_BODY[mode];
+  const themes = THEME_LIST.map((t): [string, ResolvedTheme] => [t.label, resolveTheme(t, mode)]);
+
+  it("shows the ring against the card", () => {
+    expect(contrast(body, PALETTES[mode].surface)).toBeGreaterThanOrEqual(1.3);
+  });
+
+  it.each(themes)("%s shows both swatches against that ring", (_label, theme) => {
+    expect(deltaE(theme.figure.primary, body)).toBeGreaterThan(25);
+    expect(deltaE(theme.figure.secondary, body)).toBeGreaterThan(25);
+  });
 });
 
 describe("the Live Activity tint", () => {
@@ -255,6 +286,16 @@ describe("the two palettes", () => {
     expect(luminance(PALETTES.light.bg)).toBeGreaterThan(0.5);
     expect(luminance(PALETTES.dark.bg)).toBeLessThan(0.1);
   });
+
+  it("keeps the light page back from full white", () => {
+    // This shipped at #fafafa (0.96) and read as glare on a phone. A page is
+    // nearly all background, so its luminance is most of what the eye actually
+    // receives — the upper bound is the whole point of the band, and the lower
+    // one stops a later "let's calm it down" landing in mid-grey.
+    const L = luminance(PALETTES.light.bg);
+    expect(L).toBeGreaterThan(0.7);
+    expect(L).toBeLessThan(0.9);
+  });
 });
 
 describe("resolveTheme", () => {
@@ -269,7 +310,15 @@ describe("resolveTheme", () => {
     expect(theme.id).toBe("graphite");
     expect(theme.label).toBe("Graphite");
     expect(theme.iconName).toBeNull();
-    expect(theme.figure).toEqual(THEMES.graphite.figure);
+    expect(theme.activityTint).toBe(THEMES.graphite.activityTint);
+  });
+
+  it("takes the figure from the mode too", () => {
+    // Graphite is the case that matters: its figure tones invert with the body,
+    // so reading the wrong mode's pair here paints white muscles onto a light
+    // grey figure.
+    expect(resolveTheme(THEMES.graphite, "light").figure).toEqual(THEMES.graphite.light.figure);
+    expect(resolveTheme(THEMES.graphite, "dark").figure).toEqual(THEMES.graphite.dark.figure);
   });
 
   it("leaves no nested accent sets on the result", () => {

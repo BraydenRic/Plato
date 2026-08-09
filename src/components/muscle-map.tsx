@@ -2,8 +2,8 @@ import { useState } from "react";
 import { Text, View } from "react-native";
 import Body, { type ExtendedBodyPart } from "react-native-body-highlighter";
 
-import { FIGURE_BODY } from "@/constants/theme";
-import { makeStyles } from "@/context/AppearanceContext";
+import { FIGURE_BODY, FIGURE_SEAM } from "@/constants/theme";
+import { makeStyles, useMode } from "@/context/AppearanceContext";
 import { useTheme } from "@/context/ThemeContext";
 
 type Slug = NonNullable<ExtendedBodyPart["slug"]>;
@@ -65,13 +65,7 @@ interface MuscleMapProps {
   secondaryMuscles?: string[];
 }
 
-// The library hardcodes FIGURE_BODY on most body parts, so the default fill must
-// match it exactly or reset parts (like the head) come out a different tone.
-// That is also why the figure stays dark in light mode — the fill is only ours
-// for the parts passed in `data`, and the rest of the silhouette is the
-// library's own. Seams between muscles show the layer behind the shapes, so
-// they sit a hair darker than the fill rather than near-black.
-const SEAM = "#37373c";
+// Body and seam colours live in constants/theme, per mode — see FIGURE_BODY.
 
 // The library's figures are 200pt wide each at scale 1 — too wide for two
 // side by side on a phone, so scale is derived from the measured card width.
@@ -82,6 +76,7 @@ const FIGURE_BASE_WIDTH = 200;
 // list gets the muted shade — both follow the chosen theme.
 export function MuscleMap({ musclesWorked, secondaryMuscles }: MuscleMapProps) {
   const styles = useStyles();
+  const mode = useMode();
   const [rowWidth, setRowWidth] = useState(0);
   const theme = useTheme();
   const scale = rowWidth > 0 ? Math.min((rowWidth / 2 - 8) / FIGURE_BASE_WIDTH, 1) : 0;
@@ -113,23 +108,34 @@ export function MuscleMap({ musclesWorked, secondaryMuscles }: MuscleMapProps) {
                 gender="male"
                 scale={scale}
                 colors={[theme.figure.primary, theme.figure.secondary]}
-                border={SEAM}
-                defaultFill={FIGURE_BODY}
+                border={FIGURE_SEAM[mode]}
+                defaultFill={FIGURE_BODY[mode]}
               />
               <Text style={styles.label}>{side}</Text>
             </View>
           ))}
       </View>
+      {/*
+        Each swatch sits on a ring of the body colour, because that is what it
+        is a key to. Drawn bare on the card it was a lie by omission and, for
+        Graphite in light mode, invisible outright — its primary tone is the
+        near-white that reads as "worked" against the figure, and on a white
+        card that is nothing at all.
+      */}
       <View style={styles.legend}>
         {primarySlugs.length > 0 && (
           <>
-            <View style={[styles.legendDot, { backgroundColor: theme.figure.primary }]} />
+            <View style={[styles.legendKey, { backgroundColor: FIGURE_BODY[mode] }]}>
+              <View style={[styles.legendDot, { backgroundColor: theme.figure.primary }]} />
+            </View>
             <Text style={styles.legendText}>Primary</Text>
           </>
         )}
         {secondarySlugs.length > 0 && (
           <>
-            <View style={[styles.legendDot, { backgroundColor: theme.figure.secondary }]} />
+            <View style={[styles.legendKey, { backgroundColor: FIGURE_BODY[mode] }]}>
+              <View style={[styles.legendDot, { backgroundColor: theme.figure.secondary }]} />
+            </View>
             <Text style={styles.legendText}>Secondary</Text>
           </>
         )}
@@ -164,11 +170,18 @@ const useStyles = makeStyles((c) => ({
     justifyContent: "center",
     gap: 6,
   },
+  legendKey: {
+    width: 16,
+    height: 16,
+    borderRadius: 8,
+    alignItems: "center",
+    justifyContent: "center",
+    marginLeft: 10,
+  },
   legendDot: {
     width: 8,
     height: 8,
     borderRadius: 4,
-    marginLeft: 10,
   },
   legendText: {
     fontSize: 11,

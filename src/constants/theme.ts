@@ -65,22 +65,26 @@ export const PALETTES: Record<Mode, PaletteColors> = {
     amber: "#fbbf24",
   },
   light: {
-    bg: "#fafafa",
-    surface: "#ffffff",
-    surfaceRaised: "#f4f4f5",
-    border: "rgba(0,0,0,0.10)",
-    borderStrong: "rgba(0,0,0,0.16)",
+    // Deliberately not white. The first cut ran #fafafa/#ffffff and read as
+    // glare on a phone — a page is nearly all background, so its luminance is
+    // most of what the eye actually receives, and 96% of full white across six
+    // inches of screen is a lamp. Dropping the page to 83% keeps it
+    // unambiguously light while giving the content something to sit against.
+    bg: "#ebebee",
+    surface: "#f7f7f9",
+    surfaceRaised: "#e0e0e4",
+    // A touch stronger than dark's, because the surfaces they separate are now
+    // closer together than #09090b and #131316 were.
+    border: "rgba(0,0,0,0.12)",
+    borderStrong: "rgba(0,0,0,0.18)",
     text: "#18181b",
-    textSecondary: "#52525b",
-    // The one tone that carries across unchanged: zinc-500 happens to sit almost
-    // exactly between the two backgrounds, clearing 4.5:1 on white and 4.1:1 on
-    // near-black.
-    textTertiary: "#71717a",
-    success: "#047857",
-    successSoft: "rgba(4,120,87,0.12)",
+    textSecondary: "#4b4b53",
+    textTertiary: "#65656d",
+    success: "#046a4d",
+    successSoft: "rgba(4,106,77,0.12)",
     danger: "#7f1d1d",
     dangerSoft: "rgba(127,29,29,0.10)",
-    amber: "#9c5f06",
+    amber: "#8a5405",
   },
 };
 
@@ -95,7 +99,7 @@ export type ThemeId =
   | "magenta"
   | "graphite";
 
-/** The four accent tokens, in one mode. */
+/** The accent tokens, in one mode. */
 export interface AccentSet {
   /** Filled buttons, active tab, chart strokes, progress fills. */
   accent: string;
@@ -105,14 +109,35 @@ export interface AccentSet {
   accentText: string;
   /** Label colour on top of a filled `accent` surface. */
   onAccent: string;
+  /**
+   * The muscle map's two tones — primary muscles and secondary ones.
+   *
+   * These answer to FIGURE_BODY rather than to the page, which is why they are
+   * not simply `accent` and `accentText`: on a light body the secondary tone
+   * has to go *deeper* to stay visible, where on a dark one it goes paler.
+   * Graphite is why they can't be derived at all — its accent and accentText
+   * are the same colour on purpose, so a diagram drawing both groups from those
+   * tokens painted them identically.
+   */
+  figure: { primary: string; secondary: string };
 }
 
 /**
- * The muscle map's body, which the highlighter library bakes into most of its
- * SVG paths. `defaultFill` only repaints the parts we pass in `data`, so this
- * cannot be themed — the figure is this grey in light mode too.
+ * The muscle map's unworked body, and the seam between its muscles.
+ *
+ * The highlighter library takes this as `defaultFill` and applies it to every
+ * path that has no colour of its own, so the figure does follow the mode — an
+ * earlier comment here claimed the library baked its grey into the SVG paths
+ * and that the figure had to stay dark. That was wrong: there is no fill in the
+ * asset data, and `#3f3f3f` is only the prop's default value.
+ *
+ * Both modes hold the silhouette at ~1.77:1 against the card it sits on, so it
+ * reads with the same weight either way rather than as a slab on white. The
+ * seam sits a hair darker than the fill in both, because it stands for the
+ * layer behind the shapes.
  */
-export const FIGURE_BODY = "#3f3f3f";
+export const FIGURE_BODY: Record<Mode, string> = { dark: "#3f3f3f", light: "#bcbcc2" };
+export const FIGURE_SEAM: Record<Mode, string> = { dark: "#37373c", light: "#adadb4" };
 
 export interface Theme {
   id: ThemeId;
@@ -129,14 +154,6 @@ export interface Theme {
    */
   dark: AccentSet;
   light: AccentSet;
-  /**
-   * The muscle map's two tones, which do *not* follow the mode — they are drawn
-   * on FIGURE_BODY, a fixed dark grey, so they answer to it rather than to the
-   * page. Graphite is why `secondary` can't just reuse `accentText`: its accent
-   * and accentText are both white on purpose, so a diagram drawing both groups
-   * from those tokens painted them identically.
-   */
-  figure: { primary: string; secondary: string };
   /**
    * The Live Activity widget parses plain hex only — no rgba — so the accent is
    * repeated here as a flat string rather than derived at the call site. Always
@@ -156,7 +173,6 @@ export interface Theme {
 export interface ResolvedTheme extends AccentSet {
   id: ThemeId;
   label: string;
-  figure: { primary: string; secondary: string };
   activityTint: string;
   iconName: string | null;
 }
@@ -196,6 +212,7 @@ export const THEMES: Record<ThemeId, Theme> = {
       accentSoft: "rgba(139,92,246,0.16)",
       accentText: "#c4b5fd",
       onAccent: "#ffffff",
+      figure: { primary: "#8b5cf6", secondary: "#c4b5fd" },
     },
     light: {
       accent: "#8b5cf6",
@@ -203,8 +220,8 @@ export const THEMES: Record<ThemeId, Theme> = {
       // violet-700. The dark tone (violet-300) is 1.7:1 on white.
       accentText: "#6d28d9",
       onAccent: "#ffffff",
+      figure: { primary: "#8b5cf6", secondary: "#4c1d95" },
     },
-    figure: { primary: "#8b5cf6", secondary: "#c4b5fd" },
     activityTint: "#8b5cf6",
     iconName: "Violet",
   },
@@ -216,14 +233,15 @@ export const THEMES: Record<ThemeId, Theme> = {
       accentSoft: "rgba(59,130,246,0.16)",
       accentText: "#93c5fd",
       onAccent: "#ffffff",
+      figure: { primary: "#3b82f6", secondary: "#93c5fd" },
     },
     light: {
       accent: "#3b82f6",
       accentSoft: "rgba(59,130,246,0.16)",
       accentText: "#1d4ed8",
       onAccent: "#ffffff",
+      figure: { primary: "#3b82f6", secondary: "#1e3a8a" },
     },
-    figure: { primary: "#3b82f6", secondary: "#93c5fd" },
     activityTint: "#3b82f6",
     iconName: "Cobalt",
   },
@@ -236,16 +254,15 @@ export const THEMES: Record<ThemeId, Theme> = {
       accentText: "#67e8f9",
       // White on cyan-500 lands near 2.4:1. Near-black clears 5.5:1.
       onAccent: "#083344",
+      figure: { primary: "#06b6d4", secondary: "#a5f3fc" },
     },
     light: {
       accent: "#06b6d4",
       accentSoft: "rgba(6,182,212,0.16)",
-      accentText: "#0e7490",
+      accentText: "#155e75",
       onAccent: "#083344",
+      figure: { primary: "#06b6d4", secondary: "#164e63" },
     },
-    // A step paler than accentText: cyan-300 against the cyan-500 primary was
-    // only ΔE 19, too close to read as two levels on the muscle map.
-    figure: { primary: "#06b6d4", secondary: "#a5f3fc" },
     activityTint: "#06b6d4",
     iconName: "Cyan",
   },
@@ -258,14 +275,15 @@ export const THEMES: Record<ThemeId, Theme> = {
       accentText: "#fdba74",
       // Same story as cyan — white on orange-500 is a washout.
       onAccent: "#2a1206",
+      figure: { primary: "#f97316", secondary: "#fdba74" },
     },
     light: {
       accent: "#f97316",
       accentSoft: "rgba(249,115,22,0.16)",
-      accentText: "#c2410c",
+      accentText: "#9a3412",
       onAccent: "#2a1206",
+      figure: { primary: "#f97316", secondary: "#7c2d12" },
     },
-    figure: { primary: "#f97316", secondary: "#fdba74" },
     activityTint: "#f97316",
     iconName: "Amber",
   },
@@ -283,14 +301,15 @@ export const THEMES: Record<ThemeId, Theme> = {
       accentSoft: "rgba(220,38,38,0.16)",
       accentText: "#fca5a5",
       onAccent: "#ffffff",
+      figure: { primary: "#dc2626", secondary: "#fca5a5" },
     },
     light: {
       accent: "#dc2626",
       accentSoft: "rgba(220,38,38,0.16)",
       accentText: "#b91c1c",
       onAccent: "#ffffff",
+      figure: { primary: "#dc2626", secondary: "#6b1010" },
     },
-    figure: { primary: "#dc2626", secondary: "#fca5a5" },
     activityTint: "#dc2626",
     iconName: "Crimson",
   },
@@ -302,14 +321,15 @@ export const THEMES: Record<ThemeId, Theme> = {
       accentSoft: "rgba(236,72,153,0.16)",
       accentText: "#f9a8d4",
       onAccent: "#ffffff",
+      figure: { primary: "#ec4899", secondary: "#f9a8d4" },
     },
     light: {
       accent: "#ec4899",
       accentSoft: "rgba(236,72,153,0.16)",
       accentText: "#be185d",
       onAccent: "#ffffff",
+      figure: { primary: "#ec4899", secondary: "#831843" },
     },
-    figure: { primary: "#ec4899", secondary: "#f9a8d4" },
     activityTint: "#ec4899",
     iconName: "Magenta",
   },
@@ -326,17 +346,15 @@ export const THEMES: Record<ThemeId, Theme> = {
       accentSoft: "rgba(250,250,250,0.10)",
       accentText: "#fafafa",
       onAccent: "#09090b",
+      figure: { primary: "#fafafa", secondary: "#a1a1aa" },
     },
     light: {
       accent: "#18181b",
       accentSoft: "rgba(24,24,27,0.10)",
       accentText: "#18181b",
       onAccent: "#fafafa",
+      figure: { primary: "#18181b", secondary: "#71717a" },
     },
-    // Zinc-400 reads as "the same colour, dialled down" against white, while
-    // still sitting clear of the diagram's own body grey. The figure keeps the
-    // dark pairing in both modes, so this stays white-on-grey either way.
-    figure: { primary: "#fafafa", secondary: "#a1a1aa" },
     activityTint: "#fafafa",
     // #fafafa is the white glyph already shipping in the bundle, so this theme
     // owns the default icon and switching to it clears the alternate rather
