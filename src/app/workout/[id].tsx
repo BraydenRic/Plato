@@ -7,7 +7,6 @@ import {
   Platform,
   Pressable,
   ScrollView,
-  StyleSheet,
   Text,
   TextInput,
   View,
@@ -24,7 +23,8 @@ import {
 import Ionicons from "@expo/vector-icons/Ionicons";
 
 import { Button, Card, EmptyState } from "@/components/ui";
-import { FontScaleCap, Palette, Radius, Spacing } from "@/constants/theme";
+import { FontScaleCap, Radius, Spacing } from "@/constants/theme";
+import { makeStyles, usePalette } from "@/context/AppearanceContext";
 import { getWorkout, getCompletedWorkouts, reopenWorkout, saveAsTemplate, stripUndefined, subscribeWorkout, updateWorkout, upsertUserStats, computeStats, deleteWorkout } from "@/lib/data";
 import { useWorkouts } from "@/hooks/use-workouts";
 import { isBodyweightExercise, isTimedExercise } from "@/lib/exercises";
@@ -57,12 +57,14 @@ function parseDurationText(text: string): number | undefined {
 // A render error here used to hard-crash the whole app. Show the actual error
 // instead — recoverable for the user, and the message pinpoints the bug for us.
 export function ErrorBoundary({ error, retry }: ErrorBoundaryProps) {
+  const styles = useStyles();
+  const palette = usePalette();
   return (
     <SafeAreaView style={[styles.safe, { padding: Spacing.three, justifyContent: "center", gap: Spacing.three }]}>
-      <Text style={{ fontSize: 20, fontWeight: "800", color: Palette.text, textAlign: "center" }}>
+      <Text style={{ fontSize: 20, fontWeight: "800", color: palette.text, textAlign: "center" }}>
         Something went wrong
       </Text>
-      <Text style={{ fontSize: 13, color: Palette.textSecondary, textAlign: "center" }} selectable>
+      <Text style={{ fontSize: 13, color: palette.textSecondary, textAlign: "center" }} selectable>
         {error.message}
       </Text>
       <Button title="Try again" variant="secondary" onPress={retry} />
@@ -71,6 +73,8 @@ export function ErrorBoundary({ error, retry }: ErrorBoundaryProps) {
 }
 
 export default function WorkoutScreen() {
+  const styles = useStyles();
+  const palette = usePalette();
   const theme = useTheme();
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
@@ -617,7 +621,7 @@ export default function WorkoutScreen() {
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : undefined}>
         <View style={styles.topBar}>
           <Pressable onPress={() => router.back()} hitSlop={12}>
-            <Ionicons name="chevron-down" size={26} color={Palette.textSecondary} />
+            <Ionicons name="chevron-down" size={26} color={palette.textSecondary} />
           </Pressable>
           <View style={styles.topCenter}>
             {isTemplate ? (
@@ -634,7 +638,7 @@ export default function WorkoutScreen() {
             )}
           </View>
           <Pressable onPress={openMenu} hitSlop={12}>
-            <Ionicons name="ellipsis-horizontal" size={24} color={Palette.textSecondary} />
+            <Ionicons name="ellipsis-horizontal" size={24} color={palette.textSecondary} />
           </Pressable>
         </View>
 
@@ -907,6 +911,8 @@ function ExerciseCard({
   bodyweightLbs?: number;
   onToggleTimer?: (setId: string, currentDuration?: number) => void;
 }) {
+  const styles = useStyles();
+  const palette = usePalette();
   const { unit } = useWeightUnit();
   const theme = useTheme();
   // Cardio and holds log a stopwatch per set instead of weight × reps.
@@ -933,13 +939,13 @@ function ExerciseCard({
         {templateMode && (
           // Touching the grip hands the gesture to the drag system immediately.
           <Pressable onPressIn={onDrag} disabled={dragActive} hitSlop={8} style={styles.dragHandle}>
-            <Ionicons name="reorder-two" size={20} color={Palette.textSecondary} />
+            <Ionicons name="reorder-two" size={20} color={palette.textSecondary} />
           </Pressable>
         )}
         {!readOnly && (
           // testID because the control is an icon with no text to find it by.
           <Pressable onPress={onRemove} hitSlop={8} testID="remove-exercise">
-            <Ionicons name="close" size={18} color={Palette.textTertiary} />
+            <Ionicons name="close" size={18} color={palette.textTertiary} />
           </Pressable>
         )}
       </View>
@@ -955,10 +961,10 @@ function ExerciseCard({
             disabled={exercise.sets.length <= 1}
             hitSlop={8}
             style={[styles.stepperButton, exercise.sets.length <= 1 && { opacity: 0.4 }]}>
-            <Ionicons name="remove" size={18} color={Palette.text} />
+            <Ionicons name="remove" size={18} color={palette.text} />
           </Pressable>
           <Pressable onPress={onAddSet} hitSlop={8} style={styles.stepperButton}>
-            <Ionicons name="add" size={18} color={Palette.text} />
+            <Ionicons name="add" size={18} color={palette.text} />
           </Pressable>
         </View>
       ) : (
@@ -1053,6 +1059,8 @@ function SetRow({
   onPatch: (patch: Partial<WorkoutSet>) => void;
   onRemove: () => void;
 }) {
+  const styles = useStyles();
+  const palette = usePalette();
   const { unit } = useWeightUnit();
   const theme = useTheme();
 
@@ -1251,7 +1259,7 @@ function SetRow({
               onEndEditing={commitDuration}
               keyboardType="numbers-and-punctuation"
               placeholder={prev?.duration != null ? formatClock(prev.duration) : "0:00"}
-              placeholderTextColor={Palette.textTertiary}
+              placeholderTextColor={palette.textTertiary}
               editable={!readOnly}
             />
           )}
@@ -1300,7 +1308,7 @@ function SetRow({
                   ? String(prevWeight)
                   : "—"
             }
-            placeholderTextColor={Palette.textTertiary}
+            placeholderTextColor={palette.textTertiary}
             editable={!readOnly}
           />
           <TextInput
@@ -1317,7 +1325,7 @@ function SetRow({
             onEndEditing={commit}
             keyboardType="number-pad"
             placeholder={prev?.reps != null ? String(prev.reps) : "—"}
-            placeholderTextColor={Palette.textTertiary}
+            placeholderTextColor={palette.textTertiary}
             editable={!readOnly}
           />
         </>
@@ -1325,16 +1333,16 @@ function SetRow({
       <View style={[styles.checkCol, styles.doneMark]}>
         {set.isCompleted ? (
           // Fully logged: weight + reps.
-          <Ionicons name="checkmark-circle" size={20} color={Palette.success} />
+          <Ionicons name="checkmark-circle" size={20} color={palette.success} />
         ) : set.weight != null || set.reps != null || readOnly ? (
           // Half-filled while logging, or any unfinished set once the workout
           // is completed (readOnly). Resuming clears the X on empty sets since
           // they're editable again.
-          <Ionicons name="close-circle" size={20} color={Palette.danger} />
+          <Ionicons name="close-circle" size={20} color={palette.danger} />
         ) : canCopyBefore ? (
           // One tap repeats the set above (same numbers, marked done).
           <Pressable onPress={copyBefore} hitSlop={8}>
-            <Ionicons name="copy-outline" size={18} color={Palette.textSecondary} />
+            <Ionicons name="copy-outline" size={18} color={palette.textSecondary} />
           </Pressable>
         ) : null}
       </View>
@@ -1343,10 +1351,10 @@ function SetRow({
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = makeStyles((c) => ({
   safe: {
     flex: 1,
-    backgroundColor: Palette.bg,
+    backgroundColor: c.bg,
   },
   topBar: {
     flexDirection: "row",
@@ -1361,7 +1369,7 @@ const styles = StyleSheet.create({
   clock: {
     fontSize: 16,
     fontWeight: "700",
-    color: Palette.text,
+    color: c.text,
     fontVariant: ["tabular-nums"],
   },
   doneLabel: {
@@ -1369,7 +1377,7 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     letterSpacing: 1,
     textTransform: "uppercase",
-    color: Palette.success,
+    color: c.success,
   },
   plannedLabel: {
     fontSize: 13,
@@ -1385,7 +1393,7 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 26,
     fontWeight: "800",
-    color: Palette.text,
+    color: c.text,
     letterSpacing: -0.5,
     padding: 0,
   },
@@ -1397,11 +1405,11 @@ const styles = StyleSheet.create({
   },
   summaryText: {
     fontSize: 14,
-    color: Palette.textSecondary,
+    color: c.textSecondary,
     fontVariant: ["tabular-nums"],
   },
   summaryDot: {
-    color: Palette.textTertiary,
+    color: c.textTertiary,
   },
   exerciseCard: {
     gap: Spacing.two,
@@ -1414,7 +1422,7 @@ const styles = StyleSheet.create({
   exerciseName: {
     fontSize: 17,
     fontWeight: "700",
-    color: Palette.text,
+    color: c.text,
   },
   exerciseCategory: {
     fontSize: 12,
@@ -1430,7 +1438,7 @@ const styles = StyleSheet.create({
     fontSize: 10,
     fontWeight: "700",
     letterSpacing: 1,
-    color: Palette.textTertiary,
+    color: c.textTertiary,
   },
   setRow: {
     flexDirection: "row",
@@ -1439,12 +1447,12 @@ const styles = StyleSheet.create({
     paddingVertical: 3,
     borderRadius: Radius.sm,
     // Opaque so the delete action stays hidden behind the row until swiped.
-    backgroundColor: Palette.surface,
+    backgroundColor: c.surface,
   },
   setDeleteAction: {
     width: 56,
     borderRadius: Radius.sm,
-    backgroundColor: Palette.danger,
+    backgroundColor: c.danger,
     alignItems: "center",
     justifyContent: "center",
   },
@@ -1455,18 +1463,18 @@ const styles = StyleSheet.create({
   setNum: {
     fontSize: 14,
     fontWeight: "600",
-    color: Palette.textTertiary,
+    color: c.textTertiary,
     fontVariant: ["tabular-nums"],
   },
   inputCol: {
     flex: 1,
   },
   setInput: {
-    backgroundColor: Palette.surfaceRaised,
+    backgroundColor: c.surfaceRaised,
     borderRadius: Radius.sm,
     borderWidth: 1,
-    borderColor: Palette.border,
-    color: Palette.text,
+    borderColor: c.border,
+    color: c.text,
     fontSize: 15,
     fontWeight: "600",
     textAlign: "center",
@@ -1477,9 +1485,9 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: Spacing.two,
-    backgroundColor: Palette.surfaceRaised,
+    backgroundColor: c.surfaceRaised,
     borderTopWidth: 1,
-    borderTopColor: Palette.border,
+    borderTopColor: c.border,
     paddingHorizontal: Spacing.three,
     paddingVertical: Spacing.two,
   },
@@ -1491,7 +1499,7 @@ const styles = StyleSheet.create({
   keypadDone: {
     fontSize: 16,
     fontWeight: "600",
-    color: Palette.textSecondary,
+    color: c.textSecondary,
   },
   // Sized for gym hands: 44pt-tall pills that split the row evenly, so they
   // stay comfortably tappable from an SE up to a Pro Max.
@@ -1535,8 +1543,8 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   timerButtonActive: {
-    backgroundColor: Palette.danger,
-    borderColor: Palette.danger,
+    backgroundColor: c.danger,
+    borderColor: c.danger,
   },
   doneMark: {
     height: 30,
@@ -1547,13 +1555,13 @@ const styles = StyleSheet.create({
     alignItems: "center",
     paddingVertical: Spacing.two,
     borderRadius: Radius.sm,
-    backgroundColor: Palette.surfaceRaised,
+    backgroundColor: c.surfaceRaised,
     marginTop: Spacing.one,
   },
   addSetText: {
     fontSize: 13,
     fontWeight: "600",
-    color: Palette.textSecondary,
+    color: c.textSecondary,
   },
   restBar: {
     flexDirection: "row",
@@ -1575,7 +1583,7 @@ const styles = StyleSheet.create({
   restSkip: {
     fontSize: 13,
     fontWeight: "600",
-    color: Palette.textSecondary,
+    color: c.textSecondary,
   },
   dragScroll: {
     padding: Spacing.three,
@@ -1592,7 +1600,7 @@ const styles = StyleSheet.create({
     width: 30,
     height: 30,
     borderRadius: Radius.full,
-    backgroundColor: Palette.surfaceRaised,
+    backgroundColor: c.surfaceRaised,
     alignItems: "center",
     justifyContent: "center",
   },
@@ -1605,16 +1613,16 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: 15,
     fontWeight: "600",
-    color: Palette.text,
+    color: c.text,
     fontVariant: ["tabular-nums"],
   },
   stepperButton: {
     width: 34,
     height: 34,
     borderRadius: Radius.full,
-    backgroundColor: Palette.surfaceRaised,
+    backgroundColor: c.surfaceRaised,
     borderWidth: 1,
-    borderColor: Palette.border,
+    borderColor: c.border,
     alignItems: "center",
     justifyContent: "center",
   },
@@ -1622,4 +1630,4 @@ const styles = StyleSheet.create({
     padding: Spacing.three,
     paddingTop: 0,
   },
-});
+}));

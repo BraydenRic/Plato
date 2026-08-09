@@ -2,12 +2,21 @@ import { StyleSheet, Text } from "react-native";
 import { act, render, screen } from "@testing-library/react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
-import { Button, Chip } from "../ui";
+import { Button, Card, Chip } from "../ui";
 import { ThemeProvider, useThemePicker } from "@/context/ThemeContext";
-import { THEMES, type ThemeId } from "@/constants/theme";
+import { AppearanceProvider, useAppearance } from "@/context/AppearanceContext";
+import { PALETTES, THEMES, type AppearancePref, type ThemeId } from "@/constants/theme";
 
 // Pulls in expo-font's native loader, which has no place in a unit test.
 jest.mock("@expo/vector-icons/Ionicons", () => "Ionicons");
+
+// AppearanceProvider pushes the chosen mode down to UIKit on mount, and there
+// is no UIKit here.
+jest.mock("react-native/Libraries/Utilities/Appearance", () => ({
+  getColorScheme: () => "dark",
+  setColorScheme: jest.fn(),
+  addChangeListener: () => ({ remove: () => {} }),
+}));
 
 
 /**
@@ -65,12 +74,12 @@ describe("Button", () => {
       </Harness>
     );
     expect(flatten(screen.getByTestId("btn").props.style).backgroundColor).toBe(
-      THEMES.violet.accent
+      THEMES.violet.dark.accent
     );
 
     await choose("magenta");
     expect(flatten(screen.getByTestId("btn").props.style).backgroundColor).toBe(
-      THEMES.magenta.accent
+      THEMES.magenta.dark.accent
     );
   });
 
@@ -82,13 +91,13 @@ describe("Button", () => {
     );
     // Violet carries white...
     expect(flatten(screen.getByText("Start workout").props.style).color).toBe(
-      THEMES.violet.onAccent
+      THEMES.violet.dark.onAccent
     );
 
     // ...cyan cannot, so the same button turns dark-on-colour.
     await choose("cyan");
     const label = flatten(screen.getByText("Start workout").props.style).color;
-    expect(label).toBe(THEMES.cyan.onAccent);
+    expect(label).toBe(THEMES.cyan.dark.onAccent);
     expect(label).not.toBe("#ffffff");
   });
 
@@ -99,7 +108,7 @@ describe("Button", () => {
       </Harness>
     );
     await choose("amber");
-    expect(flatten(screen.getByText("Skip").props.style).color).toBe(THEMES.amber.accentText);
+    expect(flatten(screen.getByText("Skip").props.style).color).toBe(THEMES.amber.dark.accentText);
   });
 
   it("leaves the danger variant on its semantic red whatever the theme", async () => {
@@ -125,10 +134,10 @@ describe("Chip", () => {
     );
     await choose("cobalt");
 
-    expect(flatten(screen.getByText("Chest").props.style).color).toBe(THEMES.cobalt.accentText);
+    expect(flatten(screen.getByText("Chest").props.style).color).toBe(THEMES.cobalt.dark.accentText);
     // The inactive chip stays on the neutral chrome, which no theme touches.
     expect(flatten(screen.getByText("Back").props.style).color).not.toBe(
-      THEMES.cobalt.accentText
+      THEMES.cobalt.dark.accentText
     );
   });
 });
@@ -142,9 +151,9 @@ describe("every theme", () => {
     );
     await choose(id);
     expect(flatten(screen.getByTestId("btn").props.style).backgroundColor).toBe(
-      THEMES[id].accent
+      THEMES[id].dark.accent
     );
-    expect(flatten(screen.getByText("Go").props.style).color).toBe(THEMES[id].onAccent);
+    expect(flatten(screen.getByText("Go").props.style).color).toBe(THEMES[id].dark.onAccent);
   });
 });
 
@@ -163,5 +172,108 @@ describe("the neutral chrome", () => {
     const before = flatten(screen.getByTestId("body").props.style);
     await choose("amber");
     expect(flatten(screen.getByTestId("body").props.style)).toEqual(before);
+  });
+});
+
+/**
+ * The other axis. The accent deliberately leaves the chrome alone; the mode is
+ * the thing that moves it — and it has to move it at render time, because the
+ * whole hazard of this change is a StyleSheet that captured one palette at
+ * import and now quietly ignores the setting.
+ */
+describe("light mode", () => {
+  let setAppearance: (pref: AppearancePref) => void;
+
+  function ModeHarness({ children }: { children: React.ReactNode }) {
+    function Control() {
+      setAppearance = useAppearance().setPref;
+      setTheme = useThemePicker().setThemeId;
+      return null;
+    }
+    return (
+      <AppearanceProvider>
+        <ThemeProvider>
+          <Control />
+          {children}
+        </ThemeProvider>
+      </AppearanceProvider>
+    );
+  }
+
+  async function go(pref: AppearancePref) {
+    await act(async () => {
+      setAppearance(pref);
+      await Promise.resolve();
+    });
+  }
+
+  it("repaints the neutral chrome", async () => {
+    render(
+      <ModeHarness>
+        <Card testID="card" />
+      </ModeHarness>
+    );
+    expect(flatten(screen.getByTestId("card").props.style).backgroundColor).toBe(
+      PALETTES.dark.surface
+    );
+
+    await go("light");
+
+    expect(flatten(screen.getByTestId("card").props.style).backgroundColor).toBe(
+      PALETTES.light.surface
+    );
+  });
+
+  it("swaps to the accent set built for the page it sits on", async () => {
+    // A ghost button's label is accentText, which is lifted to glow on
+    // near-black and lands around 1.7:1 on white. Reading the dark value in
+    // light mode is the exact failure this guards.
+    render(
+      <ModeHarness>
+        <Button title="Skip" variant="ghost" />
+      </ModeHarness>
+    );
+    expect(flatten(screen.getByText("Skip").props.style).color).toBe(THEMES.violet.dark.accentText);
+
+    await go("light");
+
+    expect(flatten(screen.getByText("Skip").props.style).color).toBe(THEMES.violet.light.accentText);
+  });
+
+  it("flips graphite rather than leaving it invisible", async () => {
+    // The one theme whose accent genuinely inverts: white on a white page is
+    // not a dimmer version of the idea, it is nothing at all.
+    render(
+      <ModeHarness>
+        <Button title="Go" testID="btn" />
+      </ModeHarness>
+    );
+    await act(async () => {
+      setTheme("graphite");
+      await Promise.resolve();
+    });
+    expect(flatten(screen.getByTestId("btn").props.style).backgroundColor).toBe(
+      THEMES.graphite.dark.accent
+    );
+
+    await go("light");
+
+    expect(flatten(screen.getByTestId("btn").props.style).backgroundColor).toBe(
+      THEMES.graphite.light.accent
+    );
+  });
+
+  it("leaves the accent alone when only the mode changes", async () => {
+    // Six of the seven accents are the same colour in both modes on purpose:
+    // the brand shouldn't shift under you when the lights change.
+    render(
+      <ModeHarness>
+        <Button title="Go" testID="btn" />
+      </ModeHarness>
+    );
+    await go("light");
+    expect(flatten(screen.getByTestId("btn").props.style).backgroundColor).toBe(
+      THEMES.violet.dark.accent
+    );
   });
 });

@@ -1,10 +1,11 @@
 import { useMemo, useState } from "react";
-import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Alert, Pressable, ScrollView, Text, View } from "react-native";
 import { router, useLocalSearchParams } from "expo-router";
 import Ionicons from "@expo/vector-icons/Ionicons";
 
 import { Button, Field, SectionLabel } from "@/components/ui";
-import { Palette, Radius, Spacing } from "@/constants/theme";
+import { Radius, Spacing } from "@/constants/theme";
+import { makeStyles, usePalette } from "@/context/AppearanceContext";
 import { useTheme } from "@/context/ThemeContext";
 import { useExerciseLibrary, MAX_CUSTOM_EXERCISES } from "@/hooks/use-exercise-library";
 import { EXERCISES, isBodyweightExercise, isTimedExercise } from "@/lib/exercises";
@@ -20,6 +21,8 @@ const MUSCLE_OPTIONS = [
 ];
 
 export default function CreateExerciseModal() {
+  const styles = useStyles();
+  const palette = usePalette();
   const { exerciseId } = useLocalSearchParams<{ exerciseId?: string }>();
   const { exercises, customCount, createExercise, updateExercise } = useExerciseLibrary();
   // Editing reuses this form: prefill from the existing exercise and save
@@ -100,7 +103,7 @@ export default function CreateExerciseModal() {
       <View style={styles.header}>
         <Text style={styles.title}>{editing ? "Edit exercise" : "New exercise"}</Text>
         <Pressable onPress={() => router.back()} hitSlop={12} style={styles.closeButton}>
-          <Ionicons name="close" size={20} color={Palette.textSecondary} />
+          <Ionicons name="close" size={20} color={palette.textSecondary} />
         </Pressable>
       </View>
 
@@ -190,6 +193,7 @@ export default function CreateExerciseModal() {
 }
 
 function SelectChip({ label, active, onPress }: { label: string; active: boolean; onPress: () => void }) {
+  const styles = useStyles();
   const theme = useTheme();
   return (
     <Pressable
@@ -203,10 +207,10 @@ function SelectChip({ label, active, onPress }: { label: string; active: boolean
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = makeStyles((c) => ({
   safe: {
     flex: 1,
-    backgroundColor: Palette.bg,
+    backgroundColor: c.bg,
   },
   header: {
     flexDirection: "row",
@@ -218,14 +222,14 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 22,
     fontWeight: "800",
-    color: Palette.text,
+    color: c.text,
     letterSpacing: -0.3,
   },
   closeButton: {
     width: 32,
     height: 32,
     borderRadius: Radius.full,
-    backgroundColor: Palette.surfaceRaised,
+    backgroundColor: c.surfaceRaised,
     alignItems: "center",
     justifyContent: "center",
   },
@@ -236,7 +240,7 @@ const styles = StyleSheet.create({
   },
   hint: {
     fontSize: 12,
-    color: Palette.textTertiary,
+    color: c.textTertiary,
     marginBottom: Spacing.two,
   },
   chipWrap: {
@@ -248,17 +252,17 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 7,
     borderRadius: Radius.full,
-    backgroundColor: Palette.surfaceRaised,
+    backgroundColor: c.surfaceRaised,
     borderWidth: 1,
-    borderColor: Palette.border,
+    borderColor: c.border,
   },
   chipText: {
     fontSize: 13,
     fontWeight: "600",
-    color: Palette.textSecondary,
+    color: c.textSecondary,
   },
   descriptionField: {
     minHeight: 80,
     textAlignVertical: "top",
   },
-});
+}));

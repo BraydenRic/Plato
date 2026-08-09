@@ -2,19 +2,25 @@ import { Stack, type ErrorBoundaryProps } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import * as SplashScreen from "expo-splash-screen";
 import { useEffect } from "react";
-import { ActivityIndicator, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, Pressable, StyleSheet, Text, View } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 
 import { BodyweightVolumeRepair } from "@/components/bodyweight-volume-repair";
 import { LiveActivitySync } from "@/components/live-activity-sync";
-import { Button } from "@/components/ui";
 import { AuthProvider, useAuth } from "@/context/AuthContext";
 import { RestTimerProvider } from "@/context/RestTimerContext";
 import { SetTimerProvider } from "@/context/SetTimerContext";
 import { DefaultSetsProvider } from "@/context/DefaultSetsContext";
 import { UnitProvider } from "@/context/UnitContext";
 import { ThemeProvider, useTheme } from "@/context/ThemeContext";
-import { Palette, Spacing } from "@/constants/theme";
+import { PALETTES, Radius, Spacing } from "@/constants/theme";
+import {
+  AppearanceProvider,
+  makeStyles,
+  modeWithoutProvider,
+  usePalette,
+  useMode,
+} from "@/context/AppearanceContext";
 
 SplashScreen.preventAutoHideAsync();
 
@@ -30,10 +36,11 @@ SplashScreen.preventAutoHideAsync();
  * is exactly what just failed:
  *
  *  - Context. This renders *instead of* RootLayout's providers, not inside them,
- *    so `useTheme()` here reads ThemeContext's default rather than the user's
- *    accent. Button does the same and stays readable on the default, which is
- *    why it's safe to use. Nothing here may call useAuth(), which has no
- *    meaningful default.
+ *    so every `use*` in here would read a default rather than the user's real
+ *    setting. That is why the colours come from `modeWithoutProvider()` and the
+ *    button is a plain Pressable: the shared `Button` reads three contexts and
+ *    would come out dark on a white crash screen. Nothing here may call
+ *    useAuth(), which has no meaningful default at all.
  *  - The splash screen having been hidden. RootNavigator hides it once Firebase
  *    reports in, and a crash before that leaves it up forever — covering this
  *    screen completely and turning a recoverable error back into a dead app. So
@@ -41,25 +48,62 @@ SplashScreen.preventAutoHideAsync();
  *    to keep waiting for.
  */
 export function ErrorBoundary({ error, retry }: ErrorBoundaryProps) {
+  const c = PALETTES[modeWithoutProvider()];
   useEffect(() => {
     SplashScreen.hideAsync().catch(() => {});
   }, []);
 
   return (
-    <View style={styles.crash}>
-      <Text style={styles.crashTitle}>Plato hit a snag</Text>
-      <Text style={styles.crashBody}>
+    <View testID="crash" style={[styles.crash, { backgroundColor: c.bg }]}>
+      <Text style={[styles.crashTitle, { color: c.text }]}>Plato hit a snag</Text>
+      <Text style={[styles.crashBody, { color: c.textSecondary }]}>
         Your workouts are safe — this is the screen failing to draw, not your data.
       </Text>
       {/* Selectable so it can be pasted into a bug report; this is the only
           place the actual cause is ever visible in a release build. */}
-      <Text style={styles.crashDetail} selectable>
+      <Text style={[styles.crashDetail, { color: c.textTertiary }]} selectable>
         {error.message}
       </Text>
-      <Button title="Try again" variant="secondary" onPress={retry} style={styles.crashButton} />
+      <Pressable
+        onPress={retry}
+        accessibilityRole="button"
+        style={({ pressed }) => [
+          styles.crashButton,
+          { backgroundColor: c.surfaceRaised, borderColor: c.border },
+          pressed && { opacity: 0.75 },
+        ]}>
+        <Text style={[styles.crashButtonText, { color: c.text }]}>Try again</Text>
+      </Pressable>
     </View>
   );
 }
+
+// Plain StyleSheet, not `makeStyles`: the hook it returns reads the mode from
+// context, and this screen has none. Only the layout lives here; the colours
+// arrive inline above.
+const styles = StyleSheet.create({
+  crash: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    gap: Spacing.three,
+    paddingHorizontal: Spacing.four,
+  },
+  crashTitle: { fontSize: 20, fontWeight: "700", textAlign: "center" },
+  crashBody: { fontSize: 15, lineHeight: 21, textAlign: "center" },
+  crashDetail: { fontSize: 12, lineHeight: 17, textAlign: "center" },
+  crashButton: {
+    alignSelf: "stretch",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 14,
+    paddingHorizontal: Spacing.four,
+    borderRadius: Radius.md,
+    borderWidth: 1,
+    marginTop: Spacing.two,
+  },
+  crashButtonText: { fontSize: 16, fontWeight: "600", letterSpacing: 0.2 },
+});
 
 // Shown while guest data is uploading into a freshly signed-in account. The
 // upload is sequential and can take a while on a long history, and the tabs
@@ -67,6 +111,7 @@ export function ErrorBoundary({ error, retry }: ErrorBoundaryProps) {
 // so a guest signing in would watch their whole history appear to vanish and
 // trickle back. Holding the app here for the duration says what's happening.
 function MigratingScreen() {
+  const styles = useStyles();
   const theme = useTheme();
   return (
     <View style={styles.migrating}>
@@ -80,6 +125,7 @@ function MigratingScreen() {
 }
 
 function RootNavigator() {
+  const palette = usePalette();
   const { user, loading, isGuest, migrating } = useAuth();
 
   useEffect(() => {
@@ -88,7 +134,7 @@ function RootNavigator() {
 
   // Keep the splash visible until Firebase restores the session,
   // so signed-in users never flash the sign-in screen.
-  if (loading) return <View style={{ flex: 1, backgroundColor: Palette.bg }} />;
+  if (loading) return <View style={{ flex: 1, backgroundColor: palette.bg }} />;
 
   if (migrating) return <MigratingScreen />;
 
@@ -113,7 +159,7 @@ function RootNavigator() {
     <Stack
       screenOptions={{
         headerShown: false,
-        contentStyle: { backgroundColor: Palette.bg },
+        contentStyle: { backgroundColor: palette.bg },
       }}>
       <Stack.Protected guard={canUseApp}>
         <Stack.Screen name="(tabs)" />
@@ -135,83 +181,64 @@ function RootNavigator() {
   );
 }
 
-const styles = StyleSheet.create({
-  crash: {
-    flex: 1,
-    backgroundColor: Palette.bg,
-    alignItems: "center",
-    justifyContent: "center",
-    gap: Spacing.three,
-    paddingHorizontal: Spacing.four,
-  },
-  crashTitle: {
-    color: Palette.text,
-    fontSize: 20,
-    fontWeight: "700",
-    textAlign: "center",
-  },
-  crashBody: {
-    color: Palette.textSecondary,
-    fontSize: 15,
-    lineHeight: 21,
-    textAlign: "center",
-  },
-  crashDetail: {
-    color: Palette.textTertiary,
-    fontSize: 12,
-    lineHeight: 17,
-    textAlign: "center",
-  },
-  crashButton: {
-    alignSelf: "stretch",
-    marginTop: Spacing.two,
-  },
+const useStyles = makeStyles((c) => ({
   migrating: {
     flex: 1,
-    backgroundColor: Palette.bg,
+    backgroundColor: c.bg,
     alignItems: "center",
     justifyContent: "center",
     gap: Spacing.three,
     paddingHorizontal: Spacing.four,
   },
   migratingTitle: {
-    color: Palette.text,
+    color: c.text,
     fontSize: 20,
     fontWeight: "700",
     textAlign: "center",
   },
   migratingBody: {
-    color: Palette.textSecondary,
+    color: c.textSecondary,
     fontSize: 15,
     lineHeight: 21,
     textAlign: "center",
   },
-});
+}));
+
+// The clock and battery have to invert with the page or they vanish into it.
+// Split out because it needs the mode, and RootLayout is what mounts the
+// provider that has it.
+export function ThemedStatusBar() {
+  return <StatusBar style={useMode() === "dark" ? "light" : "dark"} />;
+}
 
 export default function RootLayout() {
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
-      {/* Outermost of the providers: the accent is a property of the device, not
-          of an account, so the sign-in screen and the migrating screen — both of
-          which render before there is a user — are themed too. */}
-      <ThemeProvider>
-        <AuthProvider>
-          <UnitProvider>
-            <RestTimerProvider>
-              {/* Above the navigator so a running set stopwatch survives leaving
-                  the workout screen, which unmounts it. */}
-              <SetTimerProvider>
-                <DefaultSetsProvider>
-                  <StatusBar style="light" />
-                  <LiveActivitySync />
-                  <BodyweightVolumeRepair />
-                  <RootNavigator />
-                </DefaultSetsProvider>
-              </SetTimerProvider>
-            </RestTimerProvider>
-          </UnitProvider>
-        </AuthProvider>
-      </ThemeProvider>
+      {/* Outermost of the providers: light/dark and the accent are properties of
+          the device, not of an account, so the sign-in screen and the migrating
+          screen — both of which render before there is a user — are themed too.
+          Appearance goes above Theme because a theme resolves to one of its two
+          accent sets by mode, so it has to be able to read one. */}
+      <AppearanceProvider>
+        <ThemeProvider>
+          <AuthProvider>
+            <UnitProvider>
+              <RestTimerProvider>
+                {/* Above the navigator so a running set stopwatch survives
+                    leaving the workout screen, which unmounts it. */}
+                <SetTimerProvider>
+                  <DefaultSetsProvider>
+                    <ThemedStatusBar />
+                    <LiveActivitySync />
+                    <BodyweightVolumeRepair />
+                    <RootNavigator />
+                  </DefaultSetsProvider>
+                </SetTimerProvider>
+              </RestTimerProvider>
+            </UnitProvider>
+          </AuthProvider>
+        </ThemeProvider>
+      </AppearanceProvider>
     </GestureHandlerRootView>
   );
 }

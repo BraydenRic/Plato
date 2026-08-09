@@ -5,7 +5,6 @@ import {
   Modal,
   Pressable,
   ScrollView,
-  StyleSheet,
   Text,
   View,
 } from "react-native";
@@ -13,7 +12,8 @@ import { useFocusEffect, useRouter } from "expo-router";
 import Ionicons from "@expo/vector-icons/Ionicons";
 
 import { Button, Card, EmptyState, SectionLabel } from "@/components/ui";
-import { FontScaleCap, Palette, Radius, Spacing } from "@/constants/theme";
+import { FontScaleCap, Radius, Spacing } from "@/constants/theme";
+import { makeStyles, usePalette } from "@/context/AppearanceContext";
 import { useAuth } from "@/context/AuthContext";
 import { useWorkouts } from "@/hooks/use-workouts";
 import {
@@ -53,6 +53,8 @@ type PickerOption = {
 type PickerConfig = { title: string; subtitle?: string; options: PickerOption[] };
 
 export default function WorkoutsScreen() {
+  const styles = useStyles();
+  const palette = usePalette();
   const theme = useTheme();
   const router = useRouter();
   // `user` only drives the greeting — guests have no account, so it falls back.
@@ -378,13 +380,13 @@ export default function WorkoutsScreen() {
         <View style={styles.weekCard}>
           <View style={styles.weekHeader}>
             <Pressable onPress={() => shiftWeek(-1)} hitSlop={10} style={styles.weekArrow}>
-              <Ionicons name="chevron-back" size={18} color={Palette.textSecondary} />
+              <Ionicons name="chevron-back" size={18} color={palette.textSecondary} />
             </Pressable>
             <Pressable onPress={resetToToday} hitSlop={8}>
               <Text style={styles.weekLabel}>{weekLabel}</Text>
             </Pressable>
             <Pressable onPress={() => shiftWeek(1)} hitSlop={10} style={styles.weekArrow}>
-              <Ionicons name="chevron-forward" size={18} color={Palette.textSecondary} />
+              <Ionicons name="chevron-forward" size={18} color={palette.textSecondary} />
             </Pressable>
           </View>
 
@@ -592,7 +594,7 @@ export default function WorkoutsScreen() {
                   <Text style={[styles.splitTemplate, !t && styles.splitRest]} numberOfLines={1}>
                     {t ? t.name : "Rest"}
                   </Text>
-                  <Ionicons name="chevron-forward" size={16} color={Palette.textTertiary} />
+                  <Ionicons name="chevron-forward" size={16} color={palette.textTertiary} />
                 </Pressable>
               );
             })}
@@ -617,7 +619,7 @@ export default function WorkoutsScreen() {
                       {completed.length} workout{completed.length === 1 ? "" : "s"}, kept forever
                     </Text>
                   </View>
-                  <Ionicons name="chevron-forward" size={16} color={Palette.textTertiary} />
+                  <Ionicons name="chevron-forward" size={16} color={palette.textTertiary} />
                 </Card>
               )}
             </Pressable>
@@ -673,6 +675,8 @@ function WorkoutRow({
   onPress: () => void;
   onLongPress: () => void;
 }) {
+  const styles = useStyles();
+  const palette = usePalette();
   const { unit } = useWeightUnit();
   const theme = useTheme();
   const volume = workout.totalVolume ?? workoutVolumeLbs(workout);
@@ -706,7 +710,7 @@ function WorkoutRow({
           ) : volume > 0 ? (
             <Text style={[styles.volume, { color: theme.accentText }]}>{displayVolume(volume, unit)}</Text>
           ) : (
-            <Ionicons name="chevron-forward" size={16} color={Palette.textTertiary} />
+            <Ionicons name="chevron-forward" size={16} color={palette.textTertiary} />
           )}
         </Card>
       )}
@@ -721,10 +725,10 @@ function defaultWorkoutName(): string {
   return "Evening Workout";
 }
 
-const styles = StyleSheet.create({
+const useStyles = makeStyles((c) => ({
   safe: {
     flex: 1,
-    backgroundColor: Palette.bg,
+    backgroundColor: c.bg,
   },
   scroll: {
     padding: Spacing.three,
@@ -738,17 +742,17 @@ const styles = StyleSheet.create({
   greeting: {
     fontSize: 28,
     fontWeight: "800",
-    color: Palette.text,
+    color: c.text,
     letterSpacing: -0.5,
   },
   date: {
     fontSize: 14,
-    color: Palette.textTertiary,
+    color: c.textTertiary,
   },
   weekCard: {
-    backgroundColor: Palette.surface,
+    backgroundColor: c.surface,
     borderWidth: 1,
-    borderColor: Palette.border,
+    borderColor: c.border,
     borderRadius: Radius.lg,
     padding: Spacing.three,
     gap: Spacing.three,
@@ -762,14 +766,14 @@ const styles = StyleSheet.create({
     width: 30,
     height: 30,
     borderRadius: Radius.sm,
-    backgroundColor: Palette.surfaceRaised,
+    backgroundColor: c.surfaceRaised,
     alignItems: "center",
     justifyContent: "center",
   },
   weekLabel: {
     fontSize: 14,
     fontWeight: "700",
-    color: Palette.text,
+    color: c.text,
   },
   dayRow: {
     flexDirection: "row",
@@ -787,10 +791,10 @@ const styles = StyleSheet.create({
     borderColor: "transparent",
   },
   dayCellDone: {
-    backgroundColor: Palette.successSoft,
+    backgroundColor: c.successSoft,
     borderColor: "rgba(52,211,153,0.4)",
     // Soft green halo (iOS) so a finished day glows rather than just tinting.
-    shadowColor: Palette.success,
+    shadowColor: c.success,
     shadowOpacity: 0.45,
     shadowRadius: 6,
     shadowOffset: { width: 0, height: 0 },
@@ -800,12 +804,12 @@ const styles = StyleSheet.create({
   dayName: {
     fontSize: 11,
     fontWeight: "600",
-    color: Palette.textTertiary,
+    color: c.textTertiary,
   },
   dayNum: {
     fontSize: 15,
     fontWeight: "700",
-    color: Palette.text,
+    color: c.text,
     fontVariant: ["tabular-nums"],
   },
   dotRow: {
@@ -819,10 +823,10 @@ const styles = StyleSheet.create({
     borderRadius: 3,
   },
   dotDone: {
-    backgroundColor: Palette.success,
+    backgroundColor: c.success,
   },
   dotLive: {
-    backgroundColor: Palette.amber,
+    backgroundColor: c.amber,
   },
   dotPlanned: {
     borderWidth: 1,
@@ -832,7 +836,7 @@ const styles = StyleSheet.create({
     height: 5,
     borderRadius: 3,
     borderWidth: 1,
-    borderColor: Palette.textTertiary,
+    borderColor: c.textTertiary,
   },
   ghostRow: {
     flexDirection: "row",
@@ -847,7 +851,7 @@ const styles = StyleSheet.create({
     width: 32,
     height: 32,
     borderRadius: Radius.full,
-    backgroundColor: Palette.surface,
+    backgroundColor: c.surface,
     alignItems: "center",
     justifyContent: "center",
   },
@@ -857,7 +861,7 @@ const styles = StyleSheet.create({
   },
   splitHint: {
     fontSize: 12,
-    color: Palette.textTertiary,
+    color: c.textTertiary,
   },
   splitCard: {
     paddingVertical: 0,
@@ -870,40 +874,40 @@ const styles = StyleSheet.create({
   },
   splitRowBorder: {
     borderTopWidth: 1,
-    borderTopColor: Palette.border,
+    borderTopColor: c.border,
   },
   splitDay: {
     width: 88,
     fontSize: 14,
     fontWeight: "600",
-    color: Palette.textSecondary,
+    color: c.textSecondary,
   },
   splitTemplate: {
     flex: 1,
     fontSize: 15,
     fontWeight: "600",
-    color: Palette.text,
+    color: c.text,
   },
   splitRest: {
-    color: Palette.textTertiary,
+    color: c.textTertiary,
     fontWeight: "500",
   },
   dayPanel: {
     gap: Spacing.two,
     borderTopWidth: 1,
-    borderTopColor: Palette.border,
+    borderTopColor: c.border,
     paddingTop: Spacing.three,
   },
   dayPanelTitle: {
     fontSize: 13,
     fontWeight: "700",
-    color: Palette.textSecondary,
+    color: c.textSecondary,
     textTransform: "uppercase",
     letterSpacing: 1,
   },
   dayPanelEmpty: {
     fontSize: 13,
-    color: Palette.textTertiary,
+    color: c.textTertiary,
     paddingVertical: Spacing.one,
   },
   section: {
@@ -925,7 +929,7 @@ const styles = StyleSheet.create({
   },
   templateEmpty: {
     fontSize: 13,
-    color: Palette.textTertiary,
+    color: c.textTertiary,
     lineHeight: 19,
   },
   workoutRow: {
@@ -950,11 +954,11 @@ const styles = StyleSheet.create({
   rowTitle: {
     fontSize: 16,
     fontWeight: "600",
-    color: Palette.text,
+    color: c.text,
   },
   rowMeta: {
     fontSize: 13,
-    color: Palette.textTertiary,
+    color: c.textTertiary,
   },
   volume: {
     fontSize: 14,
@@ -976,12 +980,12 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(0, 0, 0, 0.55)",
   },
   sheet: {
-    backgroundColor: Palette.surface,
+    backgroundColor: c.surface,
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
     borderWidth: 1,
     borderBottomWidth: 0,
-    borderColor: Palette.border,
+    borderColor: c.border,
     paddingTop: Spacing.two,
     paddingHorizontal: Spacing.three,
     // Clears the home indicator; the list scrolls once it outgrows the sheet.
@@ -993,18 +997,18 @@ const styles = StyleSheet.create({
     width: 36,
     height: 4,
     borderRadius: Radius.full,
-    backgroundColor: Palette.border,
+    backgroundColor: c.border,
     marginBottom: Spacing.two,
   },
   sheetTitle: {
     fontSize: 17,
     fontWeight: "800",
-    color: Palette.text,
+    color: c.text,
     letterSpacing: -0.3,
   },
   sheetSubtitle: {
     fontSize: 13,
-    color: Palette.textTertiary,
+    color: c.textTertiary,
     marginTop: 2,
   },
   sheetList: {
@@ -1016,9 +1020,9 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: Spacing.two,
-    backgroundColor: Palette.surfaceRaised,
+    backgroundColor: c.surfaceRaised,
     borderWidth: 1,
-    borderColor: Palette.border,
+    borderColor: c.border,
     borderRadius: Radius.md,
     paddingHorizontal: Spacing.three,
     paddingVertical: 12,
@@ -1026,10 +1030,10 @@ const styles = StyleSheet.create({
   sheetOptionLabel: {
     fontSize: 15,
     fontWeight: "600",
-    color: Palette.text,
+    color: c.text,
   },
   sheetOptionHint: {
     fontSize: 12,
-    color: Palette.textTertiary,
+    color: c.textTertiary,
   },
-});
+}));

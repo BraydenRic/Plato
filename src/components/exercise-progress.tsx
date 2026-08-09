@@ -1,9 +1,10 @@
 import { useMemo, useState } from "react";
-import { PanResponder, Pressable, StyleSheet, Text, View } from "react-native";
+import { PanResponder, Pressable, Text, View } from "react-native";
 import Svg, { Circle, Defs, Line, LinearGradient, Path, Stop } from "react-native-svg";
 
 import { useTheme } from "@/context/ThemeContext";
-import { FontScaleCap, Palette, Radius, Spacing } from "@/constants/theme";
+import { FontScaleCap, Radius, Spacing } from "@/constants/theme";
+import { makeStyles, usePalette } from "@/context/AppearanceContext";
 import { useWeightUnit } from "@/context/UnitContext";
 import { useWorkouts } from "@/hooks/use-workouts";
 import { convertWeight, estimatedOneRepMax, formatWeight } from "@/lib/workout-utils";
@@ -48,6 +49,7 @@ const METRICS: { key: Metric; label: string }[] = [
 // Personal record + progress trend for one exercise, derived entirely from the
 // user's completed workout history (never stored counters).
 export function ExerciseProgress({ exerciseId }: { exerciseId: string }) {
+  const styles = useStyles();
   const { completed } = useWorkouts();
   const { unit } = useWeightUnit();
   const theme = useTheme();
@@ -227,6 +229,8 @@ function TrendChart({
   scrubbed: number | null;
   onScrub: (index: number | null) => void;
 }) {
+  const styles = useStyles();
+  const palette = usePalette();
   const theme = useTheme();
   const pad = { top: 14, bottom: 10, left: 8, right: 40 };
   const w = width - pad.left - pad.right;
@@ -292,7 +296,7 @@ function TrendChart({
             y1={y(v)}
             x2={pad.left + w}
             y2={y(v)}
-            stroke={Palette.border}
+            stroke={palette.border}
             strokeWidth={1}
             strokeDasharray="3 5"
           />
@@ -330,8 +334,8 @@ function TrendChart({
               cx={x(i)}
               cy={y(valueOf(p))}
               r={isPeak ? 5 : 3.5}
-              fill={isPeak ? Palette.amber : Palette.surface}
-              stroke={isPeak ? Palette.amber : theme.accent}
+              fill={isPeak ? palette.amber : palette.surface}
+              stroke={isPeak ? palette.amber : theme.accent}
               strokeWidth={2}
             />
           );
@@ -348,11 +352,11 @@ function TrendChart({
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = makeStyles((c) => ({
   card: {
-    backgroundColor: Palette.surface,
+    backgroundColor: c.surface,
     borderWidth: 1,
-    borderColor: Palette.border,
+    borderColor: c.border,
     borderRadius: Radius.md,
     padding: Spacing.three,
     gap: Spacing.three,
@@ -360,7 +364,7 @@ const styles = StyleSheet.create({
   emptyText: {
     fontSize: 13,
     lineHeight: 19,
-    color: Palette.textTertiary,
+    color: c.textTertiary,
   },
   statsRow: {
     flexDirection: "row",
@@ -372,24 +376,24 @@ const styles = StyleSheet.create({
   },
   statDivider: {
     width: 1,
-    backgroundColor: Palette.border,
+    backgroundColor: c.border,
     marginHorizontal: Spacing.three,
   },
   statValue: {
     fontSize: 20,
     fontWeight: "800",
-    color: Palette.text,
+    color: c.text,
     fontVariant: ["tabular-nums"],
   },
   statUnit: {
     fontSize: 12,
     fontWeight: "600",
-    color: Palette.textTertiary,
+    color: c.textTertiary,
   },
   statLabel: {
     fontSize: 12,
     fontWeight: "600",
-    color: Palette.textSecondary,
+    color: c.textSecondary,
   },
   metrics: {
     flexDirection: "row",
@@ -401,13 +405,13 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
     borderRadius: Radius.sm,
     borderWidth: 1,
-    borderColor: Palette.border,
-    backgroundColor: Palette.surfaceRaised,
+    borderColor: c.border,
+    backgroundColor: c.surfaceRaised,
   },
   metricText: {
     fontSize: 12,
     fontWeight: "700",
-    color: Palette.textSecondary,
+    color: c.textSecondary,
   },
   readout: {
     flexDirection: "row",
@@ -418,7 +422,7 @@ const styles = StyleSheet.create({
   },
   readoutDate: {
     fontSize: 12,
-    color: Palette.textTertiary,
+    color: c.textTertiary,
     fontVariant: ["tabular-nums"],
   },
   readoutValue: {
@@ -429,7 +433,7 @@ const styles = StyleSheet.create({
   gridLabel: {
     position: "absolute",
     fontSize: 10,
-    color: Palette.textTertiary,
+    color: c.textTertiary,
     fontVariant: ["tabular-nums"],
   },
   axisRow: {
@@ -442,6 +446,6 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     letterSpacing: 0.6,
     textTransform: "uppercase",
-    color: Palette.textTertiary,
+    color: c.textTertiary,
   },
-});
+}));

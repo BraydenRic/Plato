@@ -1,10 +1,11 @@
 import { useEffect, useState } from "react";
-import { Alert, Pressable, StyleSheet, Text, View } from "react-native";
+import { Alert, Pressable, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import Ionicons from "@expo/vector-icons/Ionicons";
 
 import { Button } from "@/components/ui";
-import { Palette, Radius, Spacing } from "@/constants/theme";
+import { Radius, Spacing } from "@/constants/theme";
+import { makeStyles } from "@/context/AppearanceContext";
 import { useTheme } from "@/context/ThemeContext";
 import { useAuth } from "@/context/AuthContext";
 
@@ -12,6 +13,7 @@ import { useAuth } from "@/context/AuthContext";
 // verified, so signing up with someone else's email gets you nothing. The
 // root layout routes here whenever the signed-in user still needs it.
 export default function VerifyEmailScreen() {
+  const styles = useStyles();
   const { user, signOut, refreshUser, resendVerificationEmail } = useAuth();
   const theme = useTheme();
   const [checking, setChecking] = useState(false);
@@ -92,10 +94,10 @@ export default function VerifyEmailScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = makeStyles((c) => ({
   safe: {
     flex: 1,
-    backgroundColor: Palette.bg,
+    backgroundColor: c.bg,
   },
   content: {
     flex: 1,
@@ -116,23 +118,23 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 28,
     fontWeight: "800",
-    color: Palette.text,
+    color: c.text,
     textAlign: "center",
     letterSpacing: -0.5,
   },
   body: {
     fontSize: 15,
-    color: Palette.textSecondary,
+    color: c.textSecondary,
     textAlign: "center",
     lineHeight: 22,
   },
   email: {
-    color: Palette.text,
+    color: c.text,
     fontWeight: "600",
   },
   hint: {
     fontSize: 13,
-    color: Palette.textTertiary,
+    color: c.textTertiary,
     textAlign: "center",
     lineHeight: 19,
   },
@@ -146,9 +148,9 @@ const styles = StyleSheet.create({
   },
   signOutText: {
     fontSize: 14,
-    color: Palette.textTertiary,
+    color: c.textTertiary,
   },
   signOutLink: {
     fontWeight: "600",
   },
-});
+}));

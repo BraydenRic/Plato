@@ -3,7 +3,6 @@ import { forwardRef } from "react";
 import {
   ActivityIndicator,
   Pressable,
-  StyleSheet,
   Text,
   TextInput,
   View,
@@ -13,7 +12,8 @@ import {
   type ViewProps,
   type ViewStyle,
 } from "react-native";
-import { Palette, Radius, Spacing } from "@/constants/theme";
+import { Radius, Spacing } from "@/constants/theme";
+import { makeStyles, usePalette } from "@/context/AppearanceContext";
 import { useTheme } from "@/context/ThemeContext";
 
 // ── Buttons ───────────────────────────────────────────────────────────────────
@@ -28,15 +28,17 @@ interface ButtonProps extends PressableProps {
 }
 
 export function Button({ title, variant = "primary", loading, compact, disabled, style, ...rest }: ButtonProps) {
+  const styles = useStyles();
+  const palette = usePalette();
   const theme = useTheme();
-  const palette: Record<ButtonVariant, { bg: string; fg: string; border?: string }> = {
+  const variants: Record<ButtonVariant, { bg: string; fg: string; border?: string }> = {
     // onAccent rather than a flat white — the bright themes carry dark labels.
     primary: { bg: theme.accent, fg: theme.onAccent },
-    secondary: { bg: Palette.surfaceRaised, fg: Palette.text, border: Palette.border },
+    secondary: { bg: palette.surfaceRaised, fg: palette.text, border: palette.border },
     ghost: { bg: "transparent", fg: theme.accentText },
-    danger: { bg: Palette.dangerSoft, fg: Palette.danger },
+    danger: { bg: palette.dangerSoft, fg: palette.danger },
   };
-  const c = palette[variant];
+  const c = variants[variant];
   return (
     <Pressable
       disabled={disabled || loading}
@@ -60,10 +62,12 @@ export function Button({ title, variant = "primary", loading, compact, disabled,
 // ── Surfaces ──────────────────────────────────────────────────────────────────
 
 export function Card({ style, ...rest }: ViewProps) {
+  const styles = useStyles();
   return <View style={[styles.card, style]} {...rest} />;
 }
 
 export function Divider() {
+  const styles = useStyles();
   return <View style={styles.divider} />;
 }
 
@@ -102,6 +106,8 @@ export function Stepper({
   style,
   testID,
 }: StepperProps) {
+  const styles = useStyles();
+  const palette = usePalette();
   return (
     <View
       style={[styles.stepper, style]}
@@ -120,7 +126,7 @@ export function Stepper({
         testID={testID && `${testID}-decrement`}
         hitSlop={6}
         style={({ pressed }) => [styles.stepperButton, pressed && { opacity: 0.6 }]}>
-        <Ionicons name="remove" size={18} color={canDecrement ? Palette.text : Palette.textTertiary} />
+        <Ionicons name="remove" size={18} color={canDecrement ? palette.text : palette.textTertiary} />
       </Pressable>
       {/* Fixed width and tabular figures so the control doesn't twitch as the
           label changes width — "Off" against "1:30", say. */}
@@ -131,7 +137,7 @@ export function Stepper({
         testID={testID && `${testID}-increment`}
         hitSlop={6}
         style={({ pressed }) => [styles.stepperButton, pressed && { opacity: 0.6 }]}>
-        <Ionicons name="add" size={18} color={canIncrement ? Palette.text : Palette.textTertiary} />
+        <Ionicons name="add" size={18} color={canIncrement ? palette.text : palette.textTertiary} />
       </Pressable>
     </View>
   );
@@ -140,10 +146,12 @@ export function Stepper({
 // ── Text inputs ───────────────────────────────────────────────────────────────
 
 export const Field = forwardRef<TextInput, TextInputProps>(function Field({ style, ...rest }, ref) {
+  const styles = useStyles();
+  const palette = usePalette();
   return (
     <TextInput
       ref={ref}
-      placeholderTextColor={Palette.textTertiary}
+      placeholderTextColor={palette.textTertiary}
       style={[styles.field, style]}
       {...rest}
     />
@@ -153,10 +161,12 @@ export const Field = forwardRef<TextInput, TextInputProps>(function Field({ styl
 // ── Labels / misc ─────────────────────────────────────────────────────────────
 
 export function SectionLabel({ children }: { children: React.ReactNode }) {
+  const styles = useStyles();
   return <Text style={styles.sectionLabel}>{children}</Text>;
 }
 
 export function Chip({ label, active, onPress }: { label: string; active?: boolean; onPress?: () => void }) {
+  const styles = useStyles();
   const theme = useTheme();
   return (
     <Pressable
@@ -168,6 +178,7 @@ export function Chip({ label, active, onPress }: { label: string; active?: boole
 }
 
 export function EmptyState({ title, message }: { title: string; message: string }) {
+  const styles = useStyles();
   return (
     <View style={styles.empty}>
       <Text style={styles.emptyTitle}>{title}</Text>
@@ -176,7 +187,7 @@ export function EmptyState({ title, message }: { title: string; message: string 
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = makeStyles((c) => ({
   button: {
     alignItems: "center",
     justifyContent: "center",
@@ -200,10 +211,10 @@ const styles = StyleSheet.create({
   stepper: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: Palette.surfaceRaised,
+    backgroundColor: c.surfaceRaised,
     borderRadius: Radius.sm,
     borderWidth: 1,
-    borderColor: Palette.border,
+    borderColor: c.border,
     padding: 3,
     gap: 3,
   },
@@ -213,44 +224,44 @@ const styles = StyleSheet.create({
     borderRadius: Radius.sm - 2,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: Palette.surface,
+    backgroundColor: c.surface,
   },
   stepperValue: {
     minWidth: 54,
     textAlign: "center",
     fontSize: 14,
     fontWeight: "700",
-    color: Palette.text,
+    color: c.text,
     fontVariant: ["tabular-nums"],
   },
   card: {
-    backgroundColor: Palette.surface,
+    backgroundColor: c.surface,
     borderRadius: Radius.lg,
     borderWidth: 1,
-    borderColor: Palette.border,
+    borderColor: c.border,
     padding: Spacing.three,
   },
   divider: {
     height: 1,
-    backgroundColor: Palette.border,
+    backgroundColor: c.border,
     marginVertical: Spacing.two,
   },
   field: {
-    backgroundColor: Palette.surfaceRaised,
+    backgroundColor: c.surfaceRaised,
     borderWidth: 1,
-    borderColor: Palette.border,
+    borderColor: c.border,
     borderRadius: Radius.md,
     paddingHorizontal: Spacing.three,
     paddingVertical: 12,
     fontSize: 16,
-    color: Palette.text,
+    color: c.text,
   },
   sectionLabel: {
     fontSize: 12,
     fontWeight: "600",
     letterSpacing: 1.2,
     textTransform: "uppercase",
-    color: Palette.textTertiary,
+    color: c.textTertiary,
     marginBottom: Spacing.two,
   },
   chip: {
@@ -258,13 +269,13 @@ const styles = StyleSheet.create({
     paddingVertical: 7,
     borderRadius: Radius.full,
     borderWidth: 1,
-    borderColor: Palette.border,
-    backgroundColor: Palette.surface,
+    borderColor: c.border,
+    backgroundColor: c.surface,
   },
   chipText: {
     fontSize: 13,
     fontWeight: "500",
-    color: Palette.textSecondary,
+    color: c.textSecondary,
   },
   empty: {
     alignItems: "center",
@@ -274,13 +285,13 @@ const styles = StyleSheet.create({
   emptyTitle: {
     fontSize: 16,
     fontWeight: "600",
-    color: Palette.text,
+    color: c.text,
   },
   emptyMessage: {
     fontSize: 14,
-    color: Palette.textTertiary,
+    color: c.textTertiary,
     textAlign: "center",
     maxWidth: 260,
     lineHeight: 20,
   },
-});
+}));

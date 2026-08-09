@@ -1,16 +1,19 @@
 import { useMemo, useState } from "react";
-import { Alert, FlatList, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Alert, FlatList, Pressable, ScrollView, Text, View } from "react-native";
 import { router } from "expo-router";
 import Ionicons from "@expo/vector-icons/Ionicons";
 
 import { Chip, Field } from "@/components/ui";
-import { Palette, Radius, Spacing } from "@/constants/theme";
+import { Radius, Spacing } from "@/constants/theme";
+import { makeStyles, usePalette } from "@/context/AppearanceContext";
 import { useTheme } from "@/context/ThemeContext";
 import { useExerciseLibrary } from "@/hooks/use-exercise-library";
 import { filterExercises } from "@/lib/exercises";
 import type { Exercise } from "@/types";
 
 export default function ExercisesScreen() {
+  const styles = useStyles();
+  const palette = usePalette();
   const theme = useTheme();
   const { exercises, isModified, deleteExercise, resetLibrary } = useExerciseLibrary();
   const [search, setSearch] = useState("");
@@ -61,7 +64,7 @@ export default function ExercisesScreen() {
         </View>
         {isModified && (
           <Pressable onPress={confirmReset} hitSlop={8} style={styles.headerButton}>
-            <Ionicons name="refresh" size={18} color={Palette.textSecondary} />
+            <Ionicons name="refresh" size={18} color={palette.textSecondary} />
           </Pressable>
         )}
         <Pressable
@@ -138,6 +141,8 @@ function ExerciseRow({
   onPress: () => void;
   onLongPress: () => void;
 }) {
+  const styles = useStyles();
+  const palette = usePalette();
   const theme = useTheme();
   return (
     <Pressable onPress={onPress} onLongPress={onLongPress} style={styles.row}>
@@ -155,16 +160,16 @@ function ExerciseRow({
         <View style={[styles.categoryBadge, { backgroundColor: theme.accentSoft }]}>
           <Text style={[styles.categoryText, { color: theme.accentText }]}>{exercise.category}</Text>
         </View>
-        <Ionicons name="chevron-forward" size={16} color={Palette.textTertiary} />
+        <Ionicons name="chevron-forward" size={16} color={palette.textTertiary} />
       </View>
     </Pressable>
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = makeStyles((c) => ({
   safe: {
     flex: 1,
-    backgroundColor: Palette.bg,
+    backgroundColor: c.bg,
   },
   header: {
     flexDirection: "row",
@@ -177,19 +182,19 @@ const styles = StyleSheet.create({
     width: 36,
     height: 36,
     borderRadius: Radius.full,
-    backgroundColor: Palette.surfaceRaised,
+    backgroundColor: c.surfaceRaised,
     alignItems: "center",
     justifyContent: "center",
   },
   title: {
     fontSize: 28,
     fontWeight: "800",
-    color: Palette.text,
+    color: c.text,
     letterSpacing: -0.5,
   },
   subtitle: {
     fontSize: 14,
-    color: Palette.textTertiary,
+    color: c.textTertiary,
   },
   searchWrap: {
     paddingHorizontal: Spacing.three,
@@ -206,9 +211,9 @@ const styles = StyleSheet.create({
     gap: Spacing.two,
   },
   row: {
-    backgroundColor: Palette.surface,
+    backgroundColor: c.surface,
     borderWidth: 1,
-    borderColor: Palette.border,
+    borderColor: c.border,
     borderRadius: Radius.md,
     padding: Spacing.three,
     gap: Spacing.two,
@@ -221,11 +226,11 @@ const styles = StyleSheet.create({
   rowName: {
     fontSize: 15,
     fontWeight: "600",
-    color: Palette.text,
+    color: c.text,
   },
   rowMeta: {
     fontSize: 12,
-    color: Palette.textTertiary,
+    color: c.textTertiary,
   },
   categoryBadge: {
     paddingHorizontal: 8,
@@ -233,10 +238,10 @@ const styles = StyleSheet.create({
     borderRadius: Radius.full,
   },
   customBadge: {
-    backgroundColor: Palette.surfaceRaised,
+    backgroundColor: c.surfaceRaised,
   },
   categoryText: {
     fontSize: 11,
     fontWeight: "600",
   },
-});
+}));

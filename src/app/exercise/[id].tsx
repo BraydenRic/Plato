@@ -1,17 +1,20 @@
 import { useState } from "react";
-import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Alert, Pressable, ScrollView, Text, View } from "react-native";
 import { router, useLocalSearchParams } from "expo-router";
 import Ionicons from "@expo/vector-icons/Ionicons";
 
 import { ExerciseProgress } from "@/components/exercise-progress";
 import { MuscleMap } from "@/components/muscle-map";
 import { SectionLabel } from "@/components/ui";
-import { Palette, Radius, Spacing } from "@/constants/theme";
+import { Radius, Spacing } from "@/constants/theme";
+import { makeStyles, usePalette } from "@/context/AppearanceContext";
 import { formGuideFor, type FormFault } from "@/lib/exercise-form";
 import { useExerciseLibrary } from "@/hooks/use-exercise-library";
 import { useTheme } from "@/context/ThemeContext";
 
 export default function ExerciseDetailScreen() {
+  const styles = useStyles();
+  const palette = usePalette();
   const { id } = useLocalSearchParams<{ id: string }>();
   const { exercises, deleteExercise } = useExerciseLibrary();
   const theme = useTheme();
@@ -59,13 +62,13 @@ export default function ExerciseDetailScreen() {
           onPress={() => router.push({ pathname: "/create-exercise", params: { exerciseId: exercise.id } })}
           hitSlop={12}
           style={styles.closeButton}>
-          <Ionicons name="pencil" size={16} color={Palette.textSecondary} />
+          <Ionicons name="pencil" size={16} color={palette.textSecondary} />
         </Pressable>
         <Pressable onPress={confirmDelete} hitSlop={12} style={styles.closeButton}>
-          <Ionicons name="trash-outline" size={18} color={Palette.textSecondary} />
+          <Ionicons name="trash-outline" size={18} color={palette.textSecondary} />
         </Pressable>
         <Pressable onPress={() => router.back()} hitSlop={12} style={styles.closeButton}>
-          <Ionicons name="close" size={20} color={Palette.textSecondary} />
+          <Ionicons name="close" size={20} color={palette.textSecondary} />
         </Pressable>
       </View>
 
@@ -158,6 +161,7 @@ function FormSection({
   lines: string[];
   accent?: string;
 }) {
+  const styles = useStyles();
   return (
     <View style={styles.formSection}>
       <SectionLabel>{label}</SectionLabel>
@@ -187,6 +191,7 @@ function FaultSection({
   faults: FormFault[];
   accent: string;
 }) {
+  const styles = useStyles();
   return (
     <View style={styles.formSection}>
       <SectionLabel>{label}</SectionLabel>
@@ -203,17 +208,17 @@ function FaultSection({
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = makeStyles((c) => ({
   safe: {
     flex: 1,
-    backgroundColor: Palette.bg,
+    backgroundColor: c.bg,
   },
   center: {
     alignItems: "center",
     justifyContent: "center",
   },
   missing: {
-    color: Palette.textSecondary,
+    color: c.textSecondary,
     fontSize: 15,
   },
   header: {
@@ -226,7 +231,7 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 22,
     fontWeight: "800",
-    color: Palette.text,
+    color: c.text,
     letterSpacing: -0.3,
   },
   meta: {
@@ -237,7 +242,7 @@ const styles = StyleSheet.create({
     width: 32,
     height: 32,
     borderRadius: Radius.full,
-    backgroundColor: Palette.surfaceRaised,
+    backgroundColor: c.surfaceRaised,
     alignItems: "center",
     justifyContent: "center",
   },
@@ -263,7 +268,7 @@ const styles = StyleSheet.create({
   description: {
     fontSize: 14,
     lineHeight: 21,
-    color: Palette.textSecondary,
+    color: c.textSecondary,
   },
   guide: {
     gap: Spacing.three,
@@ -275,7 +280,7 @@ const styles = StyleSheet.create({
     paddingVertical: Spacing.two,
     borderTopWidth: 1,
     borderBottomWidth: 1,
-    borderColor: Palette.border,
+    borderColor: c.border,
   },
   guideToggleText: {
     fontSize: 14,
@@ -296,7 +301,7 @@ const styles = StyleSheet.create({
     width: 4,
     height: 4,
     borderRadius: 2,
-    backgroundColor: Palette.textTertiary,
+    backgroundColor: c.textTertiary,
     // Sits on the first line's optical centre rather than the top of the box.
     marginTop: 8,
   },
@@ -307,18 +312,18 @@ const styles = StyleSheet.create({
   faultFix: {
     fontSize: 13,
     lineHeight: 20,
-    color: Palette.textTertiary,
+    color: c.textTertiary,
   },
   formText: {
     flex: 1,
     fontSize: 14,
     lineHeight: 21,
-    color: Palette.textSecondary,
+    color: c.textSecondary,
   },
   mapCard: {
-    backgroundColor: Palette.surface,
+    backgroundColor: c.surface,
     borderWidth: 1,
-    borderColor: Palette.border,
+    borderColor: c.border,
     borderRadius: Radius.md,
     padding: Spacing.three,
     gap: Spacing.two,
@@ -330,8 +335,8 @@ const styles = StyleSheet.create({
   mapLabel: {
     fontSize: 11,
     fontWeight: "600",
-    color: Palette.textTertiary,
+    color: c.textTertiary,
     textTransform: "uppercase",
     letterSpacing: 1,
   },
-});
+}));

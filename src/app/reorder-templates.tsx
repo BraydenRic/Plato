@@ -1,11 +1,12 @@
 import { useEffect, useState } from "react";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { Pressable, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { router } from "expo-router";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import DraggableFlatList, { ScaleDecorator } from "react-native-draggable-flatlist";
 
-import { Palette, Radius, Spacing } from "@/constants/theme";
+import { Radius, Spacing } from "@/constants/theme";
+import { makeStyles, usePalette } from "@/context/AppearanceContext";
 import { useTheme } from "@/context/ThemeContext";
 import { useWorkouts } from "@/hooks/use-workouts";
 import { updateWorkout } from "@/lib/data";
@@ -13,6 +14,8 @@ import { totalSetCount } from "@/lib/workout-utils";
 import type { Workout } from "@/types";
 
 export default function ReorderTemplatesScreen() {
+  const styles = useStyles();
+  const palette = usePalette();
   const { templates } = useWorkouts();
   const theme = useTheme();
   // Local copy so the drag is instant and doesn't fight the live subscription.
@@ -66,7 +69,7 @@ export default function ReorderTemplatesScreen() {
                 </Text>
               </View>
               <Pressable onPressIn={drag} hitSlop={10} style={styles.handle}>
-                <Ionicons name="reorder-two" size={22} color={Palette.textSecondary} />
+                <Ionicons name="reorder-two" size={22} color={palette.textSecondary} />
               </Pressable>
             </View>
           </ScaleDecorator>
@@ -76,10 +79,10 @@ export default function ReorderTemplatesScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = makeStyles((c) => ({
   safe: {
     flex: 1,
-    backgroundColor: Palette.bg,
+    backgroundColor: c.bg,
   },
   header: {
     flexDirection: "row",
@@ -91,7 +94,7 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 22,
     fontWeight: "800",
-    color: Palette.text,
+    color: c.text,
     letterSpacing: -0.5,
   },
   doneButton: {
@@ -103,7 +106,7 @@ const styles = StyleSheet.create({
   },
   hint: {
     fontSize: 13,
-    color: Palette.textTertiary,
+    color: c.textTertiary,
     paddingHorizontal: Spacing.three,
     paddingTop: Spacing.one,
     paddingBottom: Spacing.three,
@@ -117,22 +120,22 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: Spacing.three,
-    backgroundColor: Palette.surface,
+    backgroundColor: c.surface,
     borderWidth: 1,
-    borderColor: Palette.border,
+    borderColor: c.border,
     borderRadius: Radius.md,
     padding: Spacing.three,
   },
   rowName: {
     fontSize: 15,
     fontWeight: "600",
-    color: Palette.text,
+    color: c.text,
   },
   rowMeta: {
     fontSize: 12,
-    color: Palette.textTertiary,
+    color: c.textTertiary,
   },
   handle: {
     padding: 4,
   },
-});
+}));

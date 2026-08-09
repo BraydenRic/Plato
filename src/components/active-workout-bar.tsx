@@ -1,10 +1,11 @@
 import { useEffect, useState } from "react";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { Pressable, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import Ionicons from "@expo/vector-icons/Ionicons";
 
-import { FontScaleCap, Palette, Spacing } from "@/constants/theme";
+import { FontScaleCap, Spacing } from "@/constants/theme";
+import { makeStyles, usePalette } from "@/context/AppearanceContext";
 import { useRestTimer } from "@/context/RestTimerContext";
 import { useTheme } from "@/context/ThemeContext";
 import { useActiveWorkout } from "@/hooks/use-active-workout";
@@ -21,6 +22,7 @@ import type { Workout } from "@/types";
  * strip alone instead of the whole tab navigator underneath it.
  */
 export function ActiveWorkoutBar() {
+  const styles = useStyles();
   const insets = useSafeAreaInsets();
   const workout = useActiveWorkout();
 
@@ -38,6 +40,8 @@ export function ActiveWorkoutBar() {
  * because the bar and the notch above it should read as one surface.
  */
 function ResumeBar({ workout, topInset }: { workout: Workout; topInset: number }) {
+  const styles = useStyles();
+  const palette = usePalette();
   const theme = useTheme();
   const router = useRouter();
   const { rest } = useRestTimer();
@@ -101,7 +105,7 @@ function ResumeBar({ workout, topInset }: { workout: Workout; topInset: number }
           maxFontSizeMultiplier={FontScaleCap.grid}>
           {readout}
         </Text>
-        <Ionicons name="chevron-forward" size={16} color={Palette.textTertiary} />
+        <Ionicons name="chevron-forward" size={16} color={palette.textTertiary} />
       </Pressable>
       {/* Set progress as a scrubber along the bottom edge — legible from across
           the gym in a way the count beside it isn't, and it doubles as the
@@ -118,12 +122,12 @@ function ResumeBar({ workout, topInset }: { workout: Workout; topInset: number }
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = makeStyles((c) => ({
   idle: {
-    backgroundColor: Palette.bg,
+    backgroundColor: c.bg,
   },
   wrap: {
-    backgroundColor: Palette.surface,
+    backgroundColor: c.surface,
   },
   bar: {
     flexDirection: "row",
@@ -145,12 +149,12 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: 15,
     fontWeight: "700",
-    color: Palette.text,
+    color: c.text,
     letterSpacing: -0.2,
   },
   meta: {
     fontSize: 12,
-    color: Palette.textTertiary,
+    color: c.textTertiary,
   },
   readout: {
     fontSize: 15,
@@ -159,9 +163,9 @@ const styles = StyleSheet.create({
   },
   track: {
     height: 2,
-    backgroundColor: Palette.surfaceRaised,
+    backgroundColor: c.surfaceRaised,
   },
   fill: {
     height: 2,
   },
-});
+}));

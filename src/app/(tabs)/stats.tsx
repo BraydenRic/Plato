@@ -1,10 +1,11 @@
 import { useMemo } from "react";
-import { ScrollView, StyleSheet, Text, View, useWindowDimensions } from "react-native";
+import { ScrollView, Text, View, useWindowDimensions } from "react-native";
 import Ionicons from "@expo/vector-icons/Ionicons";
 
 import { Card, EmptyState, SectionLabel } from "@/components/ui";
 import { MuscleMap } from "@/components/muscle-map";
-import { FontScaleCap, Palette, Spacing } from "@/constants/theme";
+import { FontScaleCap, Spacing } from "@/constants/theme";
+import { makeStyles, usePalette } from "@/context/AppearanceContext";
 import { useTheme } from "@/context/ThemeContext";
 import { useWorkouts } from "@/hooks/use-workouts";
 import { computeStats } from "@/lib/data";
@@ -14,6 +15,8 @@ import { addDays, displayVolume, formatDuration, setsByCategory, startOfWeek, wo
 const CHART_DAYS = 14;
 
 export default function StatsScreen() {
+  const styles = useStyles();
+  const palette = usePalette();
   const theme = useTheme();
   const { completed, loading } = useWorkouts();
   const { unit } = useWeightUnit();
@@ -98,7 +101,7 @@ export default function StatsScreen() {
         <View style={styles.streakRow}>
           <Card style={styles.streakCard}>
             <View style={styles.streakIconWrap}>
-              <Ionicons name="flame" size={20} color={Palette.amber} />
+              <Ionicons name="flame" size={20} color={palette.amber} />
             </View>
             <Text style={styles.streakValue}>{stats.currentStreak}</Text>
             <Text style={styles.streakLabel}>day streak</Text>
@@ -197,6 +200,7 @@ export default function StatsScreen() {
 }
 
 function StatCard({ label, value }: { label: string; value: string }) {
+  const styles = useStyles();
   // Two columns stop working once the numbers scale up — give each stat the
   // whole row so a value like "1.2M lbs" isn't broken across three lines.
   const { fontScale } = useWindowDimensions();
@@ -208,10 +212,10 @@ function StatCard({ label, value }: { label: string; value: string }) {
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = makeStyles((c) => ({
   safe: {
     flex: 1,
-    backgroundColor: Palette.bg,
+    backgroundColor: c.bg,
   },
   scroll: {
     padding: Spacing.three,
@@ -225,12 +229,12 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 28,
     fontWeight: "800",
-    color: Palette.text,
+    color: c.text,
     letterSpacing: -0.5,
   },
   subtitle: {
     fontSize: 14,
-    color: Palette.textTertiary,
+    color: c.textTertiary,
   },
   streakRow: {
     flexDirection: "row",
@@ -248,12 +252,12 @@ const styles = StyleSheet.create({
   streakValue: {
     fontSize: 32,
     fontWeight: "800",
-    color: Palette.text,
+    color: c.text,
     fontVariant: ["tabular-nums"],
   },
   streakLabel: {
     fontSize: 12,
-    color: Palette.textTertiary,
+    color: c.textTertiary,
   },
   grid: {
     flexDirection: "row",
@@ -271,12 +275,12 @@ const styles = StyleSheet.create({
   statValue: {
     fontSize: 22,
     fontWeight: "800",
-    color: Palette.text,
+    color: c.text,
     fontVariant: ["tabular-nums"],
   },
   statLabel: {
     fontSize: 12,
-    color: Palette.textTertiary,
+    color: c.textTertiary,
   },
   chartCard: {
     paddingVertical: Spacing.three,
@@ -292,7 +296,7 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     letterSpacing: 0.6,
     textTransform: "uppercase",
-    color: Palette.textTertiary,
+    color: c.textTertiary,
     marginBottom: 1,
   },
   setRow: {
@@ -304,13 +308,13 @@ const styles = StyleSheet.create({
     width: 78,
     fontSize: 12,
     fontWeight: "600",
-    color: Palette.textSecondary,
+    color: c.textSecondary,
   },
   setTrack: {
     flex: 1,
     height: 5,
     borderRadius: 3,
-    backgroundColor: Palette.surfaceRaised,
+    backgroundColor: c.surfaceRaised,
     overflow: "hidden",
   },
   setBar: {
@@ -322,12 +326,12 @@ const styles = StyleSheet.create({
     textAlign: "right",
     fontSize: 12,
     fontWeight: "700",
-    color: Palette.text,
+    color: c.text,
     fontVariant: ["tabular-nums"],
   },
   muscleCaption: {
     fontSize: 12,
-    color: Palette.textTertiary,
+    color: c.textTertiary,
     textAlign: "center",
   },
   chart: {
@@ -353,6 +357,6 @@ const styles = StyleSheet.create({
   },
   barLabel: {
     fontSize: 10,
-    color: Palette.textTertiary,
+    color: c.textTertiary,
   },
-});
+}));

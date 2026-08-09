@@ -1,8 +1,16 @@
-import { createContext, useContext, useEffect, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import Constants, { ExecutionEnvironment } from "expo-constants";
 
-import { DEFAULT_THEME_ID, THEMES, isThemeId, type Theme, type ThemeId } from "@/constants/theme";
+import {
+  DEFAULT_THEME_ID,
+  THEMES,
+  isThemeId,
+  resolveTheme,
+  type ResolvedTheme,
+  type ThemeId,
+} from "@/constants/theme";
+import { useMode } from "@/context/AppearanceContext";
 
 const STORAGE_KEY = "theme_id";
 
@@ -43,12 +51,13 @@ async function applyAppIcon(iconName: string | null) {
   }
 }
 
+// Only the id is held. Which of the theme's two accent sets applies depends on
+// the mode, which lives in AppearanceContext — so the flattening happens in the
+// hooks below, where both are in scope.
 const ThemeContext = createContext<{
-  theme: Theme;
   themeId: ThemeId;
   setThemeId: (id: ThemeId) => void;
 }>({
-  theme: THEMES[DEFAULT_THEME_ID],
   themeId: DEFAULT_THEME_ID,
   setThemeId: () => {},
 });
@@ -62,25 +71,27 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     });
   }, []);
 
-  function setThemeId(id: ThemeId) {
+  const setThemeId = useCallback((id: ThemeId) => {
     setThemeIdState(id);
     AsyncStorage.setItem(STORAGE_KEY, id);
     applyAppIcon(THEMES[id].iconName);
-  }
+  }, []);
 
-  return (
-    <ThemeContext.Provider value={{ theme: THEMES[themeId], themeId, setThemeId }}>
-      {children}
-    </ThemeContext.Provider>
-  );
+  const value = useMemo(() => ({ themeId, setThemeId }), [themeId, setThemeId]);
+
+  return <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>;
 }
 
-/** The active accent palette. Neutral chrome still comes from `Palette`. */
-export function useTheme() {
-  return useContext(ThemeContext).theme;
+/** The active accent set, flattened for the current mode. */
+export function useTheme(): ResolvedTheme {
+  const { themeId } = useContext(ThemeContext);
+  const mode = useMode();
+  return useMemo(() => resolveTheme(THEMES[themeId], mode), [themeId, mode]);
 }
 
 /** For the picker, which needs to write the theme as well as read it. */
 export function useThemePicker() {
-  return useContext(ThemeContext);
+  const { themeId, setThemeId } = useContext(ThemeContext);
+  const theme = useTheme();
+  return { theme, themeId, setThemeId };
 }

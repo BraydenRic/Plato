@@ -1,11 +1,21 @@
 import {
+  APPEARANCE_LABELS,
+  APPEARANCE_PREFS,
+  DEFAULT_APPEARANCE,
   DEFAULT_THEME_ID,
-  Palette,
+  FIGURE_BODY,
+  PALETTES,
   THEMES,
   THEME_LIST,
+  isAppearancePref,
   isThemeId,
+  resolveTheme,
+  type Mode,
+  type ResolvedTheme,
   type Theme,
 } from "../theme";
+
+const MODES: Mode[] = ["dark", "light"];
 
 /**
  * Invariants for the accent themes.
@@ -111,96 +121,205 @@ describe("the theme registry", () => {
   });
 
   it("gives every theme a distinct accent and label", () => {
-    expect(new Set(THEME_LIST.map((t) => t.accent)).size).toBe(THEME_LIST.length);
+    for (const mode of MODES) {
+      expect(new Set(THEME_LIST.map((t) => t[mode].accent)).size).toBe(THEME_LIST.length);
+    }
     expect(new Set(THEME_LIST.map((t) => t.label)).size).toBe(THEME_LIST.length);
   });
 });
 
-describe("every theme", () => {
-  it.each(THEME_LIST.map((t): [string, Theme] => [t.label, t]))(
-    "%s keeps its accent text readable on the app background",
-    (_label, theme) => {
-      // Links, active tabs and volume figures are ordinary text, so this one
-      // holds the full 4.5:1 small-text bar. Every theme clears 10:1.
-      expect(contrast(theme.accentText, Palette.bg)).toBeGreaterThanOrEqual(4.5);
-    }
-  );
+/**
+ * Every accent rule, run against both palettes.
+ *
+ * Light mode is where these earn their keep. A dark-mode accent set is not a
+ * light-mode one — `accentText` is deliberately lifted to glow on near-black and
+ * lands around 1.7:1 on white, and Graphite's white accent disappears entirely —
+ * so each rule below is a mistake that light mode could reintroduce silently.
+ */
+describe.each(MODES)("every theme in %s mode", (mode) => {
+  const P = PALETTES[mode];
+  const themes = THEME_LIST.map((t): [string, ResolvedTheme] => [t.label, resolveTheme(t, mode)]);
 
-  it.each(THEME_LIST.map((t): [string, Theme] => [t.label, t]))(
-    "%s keeps its button label off the accent it sits on",
-    (_label, theme) => {
-      // 3:1 (the WCAG bar for large text and UI components), not 4.5:1. White
-      // on violet-500 is 4.2:1 and that is the accent already shipping, so a
-      // stricter gate here would fail the live App Store build rather than
-      // catch a bug. What it does catch is the real mistake: leaving white on
-      // an accent bright enough to swallow it, which is why cyan and amber
-      // carry dark labels.
-      expect(contrast(theme.onAccent, theme.accent)).toBeGreaterThanOrEqual(3);
+  it.each(themes)("%s keeps its accent text readable wherever it lands", (_label, theme) => {
+    // Links, active tabs and volume figures are ordinary text, so this one
+    // holds the full 4.5:1 small-text bar — and it holds on cards too, not just
+    // the page, because that is where most of this text actually sits.
+    for (const surface of [P.bg, P.surface, P.surfaceRaised]) {
+      expect(contrast(theme.accentText, surface)).toBeGreaterThanOrEqual(4.5);
     }
-  );
+  });
 
-  it.each(THEME_LIST.map((t): [string, Theme] => [t.label, t]))(
-    "%s stays clear of the semantic colours",
-    (_label, theme) => {
-      // success/danger/amber carry fixed meanings. An accent that lands on top
-      // of one makes "delete" and "primary" look like the same control — the
-      // exact trap a rose accent fell into at ΔE 19 from the danger red.
-      for (const semantic of [Palette.success, Palette.danger, Palette.amber]) {
-        expect(deltaE(theme.accent, semantic)).toBeGreaterThan(30);
-      }
+  it.each(themes)("%s keeps its button label off the accent it sits on", (_label, theme) => {
+    // 3:1 (the WCAG bar for large text and UI components), not 4.5:1. White
+    // on violet-500 is 4.2:1 and that is the accent already shipping, so a
+    // stricter gate here would fail the live App Store build rather than
+    // catch a bug. What it does catch is the real mistake: leaving white on
+    // an accent bright enough to swallow it, which is why cyan and amber
+    // carry dark labels.
+    expect(contrast(theme.onAccent, theme.accent)).toBeGreaterThanOrEqual(3);
+  });
+
+  it.each(themes)("%s stays clear of the semantic colours", (_label, theme) => {
+    // success/danger/amber carry fixed meanings. An accent that lands on top
+    // of one makes "delete" and "primary" look like the same control — the
+    // exact trap a rose accent fell into at ΔE 19 from the danger red, and the
+    // reason light mode's danger is red-900 rather than the red-700 that first
+    // looked right and sat ΔE 12 from Crimson.
+    for (const semantic of [P.success, P.danger, P.amber]) {
+      expect(deltaE(theme.accent, semantic)).toBeGreaterThan(30);
     }
-  );
+  });
 
-  it.each(THEME_LIST.map((t): [string, Theme] => [t.label, t]))(
-    "%s is visibly its own colour next to the others",
-    (_label, theme) => {
-      // Two near-identical swatches in the picker is a choice that isn't one.
-      for (const other of THEME_LIST) {
-        if (other.id === theme.id) continue;
-        expect(deltaE(theme.accent, other.accent)).toBeGreaterThan(30);
-      }
+  it.each(themes)("%s is visibly its own colour next to the others", (_label, theme) => {
+    // Two near-identical swatches in the picker is a choice that isn't one.
+    for (const other of THEME_LIST) {
+      if (other.id === theme.id) continue;
+      expect(deltaE(theme.accent, other[mode].accent)).toBeGreaterThan(30);
     }
-  );
+  });
 
+  it.each(themes)("%s washes its soft tint rather than filling it", (_label, theme) => {
+    // accentSoft backs chips and selected rows with text on top, so it has to
+    // stay translucent — a solid fill there buries the label.
+    expect(theme.accentSoft).toMatch(/^rgba\(\d+,\d+,\d+,0?\.\d+\)$/);
+  });
+});
+
+describe("the muscle map's two tones", () => {
+  // These don't follow the mode, because the figure they're drawn on doesn't:
+  // the highlighter library bakes FIGURE_BODY into its own paths, so a light
+  // page still gets a dark body. Judging them against the page would be judging
+  // them against the wrong thing.
   it.each(THEME_LIST.map((t): [string, Theme] => [t.label, t]))(
     "%s can draw two levels of itself at once",
     (_label, theme) => {
-      // The muscle map paints primary muscles in `accent` and secondary ones in
-      // `accentMuted`. Graphite shipped with both tokens set to white, so the
-      // two groups came out identical and the diagram said nothing — this is
-      // that bug, pinned.
-      expect(deltaE(theme.accent, theme.accentMuted)).toBeGreaterThan(25);
+      // Graphite shipped with both tokens set to white, so the two groups came
+      // out identical and the diagram said nothing — this is that bug, pinned.
+      expect(deltaE(theme.figure.primary, theme.figure.secondary)).toBeGreaterThan(25);
     }
   );
 
   it.each(THEME_LIST.map((t): [string, Theme] => [t.label, t]))(
-    "%s keeps its muted tone off the muscle map's own body grey",
+    "%s keeps both tones off the body grey they sit on",
     (_label, theme) => {
-      // Secondary muscles have to read as highlighted against the unworked
-      // body, or dialling the tone down far enough to differ from the primary
-      // just loses it into the figure instead.
-      expect(deltaE(theme.accentMuted, "#3f3f3f")).toBeGreaterThan(25);
+      // Worked muscles have to read as highlighted against the unworked body,
+      // or dialling a tone down far enough to differ from the other just loses
+      // it into the figure instead.
+      expect(deltaE(theme.figure.primary, FIGURE_BODY)).toBeGreaterThan(25);
+      expect(deltaE(theme.figure.secondary, FIGURE_BODY)).toBeGreaterThan(25);
     }
   );
+});
 
+describe("the Live Activity tint", () => {
   it.each(THEME_LIST.map((t): [string, Theme] => [t.label, t]))(
-    "%s gives the Live Activity a plain hex tint",
+    "%s gives the widget a plain hex tint",
     (_label, theme) => {
       // The native widget parses hex only; an rgba() string makes the progress
       // bar fall back to a default colour with no error anywhere.
       expect(theme.activityTint).toMatch(/^#[0-9a-f]{6}$/i);
-      expect(theme.activityTint).toBe(theme.accent);
+      // Always the *dark* accent. The widget's colours are frozen when the
+      // activity starts, so it cannot follow an in-app toggle without
+      // restarting and re-animating the Dynamic Island — and it renders on the
+      // lock screen, not on the app's page.
+      expect(theme.activityTint).toBe(theme.dark.accent);
+    }
+  );
+});
+
+describe("the two palettes", () => {
+  it("gives both modes the same set of tokens", () => {
+    // A token present in one and missing in the other is a screen that renders
+    // `undefined` as a colour in exactly one mode.
+    expect(Object.keys(PALETTES.light).sort()).toEqual(Object.keys(PALETTES.dark).sort());
+  });
+
+  it.each(["text", "textSecondary", "textTertiary", "success", "danger", "amber"] as const)(
+    "reads %s at least as clearly in light as in dark",
+    (tone) => {
+      // Not an absolute bar: the shipped dark palette runs textTertiary at
+      // 3.5:1 on surfaceRaised, so a flat 4.5 here would fail the live build
+      // rather than catch anything. The real rule is that the new mode is never
+      // the worse one — capped at 4.5 so a already-passing pair doesn't have to
+      // chase dark's 11:1.
+      for (const surface of ["bg", "surface", "surfaceRaised"] as const) {
+        const light = contrast(PALETTES.light[tone], PALETTES.light[surface]);
+        const dark = contrast(PALETTES.dark[tone], PALETTES.dark[surface]);
+        expect(light).toBeGreaterThanOrEqual(Math.min(dark, 4.5));
+      }
     }
   );
 
-  it.each(THEME_LIST.map((t): [string, Theme] => [t.label, t]))(
-    "%s washes its soft tint rather than filling it",
-    (_label, theme) => {
-      // accentSoft backs chips and selected rows with text on top, so it has to
-      // stay translucent — a solid fill there buries the label.
-      expect(theme.accentSoft).toMatch(/^rgba\(\d+,\d+,\d+,0?\.\d+\)$/);
-    }
-  );
+  it("keeps light actually light and dark actually dark", () => {
+    // Cheap, but it is the one thing every other test here takes for granted.
+    expect(luminance(PALETTES.light.bg)).toBeGreaterThan(0.5);
+    expect(luminance(PALETTES.dark.bg)).toBeLessThan(0.1);
+  });
+});
+
+describe("resolveTheme", () => {
+  it.each(MODES)("flattens to the %s accent set", (mode) => {
+    const theme = resolveTheme(THEMES.violet, mode);
+    expect(theme.accent).toBe(THEMES.violet[mode].accent);
+    expect(theme.accentText).toBe(THEMES.violet[mode].accentText);
+  });
+
+  it("keeps the mode-independent fields", () => {
+    const theme = resolveTheme(THEMES.graphite, "light");
+    expect(theme.id).toBe("graphite");
+    expect(theme.label).toBe("Graphite");
+    expect(theme.iconName).toBeNull();
+    expect(theme.figure).toEqual(THEMES.graphite.figure);
+  });
+
+  it("leaves no nested accent sets on the result", () => {
+    // The flattened shape is what components consume; a stray `dark` key would
+    // mean a call site could read the wrong mode's colour and still typecheck.
+    const theme = resolveTheme(THEMES.violet, "light");
+    expect(theme).not.toHaveProperty("dark");
+    expect(theme).not.toHaveProperty("light");
+  });
+
+  it("flips Graphite rather than leaving it invisible", () => {
+    // The one theme whose accent genuinely has to change: its signal is
+    // "maximum contrast with the page", so a white accent on a white page is
+    // not a dimmer version of the idea, it is nothing at all.
+    expect(contrast(resolveTheme(THEMES.graphite, "light").accent, PALETTES.light.bg)).toBeGreaterThan(4.5);
+    expect(contrast(resolveTheme(THEMES.graphite, "dark").accent, PALETTES.dark.bg)).toBeGreaterThan(4.5);
+  });
+});
+
+describe("the appearance preference", () => {
+  it("defaults to dark, so an update doesn't turn the app white", () => {
+    // Plato has been dark-only on the App Store since 1.0. Defaulting to
+    // "system" would hand every existing user on a light phone a white app they
+    // never asked for, as the result of an update they didn't opt into.
+    expect(DEFAULT_APPEARANCE).toBe("dark");
+  });
+
+  it("offers exactly the three the picker draws", () => {
+    expect([...APPEARANCE_PREFS]).toEqual(["light", "dark", "system"]);
+    expect(Object.keys(APPEARANCE_LABELS).sort()).toEqual([...APPEARANCE_PREFS].sort());
+  });
+
+  it.each([...APPEARANCE_PREFS])("accepts %p", (pref) => {
+    expect(isAppearancePref(pref)).toBe(true);
+  });
+
+  it.each([["Light"], ["auto"], [""], ["system "]])("rejects %p", (raw) => {
+    expect(isAppearancePref(raw)).toBe(false);
+  });
+
+  it.each([[null], [undefined], [7], [{}]])("rejects the non-string %p", (raw) => {
+    expect(isAppearancePref(raw)).toBe(false);
+  });
+
+  it("is not fooled by inherited Object properties", () => {
+    // Same trap as isThemeId: a stored "constructor" must not read as a valid
+    // stored preference.
+    expect(isAppearancePref("constructor")).toBe(false);
+    expect(isAppearancePref("toString")).toBe(false);
+  });
 });
 
 describe("the app icon mapping", () => {

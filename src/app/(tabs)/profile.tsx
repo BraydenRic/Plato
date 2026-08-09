@@ -1,6 +1,6 @@
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { useEffect, useState } from "react";
-import { Alert, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from "react-native";
+import { Alert, Pressable, ScrollView, Text, View, useWindowDimensions } from "react-native";
 import { Image } from "expo-image";
 import { useRouter } from "expo-router";
 
@@ -8,7 +8,14 @@ import { Button, Card, SectionLabel, Stepper } from "@/components/ui";
 import { Sparkline } from "@/components/sparkline";
 import { useBodyweight } from "@/hooks/use-bodyweight";
 import { convertWeight, relativeDay, sameDay } from "@/lib/workout-utils";
-import { Palette, Radius, Spacing, THEME_LIST } from "@/constants/theme";
+import {
+  APPEARANCE_LABELS,
+  APPEARANCE_PREFS,
+  Radius,
+  Spacing,
+  THEME_LIST,
+} from "@/constants/theme";
+import { makeStyles, useAppearance, usePalette } from "@/context/AppearanceContext";
 import { useAuth } from "@/context/AuthContext";
 import { REST_OPTIONS, nearestRestIndex, useRestTimer } from "@/context/RestTimerContext";
 import { useThemePicker } from "@/context/ThemeContext";
@@ -20,6 +27,9 @@ import { useWeightUnit } from "@/context/UnitContext";
 const DELETE_WORD = "DELETE";
 
 export default function ProfileScreen() {
+  const styles = useStyles();
+  const palette = usePalette();
+  const { pref: appearance, mode, setPref: setAppearance } = useAppearance();
   const {
     user,
     isGuest,
@@ -284,7 +294,7 @@ export default function ProfileScreen() {
           {/* Guests have no Firebase profile to rename. */}
           {!isGuest && (
             <Pressable onPress={editName} hitSlop={10} style={styles.editButton}>
-              <Ionicons name="pencil" size={16} color={Palette.textSecondary} />
+              <Ionicons name="pencil" size={16} color={palette.textSecondary} />
             </Pressable>
           )}
         </Card>
@@ -350,7 +360,7 @@ export default function ProfileScreen() {
                   <Text
                     style={[
                       styles.bodyweightValue,
-                      { color: weighedInToday ? theme.accentText : Palette.textSecondary },
+                      { color: weighedInToday ? theme.accentText : palette.textSecondary },
                     ]}>
                     {shownWeight != null ? `${shownWeight} ${unit}` : "—"}
                   </Text>
@@ -395,7 +405,7 @@ export default function ProfileScreen() {
                   <Text style={styles.bodyweightDelta}>
                     {weightDelta > 0 ? `+${weightDelta}` : weightDelta} {unit}
                   </Text>
-                  <Ionicons name="chevron-forward" size={14} color={Palette.textTertiary} />
+                  <Ionicons name="chevron-forward" size={14} color={palette.textTertiary} />
                 </View>
               </View>
             </Pressable>
@@ -404,7 +414,33 @@ export default function ProfileScreen() {
 
         <View>
           <SectionLabel>Preferences</SectionLabel>
+          {/* Above the accent, because it decides what the swatches below it
+              look like. Its own card rather than a row like Weight unit: three
+              words don't fit beside a label on the narrowest iPhone. */}
           <Card style={styles.themeCard}>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.prefTitle}>Appearance</Text>
+              <Text style={styles.prefHint}>Light, dark, or whatever your phone is set to</Text>
+            </View>
+            <View style={styles.segment}>
+              {APPEARANCE_PREFS.map((p) => {
+                const selected = appearance === p;
+                return (
+                  <Pressable
+                    key={p}
+                    onPress={() => setAppearance(p)}
+                    accessibilityRole="button"
+                    accessibilityState={{ selected }}
+                    style={[styles.appearanceItem, selected && { backgroundColor: theme.accent }]}>
+                    <Text style={[styles.segmentText, selected && { color: theme.onAccent }]}>
+                      {APPEARANCE_LABELS[p]}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+          </Card>
+          <Card style={[styles.themeCard, styles.cardGap]}>
             <View style={styles.themeHeader}>
               <View style={{ flex: 1 }}>
                 <Text style={styles.prefTitle}>Accent</Text>
@@ -416,6 +452,10 @@ export default function ProfileScreen() {
             <View style={styles.swatchRow}>
               {THEME_LIST.map((t) => {
                 const selected = t.id === themeId;
+                // Each swatch shows the colour it will actually paint in the
+                // mode currently on screen, so Graphite reads as black here and
+                // white in the dark — which is what picking it does.
+                const swatch = t[mode];
                 return (
                   <Pressable
                     key={t.id}
@@ -428,10 +468,10 @@ export default function ProfileScreen() {
                       styles.swatchRing,
                       // The ring wears the swatch's own light shade, so the
                       // selected state reads as part of that theme.
-                      selected && { borderColor: t.accentText },
+                      selected && { borderColor: swatch.accentText },
                       pressed && { opacity: 0.7 },
                     ]}>
-                    <View style={[styles.swatch, { backgroundColor: t.accent }]} />
+                    <View style={[styles.swatch, { backgroundColor: swatch.accent }]} />
                   </Pressable>
                 );
               })}
@@ -500,10 +540,10 @@ export default function ProfileScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = makeStyles((c) => ({
   safe: {
     flex: 1,
-    backgroundColor: Palette.bg,
+    backgroundColor: c.bg,
   },
   scroll: {
     padding: Spacing.three,
@@ -516,7 +556,7 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 28,
     fontWeight: "800",
-    color: Palette.text,
+    color: c.text,
     letterSpacing: -0.5,
   },
   accountCard: {
@@ -528,9 +568,9 @@ const styles = StyleSheet.create({
     width: 34,
     height: 34,
     borderRadius: Radius.full,
-    backgroundColor: Palette.surfaceRaised,
+    backgroundColor: c.surfaceRaised,
     borderWidth: 1,
-    borderColor: Palette.border,
+    borderColor: c.border,
     alignItems: "center",
     justifyContent: "center",
   },
@@ -540,12 +580,12 @@ const styles = StyleSheet.create({
   upgradeTitle: {
     fontSize: 16,
     fontWeight: "700",
-    color: Palette.text,
+    color: c.text,
   },
   upgradeText: {
     fontSize: 13,
     lineHeight: 19,
-    color: Palette.textSecondary,
+    color: c.textSecondary,
   },
   verifyRow: {
     flexDirection: "row",
@@ -573,11 +613,11 @@ const styles = StyleSheet.create({
   name: {
     fontSize: 17,
     fontWeight: "700",
-    color: Palette.text,
+    color: c.text,
   },
   email: {
     fontSize: 13,
-    color: Palette.textTertiary,
+    color: c.textTertiary,
   },
   prefCard: {
     flexDirection: "row",
@@ -607,7 +647,7 @@ const styles = StyleSheet.create({
   },
   bodyweightWhen: {
     fontSize: 13,
-    color: Palette.textTertiary,
+    color: c.textTertiary,
   },
   bodyweightValue: {
     fontSize: 15,
@@ -621,7 +661,7 @@ const styles = StyleSheet.create({
   },
   bodyweightDelta: {
     fontSize: 12,
-    color: Palette.textTertiary,
+    color: c.textTertiary,
     fontVariant: ["tabular-nums"],
   },
   cardGap: {
@@ -669,18 +709,18 @@ const styles = StyleSheet.create({
   },
   deleteAccount: {
     fontSize: 13,
-    color: Palette.textTertiary,
+    color: c.textTertiary,
     textAlign: "center",
     textDecorationLine: "underline",
   },
   prefTitle: {
     fontSize: 15,
     fontWeight: "600",
-    color: Palette.text,
+    color: c.text,
   },
   prefHint: {
     fontSize: 12,
-    color: Palette.textTertiary,
+    color: c.textTertiary,
     marginTop: 1,
   },
   // Wraps rather than overflowing: at large text sizes five rest-timer options
@@ -689,10 +729,10 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     flexWrap: "wrap",
     justifyContent: "center",
-    backgroundColor: Palette.surfaceRaised,
+    backgroundColor: c.surfaceRaised,
     borderRadius: Radius.sm,
     borderWidth: 1,
-    borderColor: Palette.border,
+    borderColor: c.border,
     padding: 3,
     gap: 3,
   },
@@ -701,9 +741,18 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
     borderRadius: Radius.sm - 2,
   },
+  // Equal thirds across the card, so the three options read as one control
+  // rather than three buttons of different widths.
+  appearanceItem: {
+    flex: 1,
+    alignItems: "center",
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: Radius.sm - 2,
+  },
   segmentText: {
     fontSize: 13,
     fontWeight: "600",
-    color: Palette.textSecondary,
+    color: c.textSecondary,
   },
-});
+}));

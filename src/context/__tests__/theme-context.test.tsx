@@ -70,15 +70,19 @@ describe("choosing a theme", () => {
     const ctx = mountPicker();
     await settle();
     expect(ctx.current.themeId).toBe(DEFAULT_THEME_ID);
-    expect(ctx.current.theme).toBe(THEMES[DEFAULT_THEME_ID]);
+    // Compared field-wise rather than by identity: the hook hands back a theme
+    // already flattened to the current mode, so it is a derived object and not
+    // the registry entry itself. Dark because no AppearanceProvider is mounted.
+    expect(ctx.current.theme.id).toBe(DEFAULT_THEME_ID);
+    expect(ctx.current.theme.accent).toBe(THEMES[DEFAULT_THEME_ID].dark.accent);
   });
 
   it("hands back the full palette, not just the id", async () => {
     const ctx = mountPicker();
     await settle();
     await act(async () => ctx.current.setThemeId("cyan"));
-    expect(ctx.current.theme.accent).toBe(THEMES.cyan.accent);
-    expect(ctx.current.theme.onAccent).toBe(THEMES.cyan.onAccent);
+    expect(ctx.current.theme.accent).toBe(THEMES.cyan.dark.accent);
+    expect(ctx.current.theme.onAccent).toBe(THEMES.cyan.dark.onAccent);
   });
 
   it("persists the choice so it survives the next launch", async () => {
@@ -104,7 +108,7 @@ describe("choosing a theme", () => {
       const ctx = mountPicker();
       await settle();
       expect(ctx.current.themeId).toBe(DEFAULT_THEME_ID);
-      expect(ctx.current.theme.accent).toBe(THEMES[DEFAULT_THEME_ID].accent);
+      expect(ctx.current.theme.accent).toBe(THEMES[DEFAULT_THEME_ID].dark.accent);
     }
   );
 

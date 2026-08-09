@@ -17,7 +17,8 @@ import * as AppleAuthentication from "expo-apple-authentication";
 import { Image } from "expo-image";
 
 import { Button, Field } from "@/components/ui";
-import { Palette, Radius, Spacing } from "@/constants/theme";
+import { Radius, Spacing } from "@/constants/theme";
+import { makeStyles } from "@/context/AppearanceContext";
 import { useAuth } from "@/context/AuthContext";
 import { useTheme } from "@/context/ThemeContext";
 
@@ -44,6 +45,7 @@ function friendlyAuthError(e: unknown): string {
 }
 
 export default function SignInScreen() {
+  const styles = useStyles();
   const {
     signIn,
     signUp,
@@ -320,10 +322,10 @@ export default function SignInScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = makeStyles((c) => ({
   safe: {
     flex: 1,
-    backgroundColor: Palette.bg,
+    backgroundColor: c.bg,
   },
   scroll: {
     flexGrow: 1,
@@ -351,12 +353,12 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 34,
     fontWeight: "800",
-    color: Palette.text,
+    color: c.text,
     letterSpacing: -0.5,
   },
   subtitle: {
     fontSize: 15,
-    color: Palette.textTertiary,
+    color: c.textTertiary,
   },
   providers: {
     gap: Spacing.three,
@@ -387,12 +389,12 @@ const styles = StyleSheet.create({
   dividerLine: {
     flex: 1,
     height: StyleSheet.hairlineWidth,
-    backgroundColor: Palette.border,
+    backgroundColor: c.border,
   },
   dividerText: {
     fontSize: 12,
     fontWeight: "600",
-    color: Palette.textTertiary,
+    color: c.textTertiary,
     textTransform: "uppercase",
     letterSpacing: 1,
   },
@@ -401,7 +403,7 @@ const styles = StyleSheet.create({
   },
   passwordHint: {
     fontSize: 13,
-    color: Palette.textTertiary,
+    color: c.textTertiary,
     marginTop: -Spacing.one,
     paddingHorizontal: Spacing.one,
   },
@@ -435,7 +437,7 @@ const styles = StyleSheet.create({
   },
   guestSeparator: {
     height: StyleSheet.hairlineWidth,
-    backgroundColor: Palette.border,
+    backgroundColor: c.border,
   },
   // Matches the provider buttons' height and radius so it sits in the same
   // family, but outlined on the background instead of filled — present without
@@ -446,29 +448,29 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     borderRadius: Radius.md,
     borderWidth: 1,
-    borderColor: Palette.borderStrong,
+    borderColor: c.borderStrong,
   },
   guestButtonText: {
     fontSize: 15,
     fontWeight: "600",
-    color: Palette.textSecondary,
+    color: c.textSecondary,
   },
   guestHint: {
     fontSize: 12,
     lineHeight: 16,
-    color: Palette.textTertiary,
+    color: c.textTertiary,
     textAlign: "center",
   },
   dismissText: {
     fontSize: 14,
     fontWeight: "600",
-    color: Palette.textSecondary,
+    color: c.textSecondary,
   },
   switchText: {
     fontSize: 14,
-    color: Palette.textTertiary,
+    color: c.textTertiary,
   },
   switchLink: {
     fontWeight: "600",
   },
-});
+}));

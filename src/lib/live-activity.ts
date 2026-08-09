@@ -6,6 +6,13 @@ import type { LiveActivityState } from "expo-live-activity";
 import type { Theme } from "@/constants/theme";
 import type { Workout } from "@/types";
 
+/**
+ * Only the two fields the widget actually reads. Structural rather than `Theme`
+ * so a mode-resolved theme satisfies it too — the widget's colours are frozen
+ * when the activity starts and never follow the app's light/dark mode.
+ */
+type ActivityTheme = Pick<Theme, "id" | "activityTint">;
+
 // Live Activities are a native iOS 16.2+ feature compiled into dev/production
 // builds — Expo Go doesn't have the module, so everything here no-ops there
 // (same pattern as google-signin.ts). On unsupported iOS versions the plugin's
@@ -23,7 +30,9 @@ function nativeModule(): typeof import("expo-live-activity") | null {
   }
 }
 
-// The chrome mirrors Palette (constants/theme) but stays hardcoded hex — the
+// The chrome mirrors PALETTES.dark (constants/theme) but stays hardcoded hex —
+// dark in both app modes, because this renders on the lock screen and its
+// colours are frozen when the activity starts. The
 // native widget only parses plain hex strings, not rgba(). The progress tint is
 // the one themed colour, so it arrives per-call instead (see startWorkoutActivity).
 const ACTIVITY_STYLE = {
@@ -44,7 +53,7 @@ const ACTIVITY_STYLE = {
  * when the activity starts, the image is part of the state and travels with
  * every update.
  */
-export function activityImage(theme: Theme): string {
+export function activityImage(theme: ActivityTheme): string {
   return `plato-logo-${theme.id}`;
 }
 
@@ -52,7 +61,7 @@ function workoutState(
   workout: Workout,
   doneSets: number,
   totalSets: number,
-  theme: Theme,
+  theme: ActivityTheme,
   restEndsAt: number | null
 ) {
   return {
@@ -97,7 +106,7 @@ export function startWorkoutActivity(
   workout: Workout,
   doneSets: number,
   totalSets: number,
-  theme: Theme,
+  theme: ActivityTheme,
   restEndsAt: number | null
 ): string | undefined {
   const mod = nativeModule();
@@ -123,7 +132,7 @@ export function updateWorkoutActivity(
   workout: Workout,
   doneSets: number,
   totalSets: number,
-  theme: Theme,
+  theme: ActivityTheme,
   restEndsAt: number | null
 ): boolean {
   const mod = nativeModule();
@@ -138,7 +147,7 @@ export function updateWorkoutActivity(
 }
 
 /** Ends the activity — the final state is what iOS shows while it dismisses. */
-export function stopWorkoutActivity(activityId: string, title: string, theme: Theme) {
+export function stopWorkoutActivity(activityId: string, title: string, theme: ActivityTheme) {
   const mod = nativeModule();
   if (!mod) return;
   try {

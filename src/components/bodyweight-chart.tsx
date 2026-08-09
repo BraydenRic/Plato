@@ -1,8 +1,9 @@
 import { useMemo, useState } from "react";
-import { PanResponder, StyleSheet, Text, View } from "react-native";
+import { PanResponder, Text, View } from "react-native";
 import Svg, { Circle, Defs, Line, LinearGradient, Path, Stop } from "react-native-svg";
 
-import { FontScaleCap, Palette, Spacing } from "@/constants/theme";
+import { FontScaleCap, Spacing } from "@/constants/theme";
+import { makeStyles, usePalette } from "@/context/AppearanceContext";
 import { useTheme } from "@/context/ThemeContext";
 import { convertWeight } from "@/lib/workout-utils";
 import type { BodyweightEntry } from "@/types";
@@ -51,6 +52,8 @@ export function BodyweightChart({
   unit: "lbs" | "kg";
   height?: number;
 }) {
+  const styles = useStyles();
+  const palette = usePalette();
   const theme = useTheme();
   const [width, setWidth] = useState(0);
   const [scrubbed, setScrubbed] = useState<number | null>(null);
@@ -182,7 +185,7 @@ export function BodyweightChart({
                   x2={width - pad.right}
                   y1={geometry.y(t)}
                   y2={geometry.y(t)}
-                  stroke={Palette.border}
+                  stroke={palette.border}
                   strokeWidth={1}
                 />
               ))}
@@ -228,7 +231,7 @@ export function BodyweightChart({
                 cy={geometry.y(geometry.values[shownIndex])}
                 r={4}
                 fill={theme.accent}
-                stroke={Palette.surface}
+                stroke={palette.surface}
                 strokeWidth={2}
               />
             </Svg>
@@ -265,7 +268,7 @@ export function BodyweightChart({
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = makeStyles((c) => ({
   readout: {
     flexDirection: "row",
     alignItems: "baseline",
@@ -275,7 +278,7 @@ const styles = StyleSheet.create({
   },
   readoutDate: {
     fontSize: 12,
-    color: Palette.textTertiary,
+    color: c.textTertiary,
   },
   readoutValue: {
     fontSize: 15,
@@ -285,7 +288,7 @@ const styles = StyleSheet.create({
   tick: {
     position: "absolute",
     fontSize: 11,
-    color: Palette.textTertiary,
+    color: c.textTertiary,
     fontVariant: ["tabular-nums"],
   },
   axis: {
@@ -296,7 +299,7 @@ const styles = StyleSheet.create({
   },
   axisLabel: {
     fontSize: 11,
-    color: Palette.textTertiary,
+    color: c.textTertiary,
     fontVariant: ["tabular-nums"],
   },
-});
+}));

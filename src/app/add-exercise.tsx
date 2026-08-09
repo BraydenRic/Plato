@@ -4,7 +4,6 @@ import {
   FlatList,
   Pressable,
   ScrollView,
-  StyleSheet,
   Text,
   View,
 } from "react-native";
@@ -13,7 +12,8 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import Ionicons from "@expo/vector-icons/Ionicons";
 
 import { Chip, Field } from "@/components/ui";
-import { Palette, Radius, Spacing } from "@/constants/theme";
+import { Radius, Spacing } from "@/constants/theme";
+import { makeStyles } from "@/context/AppearanceContext";
 import { useWeightUnit } from "@/context/UnitContext";
 import { useTheme } from "@/context/ThemeContext";
 import { useDefaultSets } from "@/context/DefaultSetsContext";
@@ -24,6 +24,7 @@ import { newId } from "@/lib/workout-utils";
 import type { Exercise, Workout, WorkoutExercise, WorkoutSet } from "@/types";
 
 export default function AddExerciseModal() {
+  const styles = useStyles();
   const { workoutId } = useLocalSearchParams<{ workoutId: string }>();
   const router = useRouter();
   const { exercises } = useExerciseLibrary();
@@ -199,10 +200,10 @@ export default function AddExerciseModal() {
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = makeStyles((c) => ({
   safe: {
     flex: 1,
-    backgroundColor: Palette.bg,
+    backgroundColor: c.bg,
   },
   header: {
     flexDirection: "row",
@@ -214,7 +215,7 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 20,
     fontWeight: "800",
-    color: Palette.text,
+    color: c.text,
   },
   done: {
     fontSize: 16,
@@ -237,23 +238,23 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: Spacing.three,
-    backgroundColor: Palette.surface,
+    backgroundColor: c.surface,
     borderWidth: 1,
-    borderColor: Palette.border,
+    borderColor: c.border,
     borderRadius: Radius.md,
     padding: Spacing.three,
   },
   rowAdded: {
-    borderColor: Palette.success,
+    borderColor: c.success,
   },
   rowName: {
     fontSize: 15,
     fontWeight: "600",
-    color: Palette.text,
+    color: c.text,
   },
   rowMeta: {
     fontSize: 12,
-    color: Palette.textTertiary,
+    color: c.textTertiary,
   },
   addIcon: {
     width: 30,
@@ -263,6 +264,6 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   addIconDone: {
-    backgroundColor: Palette.success,
+    backgroundColor: c.success,
   },
-});
+}));

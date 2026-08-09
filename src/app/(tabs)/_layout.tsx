@@ -1,12 +1,15 @@
 import { Tabs } from "expo-router";
 import Ionicons from "@expo/vector-icons/Ionicons";
-import { StyleSheet, View, useWindowDimensions } from "react-native";
+import { View, useWindowDimensions } from "react-native";
 
 import { ActiveWorkoutBar } from "@/components/active-workout-bar";
-import { Palette, TabLabelMaxFontScale } from "@/constants/theme";
+import { TabLabelMaxFontScale } from "@/constants/theme";
+import { makeStyles, usePalette } from "@/context/AppearanceContext";
 import { useTheme } from "@/context/ThemeContext";
 
 export default function TabLayout() {
+  const styles = useStyles();
+  const palette = usePalette();
   // The bar's height is fixed, so oversized labels get clipped rather than
   // wrapped. Above the threshold the icons carry the meaning on their own.
   const { fontScale } = useWindowDimensions();
@@ -30,13 +33,13 @@ export default function TabLayout() {
         screenOptions={{
           headerShown: false,
           tabBarActiveTintColor: theme.accentText,
-          tabBarInactiveTintColor: Palette.textTertiary,
+          tabBarInactiveTintColor: palette.textTertiary,
           tabBarShowLabel: fontScale <= TabLabelMaxFontScale,
           tabBarStyle: {
-            backgroundColor: Palette.surface,
-            borderTopColor: Palette.border,
+            backgroundColor: palette.surface,
+            borderTopColor: palette.border,
           },
-          sceneStyle: { backgroundColor: Palette.bg },
+          sceneStyle: { backgroundColor: palette.bg },
         }}>
         <Tabs.Screen
           name="index"
@@ -79,9 +82,9 @@ export default function TabLayout() {
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = makeStyles((c) => ({
   root: {
     flex: 1,
-    backgroundColor: Palette.bg,
+    backgroundColor: c.bg,
   },
-});
+}));

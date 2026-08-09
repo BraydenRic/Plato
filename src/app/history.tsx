@@ -1,11 +1,12 @@
 import { useMemo } from "react";
-import { Alert, Pressable, SectionList, StyleSheet, Text, View } from "react-native";
+import { Alert, Pressable, SectionList, Text, View } from "react-native";
 import { useRouter } from "expo-router";
 import Ionicons from "@expo/vector-icons/Ionicons";
 
 import { ActiveWorkoutBar } from "@/components/active-workout-bar";
 import { Card, EmptyState } from "@/components/ui";
-import { Palette, Radius, Spacing } from "@/constants/theme";
+import { Radius, Spacing } from "@/constants/theme";
+import { makeStyles, usePalette } from "@/context/AppearanceContext";
 import { useWorkouts } from "@/hooks/use-workouts";
 import { deleteWorkout } from "@/lib/data";
 import { useWeightUnit } from "@/context/UnitContext";
@@ -14,6 +15,8 @@ import { completedSetCount, displayVolume, workoutVolumeLbs } from "@/lib/workou
 import type { Workout } from "@/types";
 
 export default function HistoryScreen() {
+  const styles = useStyles();
+  const palette = usePalette();
   const router = useRouter();
   const { completed, loading } = useWorkouts();
 
@@ -41,7 +44,7 @@ export default function HistoryScreen() {
       <ActiveWorkoutBar />
       <View style={styles.header}>
         <Pressable onPress={() => router.back()} hitSlop={12} style={styles.backButton}>
-          <Ionicons name="chevron-back" size={22} color={Palette.textSecondary} />
+          <Ionicons name="chevron-back" size={22} color={palette.textSecondary} />
         </Pressable>
         <View style={{ flex: 1, gap: 2 }}>
           <Text style={styles.title}>History</Text>
@@ -84,6 +87,8 @@ function HistoryRow({
   onPress: () => void;
   onLongPress: () => void;
 }) {
+  const styles = useStyles();
+  const palette = usePalette();
   const { unit } = useWeightUnit();
   const theme = useTheme();
   const volume = workout.totalVolume ?? workoutVolumeLbs(workout);
@@ -102,7 +107,7 @@ function HistoryRow({
           {volume > 0 ? (
             <Text style={[styles.volume, { color: theme.accentText }]}>{displayVolume(volume, unit)}</Text>
           ) : (
-            <Ionicons name="chevron-forward" size={16} color={Palette.textTertiary} />
+            <Ionicons name="chevron-forward" size={16} color={palette.textTertiary} />
           )}
         </Card>
       )}
@@ -110,10 +115,10 @@ function HistoryRow({
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = makeStyles((c) => ({
   safe: {
     flex: 1,
-    backgroundColor: Palette.bg,
+    backgroundColor: c.bg,
   },
   header: {
     flexDirection: "row",
@@ -125,19 +130,19 @@ const styles = StyleSheet.create({
     width: 34,
     height: 34,
     borderRadius: Radius.full,
-    backgroundColor: Palette.surfaceRaised,
+    backgroundColor: c.surfaceRaised,
     alignItems: "center",
     justifyContent: "center",
   },
   title: {
     fontSize: 24,
     fontWeight: "800",
-    color: Palette.text,
+    color: c.text,
     letterSpacing: -0.5,
   },
   subtitle: {
     fontSize: 13,
-    color: Palette.textTertiary,
+    color: c.textTertiary,
   },
   list: {
     paddingHorizontal: Spacing.three,
@@ -149,7 +154,7 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     letterSpacing: 1,
     textTransform: "uppercase",
-    color: Palette.textTertiary,
+    color: c.textTertiary,
     marginTop: Spacing.three,
     marginBottom: Spacing.one,
   },
@@ -162,15 +167,15 @@ const styles = StyleSheet.create({
   rowTitle: {
     fontSize: 16,
     fontWeight: "600",
-    color: Palette.text,
+    color: c.text,
   },
   rowMeta: {
     fontSize: 13,
-    color: Palette.textTertiary,
+    color: c.textTertiary,
   },
   volume: {
     fontSize: 14,
     fontWeight: "700",
     fontVariant: ["tabular-nums"],
   },
-});
+}));

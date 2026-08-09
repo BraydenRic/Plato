@@ -1,8 +1,9 @@
 import { useState } from "react";
-import { StyleSheet, Text, View } from "react-native";
+import { Text, View } from "react-native";
 import Body, { type ExtendedBodyPart } from "react-native-body-highlighter";
 
-import { Palette } from "@/constants/theme";
+import { FIGURE_BODY } from "@/constants/theme";
+import { makeStyles } from "@/context/AppearanceContext";
 import { useTheme } from "@/context/ThemeContext";
 
 type Slug = NonNullable<ExtendedBodyPart["slug"]>;
@@ -64,11 +65,12 @@ interface MuscleMapProps {
   secondaryMuscles?: string[];
 }
 
-// The library hardcodes #3f3f3f on most body parts, so the default fill must
+// The library hardcodes FIGURE_BODY on most body parts, so the default fill must
 // match it exactly or reset parts (like the head) come out a different tone.
-// Seams between muscles show the layer behind the shapes, so it's a hair
-// darker than the fill rather than near-black.
-const BODY_GREY = "#3f3f3f";
+// That is also why the figure stays dark in light mode — the fill is only ours
+// for the parts passed in `data`, and the rest of the silhouette is the
+// library's own. Seams between muscles show the layer behind the shapes, so
+// they sit a hair darker than the fill rather than near-black.
 const SEAM = "#37373c";
 
 // The library's figures are 200pt wide each at scale 1 — too wide for two
@@ -79,6 +81,7 @@ const FIGURE_BASE_WIDTH = 200;
 // primary target muscle first, so it gets the solid accent and the rest of the
 // list gets the muted shade — both follow the chosen theme.
 export function MuscleMap({ musclesWorked, secondaryMuscles }: MuscleMapProps) {
+  const styles = useStyles();
   const [rowWidth, setRowWidth] = useState(0);
   const theme = useTheme();
   const scale = rowWidth > 0 ? Math.min((rowWidth / 2 - 8) / FIGURE_BASE_WIDTH, 1) : 0;
@@ -109,9 +112,9 @@ export function MuscleMap({ musclesWorked, secondaryMuscles }: MuscleMapProps) {
                 side={side}
                 gender="male"
                 scale={scale}
-                colors={[theme.accent, theme.accentMuted]}
+                colors={[theme.figure.primary, theme.figure.secondary]}
                 border={SEAM}
-                defaultFill={BODY_GREY}
+                defaultFill={FIGURE_BODY}
               />
               <Text style={styles.label}>{side}</Text>
             </View>
@@ -120,13 +123,13 @@ export function MuscleMap({ musclesWorked, secondaryMuscles }: MuscleMapProps) {
       <View style={styles.legend}>
         {primarySlugs.length > 0 && (
           <>
-            <View style={[styles.legendDot, { backgroundColor: theme.accent }]} />
+            <View style={[styles.legendDot, { backgroundColor: theme.figure.primary }]} />
             <Text style={styles.legendText}>Primary</Text>
           </>
         )}
         {secondarySlugs.length > 0 && (
           <>
-            <View style={[styles.legendDot, { backgroundColor: theme.accentMuted }]} />
+            <View style={[styles.legendDot, { backgroundColor: theme.figure.secondary }]} />
             <Text style={styles.legendText}>Secondary</Text>
           </>
         )}
@@ -135,7 +138,7 @@ export function MuscleMap({ musclesWorked, secondaryMuscles }: MuscleMapProps) {
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = makeStyles((c) => ({
   wrap: {
     gap: 12,
   },
@@ -151,7 +154,7 @@ const styles = StyleSheet.create({
   label: {
     fontSize: 11,
     fontWeight: "600",
-    color: Palette.textTertiary,
+    color: c.textTertiary,
     textTransform: "uppercase",
     letterSpacing: 1,
   },
@@ -169,6 +172,6 @@ const styles = StyleSheet.create({
   },
   legendText: {
     fontSize: 11,
-    color: Palette.textTertiary,
+    color: c.textTertiary,
   },
-});
+}));

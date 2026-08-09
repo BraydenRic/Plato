@@ -1,12 +1,13 @@
 import { useMemo, useState } from "react";
-import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Alert, Pressable, ScrollView, Text, View } from "react-native";
 import { useRouter } from "expo-router";
 import Ionicons from "@expo/vector-icons/Ionicons";
 
 import { ActiveWorkoutBar } from "@/components/active-workout-bar";
 import { BodyweightChart } from "@/components/bodyweight-chart";
 import { Button, Card, EmptyState, SectionLabel } from "@/components/ui";
-import { FontScaleCap, Palette, Radius, Spacing } from "@/constants/theme";
+import { FontScaleCap, Radius, Spacing } from "@/constants/theme";
+import { makeStyles, usePalette } from "@/context/AppearanceContext";
 import { useTheme } from "@/context/ThemeContext";
 import { useWeightUnit } from "@/context/UnitContext";
 import { useBodyweight } from "@/hooks/use-bodyweight";
@@ -28,6 +29,8 @@ const RANGES = [
 ] as const;
 
 export default function BodyweightScreen() {
+  const styles = useStyles();
+  const palette = usePalette();
   const router = useRouter();
   const theme = useTheme();
   const { unit } = useWeightUnit();
@@ -118,7 +121,7 @@ export default function BodyweightScreen() {
       <ActiveWorkoutBar />
       <View style={styles.header}>
         <Pressable onPress={() => router.back()} hitSlop={12} style={styles.backButton}>
-          <Ionicons name="chevron-back" size={22} color={Palette.textSecondary} />
+          <Ionicons name="chevron-back" size={22} color={palette.textSecondary} />
         </Pressable>
         <View style={{ flex: 1, gap: 2 }}>
           <Text style={styles.title}>Bodyweight</Text>
@@ -147,7 +150,7 @@ export default function BodyweightScreen() {
                     <Ionicons
                       name={delta > 0 ? "arrow-up" : delta < 0 ? "arrow-down" : "remove"}
                       size={13}
-                      color={Palette.textSecondary}
+                      color={palette.textSecondary}
                     />
                     <Text style={styles.delta} maxFontSizeMultiplier={FontScaleCap.grid}>
                       {Math.abs(delta)} {unit} · {rangeKey === "All" ? "all time" : rangeKey}
@@ -221,7 +224,7 @@ export default function BodyweightScreen() {
                         maxFontSizeMultiplier={FontScaleCap.grid}>
                         {Math.round(convertWeight(entry.lbs, "lbs", unit) * 10) / 10} {unit}
                       </Text>
-                      <Ionicons name="chevron-forward" size={16} color={Palette.textTertiary} />
+                      <Ionicons name="chevron-forward" size={16} color={palette.textTertiary} />
                     </Pressable>
                   );
                 })}
@@ -234,10 +237,10 @@ export default function BodyweightScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = makeStyles((c) => ({
   safe: {
     flex: 1,
-    backgroundColor: Palette.bg,
+    backgroundColor: c.bg,
   },
   header: {
     flexDirection: "row",
@@ -250,19 +253,19 @@ const styles = StyleSheet.create({
     width: 36,
     height: 36,
     borderRadius: Radius.full,
-    backgroundColor: Palette.surfaceRaised,
+    backgroundColor: c.surfaceRaised,
     alignItems: "center",
     justifyContent: "center",
   },
   title: {
     fontSize: 28,
     fontWeight: "800",
-    color: Palette.text,
+    color: c.text,
     letterSpacing: -0.5,
   },
   subtitle: {
     fontSize: 14,
-    color: Palette.textTertiary,
+    color: c.textTertiary,
   },
   scroll: {
     padding: Spacing.three,
@@ -278,14 +281,14 @@ const styles = StyleSheet.create({
   big: {
     fontSize: 36,
     fontWeight: "800",
-    color: Palette.text,
+    color: c.text,
     letterSpacing: -1,
     fontVariant: ["tabular-nums"],
   },
   bigUnit: {
     fontSize: 17,
     fontWeight: "700",
-    color: Palette.textTertiary,
+    color: c.textTertiary,
     letterSpacing: 0,
   },
   deltaWrap: {
@@ -295,7 +298,7 @@ const styles = StyleSheet.create({
   },
   delta: {
     fontSize: 13,
-    color: Palette.textSecondary,
+    color: c.textSecondary,
     fontVariant: ["tabular-nums"],
   },
   ranges: {
@@ -308,17 +311,17 @@ const styles = StyleSheet.create({
     paddingVertical: 7,
     borderRadius: Radius.sm,
     borderWidth: 1,
-    borderColor: Palette.border,
-    backgroundColor: Palette.surfaceRaised,
+    borderColor: c.border,
+    backgroundColor: c.surfaceRaised,
   },
   rangeText: {
     fontSize: 13,
     fontWeight: "700",
-    color: Palette.textSecondary,
+    color: c.textSecondary,
   },
   rangeEmpty: {
     fontSize: 13,
-    color: Palette.textTertiary,
+    color: c.textTertiary,
     lineHeight: 19,
     paddingVertical: Spacing.three,
   },
@@ -336,20 +339,20 @@ const styles = StyleSheet.create({
   },
   logRowBorder: {
     borderTopWidth: 1,
-    borderTopColor: Palette.border,
+    borderTopColor: c.border,
   },
   logDate: {
     fontSize: 15,
     fontWeight: "600",
-    color: Palette.text,
+    color: c.text,
   },
   logMeta: {
     fontSize: 12,
-    color: Palette.textTertiary,
+    color: c.textTertiary,
   },
   logValue: {
     fontSize: 15,
     fontWeight: "700",
     fontVariant: ["tabular-nums"],
   },
-});
+}));
