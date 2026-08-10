@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import Constants, { ExecutionEnvironment } from "expo-constants";
 
@@ -13,15 +13,6 @@ import {
 import { useMode } from "@/context/AppearanceContext";
 
 const STORAGE_KEY = "theme_id";
-
-/**
- * How long the icon waits for the tapping to stop.
- *
- * Long enough to sit out a run along the swatch row, short enough that the
- * alert still reads as a consequence of what you just did rather than arriving
- * out of nowhere.
- */
-const ICON_SETTLE_MS = 2000;
 
 // Alternate icons are compiled into dev/production builds by the config plugin,
 // so the module is missing in Expo Go — same lazy-require dance as
@@ -45,8 +36,8 @@ function iconModule(): typeof import("expo-alternate-app-icons") | null {
  * someone who just tapped a colour swatch. The in-app theme is the thing they
  * asked for and it has already applied — a missing icon shouldn't undo it.
  *
- * Called once the tapping has settled rather than at each tap; see the effect
- * in ThemeProvider for why.
+ * Swallowing the error is also why three attempts at deferring this call could
+ * never be diagnosed — see setThemeId.
  */
 async function applyAppIcon(iconName: string | null) {
   const mod = iconModule();
@@ -75,9 +66,6 @@ const ThemeContext = createContext<{
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const [themeId, setThemeIdState] = useState<ThemeId>(DEFAULT_THEME_ID);
-  // undefined means "nothing asked for"; null is a real value meaning the
-  // bundled icon, so the two can't be collapsed.
-  const pendingIcon = useRef<string | null | undefined>(undefined);
 
   useEffect(() => {
     AsyncStorage.getItem(STORAGE_KEY).then((raw) => {
@@ -85,48 +73,30 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     });
   }, []);
 
+  /*
+   * Applied at the tap, which means iOS raises "You have changed the icon for
+   * Plato" every time. That is deliberate, after three attempts at avoiding it:
+   *
+   *  - Swizzling UIViewController.present to swallow the alert. Shipped and
+   *    compiled — the selector is in build 41's binary — and did not intercept.
+   *    Whatever presents that alert does not go through the app's own present.
+   *  - Applying on the transition to background, where there is no foreground
+   *    to alert over. Silent, and the icon never changed: the app suspends
+   *    before the call lands and the error is swallowed.
+   *  - Applying after a two-second pause in the tapping, still in the
+   *    foreground. Also never changed the icon, for reasons never established.
+   *
+   * Only the immediate call is known to actually work, so the alert is the
+   * price. Anyone tempted to defer this again: builds 41 through 44 are the
+   * record of that not working, and the next attempt needs the swallowed error
+   * surfaced first — `applyAppIcon` hides exactly the diagnostic that would
+   * explain why the deferred calls failed.
+   */
   const setThemeId = useCallback((id: ThemeId) => {
     setThemeIdState(id);
     AsyncStorage.setItem(STORAGE_KEY, id);
-    pendingIcon.current = THEMES[id].iconName;
+    applyAppIcon(THEMES[id].iconName);
   }, []);
-
-  /*
-   * The icon follows once you've settled on an accent, not on every tap.
-   *
-   * iOS answers each successful change with "You have changed the icon for
-   * Plato" — raised by the system, with no public way to decline it — so
-   * applying per tap meant an alert for every swatch tried on the way past.
-   *
-   * Two attempts at removing the alert outright are recorded here so they don't
-   * get made a third time:
-   *
-   *  - Swizzling UIViewController.present to swallow it. Shipped and compiled
-   *    (the selector is in build 41's binary) and did not intercept — whatever
-   *    presents that alert does not go through the app's own present.
-   *  - Applying it on the way to the background, where there is no foreground
-   *    to alert over. The alert stayed away and so did the icon change: the app
-   *    suspends before the call lands, and it fails silently.
-   *
-   * There is no sanctioned way to have the icon follow the accent *and* stay
-   * silent. What's left is to ask as rarely as possible: the swap waits for a
-   * pause in the tapping and then applies once, so trying on all seven accents
-   * costs one alert rather than seven, at the moment you've stopped.
-   *
-   * A pending ref rather than the theme itself, because only a deliberate
-   * choice should move the icon — restoring the stored theme at launch must
-   * not, or every cold start would open with an alert.
-   */
-  useEffect(() => {
-    if (pendingIcon.current === undefined) return;
-    const timer = setTimeout(() => {
-      const icon = pendingIcon.current;
-      pendingIcon.current = undefined;
-      if (icon !== undefined) applyAppIcon(icon);
-    }, ICON_SETTLE_MS);
-    // Each further tap restarts the wait, so only where you land is applied.
-    return () => clearTimeout(timer);
-  }, [themeId]);
 
   const value = useMemo(() => ({ themeId, setThemeId }), [themeId, setThemeId]);
 

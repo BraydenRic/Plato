@@ -37,25 +37,13 @@ jest.mock("expo-alternate-app-icons", () => ({
   getAppIconName: () => mockGetAppIconName(),
 }));
 
-/** Wait out the settle delay, which is when the icon is applied. */
-async function settleIcon() {
-  await act(async () => {
-    jest.advanceTimersByTime(2000);
-    await Promise.resolve();
-  });
-}
-
 beforeEach(async () => {
   await AsyncStorage.clear();
   jest.clearAllMocks();
-  jest.useFakeTimers();
   mockSupportsAlternateIcons = true;
   mockGetAppIconName.mockReturnValue(null);
 });
 
-afterEach(() => {
-  jest.useRealTimers();
-});
 
 function mountPicker() {
   const box: { current: ReturnType<typeof useThemePicker> } = { current: undefined! };
@@ -150,58 +138,18 @@ describe("choosing a theme", () => {
 
 describe("the home screen icon", () => {
   /*
-   * Applied once the tapping settles, never per tap.
+   * Applied immediately, which is the only timing known to actually work.
    *
-   * iOS raises "You have changed the icon for Plato" on every successful
-   * change, from the system, with no way to decline it — so applying per tap
-   * meant an alert for every swatch someone tried. Both attempts at removing
-   * the alert outright failed (see ThemeContext), so what is left is asking
-   * once instead of seven times.
-   *
-   * Both halves matter here. Build 42 was perfectly silent because it applied
-   * the icon while backgrounding, where the call never lands — which from
-   * inside the app is indistinguishable from working.
+   * Three deferred variants shipped and none of them moved the icon (see
+   * ThemeContext for the list). The lesson worth keeping in a test: "no alert"
+   * and "no icon change" look identical from inside the app, so assert that the
+   * call happens rather than only that it stays quiet.
    */
-  it("stays quiet while accents are being tried on", async () => {
-    const ctx = mountPicker();
-    await settle();
-
-    await act(async () => ctx.current.setThemeId("amber"));
-    await act(async () => ctx.current.setThemeId("cyan"));
-    await act(async () => ctx.current.setThemeId("magenta"));
-
-    // The reported bug: seven swatches, seven alerts.
-    expect(mockSetAlternateAppIcon).not.toHaveBeenCalled();
-  });
-
-  it("does change it once you have stopped", async () => {
-    // The other half, and the regression that shipped in build 42: silent
-    // because it never applied at all.
-    const ctx = mountPicker();
-    await settle();
-    await act(async () => ctx.current.setThemeId("amber"));
-    await settleIcon();
-    expect(mockSetAlternateAppIcon).toHaveBeenCalledWith("Amber");
-  });
-
   it("switches to the alternate registered for the theme", async () => {
     const ctx = mountPicker();
     await settle();
     await act(async () => ctx.current.setThemeId("amber"));
-    await settleIcon();
     expect(mockSetAlternateAppIcon).toHaveBeenCalledWith("Amber");
-  });
-
-  it("applies only where you landed, not every accent on the way", async () => {
-    const ctx = mountPicker();
-    await settle();
-    await act(async () => ctx.current.setThemeId("amber"));
-    await act(async () => ctx.current.setThemeId("cyan"));
-    await act(async () => ctx.current.setThemeId("cobalt"));
-    await settleIcon();
-
-    expect(mockSetAlternateAppIcon).toHaveBeenCalledTimes(1);
-    expect(mockSetAlternateAppIcon).toHaveBeenCalledWith("Cobalt");
   });
 
   it("clears the alternate for the theme that owns the bundled icon", async () => {
@@ -209,7 +157,6 @@ describe("the home screen icon", () => {
     const ctx = mountPicker();
     await settle();
     await act(async () => ctx.current.setThemeId("graphite"));
-    await settleIcon();
     // null is the plugin's "go back to the default icon".
     expect(mockSetAlternateAppIcon).toHaveBeenCalledWith(null);
   });
@@ -219,23 +166,7 @@ describe("the home screen icon", () => {
     const ctx = mountPicker();
     await settle();
     await act(async () => ctx.current.setThemeId("cobalt"));
-    await settleIcon();
     // A redundant call would raise the system alert for a change that isn't one.
-    expect(mockSetAlternateAppIcon).not.toHaveBeenCalled();
-  });
-
-  it("holds off while the tapping is still going", async () => {
-    // Each tap restarts the wait, so a run along the swatch row raises nothing
-    // until it stops.
-    const ctx = mountPicker();
-    await settle();
-    for (const id of ["amber", "cyan", "magenta"] as const) {
-      await act(async () => ctx.current.setThemeId(id));
-      await act(async () => {
-        jest.advanceTimersByTime(1500);
-        await Promise.resolve();
-      });
-    }
     expect(mockSetAlternateAppIcon).not.toHaveBeenCalled();
   });
 
@@ -244,7 +175,6 @@ describe("the home screen icon", () => {
     const ctx = mountPicker();
     await settle();
     await act(async () => ctx.current.setThemeId("cyan"));
-    await settleIcon();
     expect(ctx.current.themeId).toBe("cyan");
     expect(mockSetAlternateAppIcon).not.toHaveBeenCalled();
   });
@@ -254,7 +184,6 @@ describe("the home screen icon", () => {
     const ctx = mountPicker();
     await settle();
     await act(async () => ctx.current.setThemeId("magenta"));
-    await settleIcon();
     // The colour is what was asked for; a failed icon must not undo it.
     expect(ctx.current.themeId).toBe("magenta");
     expect(await AsyncStorage.getItem("theme_id")).toBe("magenta");
@@ -262,12 +191,9 @@ describe("the home screen icon", () => {
 
   it("does not touch the icon on launch, only on an explicit choice", async () => {
     // Re-applying at startup would make iOS show its alert every cold start.
-    // The settle has to be waited out, not skipped: without it this passes
-    // simply because no timer has fired yet, which proves nothing.
     await AsyncStorage.setItem("theme_id", "cyan");
     mountPicker();
     await settle();
-    await settleIcon();
     expect(mockSetAlternateAppIcon).not.toHaveBeenCalled();
   });
 });
