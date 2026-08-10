@@ -1,6 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import Constants, { ExecutionEnvironment } from "expo-constants";
+import { AppState } from "react-native";
 
 import {
   DEFAULT_THEME_ID,
@@ -32,10 +33,12 @@ function iconModule(): typeof import("expo-alternate-app-icons") | null {
 /**
  * Pushes the home screen icon to match the theme.
  *
- * Deliberately fire-and-forget: iOS puts up its own "You have changed the icon
- * for Plato" alert on success, and on failure there is nothing useful to tell
+ * Deliberately fire-and-forget: on failure there is nothing useful to tell
  * someone who just tapped a colour swatch. The in-app theme is the thing they
  * asked for and it has already applied — a missing icon shouldn't undo it.
+ *
+ * Called on the way to the background rather than at the tap; see the effect in
+ * ThemeProvider for why.
  */
 async function applyAppIcon(iconName: string | null) {
   const mod = iconModule();
@@ -74,8 +77,35 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const setThemeId = useCallback((id: ThemeId) => {
     setThemeIdState(id);
     AsyncStorage.setItem(STORAGE_KEY, id);
-    applyAppIcon(THEMES[id].iconName);
   }, []);
+
+  /*
+   * The icon is swapped on the way out of the app, not when the swatch is
+   * tapped.
+   *
+   * iOS answers every icon change with "You have changed the icon for Plato",
+   * presented by the system with no public way to decline it — so tapping
+   * through seven accents to find one meant seven alerts. (A previous attempt
+   * swizzled UIViewController.present to swallow the alert. It shipped, it
+   * compiled, and it did not intercept: whatever presents that alert on current
+   * iOS does not go through the app's own present. It was removed.)
+   *
+   * Backgrounding is the honest fix rather than a trick. There is no foreground
+   * UI to raise an alert over at that point, and the home screen icon is a thing
+   * you can only *see* once you have left — so the moment you leave is exactly
+   * when it needs to be right, and never a moment sooner. Browsing accents is
+   * silent because nothing is applied while you browse.
+   *
+   * Keyed on themeId rather than a pending flag so it also repairs drift: if a
+   * change was ever missed, the next trip to the background puts the icon back
+   * in step. applyAppIcon no-ops when it already matches.
+   */
+  useEffect(() => {
+    const sub = AppState.addEventListener("change", (next) => {
+      if (next === "background") applyAppIcon(THEMES[themeId].iconName);
+    });
+    return () => sub.remove();
+  }, [themeId]);
 
   const value = useMemo(() => ({ themeId, setThemeId }), [themeId, setThemeId]);
 
