@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import Constants, { ExecutionEnvironment } from "expo-constants";
 
@@ -10,7 +10,7 @@ import {
   type ResolvedTheme,
   type ThemeId,
 } from "@/constants/theme";
-import { useMode } from "@/context/AppearanceContext";
+import { useAppearance } from "@/context/AppearanceContext";
 
 const STORAGE_KEY = "theme_id";
 
@@ -66,6 +66,12 @@ const ThemeContext = createContext<{
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const [themeId, setThemeIdState] = useState<ThemeId>(DEFAULT_THEME_ID);
+  const { mode, changes } = useAppearance();
+  // Nothing touches the icon until the user has actually chosen something.
+  // Both stored values arrive asynchronously after mount, so without this a
+  // cold start would move the icon — and every cold start would open with iOS's
+  // alert.
+  const chosen = useRef(false);
 
   useEffect(() => {
     AsyncStorage.getItem(STORAGE_KEY).then((raw) => {
@@ -93,10 +99,19 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
    * explain why the deferred calls failed.
    */
   const setThemeId = useCallback((id: ThemeId) => {
+    chosen.current = true;
     setThemeIdState(id);
     AsyncStorage.setItem(STORAGE_KEY, id);
-    applyAppIcon(THEMES[id].iconName);
   }, []);
+
+  // The icon answers to both axes: which accent, and which mode it has to sit
+  // on. A white glyph on near-black is unreadable on a light home screen, so
+  // switching appearance moves the icon exactly as switching accent does.
+  useEffect(() => {
+    if (changes > 0) chosen.current = true;
+    if (!chosen.current) return;
+    applyAppIcon(THEMES[themeId][mode].iconName);
+  }, [themeId, mode, changes]);
 
   const value = useMemo(() => ({ themeId, setThemeId }), [themeId, setThemeId]);
 
@@ -106,7 +121,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
 /** The active accent set, flattened for the current mode. */
 export function useTheme(): ResolvedTheme {
   const { themeId } = useContext(ThemeContext);
-  const mode = useMode();
+  const { mode } = useAppearance();
   return useMemo(() => resolveTheme(THEMES[themeId], mode), [themeId, mode]);
 }
 

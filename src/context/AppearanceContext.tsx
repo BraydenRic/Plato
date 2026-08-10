@@ -33,6 +33,16 @@ const AppearanceContext = createContext<{
   pref: AppearancePref;
   mode: Mode;
   setPref: (pref: AppearancePref) => void;
+  /**
+   * How many times the user has changed this, which is not the same as how many
+   * times `mode` has changed — restoring the stored preference at launch moves
+   * the mode without anyone having asked for anything.
+   *
+   * ThemeContext needs the difference: the app icon follows the mode, and iOS
+   * raises an alert on every icon change, so a cold start must not look like a
+   * choice.
+   */
+  changes: number;
 }>({
   pref: DEFAULT_APPEARANCE,
   // DEFAULT_APPEARANCE is a concrete mode rather than "system", so this needs no
@@ -40,10 +50,12 @@ const AppearanceContext = createContext<{
   // anyway — there is no phone to ask outside a provider.
   mode: "dark",
   setPref: () => {},
+  changes: 0,
 });
 
 export function AppearanceProvider({ children }: { children: React.ReactNode }) {
   const [pref, setPrefState] = useState<AppearancePref>(DEFAULT_APPEARANCE);
+  const [changes, setChanges] = useState(0);
   const system = useColorScheme();
 
   useEffect(() => {
@@ -75,10 +87,14 @@ export function AppearanceProvider({ children }: { children: React.ReactNode }) 
 
   const setPref = useCallback((next: AppearancePref) => {
     setPrefState(next);
+    setChanges((n) => n + 1);
     AsyncStorage.setItem(STORAGE_KEY, next);
   }, []);
 
-  const value = useMemo(() => ({ pref, mode, setPref }), [pref, mode, setPref]);
+  const value = useMemo(
+    () => ({ pref, mode, setPref, changes }),
+    [pref, mode, setPref, changes]
+  );
 
   return <AppearanceContext.Provider value={value}>{children}</AppearanceContext.Provider>;
 }

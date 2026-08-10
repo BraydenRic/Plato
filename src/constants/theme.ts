@@ -120,6 +120,15 @@ export interface AccentSet {
    * tokens painted them identically.
    */
   figure: { primary: string; secondary: string };
+  /**
+   * Name registered with the expo-alternate-app-icons plugin, or null for the
+   * default icon that ships in the bundle. Keep in sync with app.json.
+   *
+   * Per mode, because the icon carries the page's background with it: a white
+   * glyph on near-black is unreadable sitting on a light home screen next to
+   * everything else the user owns.
+   */
+  iconName: string | null;
 }
 
 /**
@@ -162,11 +171,6 @@ export interface Theme {
    * without restarting and re-animating the Dynamic Island.
    */
   activityTint: string;
-  /**
-   * Name registered with the expo-alternate-app-icons plugin, or null for the
-   * default icon that ships in the bundle. Keep in sync with app.json.
-   */
-  iconName: string | null;
 }
 
 /** A theme flattened to one mode — the shape components actually consume. */
@@ -174,7 +178,6 @@ export interface ResolvedTheme extends AccentSet {
   id: ThemeId;
   label: string;
   activityTint: string;
-  iconName: string | null;
 }
 
 export function resolveTheme(theme: Theme, mode: Mode): ResolvedTheme {
@@ -213,6 +216,7 @@ export const THEMES: Record<ThemeId, Theme> = {
       accentText: "#c4b5fd",
       onAccent: "#ffffff",
       figure: { primary: "#8b5cf6", secondary: "#c4b5fd" },
+      iconName: "Violet",
     },
     light: {
       accent: "#8b5cf6",
@@ -221,9 +225,9 @@ export const THEMES: Record<ThemeId, Theme> = {
       accentText: "#6d28d9",
       onAccent: "#ffffff",
       figure: { primary: "#8b5cf6", secondary: "#4c1d95" },
+      iconName: "VioletLight",
     },
     activityTint: "#8b5cf6",
-    iconName: "Violet",
   },
   cobalt: {
     id: "cobalt",
@@ -234,6 +238,7 @@ export const THEMES: Record<ThemeId, Theme> = {
       accentText: "#93c5fd",
       onAccent: "#ffffff",
       figure: { primary: "#3b82f6", secondary: "#93c5fd" },
+      iconName: "Cobalt",
     },
     light: {
       accent: "#3b82f6",
@@ -241,9 +246,9 @@ export const THEMES: Record<ThemeId, Theme> = {
       accentText: "#1d4ed8",
       onAccent: "#ffffff",
       figure: { primary: "#3b82f6", secondary: "#1e3a8a" },
+      iconName: "CobaltLight",
     },
     activityTint: "#3b82f6",
-    iconName: "Cobalt",
   },
   cyan: {
     id: "cyan",
@@ -255,6 +260,7 @@ export const THEMES: Record<ThemeId, Theme> = {
       // White on cyan-500 lands near 2.4:1. Near-black clears 5.5:1.
       onAccent: "#083344",
       figure: { primary: "#06b6d4", secondary: "#a5f3fc" },
+      iconName: "Cyan",
     },
     light: {
       accent: "#06b6d4",
@@ -262,9 +268,9 @@ export const THEMES: Record<ThemeId, Theme> = {
       accentText: "#155e75",
       onAccent: "#083344",
       figure: { primary: "#06b6d4", secondary: "#164e63" },
+      iconName: "CyanLight",
     },
     activityTint: "#06b6d4",
-    iconName: "Cyan",
   },
   amber: {
     id: "amber",
@@ -276,6 +282,7 @@ export const THEMES: Record<ThemeId, Theme> = {
       // Same story as cyan — white on orange-500 is a washout.
       onAccent: "#2a1206",
       figure: { primary: "#f97316", secondary: "#fdba74" },
+      iconName: "Amber",
     },
     light: {
       accent: "#f97316",
@@ -283,9 +290,9 @@ export const THEMES: Record<ThemeId, Theme> = {
       accentText: "#9a3412",
       onAccent: "#2a1206",
       figure: { primary: "#f97316", secondary: "#7c2d12" },
+      iconName: "AmberLight",
     },
     activityTint: "#f97316",
-    iconName: "Amber",
   },
   crimson: {
     id: "crimson",
@@ -302,6 +309,7 @@ export const THEMES: Record<ThemeId, Theme> = {
       accentText: "#fca5a5",
       onAccent: "#ffffff",
       figure: { primary: "#dc2626", secondary: "#fca5a5" },
+      iconName: "Crimson",
     },
     light: {
       accent: "#dc2626",
@@ -309,9 +317,9 @@ export const THEMES: Record<ThemeId, Theme> = {
       accentText: "#b91c1c",
       onAccent: "#ffffff",
       figure: { primary: "#dc2626", secondary: "#6b1010" },
+      iconName: "CrimsonLight",
     },
     activityTint: "#dc2626",
-    iconName: "Crimson",
   },
   magenta: {
     id: "magenta",
@@ -322,6 +330,7 @@ export const THEMES: Record<ThemeId, Theme> = {
       accentText: "#f9a8d4",
       onAccent: "#ffffff",
       figure: { primary: "#ec4899", secondary: "#f9a8d4" },
+      iconName: "Magenta",
     },
     light: {
       accent: "#ec4899",
@@ -329,9 +338,9 @@ export const THEMES: Record<ThemeId, Theme> = {
       accentText: "#be185d",
       onAccent: "#ffffff",
       figure: { primary: "#ec4899", secondary: "#831843" },
+      iconName: "MagentaLight",
     },
     activityTint: "#ec4899",
-    iconName: "Magenta",
   },
   graphite: {
     id: "graphite",
@@ -347,6 +356,7 @@ export const THEMES: Record<ThemeId, Theme> = {
       accentText: "#fafafa",
       onAccent: "#09090b",
       figure: { primary: "#fafafa", secondary: "#a1a1aa" },
+      iconName: null,
     },
     light: {
       accent: "#18181b",
@@ -358,12 +368,9 @@ export const THEMES: Record<ThemeId, Theme> = {
       // old bar and still hard to pick out on a phone. Dropping the pair to
       // near-black and zinc-600 buys 38 without closing the gap between them.
       figure: { primary: "#0a0a0c", secondary: "#5b5b64" },
+      iconName: "GraphiteLight",
     },
     activityTint: "#fafafa",
-    // #fafafa is the white glyph already shipping in the bundle, so this theme
-    // owns the default icon and switching to it clears the alternate rather
-    // than setting a duplicate.
-    iconName: null,
   },
 };
 

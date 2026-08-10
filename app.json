@@ -121,6 +121,62 @@
               "foregroundImage": "./assets/icons/icon-magenta-foreground.png",
               "backgroundColor": "#09090b"
             }
+          },
+          {
+            "name": "VioletLight",
+            "ios": "./assets/icons/icon-violet-light.png",
+            "android": {
+              "foregroundImage": "./assets/icons/icon-violet-light-foreground.png",
+              "backgroundColor": "#ffffff"
+            }
+          },
+          {
+            "name": "CobaltLight",
+            "ios": "./assets/icons/icon-cobalt-light.png",
+            "android": {
+              "foregroundImage": "./assets/icons/icon-cobalt-light-foreground.png",
+              "backgroundColor": "#ffffff"
+            }
+          },
+          {
+            "name": "CyanLight",
+            "ios": "./assets/icons/icon-cyan-light.png",
+            "android": {
+              "foregroundImage": "./assets/icons/icon-cyan-light-foreground.png",
+              "backgroundColor": "#ffffff"
+            }
+          },
+          {
+            "name": "AmberLight",
+            "ios": "./assets/icons/icon-amber-light.png",
+            "android": {
+              "foregroundImage": "./assets/icons/icon-amber-light-foreground.png",
+              "backgroundColor": "#ffffff"
+            }
+          },
+          {
+            "name": "CrimsonLight",
+            "ios": "./assets/icons/icon-crimson-light.png",
+            "android": {
+              "foregroundImage": "./assets/icons/icon-crimson-light-foreground.png",
+              "backgroundColor": "#ffffff"
+            }
+          },
+          {
+            "name": "MagentaLight",
+            "ios": "./assets/icons/icon-magenta-light.png",
+            "android": {
+              "foregroundImage": "./assets/icons/icon-magenta-light-foreground.png",
+              "backgroundColor": "#ffffff"
+            }
+          },
+          {
+            "name": "GraphiteLight",
+            "ios": "./assets/icons/icon-graphite-light.png",
+            "android": {
+              "foregroundImage": "./assets/icons/icon-graphite-light-foreground.png",
+              "backgroundColor": "#ffffff"
+            }
           }
         ]
       ]

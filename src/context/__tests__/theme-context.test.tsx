@@ -2,7 +2,8 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { act, render } from "@testing-library/react-native";
 
 import { ThemeProvider, useTheme, useThemePicker } from "../ThemeContext";
-import { DEFAULT_THEME_ID, THEMES } from "@/constants/theme";
+import { AppearanceProvider, useAppearance } from "../AppearanceContext";
+import { DEFAULT_THEME_ID, THEMES, type AppearancePref } from "@/constants/theme";
 
 /**
  * The accent theme: which palette the app renders in, and the home screen icon
@@ -27,6 +28,13 @@ jest.mock("expo-constants", () => ({
   __esModule: true,
   default: { executionEnvironment: "standalone" },
   ExecutionEnvironment: { StoreClient: "storeClient", Standalone: "standalone", Bare: "bare" },
+}));
+
+// AppearanceProvider pushes the mode at UIKit on mount, and there is none here.
+jest.mock("react-native/Libraries/Utilities/Appearance", () => ({
+  getColorScheme: () => "dark",
+  setColorScheme: jest.fn(),
+  addChangeListener: () => ({ remove: () => {} }),
 }));
 
 jest.mock("expo-alternate-app-icons", () => ({
@@ -57,6 +65,34 @@ function mountPicker() {
     </ThemeProvider>
   );
   return box;
+}
+
+/** The same, with a real AppearanceProvider so the mode can be moved. */
+function mountWithAppearance() {
+  const box: {
+    theme: ReturnType<typeof useThemePicker>;
+    appearance: ReturnType<typeof useAppearance>;
+  } = { theme: undefined!, appearance: undefined! };
+  function Probe() {
+    box.theme = useThemePicker();
+    box.appearance = useAppearance();
+    return null;
+  }
+  render(
+    <AppearanceProvider>
+      <ThemeProvider>
+        <Probe />
+      </ThemeProvider>
+    </AppearanceProvider>
+  );
+  return box;
+}
+
+async function choose(box: ReturnType<typeof mountWithAppearance>, pref: AppearancePref) {
+  await act(async () => {
+    box.appearance.setPref(pref);
+    await Promise.resolve();
+  });
 }
 
 /** Lets the storage-hydration promise resolve and React apply the result. */
@@ -193,6 +229,51 @@ describe("the home screen icon", () => {
     // Re-applying at startup would make iOS show its alert every cold start.
     await AsyncStorage.setItem("theme_id", "cyan");
     mountPicker();
+    await settle();
+    expect(mockSetAlternateAppIcon).not.toHaveBeenCalled();
+  });
+});
+
+describe("the icon and the mode", () => {
+  /*
+   * The icon carries a background with it, so it answers to light/dark as well
+   * as to the accent: the bundled glyph is white on near-black, which is the
+   * one that looks broken sitting on a light home screen.
+   */
+  it("moves the icon when the appearance changes", async () => {
+    const box = mountWithAppearance();
+    await settle();
+    await choose(box, "light");
+    expect(mockSetAlternateAppIcon).toHaveBeenLastCalledWith("VioletLight");
+  });
+
+  it("moves it back on the way to dark", async () => {
+    const box = mountWithAppearance();
+    await settle();
+    await choose(box, "light");
+    await choose(box, "dark");
+    // null is the bundled icon — Violet's dark alternate, in this case, is a
+    // real name; the point is only that it is not the Light one.
+    expect(mockSetAlternateAppIcon).toHaveBeenLastCalledWith("Violet");
+  });
+
+  it("picks the icon for the mode in force, not the default one", async () => {
+    const box = mountWithAppearance();
+    await settle();
+    await choose(box, "light");
+    mockSetAlternateAppIcon.mockClear();
+    await act(async () => box.theme.setThemeId("cyan"));
+    expect(mockSetAlternateAppIcon).toHaveBeenCalledWith("CyanLight");
+  });
+
+  it("stays quiet on launch, however the stored preference resolves", async () => {
+    // Both stored values arrive after mount, so the mode moves on a cold start
+    // without anyone asking. Applying then would open every launch with iOS's
+    // alert — the reason the provider waits for a deliberate choice.
+    await AsyncStorage.setItem("appearance", "light");
+    await AsyncStorage.setItem("theme_id", "magenta");
+    mountWithAppearance();
+    await settle();
     await settle();
     expect(mockSetAlternateAppIcon).not.toHaveBeenCalled();
   });

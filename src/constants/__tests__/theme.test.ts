@@ -316,8 +316,14 @@ describe("resolveTheme", () => {
     const theme = resolveTheme(THEMES.graphite, "light");
     expect(theme.id).toBe("graphite");
     expect(theme.label).toBe("Graphite");
-    expect(theme.iconName).toBeNull();
     expect(theme.activityTint).toBe(THEMES.graphite.activityTint);
+  });
+
+  it("takes the app icon from the mode", () => {
+    // Graphite is the case that shows why: the bundled icon is a white glyph on
+    // near-black, which on a light home screen is the one that looks broken.
+    expect(resolveTheme(THEMES.graphite, "dark").iconName).toBeNull();
+    expect(resolveTheme(THEMES.graphite, "light").iconName).toBe("GraphiteLight");
   });
 
   it("takes the figure from the mode too", () => {
@@ -379,35 +385,75 @@ describe("the appearance preference", () => {
 });
 
 describe("the app icon mapping", () => {
-  it("points exactly one theme at the icon already in the bundle", () => {
-    // More than one and two themes would share an icon; none and a fresh
-    // install could never get back to the icon it shipped with.
-    expect(THEME_LIST.filter((t) => t.iconName === null)).toHaveLength(1);
+  /** Every (theme, mode) pair, since the icon now answers to both. */
+  const pairs = MODES.flatMap((mode) =>
+    THEME_LIST.map((t): [string, string | null] => [`${t.label} ${mode}`, t[mode].iconName])
+  );
+
+  it("points exactly one pairing at the icon already in the bundle", () => {
+    // More than one and two of them would share an icon; none and a fresh
+    // install could never get back to the icon it shipped with. That one is
+    // Graphite in dark, which is what `assets/images/icon.png` actually is.
+    const bundled = pairs.filter(([, name]) => name === null);
+    expect(bundled).toHaveLength(1);
+    expect(bundled[0][0]).toBe("Graphite dark");
   });
 
-  it("gives every other theme its own alternate", () => {
-    const names = THEME_LIST.map((t) => t.iconName).filter((n): n is string => n !== null);
+  it("gives every other pairing its own alternate", () => {
+    const names = pairs.map(([, n]) => n).filter((n): n is string => n !== null);
     expect(new Set(names).size).toBe(names.length);
+    // Seven themes across two modes, less the one bundled icon.
+    expect(names).toHaveLength(THEME_LIST.length * MODES.length - 1);
   });
 
   it("names alternates exactly as app.json registers them", () => {
     // The plugin matches on this string at runtime; a mismatch throws on the
     // native side long after the build has shipped.
+     
     const appJson = require("../../../app.json");
     const entry = appJson.expo.plugins.find(
       (p: unknown) => Array.isArray(p) && p[0] === "expo-alternate-app-icons"
     );
     const registered: string[] = entry[1].map((i: { name: string }) => i.name);
 
-    for (const theme of THEME_LIST) {
-      if (theme.iconName) expect(registered).toContain(theme.iconName);
+    for (const [, name] of pairs) {
+      if (name) expect(registered).toContain(name);
     }
-    // And nothing registered is left stranded without a theme to select it.
+    // And nothing registered is left stranded without a pairing to select it.
     expect(registered.sort()).toEqual(
-      THEME_LIST.map((t) => t.iconName)
+      pairs
+        .map(([, n]) => n)
         .filter(Boolean)
         .sort()
     );
+  });
+
+  it("ships every icon file it registers", () => {
+    // A registered name whose PNG is missing fails the native build, long after
+    // this is the cheap place to catch it.
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const fs = require("fs");
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const path = require("path");
+     
+    const appJson = require("../../../app.json");
+    const entry = appJson.expo.plugins.find(
+      (p: unknown) => Array.isArray(p) && p[0] === "expo-alternate-app-icons"
+    );
+
+    for (const icon of entry[1] as { name: string; ios: string }[]) {
+      const file = path.join(__dirname, "../../..", icon.ios);
+      expect(fs.existsSync(file)).toBe(true);
+    }
+  });
+
+  it("sends light mode to a light icon and dark mode to a dark one", () => {
+    // The whole point of the pairing. Naming is the only thing asserted here —
+    // what the pixels look like is checked by the generator, not at runtime.
+    for (const t of THEME_LIST) {
+      expect(t.light.iconName).toMatch(/Light$/);
+      expect(t.dark.iconName ?? "Bundled").not.toMatch(/Light$/);
+    }
   });
 });
 
