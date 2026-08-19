@@ -32,6 +32,47 @@ Apple team, so both survive the transfer untouched. Guests never had an account.
 transfer without running it, there is no supported way to reconnect those users.
 Everything else can be done afterwards, within Apple's window.
 
+## Before you start
+
+Check these while Plato is still yours — each one is cheap now and a blocker
+later:
+
+- [ ] You still have the **`.p8` Sign in with Apple key** for the current team.
+      If it's lost, generate a new key in the Apple Developer portal and update
+      Firebase Console → Authentication → Sign-in method → Apple *first*. You
+      cannot sign the requests in step 1 without it.
+- [ ] The **new team's** Developer Program membership is active and its
+      agreements are accepted in App Store Connect. A transfer isn't offered to
+      an account that hasn't finished enrolling.
+- [ ] Plato has **no version in Waiting for Review, In Review, or Pending
+      Developer Release**. Any of those blocks the transfer, so don't submit a
+      release immediately beforehand.
+- [ ] You have the new team's **Team ID** (developer.apple.com → Membership).
+
+## Order of operations
+
+Steps 4 and 5 want to be close together. Everything after step 5 can take its
+time, within Apple's exchange window.
+
+1. Confirm the prerequisites above.
+2. `npm run collect`
+3. Submit the transfer in App Store Connect.
+4. `npm run collect` again — picks up anyone who signed up in between.
+5. Accept the transfer from the new account.
+6. `npm run exchange`
+7. `npm run apply` — dry run; read what it says it will do.
+8. `npm run apply -- --commit`, then sign in as that user on a device and
+   confirm their history is there.
+9. Run it for the rest.
+
+### How much time you actually have
+
+The gap that matters is small and specific: it is only people who sign in with
+Apple **for the first time between your last `collect` and the transfer
+completing**. Anyone who signs up *after* the transfer is an ordinary new user
+on the new team with nothing to migrate, and anyone already collected is
+already safe. A final `collect` immediately before you accept closes it.
+
 ## Setup
 
 ```
@@ -88,10 +129,17 @@ be regenerated once the app has moved.
 
 ### 2. Transfer the app
 
-App Store Connect → Apps → Plato → App Information → Transfer App. Because you
-control both accounts, submit and accept back to back so the gap stays small —
-and have the new team's membership and agreements active first, or the transfer
-won't be offered.
+App Store Connect → Apps → Plato → App Information → Transfer App.
+
+Apple does not "approve" a transfer the way it reviews a build. It runs
+eligibility checks when you initiate, but the thing that completes it is **the
+recipient accepting**. If you own both accounts you control that timing, so
+submit and accept back to back and the whole window is minutes rather than
+days.
+
+Do not plan on collecting mappings after the move. Once the app belongs to the
+new team, the old team no longer owns it — treat "before the transfer
+completes" as a hard deadline rather than something with a grace period.
 
 ### 3. After the transfer — `exchange`
 
