@@ -1,0 +1,15 @@
+{
+  "name": "plato-apple-transfer",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "One-off tool for keeping Sign in with Apple users when Plato moves to another Apple Developer team.",
+  "scripts": {
+    "collect": "node migrate.mjs collect",
+    "exchange": "node migrate.mjs exchange",
+    "apply": "node migrate.mjs apply"
+  },
+  "dependencies": {
+    "firebase-admin": "^14.2.0"
+  }
+}
