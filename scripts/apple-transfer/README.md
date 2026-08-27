@@ -48,13 +48,17 @@ later:
       Developer Release**. Any of those blocks the transfer, so don't submit a
       release immediately beforehand.
 - [ ] You have the new team's **Team ID** (developer.apple.com → Membership).
+      This one only exists once the new account has finished enrolling — a
+      D-U-N-S number gets you *into* enrolment, it isn't the end of it. Run
+      `npm run check` while you wait; everything except the target team can be
+      verified without it.
 
 ## Order of operations
 
 Steps 4 and 5 want to be close together. Everything after step 5 can take its
 time, within Apple's exchange window.
 
-1. Confirm the prerequisites above.
+1. Confirm the prerequisites above, then `npm run check`.
 2. `npm run collect`
 3. Submit the transfer in App Store Connect.
 4. `npm run collect` again — picks up anyone who signed up in between.
@@ -107,6 +111,20 @@ export APPLE_PRIVATE_KEY_PATH=/absolute/path/to/AuthKey_XXXXXXXXXX.p8
 phases: the old team for `collect`, the new team for `exchange`.
 
 ## Running it
+
+### 0. Any time — `check`
+
+```
+npm run check
+```
+
+Proves both halves of the setup: that the Firebase key can read your users, and
+that Apple accepts the client secret. It asks Apple for nothing that matters and
+does not need `APPLE_TARGET_TEAM_ID`, so run it as soon as you have the
+credentials — long before the new team exists.
+
+It also reports how many users `apply` would rewrite automatically versus skip,
+which is the number worth knowing before transfer day rather than after.
 
 ### 1. Before the transfer — `collect`
 

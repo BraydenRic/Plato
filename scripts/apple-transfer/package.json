@@ -5,6 +5,7 @@
   "type": "module",
   "description": "One-off tool for keeping Sign in with Apple users when Plato moves to another Apple Developer team.",
   "scripts": {
+    "check": "node migrate.mjs check",
     "collect": "node migrate.mjs collect",
     "exchange": "node migrate.mjs exchange",
     "apply": "node migrate.mjs apply"

@@ -21,6 +21,11 @@
  *
  * THREE PHASES, RUN IN ORDER
  *
+ *   check      Any time. Proves the Firebase and Apple credentials work and
+ *              reports who `apply` would rewrite. Asks Apple for nothing that
+ *              matters and needs no target team, so it can be run long before
+ *              the new team exists.
+ *
  *   collect    BEFORE the transfer. Reads Apple users out of Firebase and asks
  *              Apple for a `transfer_sub` for each. Writes the map. Touches
  *              nothing. Re-runnable — run it again right before the transfer
@@ -167,6 +172,39 @@ async function listAppleUsers(auth) {
 }
 
 // ── phases ───────────────────────────────────────────────────────────────────
+
+async function check() {
+  /*
+   * Proves both halves of the setup without needing the new team to exist yet,
+   * and without asking Apple for anything that matters. Worth running the day
+   * you have the credentials rather than the day you transfer: a missing .p8 or
+   * a stale Services ID is a slow thing to fix and a bad thing to discover with
+   * a half-finished transfer behind you.
+   */
+  console.log("Firebase\n");
+  const auth = await firebaseAuth();
+  const users = await listAppleUsers(auth);
+  const simple = users.filter((u) => !u.hasPassword && u.providers.length === 1);
+  const complex = users.length - simple.length;
+  console.log(`  ${users.length} user(s) with an Apple provider`);
+  console.log(`  ${simple.length} that \`apply\` can rewrite automatically`);
+  console.log(
+    `  ${complex} with a password or a second provider — skipped by \`apply\`,` +
+      ` and fine, because they can already sign in another way`
+  );
+
+  console.log("\nApple\n");
+  await appleSession();
+  console.log("  credentials accepted (client secret signed, token issued)");
+
+  const target = env.APPLE_TARGET_TEAM_ID;
+  console.log(
+    target
+      ? `\nTarget team ${target} is set. Ready for \`collect\`.`
+      : "\nAPPLE_TARGET_TEAM_ID is not set — expected until the new team exists." +
+        "\nEverything else checks out; set it and run `collect`."
+  );
+}
 
 async function collect() {
   const target = need("APPLE_TARGET_TEAM_ID");
@@ -320,11 +358,11 @@ async function apply() {
 
 // ── entry ────────────────────────────────────────────────────────────────────
 
-const phases = { collect, exchange, apply };
+const phases = { check, collect, exchange, apply };
 const phase = argv[2];
 
 if (!phases[phase]) {
-  console.error("Usage: node migrate.mjs <collect|exchange|apply> [--commit]");
+  console.error("Usage: node migrate.mjs <check|collect|exchange|apply> [--commit]");
   exit(1);
 }
 
