@@ -254,10 +254,15 @@ export default function WorkoutScreen() {
    * was typed in: log yesterday's session this morning and it valued your pull
    * ups at today's weight. Worse than a wrong label, since finishing freezes
    * totalVolume from this number.
+   *
+   * A template belongs to no day at all — workoutDay would fall back to the day
+   * it was created, which can be months stale. It stands for the session you'd
+   * start now, so it takes the weigh-in nearest today.
    */
   const bodyweightLbs = useMemo(() => {
     if (!workout) return undefined;
-    return bodyweightOn(bodyweightLog, workoutDay(workout))?.lbs;
+    const day = workout.isTemplate ? new Date() : workoutDay(workout);
+    return bodyweightOn(bodyweightLog, day)?.lbs;
   }, [workout, bodyweightLog]);
 
   const liveVolume = useMemo(
@@ -691,6 +696,10 @@ export default function WorkoutScreen() {
                     onDrag={drag}
                     dragActive={isActive}
                     readOnly={false}
+                    // Without this the header read "BW not set" on every
+                    // bodyweight exercise in a template, whatever the log held —
+                    // this branch simply never handed the weight down.
+                    bodyweightLbs={bodyweightLbs}
                     onPatchSet={(setId, patch) => patchSet(item.id, setId, patch)}
                     onAddSet={() => addSet(item)}
                     onRemoveSet={(setId) => removeSet(item.id, setId)}

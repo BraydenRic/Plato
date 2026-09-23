@@ -97,9 +97,18 @@ jest.mock("@/context/ThemeContext", () => ({
 // renders, which none of these participate in.
 jest.mock("@expo/vector-icons/Ionicons", () => "Ionicons");
 jest.mock("react-native-gesture-handler/ReanimatedSwipeable", () => "ReanimatedSwipeable");
+// Renders its rows rather than nothing, so the template editor's cards are
+// drawn too — a stand-in that rendered null is how a template showing "BW not
+// set" whatever the log held went unnoticed by every test here.
 jest.mock("react-native-draggable-flatlist", () => ({
   __esModule: true,
-  default: () => null,
+  default: ({
+    data,
+    renderItem,
+  }: {
+    data: unknown[];
+    renderItem: (info: { item: unknown; drag: () => void; isActive: boolean }) => React.ReactNode;
+  }) => data.map((item) => renderItem({ item, drag: () => {}, isActive: false })),
   ScaleDecorator: ({ children }: { children: React.ReactNode }) => children,
 }));
 
@@ -277,6 +286,28 @@ describe("what a bodyweight set is valued against", () => {
     await loadWorkout(pullUpsOn({ startedAt: TODAY }));
 
     expect(screen.getByText(/BW 190 lbs/)).toBeTruthy();
+  });
+
+  describe("in a template", () => {
+    beforeEach(() => {
+      jest.useFakeTimers({ doNotFake: ["nextTick", "setImmediate"] });
+      jest.setSystemTime(TODAY);
+    });
+    afterEach(() => jest.useRealTimers());
+
+    it("shows the weight rather than saying none is set", async () => {
+      await loadWorkout({ ...pullUpsOn({}), isTemplate: true });
+
+      expect(screen.queryByText(/BW not set/)).toBeNull();
+      expect(screen.getByText(/BW 190 lbs/)).toBeTruthy();
+    });
+
+    it("uses the latest weigh-in, not the one nearest the day it was made", async () => {
+      // Made yesterday. It stands for the session you'd start now.
+      await loadWorkout({ ...pullUpsOn({}), isTemplate: true, createdAt: YESTERDAY });
+
+      expect(screen.getByText(/BW 190 lbs/)).toBeTruthy();
+    });
   });
 });
 
