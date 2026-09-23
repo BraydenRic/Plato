@@ -174,6 +174,14 @@ export default function AddExerciseModal() {
         keyExtractor={(e) => e.id}
         contentContainerStyle={styles.list}
         keyboardShouldPersistTaps="handled"
+        // The keyboard sits over the bottom of this list while you type, and
+        // without this the list still thinks it owns that space — so the last
+        // few matches scroll to a resting place underneath the keys and can't
+        // be reached until you press Search to put the keyboard away. This
+        // insets the list by exactly the part the keyboard covers (measured
+        // natively against the list's on-screen frame, so the modal sheet's
+        // offset is accounted for). iOS only; Android resizes the window.
+        automaticallyAdjustKeyboardInsets
         renderItem={({ item }) => {
           const added = addedIds.has(item.id);
           return (

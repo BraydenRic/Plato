@@ -120,6 +120,12 @@ export default function ExercisesScreen() {
         data={filtered}
         keyExtractor={(e) => e.id}
         contentContainerStyle={styles.list}
+        // Same fix as the add-exercise picker: keep the last matches reachable
+        // above the keyboard while still typing, instead of only after Search.
+        automaticallyAdjustKeyboardInsets
+        // Once a match is reachable, one tap should open it — not spend the
+        // first tap dismissing the keyboard.
+        keyboardShouldPersistTaps="handled"
         renderItem={({ item }) => (
           <ExerciseRow
             exercise={item}

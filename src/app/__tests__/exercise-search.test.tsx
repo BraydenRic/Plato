@@ -1,4 +1,5 @@
 import { fireEvent, render, screen } from "@testing-library/react-native";
+import { FlatList } from "react-native";
 
 import ExercisesScreen from "../(tabs)/exercises";
 import type { Exercise } from "@/types";
@@ -65,4 +66,15 @@ it("still filters as you type", () => {
 
   expect(screen.getByText("Pull-Up")).toBeTruthy();
   expect(screen.queryByText("Bench Press")).toBeNull();
+});
+
+it("keeps the last matches reachable above the keyboard while typing", () => {
+  render(<ExercisesScreen />);
+
+  // Without this the keyboard covers the bottom of the list and the final
+  // results can only be reached after pressing Search to dismiss it.
+  const list = screen.UNSAFE_getByType(FlatList);
+  expect(list.props.automaticallyAdjustKeyboardInsets).toBe(true);
+  // And one tap on a match opens it, rather than just closing the keyboard.
+  expect(list.props.keyboardShouldPersistTaps).toBe("handled");
 });
