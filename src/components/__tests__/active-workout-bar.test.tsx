@@ -1,4 +1,5 @@
 import { act, fireEvent, render, screen } from "@testing-library/react-native";
+import { Circle } from "react-native-svg";
 
 import { ActiveWorkoutBar } from "../active-workout-bar";
 import type { Workout, WorkoutSet } from "@/types";
@@ -159,4 +160,36 @@ it("is nothing but the status-bar inset when no workout is running", () => {
   expect(screen.root.props.style).toEqual(
     expect.arrayContaining([expect.objectContaining({ height: 59 })])
   );
+});
+
+describe("the card", () => {
+  it("draws the set progress as a ring", () => {
+    render(<ActiveWorkoutBar />);
+
+    // Track plus arc; 2 of 4 sets is half way round.
+    const circles = screen.UNSAFE_getAllByType(Circle);
+    expect(circles).toHaveLength(2);
+    const arc = circles[1].props;
+    expect(arc.strokeDashoffset).toBeCloseTo(Number(arc.strokeDasharray.split(" ")[0]) / 2);
+  });
+
+  it("draws no arc at all before the first set, not a dot that reads as one done", () => {
+    mockWorkout = workout({ exercises: [] });
+    render(<ActiveWorkoutBar />);
+
+    expect(screen.UNSAFE_getAllByType(Circle)).toHaveLength(1);
+  });
+
+  it("keeps the running clock neutral and saves the accent for a rest", () => {
+    const { rerender } = render(<ActiveWorkoutBar />);
+    const colourOf = (text: string | RegExp) =>
+      [screen.getByText(text).props.style].flat().reduce((c, s) => s?.color ?? c, undefined);
+
+    expect(colourOf("5:00")).not.toBe("#c4b5fd");
+
+    mockRest = { workoutId: "w1", endsAt: NOW.getTime() + 45_000 };
+    rerender(<ActiveWorkoutBar />);
+
+    expect(colourOf("Rest 0:45")).toBe("#c4b5fd");
+  });
 });
