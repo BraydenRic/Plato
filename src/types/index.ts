@@ -87,6 +87,8 @@ export type MuscleGroup =
   | "Shoulders"
   | "Biceps"
   | "Triceps"
+  | "Forearms"
+  | "Neck"
   | "Legs"
   | "Glutes"
   | "Core"

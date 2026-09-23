@@ -15,9 +15,9 @@ const CATEGORIES = [...new Set(EXERCISES.map((e) => e.category))];
 // Names the muscle diagram understands (see MUSCLE_NAME_TO_SLUGS), so custom
 // exercises light up the body map just like built-ins do.
 const MUSCLE_OPTIONS = [
-  "Chest", "Back", "Lats", "Traps", "Shoulders",
+  "Neck", "Chest", "Back", "Lats", "Traps", "Shoulders",
   "Biceps", "Triceps", "Forearms", "Abs", "Obliques",
-  "Quads", "Hamstrings", "Glutes", "Calves", "Tibialis", "Hip Flexors",
+  "Quads", "Hamstrings", "Glutes", "Adductors", "Calves", "Tibialis", "Hip Flexors",
 ];
 
 export default function CreateExerciseModal() {

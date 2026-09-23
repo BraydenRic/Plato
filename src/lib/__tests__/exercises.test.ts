@@ -1,4 +1,4 @@
-import { EXERCISES, filterExercises, isTimedExercise } from "../exercises";
+import { EXERCISES, MUSCLE_GROUPS, filterExercises, isTimedExercise } from "../exercises";
 import { makeExercise } from "./factories";
 
 describe("filterExercises", () => {
@@ -134,5 +134,40 @@ describe("searching the way people type", () => {
     // one doesn't, and that's the line edit-distance matching would cross.
     expect(found("pul up")).toContain("Pull-Up");
     expect(found("benhc press")).toHaveLength(0);
+  });
+
+  it("finds neck work the way it's usually asked for", () => {
+    expect(found("neck")).toEqual(
+      expect.arrayContaining(["Plate Neck Flexion", "Neck Harness Extension", "Neck Machine Extension"])
+    );
+  });
+});
+
+describe("the bundled library", () => {
+  // Workouts store the exercise id forever, so two entries sharing one would
+  // quietly merge their histories and last-weight lookups.
+  it("never gives two exercises the same id", () => {
+    const ids = EXERCISES.map((e) => e.id);
+    expect(ids.filter((id, i) => ids.indexOf(id) !== i)).toEqual([]);
+  });
+
+  it("offers a category chip for every category it uses, and none it doesn't", () => {
+    const used = [...new Set(EXERCISES.map((e) => e.category))];
+    expect(MUSCLE_GROUPS.filter((g) => g !== "All").sort()).toEqual(used.sort());
+  });
+
+  it("files every neck exercise under the Neck chip", () => {
+    const neck = filterExercises(EXERCISES, "", "Neck");
+    expect(neck.length).toBeGreaterThanOrEqual(8);
+    expect(neck.every((e) => e.musclesWorked[0] === "Neck")).toBe(true);
+  });
+
+  it("logs the holds by stopwatch rather than weight × reps", () => {
+    const holds = ["wall-sit", "copenhagen-plank", "l-sit", "neck-isometric-hold", "suitcase-carry"];
+    const untimed = holds.filter((id) => {
+      const exercise = EXERCISES.find((e) => e.id === id);
+      return !exercise || !isTimedExercise(exercise);
+    });
+    expect(untimed).toEqual([]);
   });
 });

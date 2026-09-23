@@ -35,7 +35,11 @@ const MUSCLE_NAME_TO_SLUGS: Record<string, Slug[]> = {
   calves: ["calves"],
   tibialis: ["tibialis"],
   shins: ["tibialis"],
+  // The figure has no hip-flexor region, so they borrow the inner thigh — the
+  // closest thing it draws. Adductors are the real owner of that region.
   "hip flexors": ["adductors"],
+  adductors: ["adductors"],
+  neck: ["neck"],
   legs: ["quadriceps", "adductors", "hamstring", "gluteal", "calves", "tibialis"],
   arms: ["biceps", "triceps", "forearm"],
   "full body": [

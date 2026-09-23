@@ -7,8 +7,8 @@ import {
 } from "../exercise-form";
 
 /**
- * "Every exercise has instructions" is a claim about 180-odd hand-written
- * entries matching 180-odd hand-written exercises, which is exactly the kind of
+ * "Every exercise has instructions" is a claim about 300 hand-written
+ * entries matching 300 hand-written exercises, which is exactly the kind of
  * thing that is true the day it ships and quietly false a month later. The
  * first two tests are the ones that keep it honest: add an exercise without a
  * guide, or rename an id, and they name the offender.

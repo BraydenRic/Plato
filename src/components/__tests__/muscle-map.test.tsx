@@ -2,10 +2,11 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { act, render, screen } from "@testing-library/react-native";
 import { StyleSheet, View } from "react-native";
 
-import { MuscleMap } from "../muscle-map";
+import { MuscleMap, muscleSlugsFor } from "../muscle-map";
 import { FIGURE_BODY, FIGURE_SEAM, THEMES, type AppearancePref } from "@/constants/theme";
 import { AppearanceProvider, useAppearance } from "@/context/AppearanceContext";
 import { ThemeProvider, useThemePicker } from "@/context/ThemeContext";
+import { EXERCISES } from "@/lib/exercises";
 
 /**
  * The figure's wiring to the mode.
@@ -146,4 +147,25 @@ it("keeps graphite's swatches off the card they sit on", async () => {
   });
   expect(rings).toHaveLength(2);
   expect(dot).toBeTruthy();
+});
+
+/**
+ * The figure only understands the names in MUSCLE_NAME_TO_SLUGS, and a name it
+ * doesn't know fails silently — the exercise just shows a blank body. That is
+ * easy to do by accident when the library grows (a new "Adductors" or "Neck"
+ * entry with no mapping), so the whole bundled vocabulary is checked here.
+ */
+describe("the bundled library's muscle names", () => {
+  it("each light up some part of the figure", () => {
+    const names = [...new Set(EXERCISES.flatMap((e) => e.musclesWorked))];
+    // Cardio is the one deliberate blank: it isn't a place on the body.
+    const unmapped = names.filter((n) => n !== "Cardio" && muscleSlugsFor([n]).length === 0);
+    expect(unmapped).toEqual([]);
+  });
+
+  it("puts every neck exercise on the neck", () => {
+    const neck = EXERCISES.filter((e) => e.category === "Neck");
+    expect(neck.length).toBeGreaterThan(0);
+    for (const e of neck) expect(muscleSlugsFor(e.musclesWorked)).toContain("neck");
+  });
 });
