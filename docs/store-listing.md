@@ -1,4 +1,4 @@
-# App Store listing — 1.1.0
+# App Store listing — 1.2.0
 
 Copy from here into App Store Connect. Kept in the repo so the listing is
 versioned alongside the features it describes; update it when the app changes.
@@ -10,6 +10,7 @@ Plato is a fast, no-clutter workout tracker built for people who actually lift.
 Open it, log your sets, get back to training. No account needed to start.
 
 LOG WORKOUTS FAST
+• 300 built-in exercises — from barbell staples to calisthenics, machines and neck work — each with a guide to doing it right
 • Enter weight and reps with a keypad built for the gym — jump to the next field with one tap
 • Copy your previous set with a single tap
 • Timed exercises like planks, dead hangs, and cardio get a built-in start/stop timer
@@ -52,13 +53,15 @@ No ads. No pop-ups. No clutter. Just training.
 ## What's New in This Version
 
 ```
-Light mode — pick Light, Dark, or follow your phone, in Profile.
+Neck training — a new Neck category, including the 4-way neck machine.
 
-Body weight tracking — log weigh-ins, see your trend, and get honest volume
-on pull ups and dips, counted at what you actually weighed that day.
+300 exercises — over a hundred more built in, each with a form guide.
 
-Use Plato without an account — start logging straight away as a guest, and
-bring everything with you if you sign up later.
+Your body weight now counts even when you open Plato with no signal, and
+workouts that missed it are corrected.
+
+Search results no longer hide behind the keyboard, and the bar for your
+workout in progress has a cleaner look.
 ```
 
 ## Notes for App Review
@@ -76,7 +79,7 @@ own weight and to value bodyweight exercises. No HealthKit access.
 
 ## Checklist for the version page
 
-- Build: **1.1.0 (45)**
+- Build: **1.2.0** (build number assigned by EAS — fill in from TestFlight)
 - Privacy Policy URL: https://braydenric.github.io/Plato/
 - App Privacy → Data Types: **Health** added under Health & Fitness
   (App Functionality · linked to identity · not used for tracking)
