@@ -178,3 +178,31 @@ it("does nothing for a signed-out app", async () => {
   await waitFor(() => expect(mockUpdateWorkout).not.toHaveBeenCalled());
   expect(await AsyncStorage.getAllKeys()).toEqual([]);
 });
+
+describe("sessions finished while the log was missing", () => {
+  const zeroed = (): Workout => ({ ...staleWorkout(), id: "w2", totalVolume: 0 });
+
+  it("prices them even after the one-time repair has marked itself done", async () => {
+    // They can turn up long after that repair ran, so they can't sit behind it.
+    await AsyncStorage.setItem("bodyweight_volume_repair_v1:u1", "2026-08-06T00:00:00.000Z");
+    mockCompleted = [zeroed()];
+
+    render(<BodyweightVolumeRepair />);
+
+    await waitFor(() => expect(mockUpdateWorkout).toHaveBeenCalledWith("w2", { totalVolume: 1950 }));
+  });
+
+  it("sends each correction once, even as snapshots arrive before the write lands", async () => {
+    await AsyncStorage.setItem("bodyweight_volume_repair_v1:u1", "2026-08-06T00:00:00.000Z");
+    mockCompleted = [zeroed()];
+
+    const view = render(<BodyweightVolumeRepair />);
+    await waitFor(() => expect(mockUpdateWorkout).toHaveBeenCalledTimes(1));
+    // A new snapshot of the same, not-yet-acked history.
+    mockCompleted = [zeroed()];
+    view.rerender(<BodyweightVolumeRepair />);
+
+    await waitFor(() => expect(mockUpsertUserStats).toHaveBeenCalled());
+    expect(mockUpdateWorkout).toHaveBeenCalledTimes(1);
+  });
+});

@@ -1,4 +1,8 @@
-import { staleBodyweightVolumes, staleVolumesOnDay } from "../repair-bodyweight-volumes";
+import {
+  staleBodyweightVolumes,
+  staleVolumesOnDay,
+  zeroedBodyweightVolumes,
+} from "../repair-bodyweight-volumes";
 import type { BodyweightEntry, Workout, WorkoutSet } from "@/types";
 
 /**
@@ -166,5 +170,65 @@ describe("re-pricing a single day after its weigh-in is fixed", () => {
 
     // Emptying the log must never re-price a session at zero.
     expect(staleVolumesOnDay([onThe4th], [], AUG_4)).toEqual([]);
+  });
+});
+
+/**
+ * Sessions finished while the weigh-in log had failed to load froze their
+ * bodyweight sets at zero. This runs on every launch, so the refusals are the
+ * point: it may only ever match that one failure.
+ */
+describe("volumes frozen while the log was missing", () => {
+  it("prices a session frozen at zero against the weigh-in it should have had", () => {
+    // 10 pull-ups on the 4th, stored as if nobody weighed anything.
+    const zeroed = workout({ sets: [bwSet(10)], totalVolume: 0 });
+
+    expect(zeroedBodyweightVolumes([zeroed], log)).toEqual([{ id: "w1", totalVolume: 1950 }]);
+  });
+
+  it("keeps the rest of the session's volume, correcting only the bodyweight part", () => {
+    const mixed = workout({ sets: [bwSet(10), barbellSet(5, 100)], totalVolume: 500 });
+
+    expect(zeroedBodyweightVolumes([mixed], log)).toEqual([{ id: "w1", totalVolume: 2450 }]);
+  });
+
+  it("leaves a session from before the first weigh-in at zero", () => {
+    // Zero was the honest number then. Pricing it now would be a weigh-in
+    // re-writing history, which freezing the volume exists to prevent.
+    const early = workout({
+      sets: [bwSet(10)],
+      totalVolume: 0,
+      scheduledFor: new Date(2026, 7, 1),
+      completedAt: new Date(2026, 7, 1),
+    });
+
+    expect(zeroedBodyweightVolumes([early], log)).toEqual([]);
+  });
+
+  it("never re-values a session frozen against a real weigh-in", () => {
+    // Priced at the 5th's weight though it belongs to the 4th — the one-time
+    // repair's business, not this one's, and it must not become an every-launch
+    // re-valuation by the back door.
+    const priced = workout({ sets: [bwSet(10)], totalVolume: 1900 });
+
+    expect(zeroedBodyweightVolumes([priced], log)).toEqual([]);
+  });
+
+  it("writes nothing when heavy assistance really did come to zero", () => {
+    const assisted = workout({ sets: [bwSet(10, -250)], totalVolume: 0 });
+
+    expect(zeroedBodyweightVolumes([assisted], log)).toEqual([]);
+  });
+
+  it("leaves a session with no stored volume to the one-time repair", () => {
+    const unstored = workout({ sets: [bwSet(10)] });
+
+    expect(zeroedBodyweightVolumes([unstored], log)).toEqual([]);
+  });
+
+  it("does nothing against an empty log, which is what a failed read looks like", () => {
+    const zeroed = workout({ sets: [bwSet(10)], totalVolume: 0 });
+
+    expect(zeroedBodyweightVolumes([zeroed], [])).toEqual([]);
   });
 });

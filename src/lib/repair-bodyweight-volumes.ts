@@ -1,4 +1,4 @@
-import { bodyweightOn, sameDay, workoutDay, workoutVolumeLbs } from "./workout-utils";
+import { bodyweightOn, sameDay, startOfDay, workoutDay, workoutVolumeLbs } from "./workout-utils";
 import type { BodyweightEntry, Workout } from "@/types";
 
 /**
@@ -113,4 +113,60 @@ export function staleVolumesOnDay(
     completed.filter((workout) => sameDay(workoutDay(workout), day)),
     log
   );
+}
+
+/**
+ * Workouts finished while the weigh-in log had failed to load.
+ *
+ * The workout screen read the log once, and a cold start with no signal failed
+ * that read for good — so a session finished in a dead zone froze its
+ * bodyweight sets at zero, though a weigh-in was on file the whole time. The
+ * read no longer fails that way, but the sessions it already mispriced keep
+ * their stored number, and the stored number always wins.
+ *
+ * Unlike the one-time repair above, this is safe to run on every launch,
+ * because what it looks for can only have come from that failure:
+ *
+ *  - The stored volume is exactly what the sets come to with no weight at all.
+ *    A volume frozen against a real weigh-in never matches that, unless every
+ *    bodyweight set in it is assisted down to nothing — and then the correct
+ *    number is the same zero, so there is nothing to write.
+ *  - A weigh-in was already on file on or before the workout's day. Before the
+ *    first one, zero was the honest answer ("nothing recorded, nothing
+ *    invented"), and pricing those now would be a weigh-in re-writing history —
+ *    the thing freezing the number exists to prevent.
+ *
+ * Once corrected, a workout stops matching the first test, so this never
+ * touches the same one twice.
+ */
+export function zeroedBodyweightVolumes(
+  completed: Workout[],
+  log: BodyweightEntry[]
+): VolumeCorrection[] {
+  // Same lock as staleBodyweightVolumes: an empty log is also what a failed
+  // read looks like, and it has no weight to price anything with.
+  if (log.length === 0) return [];
+  const firstWeighIn = startOfDay(log.reduce((a, b) => (a.date < b.date ? a : b)).date).getTime();
+
+  const corrections: VolumeCorrection[] = [];
+  for (const workout of completed) {
+    if (!dependsOnBodyweight(workout)) continue;
+    const stored = workout.totalVolume;
+    // Missing is the one-time repair's case, not this one.
+    if (stored == null) continue;
+
+    const day = workoutDay(workout);
+    if (day.getTime() < firstWeighIn) continue;
+
+    const pricedWithNoWeight = Math.abs(stored - workoutVolumeLbs(workout)) < 0.5;
+    if (!pricedWithNoWeight) continue;
+
+    const lbs = bodyweightOn(log, day)?.lbs;
+    if (!lbs) continue;
+    const correct = workoutVolumeLbs(workout, lbs);
+    if (Math.abs(correct - stored) < 0.5) continue;
+
+    corrections.push({ id: workout.id, totalVolume: correct });
+  }
+  return corrections;
 }

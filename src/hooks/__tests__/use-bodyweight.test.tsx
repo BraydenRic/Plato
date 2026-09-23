@@ -1,3 +1,4 @@
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { act, renderHook, waitFor } from "@testing-library/react-native";
 
 import { useBodyweight } from "../use-bodyweight";
@@ -17,6 +18,8 @@ import type { BodyweightEntry, Workout } from "@/types";
 const mockSetLog = jest.fn(async () => {});
 const mockApply = jest.fn(async () => {});
 let mockStored: BodyweightEntry[] = [];
+/** Overrides the cloud read for one test — to fail it, or hold it open. */
+let mockRead: (() => Promise<BodyweightEntry[]>) | null = null;
 let mockCompleted: Workout[] = [];
 let mockUserId: string | null = "u1";
 // The hook keeps the last read per user for the life of the process, which is
@@ -29,7 +32,7 @@ jest.mock("@/hooks/use-workouts", () => ({
   useWorkouts: () => ({ completed: mockCompleted, active: [], loading: false }),
 }));
 jest.mock("@/lib/data", () => ({
-  getBodyweightLog: async () => mockStored,
+  getBodyweightLog: async () => (mockRead ? mockRead() : mockStored),
   setBodyweightLog: (...args: unknown[]) => mockSetLog(...(args as [])),
 }));
 jest.mock("@/lib/apply-volume-corrections", () => ({
@@ -69,6 +72,7 @@ const pullDay = (): Workout => ({
 
 beforeEach(() => {
   jest.clearAllMocks();
+  mockRead = null;
   mockUserId = `u${++testUser}`;
   mockCompleted = [pullDay()];
   mockStored = [
@@ -203,5 +207,80 @@ describe("opening a second screen that needs the log", () => {
     expect(other.result.current.log).toEqual([]);
     await waitFor(() => expect(other.result.current.log).toHaveLength(1));
     expect(other.result.current.log[0].lbs).toBe(140);
+  });
+});
+
+/**
+ * "BW not set" over a log with 198 lbs in it. The log was read once, and a cold
+ * start with no signal failed that read for good: Firestore keeps nothing on
+ * disk on React Native, and nothing ever asked again. The workout screen then
+ * had no weight for as long as it was open, and finishing froze every
+ * bodyweight set at zero.
+ */
+describe("with no signal", () => {
+  const offline = () => Promise.reject(Object.assign(new Error("offline"), { code: "unavailable" }));
+  let warn: jest.SpyInstance;
+  beforeEach(() => {
+    warn = jest.spyOn(console, "warn").mockImplementation(() => {});
+  });
+  afterEach(() => {
+    warn.mockRestore();
+    jest.useRealTimers();
+  });
+
+  it("paints the copy the last launch kept on the device", async () => {
+    await AsyncStorage.setItem(
+      `bodyweight_log_cache_v1:${mockUserId}`,
+      JSON.stringify([{ date: AUG_5.toISOString(), lbs: 198 }])
+    );
+    mockRead = offline;
+
+    const { result } = renderHook(() => useBodyweight());
+
+    await waitFor(() => expect(result.current.latest?.lbs).toBe(198));
+    expect(result.current.loading).toBe(false);
+  });
+
+  it("keeps a copy of every good read for the next cold start", async () => {
+    await loaded();
+
+    const kept = JSON.parse((await AsyncStorage.getItem(`bodyweight_log_cache_v1:${mockUserId}`))!);
+    expect(kept).toHaveLength(2);
+    expect(kept[1].lbs).toBe(191);
+  });
+
+  it("tries the read again instead of giving up after one failure", async () => {
+    jest.useFakeTimers();
+    let calls = 0;
+    mockRead = () => (++calls === 1 ? offline() : Promise.resolve(mockStored));
+
+    const { result } = renderHook(() => useBodyweight());
+    await act(async () => {});
+    expect(result.current.log).toEqual([]);
+
+    await act(async () => {
+      jest.advanceTimersByTime(2_000);
+    });
+
+    expect(calls).toBe(2);
+    expect(result.current.latest?.lbs).toBe(191);
+  });
+
+  it("doesn't let a read that was out before a weigh-in put the old log back", async () => {
+    let release!: (entries: BodyweightEntry[]) => void;
+    const { result } = await loaded();
+    // A second screen mounts and its read is slow to come back.
+    mockRead = () => new Promise((resolve) => (release = resolve));
+    renderHook(() => useBodyweight());
+
+    await act(async () => {
+      await result.current.record(198);
+    });
+    await act(async () => {
+      release([{ date: AUG_4, lbs: 250 }]);
+    });
+
+    const next = renderHook(() => useBodyweight());
+    expect(next.result.current.latest?.lbs).toBe(198);
   });
 });

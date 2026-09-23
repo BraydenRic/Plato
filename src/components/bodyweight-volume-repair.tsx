@@ -5,7 +5,7 @@ import { useAuth } from "@/context/AuthContext";
 import { useBodyweight } from "@/hooks/use-bodyweight";
 import { useWorkouts } from "@/hooks/use-workouts";
 import { applyVolumeCorrections } from "@/lib/apply-volume-corrections";
-import { staleBodyweightVolumes } from "@/lib/repair-bodyweight-volumes";
+import { staleBodyweightVolumes, zeroedBodyweightVolumes } from "@/lib/repair-bodyweight-volumes";
 
 /** Per account, and versioned so a future repair can be told apart from this one. */
 const DONE_KEY = "bodyweight_volume_repair_v1";
@@ -51,6 +51,29 @@ export function BodyweightVolumeRepair() {
       await AsyncStorage.setItem(key, new Date().toISOString());
     })().catch((e) => {
       console.warn("Couldn't repair bodyweight volumes", e);
+    });
+  }, [dataUserId, completed, log, workoutsLoading, logLoading]);
+
+  // Separate from the one-time repair above, and deliberately not behind its
+  // marker: sessions finished while the log had failed to load were frozen at
+  // zero for their bodyweight sets, and one can turn up after that repair has
+  // long since marked itself done. zeroedBodyweightVolumes only ever matches
+  // that failure, so it is safe to check every time the history changes.
+  //
+  // Ids already sent are remembered, so the snapshot that arrives before the
+  // write is acked can't queue the same correction again.
+  const zeroedSent = useRef(new Set<string>());
+  useEffect(() => {
+    if (!dataUserId || workoutsLoading || logLoading || log.length === 0) return;
+    const pending = zeroedBodyweightVolumes(completed, log).filter(
+      (c) => !zeroedSent.current.has(c.id)
+    );
+    if (pending.length === 0) return;
+    for (const c of pending) zeroedSent.current.add(c.id);
+    applyVolumeCorrections(pending, completed, dataUserId).catch((e) => {
+      // Forget them, so the next change to the history tries again.
+      for (const c of pending) zeroedSent.current.delete(c.id);
+      console.warn("Couldn't re-price workouts finished without a weigh-in", e);
     });
   }, [dataUserId, completed, log, workoutsLoading, logLoading]);
 

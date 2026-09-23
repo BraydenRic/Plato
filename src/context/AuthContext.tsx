@@ -18,6 +18,7 @@ import {
   reauthenticateWithApple,
   signInWithApple as appleSignIn,
 } from "@/lib/apple-signin";
+import { forgetCachedBodyweight } from "@/lib/bodyweight-cache";
 import { auth } from "@/lib/firebase";
 import { deleteAllUserData } from "@/lib/firestore";
 import {
@@ -304,6 +305,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (!(await reauthenticateWithGoogle(current))) return false;
     }
     await deleteAllUserData(current.uid);
+    // The device keeps a spare copy of the weigh-in log for offline starts.
+    // It's a record of someone's weight, so it goes with the account.
+    await forgetCachedBodyweight(current.uid);
     await deleteUser(current);
     return true;
   }
