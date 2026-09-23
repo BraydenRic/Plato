@@ -106,6 +106,11 @@ describe("searching the way people type", () => {
     ["PULL UPS", "Pull-Up"],
     ["push ups", "Push-Up"],
     ["dips", "Chest Dips"],
+    // Written on the machine as "4-Way Neck", typed every which way.
+    ["4 way neck", "4-Way Neck Extension"],
+    ["4-way", "4-Way Neck Extension"],
+    ["4way neck", "4-Way Neck Extension"],
+    ["4wayneck", "4-Way Neck Extension"],
   ])("%p finds %p", (term, expected) => {
     expect(found(term)).toContain(expected);
   });
@@ -127,6 +132,8 @@ describe("searching the way people type", () => {
   it("doesn't let a one-letter name word swallow every search", () => {
     // T-Bar Row's "T" is a prefix of any word starting with t.
     expect(found("tricep")).not.toContain("T-Bar Row");
+    // Nor the 4 in 4-Way: a 4 has to be followed by the rest of the name.
+    expect(found("45 degree")).not.toContain("4-Way Neck Extension");
   });
 
   it("still finds nothing for a real misspelling", () => {
@@ -138,7 +145,7 @@ describe("searching the way people type", () => {
 
   it("finds neck work the way it's usually asked for", () => {
     expect(found("neck")).toEqual(
-      expect.arrayContaining(["Plate Neck Flexion", "Neck Harness Extension", "Neck Machine Extension"])
+      expect.arrayContaining(["Plate Neck Flexion", "Neck Harness Extension", "4-Way Neck Extension"])
     );
   });
 });

@@ -177,9 +177,9 @@ export const EXERCISES: Exercise[] = [
   { id: "plate-neck-extension", name: "Plate Neck Extension", category: "Neck", musclesWorked: ["Neck", "Traps"], description: "Lying face down with a padded plate on the back of the head, lift the head up. Back of the neck." },
   { id: "lateral-neck-flexion", name: "Lateral Neck Flexion", category: "Neck", musclesWorked: ["Neck"], description: "Lying on your side with a padded plate on the head, lift the ear toward the shoulder. Sides of the neck." },
   { id: "neck-harness-extension", name: "Neck Harness Extension", category: "Neck", musclesWorked: ["Neck", "Traps"], description: "Weight hung from a head harness, lift the head from chin-down to neutral. Loadable neck extension." },
-  { id: "neck-machine-flexion", name: "Neck Machine Flexion", category: "Neck", musclesWorked: ["Neck"], description: "4-way neck machine, facing the pad. Push the head forward and down against it." },
-  { id: "neck-machine-extension", name: "Neck Machine Extension", category: "Neck", musclesWorked: ["Neck", "Traps"], description: "4-way neck machine, back of the head on the pad. Push the head back against it." },
-  { id: "neck-machine-lateral-flexion", name: "Neck Machine Lateral Flexion", category: "Neck", musclesWorked: ["Neck"], description: "4-way neck machine, side of the head on the pad. Tilt the ear toward the shoulder against it." },
+  { id: "neck-machine-flexion", name: "4-Way Neck Flexion", category: "Neck", musclesWorked: ["Neck"], description: "Seated on the 4-way neck machine, facing the pad. Push the head forward and down against it." },
+  { id: "neck-machine-extension", name: "4-Way Neck Extension", category: "Neck", musclesWorked: ["Neck", "Traps"], description: "Seated on the 4-way neck machine, back of the head on the pad. Push the head back against it." },
+  { id: "neck-machine-lateral-flexion", name: "4-Way Neck Lateral Flexion", category: "Neck", musclesWorked: ["Neck"], description: "Seated on the 4-way neck machine, side of the head on the pad. Tilt the ear toward the shoulder against it." },
   { id: "banded-neck-flexion", name: "Banded Neck Flexion", category: "Neck", musclesWorked: ["Neck"], description: "Band anchored behind you and looped over the forehead. Nod the chin down against it." },
   { id: "banded-neck-extension", name: "Banded Neck Extension", category: "Neck", musclesWorked: ["Neck", "Traps"], description: "Band anchored in front and looped behind the head. Take the head back against it." },
   { id: "neck-isometric-hold", name: "Neck Isometric Hold", category: "Neck", musclesWorked: ["Neck"], description: "Press the head into your own hand without letting it move. Front, back and both sides." },
@@ -409,10 +409,20 @@ export function filterExercises(
     if (category !== "All" && e.category !== category) return false;
     if (terms.length === 0) return true;
     const nameWords = words(e.name);
-    return terms.every((term) =>
-      nameWords.some(
-        (word) => word.includes(term) || (word.length >= 2 && term.startsWith(word))
-      )
+    // The name read from each word to the end, with the gaps closed up:
+    // "4-Way Neck Extension" gives "4wayneckextension", "wayneckextension"…
+    // Lets words typed run together find a name that separates them — "4way"
+    // for the machine labelled 4-Way, whose "4" is too short for the prefix
+    // rule below. Anchored to the start of a word, so it can't reach through
+    // one word into the next the way a squashed whole name would ("abs" in
+    // "cABle rOW"), and a one-letter word only matches a term that starts with
+    // the whole run after it.
+    const runs = nameWords.map((_, i) => nameWords.slice(i).join(""));
+    return terms.every(
+      (term) =>
+        nameWords.some(
+          (word) => word.includes(term) || (word.length >= 2 && term.startsWith(word))
+        ) || runs.some((run) => run.startsWith(term))
     );
   });
 }
