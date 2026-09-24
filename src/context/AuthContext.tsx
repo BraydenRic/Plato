@@ -246,6 +246,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   async function signOut() {
     if (auth.currentUser) {
+      // The offline copy of the weigh-in log belongs to a signed-in session,
+      // so it ends with one. Keyed by uid, it was never readable by the next
+      // person to sign in here — but a record of someone's weight shouldn't
+      // outstay them on a shared phone either. Signing back in reads it fresh.
+      await forgetCachedBodyweight(auth.currentUser.uid);
       await firebaseSignOut(auth);
       return;
     }
@@ -306,7 +311,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
     await deleteAllUserData(current.uid);
     // The device keeps a spare copy of the weigh-in log for offline starts.
-    // It's a record of someone's weight, so it goes with the account.
+    // It's a record of someone's weight, so it goes with the account — the
+    // same as it goes on sign-out.
     await forgetCachedBodyweight(current.uid);
     await deleteUser(current);
     return true;
