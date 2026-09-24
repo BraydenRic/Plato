@@ -406,6 +406,7 @@ export default function WorkoutsScreen() {
                   style={[
                     styles.dayCell,
                     hasDone && !isSelected && styles.dayCellDone,
+                    !hasDone && !isSelected && styles.dayCellOpen,
                     isSelected && { backgroundColor: theme.accent },
                   ]}>
                   {/* Seven columns share one row, so the date text caps like the
@@ -789,6 +790,14 @@ const useStyles = makeStyles((c) => ({
     // nudge the layout when it appears.
     borderWidth: 1,
     borderColor: "transparent",
+  },
+  // A day with nothing logged yet gets the faintest outline — the card's own
+  // border colour, so it tracks light and dark by itself. Without it those days
+  // were bare numbers beside boxed ones, and read as gaps rather than slots
+  // still to fill; with it the row is seven even days and the green ones stand
+  // out as the logged ones.
+  dayCellOpen: {
+    borderColor: c.border,
   },
   dayCellDone: {
     backgroundColor: c.successSoft,
