@@ -10,7 +10,7 @@ Plato is a fast, no-clutter workout tracker built for people who actually lift.
 Open it, log your sets, get back to training. No account needed to start.
 
 LOG WORKOUTS FAST
-• 300 built-in exercises — from barbell staples to calisthenics, machines and neck work — each with a guide to doing it right
+• 500 built-in exercises — barbell staples, machines, cables, calisthenics, sports and neck work — each with a guide to doing it right
 • Enter weight and reps with a keypad built for the gym — jump to the next field with one tap
 • Copy your previous set with a single tap
 • Timed exercises like planks, dead hangs, and cardio get a built-in start/stop timer
@@ -53,12 +53,15 @@ No ads. No pop-ups. No clutter. Just training.
 ## What's New in This Version
 
 ```
-Neck training — a new Neck category, including the 4-way neck machine.
+500 exercises — the library has grown from under 200 to 500, each with a
+form guide. New: a Neck category, including the 4-way neck machine, plus
+the standing calf machine, V-squat and reverse hack machines, Olympic lifts,
+calisthenics progressions, and sports and classes for cardio.
 
-300 exercises — over a hundred more built in, each with a form guide.
+Your body weight now counts even when you open Plato with no signal, and in
+templates — and workouts that missed it are corrected.
 
-Your body weight now counts even when you open Plato with no signal, and
-workouts that missed it are corrected.
+Back and Next on the keypad move exactly one field, every time.
 
 Search results no longer hide behind the keyboard, and the bar for your
 workout in progress has a cleaner look.

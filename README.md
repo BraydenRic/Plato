@@ -1,95 +1,102 @@
 # Plato Mobile
 
-iOS + Android workout tracker built with Expo (React Native). Shares its Firebase backend with [plato-web](../plato-web) — the same account sees the same workouts on web and mobile.
+iOS workout tracker built with Expo (React Native), live on the App Store. It shares its Firebase backend with [plato-web](../plato-web), so the same account sees the same workouts on both.
 
 ## Features
 
-- **Workout logging** — start empty or from a template, add exercises, log weight × reps per set, check sets off as you go.
-- **Rest timer** — 90s countdown starts automatically when you complete a set.
-- **Templates** — save any workout as a template, start it again with one tap.
-- **Exercise library** — 60+ movements with muscle groups and coaching notes, searchable by name or muscle.
-- **Statistics** — streaks, lifetime volume/sets/time, and a 14-day volume chart. All stats are **derived from workout history**, never incremented counters, and history is kept forever.
-- **Cloud sync** — Firebase Auth (Google or email/password) + Firestore. Sign in on any device.
+- **Workout logging.** Start empty, from a template, or from the day's weekly-split slot. Enter weight × reps on a gym-friendly keypad with Back / Done / Next, copy the previous set in one tap, and time holds and cardio with a per-set stopwatch. Sets complete themselves once filled in.
+- **Rest timer.** Off by default, and set in Profile. It survives leaving the workout screen.
+- **Live Activity.** The workout in progress sits on the Lock Screen and in the Dynamic Island, with a running clock and the rest countdown.
+- **Templates, weekly split and planning.** Reusable templates (up to 20), a weekday → template split, and workouts planned or backfilled on any calendar day.
+- **Exercise library.** 500 built-ins across 11 categories, including Neck, each with a form guide. Custom exercises, edits to built-ins and hidden built-ins are stored as per-user deltas.
+- **Progress.** Full history, per-exercise progress charts (weight, reps, estimated 1RM), weekly sets per muscle group, and a muscle map.
+- **Body weight.** Dated weigh-ins, a trend chart, and bodyweight exercises valued at what you weighed *on the day you trained*. A finished workout's volume is frozen, so a later weigh-in never rewrites it.
+- **Guest mode.** The whole app works with no account, stored on the device. Signing up later moves everything into the account.
+- **Accounts.** Sign in with Apple, Google, or email and password (email must be verified). Account deletion is in the app.
+- **Appearance.** Light, dark or system, seven accent colours, and a matching home-screen icon.
 
-## Running it on your iPhone (from WSL2/Windows)
+Stats are always **derived from workout history**, never incremented counters. History is kept forever.
 
-1. Install the **Expo Go** app from the App Store.
-2. Copy the Firebase config (already done if `.env.local` exists — see `.env.example`).
-3. Start the dev server in tunnel mode (LAN mode usually can't cross the WSL2 network boundary):
+## Running it
 
-   ```bash
-   npx expo start --tunnel
-   ```
+```bash
+npm install
+npx expo start --tunnel    # tunnel, because LAN mode can't cross the WSL2 boundary
+```
 
-4. Scan the QR code with the iPhone camera. The app opens in Expo Go.
+Copy `.env.example` to `.env.local` and fill in the Firebase config. Expo Go runs most of the app, but **Apple and Google sign-in, the Live Activity and alternate icons need a real build**, because they're native code. In Expo Go, use email/password or guest mode.
 
-For Android: same thing with the Expo Go app from the Play Store.
+```bash
+npm test                   # jest, ~700 tests
+npx tsc --noEmit           # type-check
+npm run lint
+```
 
-## One-time Firebase setup
+## Builds and releases
 
-In the [Firebase console](https://console.firebase.google.com/project/workouttracker-4e0c8):
+Builds run on GitHub Actions ([ios-build.yml](.github/workflows/ios-build.yml)) using `eas build --local` on a macOS runner pinned to Xcode 26, then upload straight to TestFlight:
 
-- **Authentication → Sign-in method → enable Email/Password.** Google's native sign-in can't run inside Expo Go (it needs custom native code), so email/password is the way to sign in while developing.
-- **Authentication → Sign-in method → enable Google** for the "Continue with Google" button, which appears automatically in development/production builds (it's hidden in Expo Go).
-- Firestore security rules should allow signed-in users to read/write their own `workouts` and `userStats` docs, e.g.:
+```bash
+gh workflow run ios-build.yml --ref main -f submit=true
+```
 
-  ```
-  match /workouts/{id} {
-    allow read, write: if request.auth != null
-      && (resource == null || resource.data.userId == request.auth.uid)
-      && (request.resource == null || request.resource.data.userId == request.auth.uid);
-  }
-  match /userStats/{uid} {
-    allow read, write: if request.auth != null && request.auth.uid == uid;
-  }
-  ```
+A build takes about 15–20 minutes, plus Apple's processing before it shows in TestFlight. Build numbers are managed remotely by EAS and increment automatically. The **version** is not: App Store Connect closes a version to new builds once it's approved, so bump `version` in `app.json` and `package.json` before building after a release.
+
+The App Store copy (description, What's New, review notes) lives in [docs/store-listing.md](docs/store-listing.md). Update it with the app.
+
+## Firebase
+
+Project `workouttracker-4e0c8`. Security rules and indexes are in the repo:
+
+```bash
+firebase deploy --only firestore:rules,firestore:indexes
+```
+
+Every collection is per-user: `workouts`, `userStats`, `exerciseLibrary`, `weeklyPlans`, `bodyweight`. A new collection needs a block in [firestore.rules](firestore.rules) and a line in `deleteAllUserData`. [account-data-coverage.test.ts](src/lib/__tests__/account-data-coverage.test.ts) fails if either is missing.
+
+Auth providers enabled: Email/Password, Google and Apple. The Google client IDs go in `.env.local` (see `.env.example`). The reversed iOS client ID is already set in `app.json`.
 
 ## Project structure
 
 ```
 src/
-├── app/                 # Expo Router routes
-│   ├── _layout.tsx      # Auth guard: sign-in vs app
-│   ├── sign-in.tsx
-│   ├── (tabs)/          # Workouts · Exercises · Stats · Profile
-│   ├── workout/[id].tsx # Live set-logging screen
-│   └── add-exercise.tsx # Modal exercise picker
-├── components/ui.tsx    # Button, Card, Field, Chip, …
-├── constants/theme.ts   # Plato palette (dark zinc + violet)
-├── context/AuthContext.tsx
-├── hooks/use-workouts.ts
+├── app/                         # Expo Router routes
+│   ├── _layout.tsx              # Providers, auth/guest/verification guards, crash screen
+│   ├── (tabs)/                  # Workouts · Exercises · Stats · Profile
+│   ├── workout/[id].tsx         # Live logging, template editor, planned/backfill
+│   ├── add-exercise.tsx         # Exercise picker (modal)
+│   ├── create-exercise.tsx      # Custom exercise (modal)
+│   ├── exercise/[id].tsx        # Form guide + progress chart (modal)
+│   ├── history.tsx, bodyweight.tsx, reorder-templates.tsx
+│   └── sign-in.tsx, verify-email.tsx
+├── components/                  # UI kit, resume bar, charts, muscle map, Live Activity sync
+├── context/                     # Auth, appearance/theme, units, rest + set timers, default sets
+├── hooks/                       # Workouts, active workout, bodyweight, library, weekly plan
 ├── lib/
-│   ├── firebase.ts      # App/Auth/Firestore init (env-driven)
-│   ├── firestore.ts     # Data layer — shared shape with plato-web
-│   ├── exercises.ts     # Bundled exercise library
-│   └── workout-utils.ts # Volume/duration/streak helpers
-└── types/index.ts       # Shared domain types (same as plato-web)
+│   ├── data.ts                  # The single data entry point — routes cloud vs device
+│   ├── firestore.ts             # Cloud store
+│   ├── local-store.ts           # Guest store (one AsyncStorage blob)
+│   ├── migrate-guest-data.ts    # Guest → account, resumable
+│   ├── exercises.ts             # The 500 built-ins + search
+│   ├── exercise-form.ts         # Form guide per built-in, keyed by id
+│   ├── workout-utils.ts         # Volume, streaks, dates, previous sets
+│   ├── bodyweight-cache.ts      # Offline copy of the weigh-in log
+│   └── live-activity.ts
+├── constants/theme.ts           # Palettes (light/dark) and the seven accents
+└── types/index.ts               # Domain types, shared with plato-web
+plugins/                         # Config plugin patching the Live Activity widget
+scripts/apple-transfer/          # One-off tool for an App Store team transfer
+docs/                            # Privacy policy (GitHub Pages) and store listing
 ```
 
 ## Data model
 
-One Firestore doc per workout with exercises and sets **embedded** — a set update writes the whole exercises array, so a set can never be partially zeroed or orphaned. `userStats/{uid}` is recomputed from full history after every finished workout (plato-web reads the same doc).
+One Firestore doc per workout, with exercises and sets **embedded**. A set update writes the whole exercises array, so a set can never be partly saved or orphaned. Workouts embed a copy of each exercise, so **built-in exercise ids are permanent**: rename one and history stops lining up.
 
-## Google sign-in setup (development/production builds only)
+Screens never call Firestore directly. [data.ts](src/lib/data.ts) sends each call to the cloud or the guest store, based on the data itself (a guest user id, or a `local-` workout id) rather than a global flag.
 
-The Google button uses `@react-native-google-signin/google-signin`, which is native code — it works in EAS builds but **not in Expo Go** (where the button is hidden and email/password is used instead). One-time setup before your first build:
+Finishing a workout stores `totalVolume`, priced at that day's weigh-in, and recomputes `userStats/{uid}`, which plato-web reads.
 
-1. Enable the **Google** provider in Firebase console → Authentication → Sign-in method.
-2. Copy the **Web client ID** shown under that provider's *Web SDK configuration* into `.env.local`:
+## Privacy
 
-   ```
-   EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID=79757088014-xxxx.apps.googleusercontent.com
-   ```
-
-3. For iOS, create an iOS OAuth client (Google Cloud console → APIs & Services → Credentials → Create credentials → OAuth client ID → iOS, bundle ID `com.plato.workouts`), then put its **reversed** client ID into `app.json` where the plugin currently says `REPLACE-WITH-REVERSED-IOS-CLIENT-ID` (it looks like `com.googleusercontent.apps.79757088014-xxxx`).
-
-## Store builds (later)
-
-Expo Go is for development. For TestFlight/App Store/Play Store builds, use EAS:
-
-```bash
-npm i -g eas-cli
-eas build --platform ios   # cloud-builds the iOS binary; no Mac needed
-```
-
-Note: installing a **development** build on a physical iPhone requires an Apple Developer Program membership ($99/yr) so EAS can sign it for your device. Android dev builds are free APKs.
+The privacy policy is [docs/index.html](docs/index.html), served at <https://braydenric.github.io/Plato/> and linked from the App Store listing. Update it whenever what the app stores changes, including what it keeps on the device.
