@@ -1508,6 +1508,538 @@ export const FORM_GUIDES: Record<string, FormGuide> = {
       },
     ],
   },
+  "wide-grip-cable-row": {
+    setup: [
+      "Attach a long straight or lat bar to the low cable.",
+      "Grip well outside the shoulders, feet on the plate, torso upright.",
+    ],
+    execution: [
+      "Row the bar to the lower chest with the elbows flaring out and back.",
+      "Squeeze the shoulder blades together, then reach forward to a stretch.",
+    ],
+    watchFor: [
+      {
+        mistake: "Tucking the elbows so it turns back into a normal cable row.",
+        fix: "Let your elbows travel out at roughly 60–70° from your sides and pull to your chest, not your stomach. That is what moves the work to the upper back.",
+      },
+      {
+        mistake: "Leaning back to finish each rep.",
+        fix: "Keep your torso still and upright. If you have to rock back, lighten the stack.",
+      },
+    ],
+  },
+  "iso-lateral-row": {
+    setup: [
+      "Set the seat so the handles line up with the middle of your chest.",
+      "Chest against the pad, feet planted, one handle in each hand.",
+    ],
+    execution: [
+      "Row straight back, driving the elbows past the torso.",
+      "Pause, then let the arms reach forward until the shoulder blades spread.",
+      "Try a few sets one arm at a time to find a weaker side.",
+    ],
+    watchFor: [
+      {
+        mistake: "Lifting the chest off the pad to throw the weight back.",
+        fix: "Stay in contact with the pad for the whole set. If you cannot, the plates are heavier than your back can row.",
+      },
+      {
+        mistake: "Short, choppy reps that never reach a stretch.",
+        fix: "Let your arms go fully long at the front of every rep. The stretch is half of what the machine is for.",
+      },
+    ],
+  },
+  "chest-supported-t-bar-row": {
+    setup: [
+      "Stand on the foot plate and lie your chest on the angled pad.",
+      "Take the wide or narrow handles, and let the arms hang straight.",
+    ],
+    execution: [
+      "Row the handles toward the ribs, keeping the chest on the pad.",
+      "Squeeze the shoulder blades together, then lower to a full stretch.",
+    ],
+    watchFor: [
+      {
+        mistake: "Pushing up through the legs so the chest leaves the pad.",
+        fix: "Keep your chest pressed into the pad and your legs quiet. Taking the legs out of the lift is the point of this machine.",
+      },
+      {
+        mistake: "Stopping the plates just short of the bottom every rep.",
+        fix: "Lower until your arms are straight and your shoulders are pulled forward. Half reps leave most of the back work on the table.",
+      },
+    ],
+  },
+  "seal-row": {
+    setup: [
+      "Set a flat bench high enough that the bar hangs clear of the floor with your arms straight.",
+      "Lie face down with the chin just over the end, and take the bar with an overhand grip.",
+    ],
+    execution: [
+      "Row the bar up until it touches the underside of the bench.",
+      "Lower all the way to straight arms before the next rep.",
+    ],
+    watchFor: [
+      {
+        mistake: "Lifting the head and chest off the bench to finish the rep.",
+        fix: "Keep your chest down on the bench. If the bar only reaches the pad by peeling up, lower the weight.",
+      },
+      {
+        mistake: "A bench so low the plates hit the floor before the arms straighten.",
+        fix: "Raise the bench on boxes or plates until you can reach a full stretch without the bar touching down.",
+      },
+    ],
+  },
+  "incline-db-row": {
+    setup: [
+      "Set a bench to about 30–45° and lie face down with the chest on the pad.",
+      "A dumbbell in each hand, arms hanging straight, toes on the floor.",
+    ],
+    execution: [
+      "Row both dumbbells up toward the hips, elbows close to the body.",
+      "Squeeze at the top, then lower until the arms are straight.",
+    ],
+    watchFor: [
+      {
+        mistake: "Pushing off the toes so the chest lifts off the pad.",
+        fix: "Keep your chest glued to the bench. The support is there so your back does the work, not your legs.",
+      },
+      {
+        mistake: "Letting the head crane up to watch the dumbbells.",
+        fix: "Keep your neck in line with your spine, looking at the floor just ahead of the bench.",
+      },
+    ],
+  },
+  "bent-over-db-row": {
+    setup: [
+      "Dumbbell in each hand, feet hip width, soft knees.",
+      "Hinge at the hips until the torso is at about 45° or lower, back flat.",
+    ],
+    execution: [
+      "Row both dumbbells toward the hips, elbows brushing the sides.",
+      "Lower to straight arms while holding the hinge still.",
+    ],
+    watchFor: [
+      {
+        mistake: "Standing up a little more every rep as the set goes on.",
+        fix: "Hold the same hinge angle from the first rep to the last. Rising up turns it into a shrug.",
+      },
+      {
+        mistake: "Rounding the lower back to reach the dumbbells down.",
+        fix: "Keep your back flat and push your hips back further instead. Lighter dumbbells make that easier to hold.",
+      },
+    ],
+  },
+  "gorilla-row": {
+    setup: [
+      "Two kettlebells on the floor between the feet, stance wider than the shoulders.",
+      "Hinge deeply with a flat back and grip both handles.",
+    ],
+    execution: [
+      "Row one bell to the hip while pressing the other into the floor.",
+      "Lower it back down and row the other side.",
+    ],
+    watchFor: [
+      {
+        mistake: "Twisting the torso open to lift the bell higher.",
+        fix: "Keep your chest facing the floor. A little rotation is natural; turning sideways takes the work off your back.",
+      },
+      {
+        mistake: "Standing up out of the hinge between reps.",
+        fix: "Stay down for the whole set with your hips back. The held hinge is part of what makes this row hard.",
+      },
+    ],
+  },
+  "reverse-grip-barbell-row": {
+    setup: [
+      "Take the bar with an underhand grip at about shoulder width.",
+      "Hinge to roughly 30–45°, a little more upright than an overhand row.",
+    ],
+    execution: [
+      "Row the bar to the lower stomach, driving the elbows back close to the body.",
+      "Lower to straight arms, keeping the torso angle fixed.",
+    ],
+    watchFor: [
+      {
+        mistake: "Curling the bar up with the biceps.",
+        fix: "Think about driving your elbows back behind you. Your hands are only hooks holding the bar.",
+      },
+      {
+        mistake: "Using a wide underhand grip that strains the wrists.",
+        fix: "Keep your hands about shoulder width apart. An underhand grip is much more comfortable when it is narrow.",
+      },
+    ],
+  },
+  "smith-row": {
+    setup: [
+      "Set the bar at about knee height and stand close to it.",
+      "Grip just outside the legs, hinge to about 45°, and unrack by twisting the bar.",
+    ],
+    execution: [
+      "Row the bar to the lower chest, keeping your back flat.",
+      "Lower to straight arms and rack it when the set is done.",
+    ],
+    watchFor: [
+      {
+        mistake: "Standing so the bar path drags against the thighs.",
+        fix: "Step back until the bar runs straight up and down in front of your legs without touching them.",
+      },
+      {
+        mistake: "Letting the hinge rise because the machine holds the bar.",
+        fix: "Keep the same hinge angle for every rep. The fixed path steadies the bar, not your torso.",
+      },
+    ],
+  },
+  "weighted-pull-up": {
+    setup: [
+      "Hang the weight from a dip belt, or hold a dumbbell between the feet.",
+      "Take your normal pull-up grip and start from a still hang.",
+      "Log only the added weight.",
+    ],
+    execution: [
+      "Pull until the chin clears the bar, chest up.",
+      "Lower all the way to straight arms under control.",
+    ],
+    watchFor: [
+      {
+        mistake: "Adding weight before bodyweight reps are strict.",
+        fix: "Get to about eight clean bodyweight reps before you load them. Extra weight makes any half rep worse.",
+      },
+      {
+        mistake: "The plate swinging and pulling you into a kip.",
+        fix: "Start each rep from a dead stop and keep your legs still. Shorten the belt chain so the weight hangs close.",
+      },
+    ],
+  },
+  "weighted-chin-up": {
+    setup: [
+      "Belt on with the weight hanging close, underhand grip at shoulder width.",
+      "Start from a still hang with the arms straight.",
+      "Log only the added weight.",
+    ],
+    execution: [
+      "Pull until the chin clears the bar, elbows driving down in front of you.",
+      "Lower slowly to a full hang.",
+    ],
+    watchFor: [
+      {
+        mistake: "Stopping short of straight arms at the bottom.",
+        fix: "Straighten your arms fully on every rep. Weighted half reps look strong and build much less.",
+      },
+      {
+        mistake: "Jumping in weight too quickly.",
+        fix: "Add small plates and let the reps come back before the next jump. The elbows need time to catch up with the load.",
+      },
+    ],
+  },
+  "negative-pull-up": {
+    setup: [
+      "Use a box or jump to get the chin over the bar.",
+      "Take an overhand grip and hold the top position for a moment.",
+    ],
+    execution: [
+      "Lower yourself as slowly as you can, aiming for three to five seconds.",
+      "Reach a full hang, then step back up for the next rep.",
+    ],
+    watchFor: [
+      {
+        mistake: "Dropping the last half of the rep.",
+        fix: "Control the whole way down to straight arms. The bottom half is where most people get stuck on a full pull-up.",
+      },
+      {
+        mistake: "Doing so many that the elbows ache the next day.",
+        fix: "Keep the sets short, around three to five slow reps. Lowering work is harder on the body than it feels at the time.",
+      },
+    ],
+  },
+  "archer-pull-up": {
+    setup: [
+      "Take an overhand grip much wider than a normal pull-up.",
+      "Hang with straight arms and the shoulders set.",
+    ],
+    execution: [
+      "Pull toward one hand while the other arm straightens out along the bar.",
+      "Lower under control and alternate sides.",
+    ],
+    watchFor: [
+      {
+        mistake: "Bending both arms equally so it becomes a wide pull-up.",
+        fix: "Keep the assisting arm as straight as you can. The more it helps, the less the working side learns.",
+      },
+      {
+        mistake: "Twisting the body toward the working side.",
+        fix: "Keep your chest square to the bar and slide your chin toward the working hand.",
+      },
+    ],
+  },
+  "kipping-pull-up": {
+    setup: [
+      "Grip the bar just outside the shoulders.",
+      "Be able to do several strict pull-ups first.",
+    ],
+    execution: [
+      "Swing between an arched position and a hollow position from the shoulders.",
+      "As you snap into the hollow, drive the hips up and pull the chin over the bar.",
+      "Push away from the bar at the top and flow back into the next swing.",
+    ],
+    watchFor: [
+      {
+        mistake: "Learning the kip before you have strict pulling strength.",
+        fix: "Build to at least five strict pull-ups first. The kip adds speed, and the shoulders need the strength to control it.",
+      },
+      {
+        mistake: "A wild swing from the knees that loses the rhythm.",
+        fix: "Keep your legs together and drive the swing from your shoulders and hips. A tight, small kip links reps far better.",
+      },
+    ],
+  },
+  "ring-row": {
+    setup: [
+      "Set rings or suspension straps at about waist height.",
+      "Hold the handles, lean back with straight arms, and walk the feet forward.",
+      "Body in a straight line from head to heels.",
+    ],
+    execution: [
+      "Row the chest up to the handles, turning the palms in as you pull.",
+      "Lower back to straight arms under control.",
+    ],
+    watchFor: [
+      {
+        mistake: "Hips sagging so only the upper body moves.",
+        fix: "Squeeze your glutes and keep your body straight like a moving plank. Step your feet back if you cannot hold it.",
+      },
+      {
+        mistake: "Shrugging the shoulders up to the ears at the top.",
+        fix: "Pull your shoulder blades back and down as you row. Lead with your chest, not your chin.",
+      },
+    ],
+  },
+  "trap-bar-shrug": {
+    setup: [
+      "Stand in the centre of a hex bar and deadlift it up to standing.",
+      "Arms straight, shoulders relaxed down.",
+    ],
+    execution: [
+      "Shrug the shoulders straight up toward the ears.",
+      "Pause at the top, then lower all the way down.",
+    ],
+    watchFor: [
+      {
+        mistake: "Bending the elbows to help the weight up.",
+        fix: "Keep your arms straight and loose. Only your shoulders should move, or the biceps start taking over.",
+      },
+      {
+        mistake: "Loading it so heavily the reps become tiny bounces.",
+        fix: "Choose a weight you can hold at the top for a second. A full, paused shrug does more than a heavy twitch.",
+      },
+    ],
+  },
+  "behind-back-shrug": {
+    setup: [
+      "Set the bar in a rack at about hip height.",
+      "Back up to it and grip it behind the thighs, palms facing back, a little wider than the hips.",
+    ],
+    execution: [
+      "Lift the bar out of the rack and shrug straight up.",
+      "Pause at the top, then lower to a full stretch.",
+    ],
+    watchFor: [
+      {
+        mistake: "Leaning forward so the bar pulls you over.",
+        fix: "Stand tall with your chest up. Let the bar rest lightly against the backs of your legs.",
+      },
+      {
+        mistake: "Picking the bar up from the floor behind you.",
+        fix: "Take it from a rack or pins at hip height. Lifting it off the floor behind your back is awkward and needless.",
+      },
+    ],
+  },
+  "machine-shrug": {
+    setup: [
+      "Set the pads or handles so you start with the arms straight and the shoulders down.",
+      "Stand or sit tall, feet planted.",
+    ],
+    execution: [
+      "Shrug straight up toward the ears.",
+      "Hold for a moment, then lower all the way down.",
+    ],
+    watchFor: [
+      {
+        mistake: "Rolling the shoulders forward or in circles.",
+        fix: "Move straight up and straight down. Rolling adds nothing for the traps and makes the load harder to control.",
+      },
+      {
+        mistake: "Cutting the bottom short so the stack never settles.",
+        fix: "Let your shoulders drop fully between reps. That stretch is part of the range the traps need.",
+      },
+    ],
+  },
+  "snatch-grip-deadlift": {
+    setup: [
+      "Bar over the middle of the foot, grip out near the collars.",
+      "Hips lower than a normal deadlift, back flat, chest up.",
+      "Brace hard before you pull.",
+    ],
+    execution: [
+      "Push the floor away, keeping the bar close to the legs.",
+      "Stand tall at the top, then lower it along the same path.",
+    ],
+    watchFor: [
+      {
+        mistake: "Starting with the hips as high as a normal deadlift.",
+        fix: "Sit your hips lower to reach the wider grip. Hips too high and the back ends up rounding over the bar.",
+      },
+      {
+        mistake: "Grip giving out long before the back does.",
+        fix: "Use straps for heavy sets. The wide grip is there to work the upper back, not to test your hands.",
+      },
+    ],
+  },
+  "deficit-deadlift": {
+    setup: [
+      "Stand on a plate or low platform, usually one to three inches high.",
+      "Set up as for a normal deadlift: bar over mid-foot, back flat, lats tight.",
+    ],
+    execution: [
+      "Drive through the floor and break the bar away from the ground.",
+      "Stand tall, then lower back to the plates under control.",
+    ],
+    watchFor: [
+      {
+        mistake: "Standing on a platform so high the back rounds to reach the bar.",
+        fix: "Choose a height you can set up for with a flat back. A small deficit done well beats a big one done hunched.",
+      },
+      {
+        mistake: "Using the same weight as your normal deadlift.",
+        fix: "Start lighter. The extra range makes the lift noticeably harder, and that extra work is the reason to do it.",
+      },
+    ],
+  },
+  "power-snatch": {
+    setup: [
+      "Wide grip so the bar sits in the hip crease when you stand up.",
+      "Bar over mid-foot, back flat, shoulders slightly ahead of the bar.",
+      "Learn it from a coach or with a PVC pipe and empty bar first.",
+    ],
+    execution: [
+      "Push the floor away and keep the bar close as it passes the knees.",
+      "At the hips, extend hard and shrug, then pull yourself under the bar.",
+      "Catch it overhead with locked arms in a partial squat, then stand.",
+    ],
+    watchFor: [
+      {
+        mistake: "Swinging the bar out in front of you with the hips.",
+        fix: "Keep the bar brushing your thighs as you extend. A bar that loops forward pulls you off balance at the catch.",
+      },
+      {
+        mistake: "Pressing the bar out with soft elbows at the catch.",
+        fix: "Punch your arms to lockout as you drop under. If you have to press it out, the weight is too heavy for now.",
+      },
+    ],
+  },
+  "clean-and-jerk": {
+    setup: [
+      "Clean grip just outside the legs, bar over mid-foot.",
+      "Learn both halves separately with a coach or an empty bar before you put them together.",
+    ],
+    execution: [
+      "Clean the bar to the shoulders and stand up fully.",
+      "Reset the grip if needed, dip straight down through the legs, and drive the bar overhead.",
+      "Catch it on locked arms, get the feet under you, and stand still before lowering.",
+    ],
+    watchFor: [
+      {
+        mistake: "Dipping forward onto the toes before the jerk.",
+        fix: "Dip straight down with your weight in your heels and torso upright. A forward dip sends the bar out in front.",
+      },
+      {
+        mistake: "Rushing into the jerk before you are balanced after the clean.",
+        fix: "Stand fully and take a breath before you dip. A second to settle makes the jerk far more reliable.",
+      },
+    ],
+  },
+  "clean-pull": {
+    setup: [
+      "Set up exactly as for a clean: grip just outside the legs, bar over mid-foot.",
+      "Back flat and shoulders slightly ahead of the bar.",
+    ],
+    execution: [
+      "Lift the bar past the knees at the same speed you would clean it.",
+      "At mid-thigh, drive the hips through and shrug hard, rising onto the toes.",
+      "Keep the arms long, then lower the bar under control.",
+    ],
+    watchFor: [
+      {
+        mistake: "Bending the elbows and turning it into a high pull.",
+        fix: "Keep your arms straight like ropes. The pull trains the legs and hips to move the bar, not the arms.",
+      },
+      {
+        mistake: "Leaning back at the top instead of driving up.",
+        fix: "Finish tall with your shoulders over the bar or slightly behind it. Throwing your weight backward wastes the drive.",
+      },
+    ],
+  },
+  "dumbbell-snatch": {
+    setup: [
+      "Dumbbell on the floor between the feet, feet about shoulder width.",
+      "Squat down with a flat back and grip the handle with one hand.",
+    ],
+    execution: [
+      "Drive through the legs and hips, keeping the dumbbell close to the body.",
+      "Pull it up and punch it overhead to a locked arm in one motion.",
+      "Lower it to the shoulder, then to the floor, and switch hands as planned.",
+    ],
+    watchFor: [
+      {
+        mistake: "Pulling the dumbbell up with the arm and pressing it out.",
+        fix: "Let the hips launch the weight and use your arm to guide it. It should arrive overhead, not be pushed there.",
+      },
+      {
+        mistake: "Rounding the back to pick it off the floor.",
+        fix: "Squat down to the dumbbell with your chest up. Speed does not excuse a rounded back at the start.",
+      },
+    ],
+  },
+  "kettlebell-clean": {
+    setup: [
+      "Kettlebell on the floor a little in front of you, feet about shoulder width.",
+      "Hinge and grip the handle with one hand, thumb pointing back.",
+    ],
+    execution: [
+      "Hike the bell back between the legs, then drive the hips forward.",
+      "Keep the elbow close and let the bell travel up the body into the rack at your shoulder.",
+      "Drop it back between the legs for the next rep.",
+    ],
+    watchFor: [
+      {
+        mistake: "The bell flipping over and banging the forearm.",
+        fix: "Keep it close and slip your hand around the handle as it rises, rather than letting it arc out and flip over.",
+      },
+      {
+        mistake: "Curling the bell up with the arm.",
+        fix: "Drive it with your hips just like a swing. The arm only keeps it close on the way up.",
+      },
+    ],
+  },
+  "band-row": {
+    setup: [
+      "Anchor a band at chest height, or sit and loop it around the feet.",
+      "Step back or reach forward until the band is taut with the arms straight.",
+    ],
+    execution: [
+      "Row the handles to the ribs, squeezing the shoulder blades together.",
+      "Let the arms go back out slowly against the band.",
+    ],
+    watchFor: [
+      {
+        mistake: "Letting the band snap the arms back forward.",
+        fix: "Control the return as much as the pull. The band is trying to yank you, and resisting it is half the work.",
+      },
+      {
+        mistake: "Standing so close that there is no tension at the start.",
+        fix: "Step back until the band is tight with your arms straight. It should pull on you from the very first inch.",
+      },
+    ],
+  },
   "ohp": {
     setup: [
       "Bar on the front delts, hands just outside the shoulders.",
@@ -5070,6 +5602,448 @@ export const FORM_GUIDES: Record<string, FormGuide> = {
       },
     ],
   },
+  "standing-cable-crunch": {
+    setup: [
+      "Set a rope on the high pulley and stand facing away from the stack.",
+      "Hold the rope ends by the shoulders, feet hip width, knees soft.",
+    ],
+    execution: [
+      "Crunch the ribs down toward the hips, rounding the spine.",
+      "Come back up slowly to a stretch without letting the stack pull you tall.",
+    ],
+    watchFor: [
+      {
+        mistake: "Bending at the hips so it becomes a bow.",
+        fix: "Keep your hips still and curl your spine. The movement comes from your ribs moving toward your pelvis.",
+      },
+      {
+        mistake: "Pulling the rope down with the arms.",
+        fix: "Pin your hands at your shoulders and let your torso move them. The arms only hold the rope in place.",
+      },
+    ],
+  },
+  "cable-side-bend": {
+    setup: [
+      "Stand side-on to a low pulley with a handle in the far hand.",
+      "Feet hip width, the free hand on your hip.",
+    ],
+    execution: [
+      "Lean away from the cable by bending at the waist.",
+      "Let the cable draw you back toward it slowly, then switch sides after the set.",
+    ],
+    watchFor: [
+      {
+        mistake: "Twisting or leaning forward as you bend.",
+        fix: "Bend straight to the side, as if your back were pressed against a wall.",
+      },
+      {
+        mistake: "Pulling the handle up with the arm.",
+        fix: "Keep your working arm straight and relaxed. The bend at your waist does the lifting.",
+      },
+    ],
+  },
+  "captains-chair-knee-raise": {
+    setup: [
+      "Back against the pad and forearms on the arm rests, gripping the handles.",
+      "Let the legs hang straight down.",
+    ],
+    execution: [
+      "Bring the knees up toward the chest, curling the pelvis off the back pad at the top.",
+      "Lower slowly until the legs hang straight again.",
+    ],
+    watchFor: [
+      {
+        mistake: "Swinging the legs up and letting them drop.",
+        fix: "Lower under control and pause at the bottom. Momentum takes the work away from your abs.",
+      },
+      {
+        mistake: "Stopping with the thighs level and the back flat on the pad.",
+        fix: "Tilt your pelvis up at the top so your hips lift slightly off the pad. That curl is where the abs do their job.",
+      },
+    ],
+  },
+  "barbell-rollout": {
+    setup: [
+      "Load the bar with round plates so it rolls smoothly.",
+      "Kneel behind it with the hands shoulder width apart and the shoulders over the bar.",
+    ],
+    execution: [
+      "Roll the bar forward, lowering the hips and chest together.",
+      "Go only as far as you can keep a flat back, then pull it back in with the abs.",
+    ],
+    watchFor: [
+      {
+        mistake: "Hips sagging and the lower back arching at the far end.",
+        fix: "Stop short of the point where your back arches. The range grows over weeks, not in one session.",
+      },
+      {
+        mistake: "Rolling back in by sticking the hips up first.",
+        fix: "Bring your hips and chest back together. Think about pulling the bar in with your stomach, not pushing your hips back.",
+      },
+    ],
+  },
+  "stability-ball-rollout": {
+    setup: [
+      "Kneel with a stability ball in front and your forearms resting on top.",
+      "Brace the abs and squeeze the glutes.",
+    ],
+    execution: [
+      "Roll the ball forward, letting the body lengthen from the knees.",
+      "Stop while the back is still flat, then roll back in.",
+    ],
+    watchFor: [
+      {
+        mistake: "Letting the lower back sag as the ball rolls out.",
+        fix: "Keep your ribs down and your glutes tight. Stop the roll wherever the sag would begin.",
+      },
+      {
+        mistake: "Pushing the hips back instead of letting the ball travel.",
+        fix: "Keep your hips moving forward in line with your shoulders. Folding at the hips takes the load off your abs.",
+      },
+    ],
+  },
+  "stability-ball-crunch": {
+    setup: [
+      "Sit on a stability ball and walk the feet out until your lower back rests on it.",
+      "Feet wide for balance, hands at the chest or temples.",
+    ],
+    execution: [
+      "Let the upper back stretch over the ball, then curl the ribs up.",
+      "Pause at the top and lower back into the stretch.",
+    ],
+    watchFor: [
+      {
+        mistake: "Rolling the ball back and forth instead of crunching.",
+        fix: "Keep your hips still and the ball in place. Only your upper body should move.",
+      },
+      {
+        mistake: "Feet so close together that you wobble off the ball.",
+        fix: "Widen your stance until you feel steady. You cannot crunch hard when you are busy balancing.",
+      },
+    ],
+  },
+  "stability-ball-pike": {
+    setup: [
+      "Push-up position with the hands under the shoulders and the shins or feet on a ball.",
+      "Body in a straight line.",
+    ],
+    execution: [
+      "Lift the hips toward the ceiling, rolling the ball in toward the hands.",
+      "Lower back to the straight line under control.",
+      "Tuck the knees in instead if the full pike is too hard.",
+    ],
+    watchFor: [
+      {
+        mistake: "Hips sagging between reps.",
+        fix: "Return to a straight plank every rep, not a sag. Squeeze your glutes to hold it.",
+      },
+      {
+        mistake: "Shoulders drifting back behind the hands at the top.",
+        fix: "Keep your shoulders stacked over your wrists as your hips rise. That keeps the load on your abs, not your wrists.",
+      },
+    ],
+  },
+  "overhead-carry": {
+    setup: [
+      "Press a dumbbell or kettlebell overhead and lock the arm out.",
+      "Stand tall with the ribs down and the biceps near the ear.",
+    ],
+    execution: [
+      "Walk a set distance or time with steady steps.",
+      "Switch hands, or carry one in each hand if you are using two.",
+    ],
+    watchFor: [
+      {
+        mistake: "Arching the lower back to get the weight overhead.",
+        fix: "Pull your ribs down and squeeze your glutes. If you still arch, go lighter or carry at the shoulder instead.",
+      },
+      {
+        mistake: "Letting the elbow bend as you tire.",
+        fix: "Keep your arm locked straight. Set the weight down before the elbow softens rather than walking it out bent.",
+      },
+    ],
+  },
+  "front-rack-carry": {
+    setup: [
+      "Clean two kettlebells into the rack, resting against the forearms and chest.",
+      "Elbows tucked in, wrists straight, standing tall.",
+    ],
+    execution: [
+      "Walk a set distance or time with short, even steps.",
+      "Breathe behind the brace rather than holding the breath.",
+    ],
+    watchFor: [
+      {
+        mistake: "Leaning back to balance the weight in front.",
+        fix: "Stay stacked with your ribs over your hips. Holding that position against the load is what trains the abs.",
+      },
+      {
+        mistake: "Elbows flaring out so the bells slide down the arms.",
+        fix: "Squeeze your elbows in toward your ribs. The bells should sit snugly in the rack, not hang off your forearms.",
+      },
+    ],
+  },
+  "hanging-oblique-knee-raise": {
+    setup: [
+      "Hang from a bar with straight arms and the shoulders set.",
+      "Legs together, body still.",
+    ],
+    execution: [
+      "Bring the knees up and across toward one side, curling the pelvis.",
+      "Lower slowly to a full hang, then go to the other side.",
+    ],
+    watchFor: [
+      {
+        mistake: "Swinging the legs sideways with momentum.",
+        fix: "Pause at the bottom until the body is still. The obliques only work when you lift the knees, not throw them.",
+      },
+      {
+        mistake: "Twisting the knees without lifting them.",
+        fix: "Raise your knees toward your chest first, then angle them to the side. Height and rotation both count.",
+      },
+    ],
+  },
+  "heel-taps": {
+    setup: [
+      "Lie on your back with the knees bent and feet flat, a little wider than hip width.",
+      "Lift the shoulders just off the floor, arms by your sides.",
+    ],
+    execution: [
+      "Reach one hand down to touch that heel by bending sideways.",
+      "Go back through the middle and reach to the other heel.",
+    ],
+    watchFor: [
+      {
+        mistake: "Letting the shoulders drop to the floor between taps.",
+        fix: "Keep your shoulder blades off the floor for the whole set. The held crunch is what keeps the abs working.",
+      },
+      {
+        mistake: "Tucking the chin hard into the chest.",
+        fix: "Leave a fist-sized gap between your chin and chest so your neck stays relaxed.",
+      },
+    ],
+  },
+  "toe-touch-crunch": {
+    setup: [
+      "Lie on your back with the legs straight up over the hips.",
+      "Arms reaching up toward the feet.",
+    ],
+    execution: [
+      "Curl the shoulders off the floor and reach the fingertips toward the toes.",
+      "Lower the shoulders back down under control.",
+    ],
+    watchFor: [
+      {
+        mistake: "Letting the legs drift down toward the floor.",
+        fix: "Keep your legs pointing straight up. Bend your knees slightly if your hamstrings pull them down.",
+      },
+      {
+        mistake: "Reaching with the arms while the shoulders stay down.",
+        fix: "Lift your shoulder blades off the floor by curling your ribs up. The reach should come from the crunch.",
+      },
+    ],
+  },
+  "hollow-rock": {
+    setup: [
+      "Get into a hollow hold: lower back pressed down, arms overhead, legs straight and off the floor.",
+    ],
+    execution: [
+      "Rock back and forth, keeping the shape completely fixed.",
+      "Let the rock come from the whole body moving as one piece.",
+    ],
+    watchFor: [
+      {
+        mistake: "Bending at the hips to create the rock.",
+        fix: "Keep your body locked in one banana shape. If it folds, stop and reset the hold before you rock again.",
+      },
+      {
+        mistake: "Lower back peeling off the floor as you tire.",
+        fix: "Bring your arms or legs in closer to shorten the lever. A smaller shape held properly is the right version.",
+      },
+    ],
+  },
+  "oblique-crunch": {
+    setup: [
+      "Lie on your back, then drop both bent knees over to one side.",
+      "Keep the shoulders flat, hands lightly at the temples.",
+    ],
+    execution: [
+      "Crunch straight up toward the ceiling, lifting the shoulders off the floor.",
+      "Lower under control, then switch the knees to the other side after the set.",
+    ],
+    watchFor: [
+      {
+        mistake: "Pulling the head up with the hands.",
+        fix: "Rest your fingertips at your temples and lead with your ribs. Your neck should not be doing the lifting.",
+      },
+      {
+        mistake: "Letting the knees drift back to the middle.",
+        fix: "Keep your knees resting on the floor to one side. That angle is what moves the crunch onto your obliques.",
+      },
+    ],
+  },
+  "seated-knee-tuck": {
+    setup: [
+      "Sit on the end of a flat bench, hands gripping the sides behind you.",
+      "Lean back slightly and lift the feet off the floor.",
+    ],
+    execution: [
+      "Pull the knees in toward the chest as the torso comes forward to meet them.",
+      "Extend the legs back out without letting the feet touch down.",
+    ],
+    watchFor: [
+      {
+        mistake: "Leaning so far back the hip flexors do everything.",
+        fix: "Stay only slightly reclined and curl your torso toward your knees as they come in.",
+      },
+      {
+        mistake: "Kicking the legs out fast and letting them drop.",
+        fix: "Extend your legs slowly and keep them off the floor. The way out is half the work.",
+      },
+    ],
+  },
+  "roman-chair-side-bend": {
+    setup: [
+      "Lie side-on in a 45° back-extension bench, hip on the pad and feet stacked under the rollers.",
+      "Arms crossed on the chest or hands at the temples.",
+    ],
+    execution: [
+      "Lower the torso sideways toward the floor.",
+      "Lift back up until the body is in a straight line, then switch sides after the set.",
+    ],
+    watchFor: [
+      {
+        mistake: "Rotating the chest toward the floor as you lower.",
+        fix: "Keep your shoulders stacked one over the other. Turning takes the load off your obliques.",
+      },
+      {
+        mistake: "Lifting well past straight at the top.",
+        fix: "Stop when your body forms a straight line. Crunching higher adds little and pinches the side of the waist.",
+      },
+    ],
+  },
+  "med-ball-slam": {
+    setup: [
+      "Use a slam ball, one made to hit the floor without bouncing back.",
+      "Stand with the feet shoulder width and the ball held at the chest.",
+    ],
+    execution: [
+      "Lift the ball overhead, rising onto the toes.",
+      "Slam it straight down in front of you, bending at the hips and knees.",
+      "Squat to pick it up and go again.",
+    ],
+    watchFor: [
+      {
+        mistake: "Using a bouncy ball that flies back up at your face.",
+        fix: "Use a dead-bounce slam ball. A regular medicine ball can rebound hard and fast.",
+      },
+      {
+        mistake: "Throwing with the arms only while standing tall.",
+        fix: "Drive the ball down by pulling your ribs toward your hips. The trunk is doing the throwing.",
+      },
+    ],
+  },
+  "med-ball-rotational-throw": {
+    setup: [
+      "Stand side-on to a solid wall, about an arm's length or two away.",
+      "Hold the medicine ball at the hip farthest from the wall.",
+    ],
+    execution: [
+      "Turn the hips and chest toward the wall and throw the ball into it.",
+      "Catch it on the rebound, reset, and repeat before switching sides.",
+    ],
+    watchFor: [
+      {
+        mistake: "Throwing with the arms while the feet stay planted.",
+        fix: "Pivot your back foot and turn your hips first. Rotational power starts from the ground.",
+      },
+      {
+        mistake: "Using a heavy ball that makes every throw slow.",
+        fix: "Pick a light ball you can throw fast. The point is speed, and a heavy ball kills it.",
+      },
+    ],
+  },
+  "ghd-sit-up": {
+    setup: [
+      "Set the foot plate so your hips sit just off the end of the seat.",
+      "Hook the feet under the rollers and sit upright.",
+      "Build up slowly: a few reps the first sessions, then more.",
+    ],
+    execution: [
+      "Lower back until the torso is level with the floor or a little below.",
+      "Kick the knees straight and sit back up, reaching forward.",
+    ],
+    watchFor: [
+      {
+        mistake: "Doing a big set the first time you try them.",
+        fix: "Start with a handful of reps and add a few each week. They hit the abs much harder than they feel during the set.",
+      },
+      {
+        mistake: "Dropping far below parallel with no control.",
+        fix: "Lower only as far as you can come back up from smoothly. Parallel is plenty to start with.",
+      },
+    ],
+  },
+  "body-saw": {
+    setup: [
+      "Forearm plank with the feet on sliders, towels or a slick floor.",
+      "Body in one line from head to heels.",
+    ],
+    execution: [
+      "Push back from the forearms so the body slides backward.",
+      "Pull forward past the start, keeping the hips level the whole time.",
+    ],
+    watchFor: [
+      {
+        mistake: "Hips sagging as the body slides back.",
+        fix: "Only slide back as far as you can hold a flat back. Squeeze your glutes the whole time.",
+      },
+      {
+        mistake: "Piking the hips up to make it easier.",
+        fix: "Keep your body straight like a plank. Shorten the slide instead of breaking the line.",
+      },
+    ],
+  },
+  "plank-up-down": {
+    setup: [
+      "Forearm plank with the feet a little wider than usual.",
+      "Glutes and abs tight.",
+    ],
+    execution: [
+      "Place one hand, then the other, to press up into a high plank.",
+      "Lower back to the forearms one arm at a time, and switch the lead arm each rep.",
+    ],
+    watchFor: [
+      {
+        mistake: "Hips swaying side to side as you change arms.",
+        fix: "Widen your feet and squeeze your glutes. Keeping your hips still is the whole exercise.",
+      },
+      {
+        mistake: "Hips piking up to make the transitions easier.",
+        fix: "Hold a straight line from your head to your heels. Slow down if the line breaks.",
+      },
+    ],
+  },
+  "side-plank-hip-dip": {
+    setup: [
+      "Side plank on the forearm, elbow under the shoulder.",
+      "Feet stacked or staggered, body in a straight line.",
+    ],
+    execution: [
+      "Lower the bottom hip toward the floor without touching down.",
+      "Lift it back up past the straight line, then repeat before switching sides.",
+    ],
+    watchFor: [
+      {
+        mistake: "Rolling the chest toward the floor as you dip.",
+        fix: "Keep your top shoulder stacked over the bottom one. The hip moves straight up and down.",
+      },
+      {
+        mistake: "Letting the shoulder sink into the joint.",
+        fix: "Push the floor away with your forearm. That keeps your shoulder strong while your hip moves.",
+      },
+    ],
+  },
   "running": {
     setup: [
       "Start with a few minutes of easy movement before picking up the pace.",
@@ -5511,6 +6485,366 @@ export const FORM_GUIDES: Record<string, FormGuide> = {
       {
         mistake: "Taking big lunging steps.",
         fix: "Keep your steps small. Shorter steps keep your trunk steady and your hips from swaying.",
+      },
+    ],
+  },
+  "vertical-climber": {
+    setup: [
+      "Feet in the pedals and hands on the handles at about head height.",
+      "Stand tall, close to the machine.",
+    ],
+    execution: [
+      "Climb with the opposite hand and foot moving together.",
+      "Use long strokes for steady work and short, fast ones for intervals.",
+    ],
+    watchFor: [
+      {
+        mistake: "Tiny strokes that only use the bottom of the range.",
+        fix: "Reach high with your hands and let your legs travel through a full step. Longer strokes make it proper full-body work.",
+      },
+      {
+        mistake: "Hanging back away from the machine on straight arms.",
+        fix: "Stay close with your hips under you. Leaning back puts the effort on your grip instead of your legs.",
+      },
+    ],
+  },
+  "ladder-climber": {
+    setup: [
+      "Step onto the rungs holding the side rails, then take the rungs with your hands.",
+      "Wear the waist belt if the machine has one; it sets the speed from your position.",
+    ],
+    execution: [
+      "Climb at a steady rhythm, hands and feet working together.",
+      "Climb faster to speed the ladder up and slow down to ease off.",
+    ],
+    watchFor: [
+      {
+        mistake: "Letting the ladder carry you to the bottom of the frame.",
+        fix: "Keep climbing to stay near the middle. When you drift low, climb a little faster to hold your place.",
+      },
+      {
+        mistake: "Holding the side rails and climbing with the legs only.",
+        fix: "Use the rungs with your hands too. Arms and legs together is what makes the machine worth using.",
+      },
+    ],
+  },
+  "curved-treadmill": {
+    setup: [
+      "Hold the rails and step onto the middle of the curved deck.",
+      "Start by walking to feel how the belt responds.",
+    ],
+    execution: [
+      "Move forward up the curve to speed up and drift back to slow down.",
+      "Run on the balls of the feet with a slight forward lean.",
+    ],
+    watchFor: [
+      {
+        mistake: "Striding far out front, which brakes the belt.",
+        fix: "Land with your feet under your hips and push back. That is what drives the belt on a motorless treadmill.",
+      },
+      {
+        mistake: "Sprinting from the first step.",
+        fix: "Build up over the first minute. The belt only moves as fast as you push, so a hard start empties you quickly.",
+      },
+    ],
+  },
+  "rucking": {
+    setup: [
+      "Pack the weight high and close to the back, with the straps snug.",
+      "Start light, around 10–15% of your bodyweight, on a route you know.",
+    ],
+    execution: [
+      "Walk at a brisk pace, standing tall with a slight forward lean.",
+      "Add distance before you add weight.",
+    ],
+    watchFor: [
+      {
+        mistake: "Loading the pack heavy on the first outing.",
+        fix: "Start light and add a little weight every week or two. The feet, knees and back need time to adapt.",
+      },
+      {
+        mistake: "Weight sitting low in the pack and dragging on the shoulders.",
+        fix: "Pack the heavy item high and tight against your back. A low load pulls you backward and rounds your posture.",
+      },
+    ],
+  },
+  "shuttle-run": {
+    setup: [
+      "Mark two lines, often 5 to 25 metres apart.",
+      "Warm up well before you start sprinting.",
+    ],
+    execution: [
+      "Sprint to the far line, plant, touch it, and turn.",
+      "Sprint back and repeat for the set distance or time.",
+    ],
+    watchFor: [
+      {
+        mistake: "Turning upright with the feet close together.",
+        fix: "Drop your hips and take shorter steps into each turn. A low, wide stance stops faster and pushes off harder.",
+      },
+      {
+        mistake: "Always turning the same way.",
+        fix: "Alternate the direction you turn each time. It keeps both legs sharing the braking work.",
+      },
+    ],
+  },
+  "kickboxing": {
+    setup: [
+      "Wrap your hands and wear gloves for bag or pad work.",
+      "Side-on stance, hands up by the face, weight on the balls of the feet.",
+    ],
+    execution: [
+      "Work in timed rounds with short rests between them.",
+      "Turn the hips into punches and kicks, and bring the hands back to guard each time.",
+    ],
+    watchFor: [
+      {
+        mistake: "Dropping the hands every time you kick.",
+        fix: "Keep your hands up at your face while your legs work. The habit matters as soon as there is a partner.",
+      },
+      {
+        mistake: "Kicking higher than your hips allow.",
+        fix: "Kick to a height you can reach with control and balance. Height comes with mobility, not effort.",
+      },
+    ],
+  },
+  "basketball": {
+    setup: [
+      "Wear court shoes with good ankle support.",
+      "Warm up with jogging, shuffles and a few jumps before a game.",
+    ],
+    execution: [
+      "Play at whatever pace the game sets, and log the time on court.",
+      "Drink between games, especially on long sessions.",
+    ],
+    watchFor: [
+      {
+        mistake: "Going straight from the car into a full-speed game.",
+        fix: "Take five minutes to jog, shuffle and jump first. Sudden cuts and landings are rough on cold legs.",
+      },
+      {
+        mistake: "Landing from jumps stiff-legged.",
+        fix: "Land on the balls of your feet with soft knees and let your legs absorb it.",
+      },
+    ],
+  },
+  "soccer": {
+    setup: [
+      "Boots or shoes that suit the surface.",
+      "Warm up with jogging, side steps and a few short sprints.",
+    ],
+    execution: [
+      "Play and log your time on the pitch.",
+      "Rest between matches and keep drinking on warm days.",
+    ],
+    watchFor: [
+      {
+        mistake: "Sprinting flat out before the legs are warm.",
+        fix: "Build up with a few gradually faster runs first. Hamstrings do not like a cold, sudden sprint.",
+      },
+      {
+        mistake: "Skipping leg training because you play.",
+        fix: "Keep some strength work for the legs and hips. Stronger legs cope far better with the sprints and changes of direction.",
+      },
+    ],
+  },
+  "tennis": {
+    setup: [
+      "Court shoes, not running shoes, for the side-to-side movement.",
+      "Warm up with easy rallies before playing points.",
+    ],
+    execution: [
+      "Play sets or drills and log the time on court.",
+      "Stay on the balls of the feet between shots.",
+    ],
+    watchFor: [
+      {
+        mistake: "Swinging with the arm alone.",
+        fix: "Turn your hips and shoulders into each stroke. Power from the body takes the strain off your elbow and shoulder.",
+      },
+      {
+        mistake: "Standing flat-footed while waiting for the ball.",
+        fix: "Take a small split step as your opponent hits. You will reach more balls with less effort.",
+      },
+    ],
+  },
+  "pickleball": {
+    setup: [
+      "Court shoes that grip well for quick side steps.",
+      "Warm up with some easy dinks and gentle movement.",
+    ],
+    execution: [
+      "Play games and log the time on court.",
+      "Keep your knees bent and paddle up, ready for fast exchanges.",
+    ],
+    watchFor: [
+      {
+        mistake: "Backpedalling to chase lobs.",
+        fix: "Turn and move sideways or at an angle. Running backward is the common way to fall on a court.",
+      },
+      {
+        mistake: "Playing for hours with no warm-up.",
+        fix: "Spend a few minutes moving and rallying easily first. Quick lunges on cold legs are where strains start.",
+      },
+    ],
+  },
+  "rock-climbing": {
+    setup: [
+      "Climbing shoes, chalk, and a harness and trained belayer for roped routes.",
+      "Warm up on a few easy climbs before trying anything hard.",
+    ],
+    execution: [
+      "Climb with the legs pushing you up and the arms mostly holding on.",
+      "Keep the hips close to the wall and rest on straight arms where you can.",
+    ],
+    watchFor: [
+      {
+        mistake: "Pulling up on bent arms the whole route.",
+        fix: "Hang on straight arms whenever you can and push with your legs. Bent arms burn out the forearms fast.",
+      },
+      {
+        mistake: "Jumping off the top of a boulder problem.",
+        fix: "Climb down as far as you can, then drop onto the mat with soft knees. Big falls onto stiff legs are how ankles go.",
+      },
+    ],
+  },
+  "yoga": {
+    setup: [
+      "A non-slip mat and clothes you can move freely in.",
+      "Blocks or a strap if the class uses them.",
+    ],
+    execution: [
+      "Move through the poses with steady breathing.",
+      "Go only as deep into each position as you can while breathing easily.",
+    ],
+    watchFor: [
+      {
+        mistake: "Forcing a stretch because the person next to you goes deeper.",
+        fix: "Work at your own range. Use a block or bend your knees; flexibility builds with regular practice, not force.",
+      },
+      {
+        mistake: "Holding the breath in difficult poses.",
+        fix: "Breathe slowly through your nose. If you cannot breathe steadily, ease off until you can.",
+      },
+    ],
+  },
+  "pilates": {
+    setup: [
+      "Mat, or a reformer set up by the instructor.",
+      "Start with a beginner class if the equipment is new to you.",
+    ],
+    execution: [
+      "Move slowly and with control, following the breathing cues.",
+      "Keep the trunk braced while the arms and legs move.",
+    ],
+    watchFor: [
+      {
+        mistake: "Rushing through reps to keep up.",
+        fix: "Slow down and control each movement. Speed takes the work away from the small muscles the method is built around.",
+      },
+      {
+        mistake: "Lower back arching off the mat during leg work.",
+        fix: "Bend your knees or lift your legs higher until your back stays down. That position is the point of the exercise.",
+      },
+    ],
+  },
+  "skater-jumps": {
+    setup: [
+      "Stand on one leg with a slight bend in the knee.",
+      "Clear space to either side.",
+    ],
+    execution: [
+      "Jump sideways off the standing leg and land on the other foot.",
+      "Let the trailing leg swing behind, then jump back the other way.",
+    ],
+    watchFor: [
+      {
+        mistake: "Landing with a straight, stiff leg.",
+        fix: "Land softly with your knee bent and your hips back. Hold the landing for a moment if you wobble.",
+      },
+      {
+        mistake: "Knee caving inward on the landing.",
+        fix: "Keep your knee pointing over your toes when you land. Shorten the jump until you can.",
+      },
+    ],
+  },
+  "plank-jacks": {
+    setup: [
+      "High plank with the hands under the shoulders.",
+      "Feet together, body in a straight line.",
+    ],
+    execution: [
+      "Jump the feet out wide, then back together.",
+      "Keep the hips level and the hands still.",
+    ],
+    watchFor: [
+      {
+        mistake: "Hips bouncing up and down with each jump.",
+        fix: "Brace your abs and keep your hips at shoulder height. Slow the jumps down until they stay level.",
+      },
+      {
+        mistake: "Shoulders drifting back behind the wrists.",
+        fix: "Keep your shoulders stacked over your hands. It is easier on the wrists and keeps the plank solid.",
+      },
+    ],
+  },
+  "agility-ladder": {
+    setup: [
+      "Lay the ladder flat on a surface with good grip.",
+      "Pick a pattern and walk it slowly first.",
+    ],
+    execution: [
+      "Move through the rungs on the balls of the feet.",
+      "Speed up only once the pattern is clean.",
+    ],
+    watchFor: [
+      {
+        mistake: "Going fast and treading on the rungs.",
+        fix: "Slow down until every foot lands cleanly. Speed follows accuracy, not the other way round.",
+      },
+      {
+        mistake: "Looking down at the feet the whole time.",
+        fix: "Glance ahead down the ladder instead. Keeping your head up is part of what the drill trains.",
+      },
+    ],
+  },
+  "tire-flip": {
+    setup: [
+      "Squat low at the tire with the chest against it and the fingers under the edge.",
+      "Feet back a little, back flat.",
+    ],
+    execution: [
+      "Drive forward and up into the tire with the legs and hips.",
+      "As it rises, get a knee or hands under it and push it over.",
+    ],
+    watchFor: [
+      {
+        mistake: "Deadlifting the tire with a rounded back.",
+        fix: "Drive into the tire with your chest and legs, not straight up with your back. It moves forward as much as up.",
+      },
+      {
+        mistake: "Curling the tire up with the arms.",
+        fix: "Keep your arms fairly straight until the tire is past your hips, then switch to a hard push.",
+      },
+    ],
+  },
+  "bjj": {
+    setup: [
+      "Clean gi or rash guard, trimmed nails, and a mouthguard if you use one.",
+      "Warm up with the class drills before rolling.",
+    ],
+    execution: [
+      "Drill techniques, then roll in timed rounds with rest between.",
+      "Log the session length, or just the rolling time if you prefer.",
+    ],
+    watchFor: [
+      {
+        mistake: "Waiting too long to tap.",
+        fix: "Tap early and often, especially when you are new. There is always another round.",
+      },
+      {
+        mistake: "Rolling at full effort every round.",
+        fix: "Match your intensity to your partner and save hard rounds for when you want them. Tight, tense rolls tire you out fastest.",
       },
     ],
   },
