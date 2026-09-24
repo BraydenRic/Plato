@@ -225,10 +225,19 @@ export function formatDuration(totalMinutes: number): string {
   return `${h}h ${m}m`;
 }
 
+/**
+ * "1:05" under an hour, "1:02:05" from an hour on.
+ *
+ * Minutes used to run on forever, so a workout left open overnight read
+ * "908:55" in the resume bar — a number nobody parses as fifteen hours. Hours
+ * appear only once they are needed, so the common case stays as short as it was.
+ */
 export function formatClock(totalSeconds: number): string {
-  const m = Math.floor(totalSeconds / 60);
+  const h = Math.floor(totalSeconds / 3600);
+  const m = Math.floor((totalSeconds % 3600) / 60);
   const s = totalSeconds % 60;
-  return `${m}:${String(s).padStart(2, "0")}`;
+  const ss = String(s).padStart(2, "0");
+  return h > 0 ? `${h}:${String(m).padStart(2, "0")}:${ss}` : `${m}:${ss}`;
 }
 
 /**

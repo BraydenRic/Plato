@@ -150,7 +150,11 @@ describe("formatClock", () => {
     [5, "0:05"],
     [65, "1:05"],
     [90, "1:30"],
-    [3600, "60:00"],
+    [3599, "59:59"],
+    // From an hour on, hours appear — a forgotten session read "908:55".
+    [3600, "1:00:00"],
+    [3725, "1:02:05"],
+    [54535, "15:08:55"],
   ])("formats %i seconds as %s", (secs, expected) => {
     expect(formatClock(secs)).toBe(expected);
   });
