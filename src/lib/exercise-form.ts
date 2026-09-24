@@ -5126,44 +5126,47 @@ export const FORM_GUIDES: Record<string, FormGuide> = {
       },
     ],
   },
-  "wrestlers-bridge": {
+  "prone-neck-extension": {
     setup: [
-      "Lie face up on a thick mat with the knees bent and feet flat, wide apart.",
-      "Put the hands on the mat beside the head to take some of your weight.",
+      "Lie face down on a flat bench with the shoulders level with its end and the head hanging off.",
+      "Hold the sides of the bench and keep the chest on the pad.",
+      "Let the chin drop toward the chest to start.",
     ],
     execution: [
-      "Lift the hips and roll onto the top of the head, arching the back.",
-      "Rock slowly forward toward the forehead and back toward the crown.",
-      "Take weight off the hands only as the neck gets stronger.",
+      "Lift the head slowly until the face points at the floor and the head is level with the spine.",
+      "Pause for a second, then lower back to chin-down under control.",
+      "Once twenty easy reps is comfortable, move on to a plate or a harness.",
     ],
     watchFor: [
       {
-        mistake: "Doing it on a hard floor.",
-        fix: "Always use a thick mat. The top of your head is taking your weight, and a hard surface makes every small slip worse.",
+        mistake: "Throwing the head back to look at the wall ahead.",
+        fix: "Stop when the head is level with your back. Cranking past that squeezes the back of the neck without training it any harder.",
       },
       {
-        mistake: "Rocking fast or through a big range from day one.",
-        fix: "Start with small, slow rocks and your hands helping. Build range over weeks, the same as any neck training.",
+        mistake: "Letting the chest lift off the bench.",
+        fix: "Keep the chest pinned. If it rises, the lower back is doing the work that belongs to the neck.",
       },
     ],
   },
-  "front-neck-bridge": {
+  "supine-neck-flexion": {
     setup: [
-      "Kneel on a thick mat and place the forehead on it, hands beside the head.",
-      "Straighten the legs so the weight rests on the forehead, feet, and hands.",
+      "Lie face up on a flat bench with the shoulders level with its end and the head hanging off.",
+      "Hold the sides of the bench and keep the shoulders flat on the pad.",
+      "Let the head drop back only as far as is comfortable to start.",
     ],
     execution: [
-      "Rock slowly forward onto the top of the head and back onto the forehead.",
-      "Shift weight off the hands only as it gets easier.",
+      "Tuck the chin first, then curl the head up until the chin nears the chest.",
+      "Pause for a second, then lower slowly back to where you started.",
+      "Once twenty easy reps is comfortable, move on to a plate or a harness.",
     ],
     watchFor: [
       {
-        mistake: "Taking all your weight on the head straight away.",
-        fix: "Start from the knees with your hands carrying most of the load. Straighten your legs only once the kneeling version is easy.",
+        mistake: "Letting the head drop all the way back at the bottom.",
+        fix: "Stop a little short of the full stretch. The bottom of the range is where the neck is weakest, so control it rather than hanging in it.",
       },
       {
-        mistake: "Rolling past the top of the head.",
-        fix: "Keep the rock small, between your forehead and the top of your head. Rolling further bends the neck under your full weight.",
+        mistake: "Poking the chin forward instead of tucking it.",
+        fix: "Lead with the tuck, as if making a double chin. Poking forward works the jaw and throat muscles instead of the neck flexors.",
       },
     ],
   },
