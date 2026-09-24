@@ -497,6 +497,28 @@ export const FontScaleCap = {
   keypad: 1.4,
   /** Set grid: weights and reps must stay readable inside narrow columns. */
   grid: 1.5,
+  /**
+   * Screen titles and big display numbers (22–36pt).
+   *
+   * Body text scales all the way, but display type can't: at the largest
+   * accessibility size a 28pt title lands past 100pt, where "Workouts" no longer
+   * fits on one line and breaks mid-word. iOS's own large titles stop growing
+   * for the same reason. 1.5× is already bigger than they get, and keeps every
+   * title here on one line at the narrowest supported iPhone.
+   */
+  title: 1.5,
+  /**
+   * Headings inside content — exercise names, card titles (17–20pt). Allowed
+   * further than titles because they sit in full-width rows that wrap by word,
+   * but not all the way: past 2× a single long word ("Romanian") outgrows the
+   * card and splits.
+   */
+  heading: 2,
+  /**
+   * Button labels. Past 2× "Finish workout" wraps to two lines and the footer
+   * button swells over the list it sits under.
+   */
+  button: 2,
 } as const;
 
 /**

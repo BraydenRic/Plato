@@ -4,7 +4,7 @@ import { router, useLocalSearchParams } from "expo-router";
 import Ionicons from "@expo/vector-icons/Ionicons";
 
 import { Button, Field, SectionLabel } from "@/components/ui";
-import { Radius, Spacing } from "@/constants/theme";
+import { FontScaleCap, Radius, Spacing } from "@/constants/theme";
 import { makeStyles, usePalette } from "@/context/AppearanceContext";
 import { useTheme } from "@/context/ThemeContext";
 import { useExerciseLibrary, MAX_CUSTOM_EXERCISES } from "@/hooks/use-exercise-library";
@@ -101,7 +101,7 @@ export default function CreateExerciseModal() {
   return (
     <View style={styles.safe}>
       <View style={styles.header}>
-        <Text style={styles.title}>{editing ? "Edit exercise" : "New exercise"}</Text>
+        <Text style={styles.title} maxFontSizeMultiplier={FontScaleCap.title}>{editing ? "Edit exercise" : "New exercise"}</Text>
         <Pressable onPress={() => router.back()} hitSlop={12} style={styles.closeButton}>
           <Ionicons name="close" size={20} color={palette.textSecondary} />
         </Pressable>

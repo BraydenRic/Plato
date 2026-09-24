@@ -4,7 +4,7 @@ import { router } from "expo-router";
 import Ionicons from "@expo/vector-icons/Ionicons";
 
 import { Chip, Field } from "@/components/ui";
-import { Radius, Spacing } from "@/constants/theme";
+import { FontScaleCap, Radius, Spacing } from "@/constants/theme";
 import { makeStyles, usePalette } from "@/context/AppearanceContext";
 import { useTheme } from "@/context/ThemeContext";
 import { useExerciseLibrary } from "@/hooks/use-exercise-library";
@@ -57,8 +57,10 @@ export default function ExercisesScreen() {
     <View style={styles.safe}>
       <View style={styles.header}>
         <View style={{ flex: 1, gap: 2 }}>
-          <Text style={styles.title}>Exercises</Text>
-          <Text style={styles.subtitle}>
+          <Text style={styles.title} maxFontSizeMultiplier={FontScaleCap.title}>Exercises</Text>
+          {/* Beside two header buttons, so it's narrower than the screen:
+              uncapped it split "movements" mid-word at the largest sizes. */}
+          <Text style={styles.subtitle} maxFontSizeMultiplier={FontScaleCap.heading}>
             {exercises.length} movements · hold one to delete
           </Text>
         </View>
@@ -154,17 +156,17 @@ function ExerciseRow({
     <Pressable onPress={onPress} onLongPress={onLongPress} style={styles.row}>
       <View style={styles.rowHeader}>
         <View style={{ flex: 1, gap: 2 }}>
-          <Text style={styles.rowName}>{exercise.name}</Text>
+          <Text style={styles.rowName} maxFontSizeMultiplier={FontScaleCap.heading}>{exercise.name}</Text>
           <Text style={styles.rowMeta}>{exercise.musclesWorked.join(" · ")}</Text>
         </View>
         {exercise.isCustom && (
           <View
             style={[styles.categoryBadge, { backgroundColor: theme.accentSoft }, styles.customBadge]}>
-            <Text style={[styles.categoryText, { color: theme.accentText }]}>Custom</Text>
+            <Text style={[styles.categoryText, { color: theme.accentText }]} maxFontSizeMultiplier={FontScaleCap.grid}>Custom</Text>
           </View>
         )}
         <View style={[styles.categoryBadge, { backgroundColor: theme.accentSoft }]}>
-          <Text style={[styles.categoryText, { color: theme.accentText }]}>{exercise.category}</Text>
+          <Text style={[styles.categoryText, { color: theme.accentText }]} maxFontSizeMultiplier={FontScaleCap.grid}>{exercise.category}</Text>
         </View>
         <Ionicons name="chevron-forward" size={16} color={palette.textTertiary} />
       </View>

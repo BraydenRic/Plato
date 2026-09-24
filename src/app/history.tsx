@@ -1,11 +1,11 @@
 import { useMemo } from "react";
-import { Alert, Pressable, SectionList, Text, View } from "react-native";
+import { Alert, Pressable, SectionList, Text, View, useWindowDimensions } from "react-native";
 import { useRouter } from "expo-router";
 import Ionicons from "@expo/vector-icons/Ionicons";
 
 import { ActiveWorkoutBar } from "@/components/active-workout-bar";
 import { Card, EmptyState } from "@/components/ui";
-import { Radius, Spacing } from "@/constants/theme";
+import { FontScaleCap, Radius, Spacing } from "@/constants/theme";
 import { makeStyles, usePalette } from "@/context/AppearanceContext";
 import { useWorkouts } from "@/hooks/use-workouts";
 import { deleteWorkout } from "@/lib/data";
@@ -47,7 +47,7 @@ export default function HistoryScreen() {
           <Ionicons name="chevron-back" size={22} color={palette.textSecondary} />
         </Pressable>
         <View style={{ flex: 1, gap: 2 }}>
-          <Text style={styles.title}>History</Text>
+          <Text style={styles.title} maxFontSizeMultiplier={FontScaleCap.title}>History</Text>
           <Text style={styles.subtitle}>
             {completed.length} workout{completed.length === 1 ? "" : "s"} · kept forever
           </Text>
@@ -92,12 +92,17 @@ function HistoryRow({
   const { unit } = useWeightUnit();
   const theme = useTheme();
   const volume = workout.totalVolume ?? workoutVolumeLbs(workout);
+  // Past the largest standard text size the volume on the right took the row's
+  // width and squeezed the name to a letter per line. Stack it underneath
+  // instead, so the name gets the whole row.
+  const { fontScale } = useWindowDimensions();
+  const stacked = fontScale > 1.36;
   return (
     <Pressable onPress={onPress} onLongPress={onLongPress}>
       {({ pressed }) => (
-        <Card style={[styles.row, pressed && { opacity: 0.8 }]}>
-          <View style={{ flex: 1, gap: 3 }}>
-            <Text style={styles.rowTitle}>{workout.name}</Text>
+        <Card style={[styles.row, stacked && styles.rowStacked, pressed && { opacity: 0.8 }]}>
+          <View style={stacked ? styles.rowTextStacked : { flex: 1, gap: 3 }}>
+            <Text style={styles.rowTitle} maxFontSizeMultiplier={FontScaleCap.heading}>{workout.name}</Text>
             <Text style={styles.rowMeta}>
               {workout.completedAt!.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" })}
               {` · ${completedSetCount(workout)} sets`}
@@ -105,7 +110,7 @@ function HistoryRow({
             </Text>
           </View>
           {volume > 0 ? (
-            <Text style={[styles.volume, { color: theme.accentText }]}>{displayVolume(volume, unit)}</Text>
+            <Text style={[styles.volume, { color: theme.accentText }]} maxFontSizeMultiplier={FontScaleCap.title}>{displayVolume(volume, unit)}</Text>
           ) : (
             <Ionicons name="chevron-forward" size={16} color={palette.textTertiary} />
           )}
@@ -163,6 +168,17 @@ const useStyles = makeStyles((c) => ({
     alignItems: "center",
     gap: Spacing.three,
     marginBottom: Spacing.two,
+  },
+  rowStacked: {
+    flexDirection: "column",
+    alignItems: "flex-start",
+  },
+  // No flex value at all rather than `flex: 0`: iOS reads 0 as "size to the
+  // content" but the web reads it as zero height, and the volume then drew
+  // over the name. Leaving it unset means the same thing on both.
+  rowTextStacked: {
+    gap: 3,
+    alignSelf: "stretch",
   },
   rowTitle: {
     fontSize: 16,

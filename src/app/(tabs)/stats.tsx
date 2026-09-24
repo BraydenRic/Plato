@@ -20,6 +20,11 @@ export default function StatsScreen() {
   const theme = useTheme();
   const { completed, loading } = useWorkouts();
   const { unit } = useWeightUnit();
+  // The muscle names share one column so the bars line up, and a fixed 78pt
+  // column cut "Shoulders" off as soon as the text grew. It grows with the
+  // text instead, up to the same cap the label itself stops at.
+  const { fontScale } = useWindowDimensions();
+  const setLabelWidth = 78 * Math.min(Math.max(fontScale, 1), FontScaleCap.grid);
 
   // Lifetime stats are always derived from real workout history — never
   // incremented counters (the old app corrupted stats that way).
@@ -94,7 +99,7 @@ export default function StatsScreen() {
     <View style={styles.safe}>
       <ScrollView contentContainerStyle={styles.scroll}>
         <View style={styles.header}>
-          <Text style={styles.title}>Statistics</Text>
+          <Text style={styles.title} maxFontSizeMultiplier={FontScaleCap.title}>Statistics</Text>
           <Text style={styles.subtitle}>Lifetime, across all devices</Text>
         </View>
 
@@ -103,14 +108,14 @@ export default function StatsScreen() {
             <View style={styles.streakIconWrap}>
               <Ionicons name="flame" size={20} color={palette.amber} />
             </View>
-            <Text style={styles.streakValue}>{stats.currentStreak}</Text>
+            <Text style={styles.streakValue} maxFontSizeMultiplier={FontScaleCap.title}>{stats.currentStreak}</Text>
             <Text style={styles.streakLabel}>day streak</Text>
           </Card>
           <Card style={styles.streakCard}>
             <View style={styles.streakIconWrap}>
               <Ionicons name="trophy" size={20} color={theme.accentText} />
             </View>
-            <Text style={styles.streakValue}>{stats.longestStreak}</Text>
+            <Text style={styles.streakValue} maxFontSizeMultiplier={FontScaleCap.title}>{stats.longestStreak}</Text>
             <Text style={styles.streakLabel}>best streak</Text>
           </Card>
         </View>
@@ -137,7 +142,10 @@ export default function StatsScreen() {
                 <Text style={styles.setHeading}>Sets completed this week</Text>
                 {weekSets.map((row) => (
                   <View key={row.category} style={styles.setRow}>
-                    <Text style={styles.setCategory} numberOfLines={1}>
+                    <Text
+                      style={[styles.setCategory, { width: setLabelWidth }]}
+                      numberOfLines={1}
+                      maxFontSizeMultiplier={FontScaleCap.grid}>
                       {row.category}
                     </Text>
                     <View style={styles.setTrack}>
@@ -206,7 +214,7 @@ function StatCard({ label, value }: { label: string; value: string }) {
   const { fontScale } = useWindowDimensions();
   return (
     <Card style={[styles.statCard, fontScale > 1.3 && styles.statCardWide]}>
-      <Text style={styles.statValue}>{value}</Text>
+      <Text style={styles.statValue} maxFontSizeMultiplier={FontScaleCap.title}>{value}</Text>
       <Text style={styles.statLabel}>{label}</Text>
     </Card>
   );

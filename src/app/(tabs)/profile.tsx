@@ -8,13 +8,7 @@ import { Button, Card, SectionLabel, Stepper } from "@/components/ui";
 import { Sparkline } from "@/components/sparkline";
 import { useBodyweight } from "@/hooks/use-bodyweight";
 import { convertWeight, relativeDay, sameDay } from "@/lib/workout-utils";
-import {
-  APPEARANCE_LABELS,
-  APPEARANCE_PREFS,
-  Radius,
-  Spacing,
-  THEME_LIST,
-} from "@/constants/theme";
+import { APPEARANCE_LABELS, APPEARANCE_PREFS, FontScaleCap, Radius, Spacing, THEME_LIST } from "@/constants/theme";
 import { makeStyles, useAppearance, usePalette } from "@/context/AppearanceContext";
 import { useAuth } from "@/context/AuthContext";
 import { REST_OPTIONS, nearestRestIndex, useRestTimer } from "@/context/RestTimerContext";
@@ -272,7 +266,7 @@ export default function ProfileScreen() {
     <View style={styles.safe}>
       <ScrollView contentContainerStyle={styles.scroll}>
         <View style={styles.header}>
-          <Text style={styles.title}>Profile</Text>
+          <Text style={styles.title} maxFontSizeMultiplier={FontScaleCap.title}>Profile</Text>
         </View>
 
         <Card style={styles.accountCard}>
@@ -286,8 +280,10 @@ export default function ProfileScreen() {
             />
           </View>
           <View style={{ flex: 1, gap: 2 }}>
-            <Text style={styles.name}>{isGuest ? "Guest" : user?.displayName ?? "Athlete"}</Text>
-            <Text style={styles.email} numberOfLines={1}>
+            <Text style={styles.name} maxFontSizeMultiplier={FontScaleCap.heading}>{isGuest ? "Guest" : user?.displayName ?? "Athlete"}</Text>
+            {/* An email has no spaces to wrap at, so it truncates; the guest
+                line is a sentence and wraps like one. */}
+            <Text style={styles.email} numberOfLines={isGuest ? undefined : 1}>
               {isGuest ? "Saved on this phone" : user?.email}
             </Text>
           </View>

@@ -13,7 +13,7 @@ import { SetTimerProvider } from "@/context/SetTimerContext";
 import { DefaultSetsProvider } from "@/context/DefaultSetsContext";
 import { UnitProvider } from "@/context/UnitContext";
 import { ThemeProvider, useTheme } from "@/context/ThemeContext";
-import { PALETTES, Radius, Spacing } from "@/constants/theme";
+import { FontScaleCap, PALETTES, Radius, Spacing } from "@/constants/theme";
 import {
   AppearanceProvider,
   makeStyles,
@@ -116,7 +116,7 @@ function MigratingScreen() {
   return (
     <View style={styles.migrating}>
       <ActivityIndicator color={theme.accent} />
-      <Text style={styles.migratingTitle}>Moving your workouts</Text>
+      <Text style={styles.migratingTitle} maxFontSizeMultiplier={FontScaleCap.heading}>Moving your workouts</Text>
       <Text style={styles.migratingBody}>
         Saving everything you logged on this device into your account. This only happens once.
       </Text>

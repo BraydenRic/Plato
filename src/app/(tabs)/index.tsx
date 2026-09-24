@@ -7,6 +7,7 @@ import {
   ScrollView,
   Text,
   View,
+  useWindowDimensions,
 } from "react-native";
 import { useFocusEffect, useRouter } from "expo-router";
 import Ionicons from "@expo/vector-icons/Ionicons";
@@ -370,7 +371,7 @@ export default function WorkoutsScreen() {
     <View style={styles.safe}>
       <ScrollView contentContainerStyle={styles.scroll}>
         <View style={styles.header}>
-          <Text style={styles.greeting}>{firstName ? `Hey ${firstName}` : "Workouts"}</Text>
+          <Text style={styles.greeting} maxFontSizeMultiplier={FontScaleCap.title}>{firstName ? `Hey ${firstName}` : "Workouts"}</Text>
           <Text style={styles.date}>
             {new Date().toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric" })}
           </Text>
@@ -383,7 +384,7 @@ export default function WorkoutsScreen() {
               <Ionicons name="chevron-back" size={18} color={palette.textSecondary} />
             </Pressable>
             <Pressable onPress={resetToToday} hitSlop={8}>
-              <Text style={styles.weekLabel}>{weekLabel}</Text>
+              <Text style={styles.weekLabel} maxFontSizeMultiplier={FontScaleCap.title}>{weekLabel}</Text>
             </Pressable>
             <Pressable onPress={() => shiftWeek(1)} hitSlop={10} style={styles.weekArrow}>
               <Ionicons name="chevron-forward" size={18} color={palette.textSecondary} />
@@ -450,7 +451,7 @@ export default function WorkoutsScreen() {
 
           {/* ── Selected day ── */}
           <View style={styles.dayPanel}>
-            <Text style={styles.dayPanelTitle}>{relativeDay(selectedDay)}</Text>
+            <Text style={styles.dayPanelTitle} maxFontSizeMultiplier={FontScaleCap.title}>{relativeDay(selectedDay)}</Text>
 
             {dayWorkouts.length === 0 &&
               (daySuggestion ? (
@@ -637,7 +638,7 @@ export default function WorkoutsScreen() {
         <Pressable style={styles.sheetBackdrop} onPress={() => setPicker(null)} />
         <View style={styles.sheet}>
           <View style={styles.sheetHandle} />
-          <Text style={styles.sheetTitle}>{picker?.title}</Text>
+          <Text style={styles.sheetTitle} maxFontSizeMultiplier={FontScaleCap.heading}>{picker?.title}</Text>
           {picker?.subtitle ? <Text style={styles.sheetSubtitle}>{picker.subtitle}</Text> : null}
           <ScrollView contentContainerStyle={styles.sheetList} showsVerticalScrollIndicator>
             {picker?.options.map((o) => (
@@ -685,6 +686,11 @@ function WorkoutRow({
   const total = totalSetCount(workout);
   const isLive = !!workout.startedAt && !workout.completedAt;
   const isPlanned = !workout.startedAt && !workout.completedAt;
+  // Past the largest standard text size the volume on the right took the row's
+  // width and squeezed the name to a letter per line. Stack it underneath
+  // instead, so the name gets the whole row.
+  const { fontScale } = useWindowDimensions();
+  const stacked = fontScale > 1.36;
 
   return (
     <Pressable onPress={onPress} onLongPress={onLongPress}>
@@ -692,11 +698,12 @@ function WorkoutRow({
         <Card
           style={[
             styles.workoutRow,
+            stacked && styles.rowStacked,
             isLive && { borderColor: theme.accent, backgroundColor: theme.accentSoft },
             pressed && { opacity: 0.8 },
           ]}>
-          <View style={{ flex: 1, gap: 3 }}>
-            <Text style={styles.rowTitle}>{workout.name}</Text>
+          <View style={stacked ? styles.rowTextStacked : { flex: 1, gap: 3 }}>
+            <Text style={styles.rowTitle} maxFontSizeMultiplier={FontScaleCap.heading}>{workout.name}</Text>
             <Text style={styles.rowMeta}>
               {relativeDay(workoutDay(workout))}
               {workout.exercises.length > 0 && ` · ${workout.exercises.length} exercise${workout.exercises.length === 1 ? "" : "s"}`}
@@ -706,10 +713,10 @@ function WorkoutRow({
           </View>
           {isPlanned ? (
             <View style={[styles.plannedBadge, { backgroundColor: theme.accentSoft }]}>
-              <Text style={[styles.plannedText, { color: theme.accentText }]}>PLANNED</Text>
+              <Text style={[styles.plannedText, { color: theme.accentText }]} maxFontSizeMultiplier={FontScaleCap.grid}>PLANNED</Text>
             </View>
           ) : volume > 0 ? (
-            <Text style={[styles.volume, { color: theme.accentText }]}>{displayVolume(volume, unit)}</Text>
+            <Text style={[styles.volume, { color: theme.accentText }]} maxFontSizeMultiplier={FontScaleCap.title}>{displayVolume(volume, unit)}</Text>
           ) : (
             <Ionicons name="chevron-forward" size={16} color={palette.textTertiary} />
           )}
@@ -959,6 +966,17 @@ const useStyles = makeStyles((c) => ({
     flexDirection: "row",
     alignItems: "center",
     gap: Spacing.three,
+  },
+  rowStacked: {
+    flexDirection: "column",
+    alignItems: "flex-start",
+  },
+  // No flex value at all rather than `flex: 0`: iOS reads 0 as "size to the
+  // content" but the web reads it as zero height, and the volume then drew
+  // over the name. Leaving it unset means the same thing on both.
+  rowTextStacked: {
+    gap: 3,
+    alignSelf: "stretch",
   },
   rowTitle: {
     fontSize: 16,

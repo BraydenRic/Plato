@@ -12,7 +12,7 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import Ionicons from "@expo/vector-icons/Ionicons";
 
 import { Chip, Field } from "@/components/ui";
-import { Radius, Spacing } from "@/constants/theme";
+import { FontScaleCap, Radius, Spacing } from "@/constants/theme";
 import { makeStyles } from "@/context/AppearanceContext";
 import { useWeightUnit } from "@/context/UnitContext";
 import { useTheme } from "@/context/ThemeContext";
@@ -135,9 +135,9 @@ export default function AddExerciseModal() {
   return (
     <SafeAreaView style={styles.safe} edges={["top", "bottom"]}>
       <View style={styles.header}>
-        <Text style={styles.title}>Add exercise</Text>
+        <Text style={styles.title} maxFontSizeMultiplier={FontScaleCap.title}>Add exercise</Text>
         <Pressable onPress={() => router.back()} hitSlop={12}>
-          <Text style={[styles.done, { color: theme.accentText }]}>Done</Text>
+          <Text style={[styles.done, { color: theme.accentText }]} maxFontSizeMultiplier={FontScaleCap.title}>Done</Text>
         </Pressable>
       </View>
 
@@ -189,7 +189,7 @@ export default function AddExerciseModal() {
               onPress={() => (added ? remove(item) : add(item))}
               style={[styles.row, added && styles.rowAdded]}>
               <View style={{ flex: 1, gap: 2 }}>
-                <Text style={styles.rowName}>{item.name}</Text>
+                <Text style={styles.rowName} maxFontSizeMultiplier={FontScaleCap.heading}>{item.name}</Text>
                 <Text style={styles.rowMeta}>{item.musclesWorked.join(" · ")}</Text>
               </View>
               <View

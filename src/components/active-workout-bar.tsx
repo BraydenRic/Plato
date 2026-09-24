@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Pressable, Text, View } from "react-native";
+import { Pressable, Text, View, useWindowDimensions } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import Ionicons from "@expo/vector-icons/Ionicons";
@@ -79,6 +79,11 @@ function ResumeBar({ workout, topInset }: { workout: Workout; topInset: number }
   const total = totalSetCount(workout);
   // Same shorthand the Workouts list uses for an in-progress row.
   const meta = total > 0 ? `${done}/${total} sets` : "No sets yet";
+  // Past the largest standard text size there isn't room for the name, the
+  // count and the clock on one 44pt line, and the name was what gave — "L…".
+  // The ring already says how far through you are, so the count steps aside.
+  const { fontScale } = useWindowDimensions();
+  const roomyText = fontScale <= 1.36;
 
   return (
     <View style={[styles.wrap, { paddingTop: topInset }]}>
@@ -101,15 +106,19 @@ function ResumeBar({ workout, topInset }: { workout: Workout; topInset: number }
           color={theme.accent}
           trackColor={palette.borderStrong}
         />
-        <Text style={styles.name} numberOfLines={1}>
+        <Text style={styles.name} numberOfLines={1} maxFontSizeMultiplier={FontScaleCap.grid}>
           {workout.name}
         </Text>
         {/* Dim and small against the clock, so two numbers sharing a corner
             don't read as one. */}
-        <Text style={styles.meta} numberOfLines={1} maxFontSizeMultiplier={FontScaleCap.grid}>
-          {meta}
-        </Text>
-        <View style={styles.divider} />
+        {roomyText && (
+          <>
+            <Text style={styles.meta} numberOfLines={1} maxFontSizeMultiplier={FontScaleCap.grid}>
+              {meta}
+            </Text>
+            <View style={styles.divider} />
+          </>
+        )}
         {resting ? (
           <View style={styles.readoutRow}>
             <Ionicons name="timer-outline" size={14} color={theme.accentText} />

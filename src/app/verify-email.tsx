@@ -4,7 +4,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import Ionicons from "@expo/vector-icons/Ionicons";
 
 import { Button } from "@/components/ui";
-import { Radius, Spacing } from "@/constants/theme";
+import { FontScaleCap, Radius, Spacing } from "@/constants/theme";
 import { makeStyles } from "@/context/AppearanceContext";
 import { useTheme } from "@/context/ThemeContext";
 import { useAuth } from "@/context/AuthContext";
@@ -63,7 +63,7 @@ export default function VerifyEmailScreen() {
           style={[styles.iconWrap, { backgroundColor: theme.accentSoft, borderColor: theme.accent }]}>
           <Ionicons name="mail-unread-outline" size={34} color={theme.accentText} />
         </View>
-        <Text style={styles.title}>Verify your email</Text>
+        <Text style={styles.title} maxFontSizeMultiplier={FontScaleCap.title}>Verify your email</Text>
         <Text style={styles.body}>
           We sent a verification link to{"\n"}
           <Text style={styles.email}>{user?.email}</Text>

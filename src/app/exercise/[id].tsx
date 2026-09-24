@@ -6,7 +6,7 @@ import Ionicons from "@expo/vector-icons/Ionicons";
 import { ExerciseProgress } from "@/components/exercise-progress";
 import { MuscleMap } from "@/components/muscle-map";
 import { SectionLabel } from "@/components/ui";
-import { Radius, Spacing } from "@/constants/theme";
+import { FontScaleCap, Radius, Spacing } from "@/constants/theme";
 import { makeStyles, usePalette } from "@/context/AppearanceContext";
 import { formGuideFor, type FormFault } from "@/lib/exercise-form";
 import { useExerciseLibrary } from "@/hooks/use-exercise-library";
@@ -55,7 +55,7 @@ export default function ExerciseDetailScreen() {
     <View style={styles.safe}>
       <View style={styles.header}>
         <View style={{ flex: 1, gap: 2 }}>
-          <Text style={styles.title}>{exercise.name}</Text>
+          <Text style={styles.title} maxFontSizeMultiplier={FontScaleCap.title}>{exercise.name}</Text>
           <Text style={[styles.meta, { color: theme.accentText }]}>{exercise.category}</Text>
         </View>
         <Pressable

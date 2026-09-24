@@ -75,16 +75,26 @@ function workout(overrides: Partial<Workout> = {}): Workout {
   };
 }
 
+// React Native's test stand-in reports a 2× text scale, which is past the size
+// where the bar sheds its set count. These tests describe the bar at default
+// text; the large-text one sets its own scale.
+let dims: jest.SpyInstance;
+const setFontScale = (fontScale: number) =>
+  dims.mockReturnValue({ width: 375, height: 667, scale: 3, fontScale });
+
 beforeEach(() => {
   jest.clearAllMocks();
   mockRest = null;
   mockWorkout = workout();
   jest.useFakeTimers();
   jest.setSystemTime(NOW);
+  dims = jest.spyOn(require("react-native"), "useWindowDimensions");
+  setFontScale(1);
 });
 
 afterEach(() => {
   jest.useRealTimers();
+  dims.mockRestore();
 });
 
 it("reports the workout, its set progress and how long it's been running", () => {
@@ -191,5 +201,25 @@ describe("the card", () => {
     rerender(<ActiveWorkoutBar />);
 
     expect(colourOf("Rest 0:45")).toBe("#c4b5fd");
+  });
+});
+
+describe("at large text sizes", () => {
+  it("lets the set count step aside so the name keeps its room", () => {
+    // The largest accessibility size iOS reports.
+    setFontScale(3.57);
+    render(<ActiveWorkoutBar />);
+
+    expect(screen.queryByText("2/4 sets")).toBeNull();
+    expect(screen.getByText("Push Day")).toBeTruthy();
+    // The count is still spoken, even when it isn't drawn.
+    expect(screen.getByTestId("active-workout-bar").props.accessibilityLabel).toContain("2/4 sets");
+  });
+
+  it("keeps it at the largest standard size, where there's still room", () => {
+    setFontScale(1.353);
+    render(<ActiveWorkoutBar />);
+
+    expect(screen.getByText("2/4 sets")).toBeTruthy();
   });
 });

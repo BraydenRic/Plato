@@ -12,7 +12,7 @@ import {
   type ViewProps,
   type ViewStyle,
 } from "react-native";
-import { Radius, Spacing } from "@/constants/theme";
+import { FontScaleCap, Radius, Spacing } from "@/constants/theme";
 import { makeStyles, usePalette } from "@/context/AppearanceContext";
 import { useTheme } from "@/context/ThemeContext";
 
@@ -53,7 +53,7 @@ export function Button({ title, variant = "primary", loading, compact, disabled,
       {loading ? (
         <ActivityIndicator color={c.fg} size="small" />
       ) : (
-        <Text style={[styles.buttonText, compact && styles.buttonTextCompact, { color: c.fg }]}>{title}</Text>
+        <Text style={[styles.buttonText, compact && styles.buttonTextCompact, { color: c.fg }]} maxFontSizeMultiplier={FontScaleCap.button}>{title}</Text>
       )}
     </Pressable>
   );
@@ -162,7 +162,13 @@ export const Field = forwardRef<TextInput, TextInputProps>(function Field({ styl
 
 export function SectionLabel({ children }: { children: React.ReactNode }) {
   const styles = useStyles();
-  return <Text style={styles.sectionLabel}>{children}</Text>;
+  // Capped like a title: it's a small uppercase heading, and at the largest
+  // text sizes it outgrew the content it labels.
+  return (
+    <Text style={styles.sectionLabel} maxFontSizeMultiplier={FontScaleCap.title}>
+      {children}
+    </Text>
+  );
 }
 
 export function Chip({ label, active, onPress }: { label: string; active?: boolean; onPress?: () => void }) {

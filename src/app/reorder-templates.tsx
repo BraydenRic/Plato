@@ -5,7 +5,7 @@ import { router } from "expo-router";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import DraggableFlatList, { ScaleDecorator } from "react-native-draggable-flatlist";
 
-import { DRAG_LIFT_SCALE, DRAG_SPRING, Radius, Spacing } from "@/constants/theme";
+import { DRAG_LIFT_SCALE, DRAG_SPRING, FontScaleCap, Radius, Spacing } from "@/constants/theme";
 import { makeStyles, usePalette } from "@/context/AppearanceContext";
 import { useTheme } from "@/context/ThemeContext";
 import { useWorkouts } from "@/hooks/use-workouts";
@@ -42,7 +42,7 @@ export default function ReorderTemplatesScreen() {
   return (
     <SafeAreaView style={styles.safe} edges={["top"]}>
       <View style={styles.header}>
-        <Text style={styles.title}>Reorder templates</Text>
+        <Text style={styles.title} maxFontSizeMultiplier={FontScaleCap.title}>Reorder templates</Text>
         <Pressable onPress={() => router.back()} hitSlop={10} style={styles.doneButton}>
           <Text style={[styles.doneText, { color: theme.accentText }]}>Done</Text>
         </Pressable>

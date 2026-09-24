@@ -124,7 +124,7 @@ export default function BodyweightScreen() {
           <Ionicons name="chevron-back" size={22} color={palette.textSecondary} />
         </Pressable>
         <View style={{ flex: 1, gap: 2 }}>
-          <Text style={styles.title}>Bodyweight</Text>
+          <Text style={styles.title} maxFontSizeMultiplier={FontScaleCap.title}>Bodyweight</Text>
           <Text style={styles.subtitle}>
             {log.length} weigh-in{log.length === 1 ? "" : "s"} · tap one to fix it
           </Text>
@@ -143,7 +143,7 @@ export default function BodyweightScreen() {
               <View style={styles.summary}>
                 <Text style={styles.big} maxFontSizeMultiplier={FontScaleCap.grid}>
                   {latest ? Math.round(convertWeight(latest.lbs, "lbs", unit) * 10) / 10 : "—"}
-                  <Text style={styles.bigUnit}> {unit}</Text>
+                  <Text style={styles.bigUnit} maxFontSizeMultiplier={FontScaleCap.title}> {unit}</Text>
                 </Text>
                 {delta != null && (
                   <View style={styles.deltaWrap}>

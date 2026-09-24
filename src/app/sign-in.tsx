@@ -17,7 +17,7 @@ import * as AppleAuthentication from "expo-apple-authentication";
 import { Image } from "expo-image";
 
 import { Button, Field } from "@/components/ui";
-import { Radius, Spacing } from "@/constants/theme";
+import { FontScaleCap, Radius, Spacing } from "@/constants/theme";
 import { makeStyles } from "@/context/AppearanceContext";
 import { useAuth } from "@/context/AuthContext";
 import { useTheme } from "@/context/ThemeContext";
@@ -177,7 +177,7 @@ export default function SignInScreen() {
                 tintColor={theme.accentText}
               />
             </View>
-            <Text style={styles.title}>Plato</Text>
+            <Text style={styles.title} maxFontSizeMultiplier={FontScaleCap.title}>Plato</Text>
             <Text style={styles.subtitle}>Log lifts. Build streaks. See progress.</Text>
           </View>
 
@@ -212,7 +212,7 @@ export default function SignInScreen() {
                     disabled={googleBusy}
                     style={({ pressed }) => [styles.googleButton, pressed && { opacity: 0.85 }]}>
                     <Ionicons name="logo-google" size={18} color="#111" />
-                    <Text style={styles.googleButtonText}>
+                    <Text style={styles.googleButtonText} maxFontSizeMultiplier={FontScaleCap.button}>
                       {googleBusy ? "Signing in…" : "Continue with Google"}
                     </Text>
                   </Pressable>
@@ -309,7 +309,7 @@ export default function SignInScreen() {
               <Pressable
                 onPress={continueAsGuest}
                 style={({ pressed }) => [styles.guestButton, pressed && { opacity: 0.7 }]}>
-                <Text style={styles.guestButtonText}>Continue as guest</Text>
+                <Text style={styles.guestButtonText} maxFontSizeMultiplier={FontScaleCap.button}>Continue as guest</Text>
               </Pressable>
               <Text style={styles.guestHint}>
                 Workouts save on this phone. Sign in later to sync them.

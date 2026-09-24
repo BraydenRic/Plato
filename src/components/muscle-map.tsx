@@ -168,8 +168,11 @@ const useStyles = makeStyles((c) => ({
     textTransform: "uppercase",
     letterSpacing: 1,
   },
+  // Wraps, so at the largest text sizes "Primary" and "Secondary" stack onto
+  // two lines instead of running off both sides of the card.
   legend: {
     flexDirection: "row",
+    flexWrap: "wrap",
     alignItems: "center",
     justifyContent: "center",
     gap: 6,

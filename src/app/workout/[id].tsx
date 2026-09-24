@@ -10,6 +10,7 @@ import {
   Text,
   TextInput,
   View,
+  useWindowDimensions,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import DraggableFlatList, { ScaleDecorator } from "react-native-draggable-flatlist";
@@ -38,6 +39,16 @@ import type { Workout, WorkoutExercise, WorkoutSet } from "@/types";
 
 
 const fieldKey = (setId: string, field: "weight" | "reps" | "duration") => `${setId}:${field}`;
+
+/**
+ * Width of the set-number column, shared by its "SET" heading and every row so
+ * they stay aligned. A fixed 28pt split the heading into "SE / T" as soon as the
+ * text grew; this grows with it, to the same cap the column's text stops at.
+ */
+function useSetNumColWidth(): number {
+  const { fontScale } = useWindowDimensions();
+  return 28 * Math.min(Math.max(fontScale, 1), FontScaleCap.grid);
+}
 
 // "1:30" → 90, "45" → 45 seconds. Undefined for blank/garbage input.
 function parseDurationText(text: string): number | undefined {
@@ -662,16 +673,16 @@ export default function WorkoutScreen() {
           </Pressable>
           <View style={styles.topCenter}>
             {isTemplate ? (
-              <Text style={[styles.plannedLabel, { color: theme.accentText }]}>Template</Text>
+              <Text style={[styles.plannedLabel, { color: theme.accentText }]} maxFontSizeMultiplier={FontScaleCap.title}>Template</Text>
             ) : isDone ? (
-              <Text style={styles.doneLabel}>Completed</Text>
+              <Text style={styles.doneLabel} maxFontSizeMultiplier={FontScaleCap.title}>Completed</Text>
             ) : isPlanned ? (
-              <Text style={[styles.plannedLabel, { color: theme.accentText }]}>
+              <Text style={[styles.plannedLabel, { color: theme.accentText }]} maxFontSizeMultiplier={FontScaleCap.title}>
                 {isPastPlan ? "Logging" : "Planned"}
                 {workout.scheduledFor ? ` · ${relativeDay(workout.scheduledFor)}` : ""}
               </Text>
             ) : (
-              <Text style={styles.clock}>{formatClock(elapsed)}</Text>
+              <Text style={styles.clock} maxFontSizeMultiplier={FontScaleCap.title}>{formatClock(elapsed)}</Text>
             )}
           </View>
           <Pressable onPress={openMenu} hitSlop={12}>
@@ -703,6 +714,7 @@ export default function WorkoutScreen() {
               <View style={styles.dragHeader}>
                 <TextInput
                   style={styles.title}
+                  maxFontSizeMultiplier={FontScaleCap.title}
                   value={workout.name}
                   onChangeText={(name) => setWorkout({ ...workout, name })}
                   onEndEditing={(e) => {
@@ -710,7 +722,7 @@ export default function WorkoutScreen() {
                   }}
                 />
                 <View style={styles.summaryRow}>
-                  <Text style={styles.summaryText}>
+                  <Text style={styles.summaryText} maxFontSizeMultiplier={FontScaleCap.title}>
                     {workout.exercises.length} exercise{workout.exercises.length === 1 ? "" : "s"} · {totalSetCount(workout)} sets
                   </Text>
                 </View>
@@ -752,6 +764,7 @@ export default function WorkoutScreen() {
           <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
             <TextInput
               style={styles.title}
+              maxFontSizeMultiplier={FontScaleCap.title}
               value={workout.name}
               // The title uses the text keyboard — hopping here from a set input
               // swaps keyboards without a hide event, so drop the bar manually.
@@ -764,17 +777,17 @@ export default function WorkoutScreen() {
             />
 
             <View style={styles.summaryRow}>
-              <Text style={styles.summaryText}>
+              <Text style={styles.summaryText} maxFontSizeMultiplier={FontScaleCap.title}>
                 {displayVolume(workout.totalVolume ?? liveVolume, weightUnit)}
               </Text>
               <Text style={styles.summaryDot}>·</Text>
-              <Text style={styles.summaryText}>
+              <Text style={styles.summaryText} maxFontSizeMultiplier={FontScaleCap.title}>
                 {completedSetCount(workout)}/{totalSetCount(workout)} sets
               </Text>
               {isDone && workout.durationMinutes ? (
                 <>
                   <Text style={styles.summaryDot}>·</Text>
-                  <Text style={styles.summaryText}>{workout.durationMinutes}m</Text>
+                  <Text style={styles.summaryText} maxFontSizeMultiplier={FontScaleCap.title}>{workout.durationMinutes}m</Text>
                 </>
               ) : null}
             </View>
@@ -965,12 +978,13 @@ function ExerciseCard({
   const theme = useTheme();
   // Cardio and holds log a stopwatch per set instead of weight × reps.
   const timed = isTimedExercise(exercise.exercise);
+  const setNumColWidth = useSetNumColWidth();
   const bodyweight = isBodyweightExercise(exercise.exercise);
   return (
     <Card style={[styles.exerciseCard, dragActive && { borderColor: theme.accent }]}>
       <View style={styles.exerciseHeader}>
         <View style={{ flex: 1 }}>
-          <Text style={styles.exerciseName}>{exercise.exercise.name}</Text>
+          <Text style={styles.exerciseName} maxFontSizeMultiplier={FontScaleCap.heading}>{exercise.exercise.name}</Text>
           <Text style={[styles.exerciseCategory, { color: theme.accentText }]}>
             {/* The baseline is the same for every set, so it belongs here rather
                 than repeated down the rows. Without a weigh-in on file it says
@@ -1020,7 +1034,7 @@ function ExerciseCard({
           {/* Column headings label a fixed grid, so they cap with the numbers
               they sit above rather than pushing the columns out of alignment. */}
           <View style={styles.setHeaderRow}>
-            <Text style={[styles.setHeaderCell, styles.setNumCol]} maxFontSizeMultiplier={FontScaleCap.grid}>
+            <Text style={[styles.setHeaderCell, styles.setNumCol, { width: setNumColWidth }]} maxFontSizeMultiplier={FontScaleCap.grid}>
               SET
             </Text>
             {timed ? (
@@ -1110,6 +1124,7 @@ function SetRow({
   const styles = useStyles();
   const palette = usePalette();
   const { unit } = useWeightUnit();
+  const setNumColWidth = useSetNumColWidth();
   const theme = useTheme();
 
   // Weights are stored with the unit they were logged in; show them converted
@@ -1273,7 +1288,7 @@ function SetRow({
       )}
       onSwipeableWillOpen={onRemove}>
       <Pressable onLongPress={readOnly ? undefined : onRemove} style={styles.setRow}>
-      <Text style={[styles.setNum, styles.setNumCol]} maxFontSizeMultiplier={FontScaleCap.grid}>
+      <Text style={[styles.setNum, styles.setNumCol, { width: setNumColWidth }]} maxFontSizeMultiplier={FontScaleCap.grid}>
         {index}
       </Text>
       {timed ? (
