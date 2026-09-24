@@ -17,13 +17,17 @@ const cloudFns = [
   "subscribeWeeklyPlan", "setWeeklyPlan", "upsertUserStats",
 ] as const;
 
-jest.mock("../firestore", () => {
-  const mod: Record<string, unknown> = {
-    computeStats: jest.fn(),
-    sanitizeExercises: jest.fn(),
-    stripUndefined: (v: unknown) => v,
-    EMPTY_WEEKLY_PLAN: [null, null, null, null, null, null, null],
-  };
+// Signed-in calls go to cloud-cache (the offline copy), which is what gets
+// mocked as "the cloud" here. data.ts takes only helpers from firestore.
+jest.mock("../firestore", () => ({
+  computeStats: jest.fn(),
+  sanitizeExercises: jest.fn(),
+  stripUndefined: (v: unknown) => v,
+  EMPTY_WEEKLY_PLAN: [null, null, null, null, null, null, null],
+}));
+
+jest.mock("../cloud-cache", () => {
+  const mod: Record<string, unknown> = { LibraryNotLoadedError: class extends Error {} };
   for (const name of [
     "subscribeWorkouts", "subscribeWorkout", "getWorkout", "getCompletedWorkouts",
     "createWorkout", "updateWorkout", "deleteWorkout", "reopenWorkout",
@@ -55,7 +59,7 @@ jest.mock("../local-store", () => {
 });
 
 import * as data from "../data";
-import * as cloud from "../firestore";
+import * as cloud from "../cloud-cache";
 import * as local from "../local-store";
 
 const GUEST = "local-guest";

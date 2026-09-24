@@ -15,6 +15,7 @@ LOG WORKOUTS FAST
 • Copy your previous set with a single tap
 • Timed exercises like planks, dead hangs, and cardio get a built-in start/stop timer
 • Rest timer between sets
+• Works with no signal — log a whole session in a dead zone and it syncs when you're back online
 
 START WITHOUT AN ACCOUNT
 • Use the whole app as a guest — no sign-up, no email, nothing to fill in
@@ -53,6 +54,11 @@ No ads. No pop-ups. No clutter. Just training.
 ## What's New in This Version
 
 ```
+Plato now works with no signal. Open it in a basement gym and your history,
+templates and exercises are all there. Log a whole session, finish it, and it
+syncs to your account when you're back online, even if you close the app
+first.
+
 500 exercises — the library has grown from under 200 to 500, each with a
 form guide. New: a Neck category, including the 4-way neck machine, plus
 the standing calf machine, V-squat and reverse hack machines, Olympic lifts,

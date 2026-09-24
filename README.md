@@ -74,7 +74,9 @@ src/
 ├── hooks/                       # Workouts, active workout, bodyweight, library, weekly plan
 ├── lib/
 │   ├── data.ts                  # The single data entry point — routes cloud vs device
-│   ├── firestore.ts             # Cloud store
+│   ├── cloud-cache.ts           # Offline copy + outbox for signed-in accounts
+│   ├── firestore.ts             # Cloud store (Firestore calls)
+│   ├── remembered-account.ts    # Opens on the last account without waiting for Firebase
 │   ├── local-store.ts           # Guest store (one AsyncStorage blob)
 │   ├── migrate-guest-data.ts    # Guest → account, resumable
 │   ├── exercises.ts             # The 500 built-ins + search
@@ -94,6 +96,18 @@ docs/                            # Privacy policy (GitHub Pages) and store listi
 One Firestore doc per workout, with exercises and sets **embedded**. A set update writes the whole exercises array, so a set can never be partly saved or orphaned. Workouts embed a copy of each exercise, so **built-in exercise ids are permanent**: rename one and history stops lining up.
 
 Screens never call Firestore directly. [data.ts](src/lib/data.ts) sends each call to the cloud or the guest store, based on the data itself (a guest user id, or a `local-` workout id) rather than a global flag.
+
+### Offline
+
+Signed-in accounts work with no signal, the same as guests. The Firebase JS SDK can't do this on React Native: its offline cache needs IndexedDB, so it keeps everything in memory. Opening the app with no signal showed nothing, writes hung until the server acked them, and queued writes died with the app. [cloud-cache.ts](src/lib/cloud-cache.ts) fills that gap:
+
+- **A copy on the phone**, one AsyncStorage key per workout plus one for the library and weekly split. Screens read from it.
+- **An outbox.** Every write is saved before it's sent and removed only when the server acks it, so it survives the app being killed. Writes set whole values, so sending one twice is harmless, and a later write that covers an earlier one replaces it.
+- **Only the server's answers update the copy.** Firestore's cache answers `fromCache` with whatever this launch touched, often nothing, so those are ignored until the server has answered once.
+- **Nothing is sent until Firebase confirms the uid.** The app opens on the last account ([remembered-account.ts](src/lib/remembered-account.ts)) instead of waiting out Firebase's 60-second session check on a dead signal.
+- **Whole-document writes wait until the document is known.** The library and weekly split are refused until they've loaded; weigh-ins are held back. This stops a copy that never loaded from overwriting the real one. Lifetime stats wait for the full history.
+
+Guest-to-account migration still writes straight to Firestore, because it deletes each guest workout once the server has it.
 
 Finishing a workout stores `totalVolume`, priced at that day's weigh-in, and recomputes `userStats/{uid}`, which plato-web reads.
 

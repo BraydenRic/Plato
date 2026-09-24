@@ -7,8 +7,9 @@ const ACTIVE_KEY = "plato.guest.active.v1";
 const UID = "aB3xY7zQ1mN5pR8sT2vW4yZ6cD0e";
 
 /**
- * Migration talks to the cloud through `./data` (workouts, stats) and directly
- * to `./firestore` (library, weekly split). Both are mocked; the on-device store
+ * Migration talks to `./firestore` directly, never through `./data`, because
+ * data.ts resolves writes once they're on the phone and migration has to know
+ * they reached the server. That module is mocked; the on-device store
  * is real, because the whole point of these tests is what survives on the device
  * when a run fails partway.
  */
@@ -27,7 +28,7 @@ const cloud = ((globalThis as Record<string, unknown>).__cloudMock ??= {
   countActiveWorkouts: jest.fn(),
 }) as Record<string, jest.Mock>;
 
-jest.mock("../data", () => ({
+jest.mock("../firestore", () => ({
   createWorkout: (...args: unknown[]) => (globalThis as any).__cloudMock.createWorkout(...args),
   getCompletedWorkouts: (...args: unknown[]) => (globalThis as any).__cloudMock.getCompletedWorkouts(...args),
   upsertUserStats: (...args: unknown[]) => (globalThis as any).__cloudMock.upsertUserStats(...args),
@@ -36,9 +37,6 @@ jest.mock("../data", () => ({
   // migration relies on this to drop absent optional fields.
   stripUndefined: (value: unknown) =>
     JSON.parse(JSON.stringify(value ?? null, (_k, v) => (v === undefined ? undefined : v))),
-}));
-
-jest.mock("../firestore", () => ({
   getExerciseLibrary: (...args: unknown[]) => (globalThis as any).__cloudMock.getExerciseLibrary(...args),
   updateExerciseLibrary: (...args: unknown[]) => (globalThis as any).__cloudMock.updateExerciseLibrary(...args),
   getWeeklyPlan: (...args: unknown[]) => (globalThis as any).__cloudMock.getWeeklyPlan(...args),

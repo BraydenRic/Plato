@@ -283,4 +283,48 @@ describe("with no signal", () => {
     const next = renderHook(() => useBodyweight());
     expect(next.result.current.latest?.lbs).toBe(198);
   });
+
+  // A new phone opened at the gym: no device copy, and the cloud read fails.
+  // A weigh-in writes the whole log back, so writing this one then would
+  // replace years of history with a single entry.
+  it("holds a weigh-in back while the log has never been seen, then adds it to the real one", async () => {
+    jest.useFakeTimers();
+    let signal = false;
+    mockRead = () => (signal ? Promise.resolve(mockStored) : offline());
+
+    const { result } = renderHook(() => useBodyweight());
+    await act(async () => {});
+    await act(async () => {
+      await result.current.record(198, new Date(2026, 8, 20));
+    });
+
+    expect(result.current.latest?.lbs).toBe(198);
+    expect(mockSetLog).not.toHaveBeenCalled();
+
+    signal = true;
+    await act(async () => {
+      jest.advanceTimersByTime(2_000);
+    });
+
+    expect(mockSetLog).toHaveBeenCalledTimes(1);
+    const [, written] = mockSetLog.mock.calls[0] as unknown as [string, BodyweightEntry[]];
+    expect(written.map((e) => e.lbs)).toEqual([250, 191, 198]);
+    expect(result.current.log.map((e) => e.lbs)).toEqual([250, 191, 198]);
+  });
+
+  it("writes straight away when the device copy has been seen", async () => {
+    await AsyncStorage.setItem(
+      `bodyweight_log_cache_v1:${mockUserId}`,
+      JSON.stringify([{ date: AUG_5.toISOString(), lbs: 191 }])
+    );
+    mockRead = offline;
+    const { result } = renderHook(() => useBodyweight());
+    await waitFor(() => expect(result.current.latest?.lbs).toBe(191));
+
+    await act(async () => {
+      await result.current.record(198, new Date(2026, 8, 20));
+    });
+
+    expect(mockSetLog).toHaveBeenCalledTimes(1);
+  });
 });

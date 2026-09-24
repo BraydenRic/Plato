@@ -7,7 +7,7 @@ import { Button, Field, SectionLabel } from "@/components/ui";
 import { FontScaleCap, Radius, Spacing } from "@/constants/theme";
 import { makeStyles, usePalette } from "@/context/AppearanceContext";
 import { useTheme } from "@/context/ThemeContext";
-import { useExerciseLibrary, MAX_CUSTOM_EXERCISES } from "@/hooks/use-exercise-library";
+import { libraryErrorMessage, useExerciseLibrary, MAX_CUSTOM_EXERCISES } from "@/hooks/use-exercise-library";
 import { EXERCISES, isBodyweightExercise, isTimedExercise } from "@/lib/exercises";
 
 const CATEGORIES = [...new Set(EXERCISES.map((e) => e.category))];
@@ -91,8 +91,8 @@ export default function CreateExerciseModal() {
         await createExercise(fields);
       }
       router.back();
-    } catch {
-      Alert.alert("Couldn't save exercise", "Check your connection and try again.");
+    } catch (e) {
+      Alert.alert("Couldn't save exercise", libraryErrorMessage(e));
     } finally {
       setSaving(false);
     }

@@ -29,6 +29,7 @@ export default function ProfileScreen() {
     isGuest,
     discardGuestData,
     signOut,
+    unsyncedChangeCount,
     updateDisplayName,
     deleteAccount,
     refreshUser,
@@ -126,7 +127,15 @@ export default function ProfileScreen() {
   }
 
   function confirmSignOut() {
-    Alert.alert("Sign out?", "Your data stays synced to your account.", [
+    // Signing out deletes the offline copy, along with any changes in it that
+    // haven't reached the server. That's the one case where "stays synced"
+    // would be untrue, so say so and give a count.
+    const unsent = unsyncedChangeCount();
+    const message =
+      unsent > 0
+        ? `${unsent} change${unsent === 1 ? " on this phone hasn't" : "s on this phone haven't"} reached your account yet. Signing out now will lose ${unsent === 1 ? "it" : "them"}. Connect to the internet first to keep ${unsent === 1 ? "it" : "them"}.`
+        : "Your data stays synced to your account.";
+    Alert.alert("Sign out?", message, [
       { text: "Cancel", style: "cancel" },
       { text: "Sign out", style: "destructive", onPress: () => signOut() },
     ]);

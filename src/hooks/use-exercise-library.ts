@@ -2,7 +2,12 @@ import { useEffect, useMemo, useState } from "react";
 
 import { useAuth } from "@/context/AuthContext";
 import { EXERCISES } from "@/lib/exercises";
-import { subscribeExerciseLibrary, updateExerciseLibrary, type ExerciseLibrary } from "@/lib/data";
+import {
+  LibraryNotLoadedError,
+  subscribeExerciseLibrary,
+  updateExerciseLibrary,
+  type ExerciseLibrary,
+} from "@/lib/data";
 import { MAX_CUSTOM_EXERCISES, newId } from "@/lib/workout-utils";
 import type { Exercise } from "@/types";
 
@@ -12,6 +17,17 @@ const EMPTY: ExerciseLibrary = { custom: [], removedIds: [], overrides: [] };
 // without importing a hook (which would cycle back through AuthContext).
 // Re-exported here because screens have always imported it from this module.
 export { MAX_CUSTOM_EXERCISES };
+
+/**
+ * What to say when a library change didn't save.
+ *
+ * Changes save to the phone first now, so a missing signal is no longer a
+ * reason one fails. What can still stop one is a library that has never
+ * loaded on this phone: a change built from it would replace the real one.
+ */
+export function libraryErrorMessage(e: unknown): string {
+  return e instanceof LibraryNotLoadedError ? e.message : "Something went wrong. Try again.";
+}
 
 // The user's effective exercise list: bundled defaults minus the ones they
 // removed, plus their custom exercises. Workouts embed exercise copies, so

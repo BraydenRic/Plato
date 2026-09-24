@@ -9,7 +9,7 @@ import { SectionLabel } from "@/components/ui";
 import { FontScaleCap, Radius, Spacing } from "@/constants/theme";
 import { makeStyles, usePalette } from "@/context/AppearanceContext";
 import { formGuideFor, type FormFault } from "@/lib/exercise-form";
-import { useExerciseLibrary } from "@/hooks/use-exercise-library";
+import { libraryErrorMessage, useExerciseLibrary } from "@/hooks/use-exercise-library";
 import { useTheme } from "@/context/ThemeContext";
 
 export default function ExerciseDetailScreen() {
@@ -35,8 +35,12 @@ export default function ExerciseDetailScreen() {
           text: "Delete",
           style: "destructive",
           onPress: async () => {
-            await deleteExercise(exercise);
-            router.back();
+            try {
+              await deleteExercise(exercise);
+              router.back();
+            } catch (e) {
+              Alert.alert("Couldn't delete exercise", libraryErrorMessage(e));
+            }
           },
         },
       ]

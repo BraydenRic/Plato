@@ -7,7 +7,7 @@ import { Chip, Field } from "@/components/ui";
 import { FontScaleCap, Radius, Spacing } from "@/constants/theme";
 import { makeStyles, usePalette } from "@/context/AppearanceContext";
 import { useTheme } from "@/context/ThemeContext";
-import { useExerciseLibrary } from "@/hooks/use-exercise-library";
+import { libraryErrorMessage, useExerciseLibrary } from "@/hooks/use-exercise-library";
 import { filterExercises } from "@/lib/exercises";
 import type { Exercise } from "@/types";
 
@@ -37,7 +37,14 @@ export default function ExercisesScreen() {
         : `"${exercise.name}" will be hidden from your library. Reset brings it back.`,
       [
         { text: "Cancel", style: "cancel" },
-        { text: "Delete", style: "destructive", onPress: () => deleteExercise(exercise) },
+        {
+          text: "Delete",
+          style: "destructive",
+          onPress: () =>
+            deleteExercise(exercise).catch((e) =>
+              Alert.alert("Couldn't delete exercise", libraryErrorMessage(e))
+            ),
+        },
       ]
     );
   }
@@ -48,7 +55,12 @@ export default function ExercisesScreen() {
       "Restores all default exercises and deletes your custom ones.",
       [
         { text: "Cancel", style: "cancel" },
-        { text: "Reset", style: "destructive", onPress: () => resetLibrary() },
+        {
+          text: "Reset",
+          style: "destructive",
+          onPress: () =>
+            resetLibrary().catch((e) => Alert.alert("Couldn't reset library", libraryErrorMessage(e))),
+        },
       ]
     );
   }

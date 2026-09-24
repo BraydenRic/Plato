@@ -19,6 +19,13 @@ import {
   signInWithApple as appleSignIn,
 } from "@/lib/apple-signin";
 import { forgetCachedBodyweight } from "@/lib/bodyweight-cache";
+import {
+  closeCloudSession,
+  forgetCloudData,
+  openCloudSession,
+  pendingChangeCount,
+  whenCloudSynced,
+} from "@/lib/cloud-cache";
 import { auth } from "@/lib/firebase";
 import { deleteAllUserData } from "@/lib/firestore";
 import {
@@ -30,6 +37,12 @@ import {
   writeGuestActive,
 } from "@/lib/local-store";
 import { migrateGuestDataTo } from "@/lib/migrate-guest-data";
+import {
+  forgetRememberedUser,
+  isProvisional,
+  readRememberedUser,
+  rememberUser,
+} from "@/lib/remembered-account";
 import {
   googleSignInAvailable,
   reauthenticateWithGoogle,
@@ -64,6 +77,8 @@ interface AuthContextType {
   /** False outside real iOS builds (Android, Expo Go). */
   canUseApple: boolean;
   signOut: () => Promise<void>;
+  /** Changes on this phone the server hasn't acked, which signing out would lose. */
+  unsyncedChangeCount: () => number;
   /** Emails a password reset link. Never reveals whether the account exists. */
   resetPassword: (email: string) => Promise<void>;
   /** Re-sends the verification email for the signed-in account. */
@@ -95,12 +110,16 @@ const AuthContext = createContext<AuthContextType>({
   signInWithApple: async () => false,
   canUseApple: false,
   signOut: async () => {},
+  unsyncedChangeCount: () => 0,
   resetPassword: async () => {},
   resendVerificationEmail: async () => {},
   refreshUser: async () => {},
   updateDisplayName: async () => {},
   deleteAccount: async () => false,
 });
+
+/** How long "Moving your workouts" waits for the server before letting the app be used. */
+const MIGRATION_PATIENCE_MS = 5_000;
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
@@ -119,8 +138,29 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
    */
   const isGuest = guestActive && !user;
 
+  /**
+   * The uid just signed out of, while Firebase catches up.
+   *
+   * Signing out can happen before Firebase has finished restoring the session
+   * (see remembered-account). Firebase then finishes, reports the user it
+   * restored, and only after that signs them out. Without this, that brief
+   * report would sign them straight back in.
+   */
+  const signedOutUid = useRef<string | null>(null);
+
   useEffect(() => {
     let cancelled = false;
+    /** Firebase has reported in. What it says outranks the remembered account. */
+    let confirmed = false;
+    readRememberedUser().then((remembered) => {
+      if (cancelled || confirmed || !remembered) return;
+      // Before setUser: screens subscribe the moment the account appears,
+      // and a session signed out of earlier this launch refuses them until
+      // it's opened again.
+      openCloudSession(remembered.uid);
+      setUser(remembered);
+      setAuthLoading(false);
+    });
     // Restoring the guest flag is part of "is the session ready?" — resolving it
     // alongside Firebase keeps a returning guest from flashing the sign-in screen.
     readGuestActive()
@@ -131,6 +171,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         if (!cancelled) setGuestChecked(true);
       });
     const unsubscribe = onAuthStateChanged(auth, (u) => {
+      confirmed = true;
+      if (u && u.uid === signedOutUid.current) return;
+      if (!u) {
+        signedOutUid.current = null;
+        // Firebase has no session, whether from a sign-out or one that expired
+        // or was revoked. Either way, don't open on this account next launch.
+        // Its offline copy stays, so unsent changes go up if they sign back in.
+        forgetRememberedUser();
+      } else {
+        openCloudSession(u.uid);
+      }
       setUser(u);
       setAuthLoading(false);
     });
@@ -149,6 +200,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   // on those would start a second upload of the same workouts. The ref closes
   // the same door for any other path that remounts mid-migration.
   const uid = user?.uid ?? null;
+
+  // One offline copy per account, open while that account is. Opened where
+  // the account is set (above) rather than by the first screen that reads, so
+  // its Firestore listeners and its replay of unsent changes don't depend on
+  // which screen that is. Closed here once no account is left.
+  useEffect(() => {
+    if (!uid) void closeCloudSession();
+  }, [uid]);
+
+  // Remember each confirmed update to the account (name, verified email) for
+  // the next launch. Stand-ins are skipped; they are the remembered copy.
+  useEffect(() => {
+    if (user && !isProvisional(user)) void rememberUser(user);
+  }, [user]);
+
   const migrationRunning = useRef(false);
   useEffect(() => {
     if (!uid || migrationRunning.current) return;
@@ -162,7 +228,27 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           if (!cancelled) setGuestActive(false);
           return;
         }
+        // Moving data needs the server. With no signal every upload would
+        // hang, and with it the full-screen "Moving your workouts" that
+        // blocks the app. So it waits for the server to answer once. The
+        // screen goes up at once as it always has, since that's the usual
+        // case right after signing in, which needs a connection anyway. If
+        // the server hasn't answered after a few seconds, the screen steps
+        // aside and the app stays usable until it does. The guest data is
+        // safe on the phone meanwhile.
         if (!cancelled) setMigrating(true);
+        const synced = whenCloudSynced(uid);
+        const answered = await Promise.race([
+          synced.then(() => true),
+          new Promise<boolean>((resolve) => setTimeout(() => resolve(false), MIGRATION_PATIENCE_MS)),
+        ]);
+        if (!answered) {
+          if (!cancelled) setMigrating(false);
+          await synced;
+          if (cancelled) return;
+          setMigrating(true);
+        }
+        if (cancelled) return;
         const result = await migrateGuestDataTo(uid);
         if (!cancelled) setGuestActive(false);
         // Two things have ceilings a merge can run into: the exercise library is
@@ -245,12 +331,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }
 
   async function signOut() {
-    if (auth.currentUser) {
-      // The offline copy of the weigh-in log belongs to a signed-in session,
-      // so it ends with one. Keyed by uid, it was never readable by the next
-      // person to sign in here — but a record of someone's weight shouldn't
-      // outstay them on a shared phone either. Signing back in reads it fresh.
-      await forgetCachedBodyweight(auth.currentUser.uid);
+    // `user` as well as currentUser: while the app is still showing the
+    // remembered account, Firebase hasn't restored its session yet, so
+    // currentUser is null even though someone is signed in.
+    const signedInUid = auth.currentUser?.uid ?? user?.uid;
+    if (signedInUid) {
+      // The offline copies belong to a signed-in session, so they end with
+      // it. Keyed by uid, they were never readable by the next person to sign
+      // in here. But someone's training history and weight shouldn't outstay
+      // them on a shared phone either. Signing back in reads them fresh.
+      //
+      // The offline copy goes first, before the UI lets go of the account.
+      // Closing it any later could save it to disk again after the delete.
+      signedOutUid.current = signedInUid;
+      await forgetCloudData(signedInUid);
+      await forgetCachedBodyweight(signedInUid);
+      await forgetRememberedUser();
+      setUser(null);
       await firebaseSignOut(auth);
       return;
     }
@@ -310,10 +407,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (!(await reauthenticateWithGoogle(current))) return false;
     }
     await deleteAllUserData(current.uid);
-    // The device keeps a spare copy of the weigh-in log for offline starts.
-    // It's a record of someone's weight, so it goes with the account — the
-    // same as it goes on sign-out.
+    // The device keeps copies for offline starts: the weigh-in log and the
+    // offline copy of everything else. They go with the account, the same as
+    // they go on sign-out.
+    await forgetCloudData(current.uid);
     await forgetCachedBodyweight(current.uid);
+    await forgetRememberedUser();
     await deleteUser(current);
     return true;
   }
@@ -335,6 +434,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         signInWithApple,
         canUseApple: appleSignInSupported,
         signOut,
+        unsyncedChangeCount: () => (user ? pendingChangeCount(user.uid) : 0),
         resetPassword,
         resendVerificationEmail,
         refreshUser,

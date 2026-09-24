@@ -15,8 +15,11 @@ import {
   onSnapshot,
   serverTimestamp,
   Timestamp,
+  disableNetwork,
+  enableNetwork,
 } from "firebase/firestore";
-import { db } from "./firebase";
+import { onAuthStateChanged } from "firebase/auth";
+import { auth, db } from "./firebase";
 import {
   EMPTY_WEEKLY_PLAN,
   isActiveWorkout,
@@ -47,7 +50,7 @@ function toDate(val: unknown): Date | undefined {
   return undefined;
 }
 
-function workoutFromDoc(id: string, data: Record<string, unknown>): Workout {
+export function workoutFromDoc(id: string, data: Record<string, unknown>): Workout {
   return {
     id,
     userId: data.userId as string,
@@ -389,6 +392,122 @@ export async function upsertUserStats(stats: UserStatistics): Promise<void> {
   // computeStats' `lastWorkoutDate` undefined. With merge:true the omitted field
   // simply keeps its previous value rather than crashing the write.
   await setDoc(doc(db, "userStats", stats.userId), stripUndefined(stats), { merge: true });
+}
+
+// ── Plumbing for the offline copy (cloud-cache.ts) ──────────────────────────
+// Everything above is the app's original, one-call-per-operation API. What
+// follows is the smaller set of primitives cloud-cache builds on: it keeps the
+// device's own copy of a signed-in user's data and decides what reaches the
+// screen, so these hand it raw changes and snapshot metadata rather than
+// finished answers.
+
+/** Every collection a queued write can target. */
+export type CloudCollection = "workouts" | "exerciseLibrary" | "weeklyPlans" | "bodyweight" | "userStats";
+
+/** A write as cloud-cache queues it: plain data, so it can be saved to disk. */
+export interface CloudWrite {
+  collection: CloudCollection;
+  docId: string;
+  kind: "set" | "update" | "delete";
+  data?: Record<string, unknown>;
+  /** set only: merge into the existing document rather than replace it. */
+  merge?: boolean;
+  /** update only: fields to remove, since deleteField() can't be saved to disk. */
+  deleteFields?: string[];
+}
+
+/**
+ * Sends one queued write.
+ *
+ * Settles the way every Firestore write does: resolves on the server's ack,
+ * rejects only on a permanent refusal (permission-denied, not-found), and
+ * while there is no signal simply stays pending — it never times out.
+ */
+export function sendWrite(write: CloudWrite): Promise<void> {
+  const ref = doc(db, write.collection, write.docId);
+  if (write.kind === "delete") return deleteDoc(ref);
+  if (write.kind === "set") {
+    return write.merge ? setDoc(ref, write.data ?? {}, { merge: true }) : setDoc(ref, write.data ?? {});
+  }
+  const updates: Record<string, unknown> = { ...write.data };
+  for (const field of write.deleteFields ?? []) updates[field] = deleteField();
+  return updateDoc(ref, updates);
+}
+
+/** A fresh workout id, minted on the device the same way addDoc would. */
+export function newWorkoutId(): string {
+  return doc(collection(db, "workouts")).id;
+}
+
+/**
+ * The user's workouts, as changes since the last call.
+ *
+ * `fromCache` is the reason this exists. Firestore keeps its cache in memory on
+ * React Native, so with no signal at launch it has nothing, and after about ten
+ * seconds reports that nothing as an empty list — indistinguishable from an
+ * account with no workouts, except by this flag. cloud-cache uses it to keep
+ * showing the device copy instead.
+ *
+ * includeMetadataChanges is what guarantees that flag's news arrives: without
+ * it, a server answer identical to what the cache already held changes no
+ * documents and is never raised, so "now in sync with the server" could go
+ * unannounced for the whole session.
+ */
+export function listenWorkouts(
+  userId: string,
+  onChange: (changes: { id: string; workout: Workout | null }[], fromCache: boolean) => void,
+  onError: (e: Error) => void
+): () => void {
+  const q = query(collection(db, "workouts"), where("userId", "==", userId));
+  return onSnapshot(
+    q,
+    { includeMetadataChanges: true },
+    (snap) => {
+      const changes = snap.docChanges().map((change) => ({
+        id: change.doc.id,
+        workout:
+          change.type === "removed"
+            ? null
+            : workoutFromDoc(change.doc.id, change.doc.data() as Record<string, unknown>),
+      }));
+      onChange(changes, snap.metadata.fromCache);
+    },
+    onError
+  );
+}
+
+/** One per-user document (library, weekly split), raw, with the same cache flag. */
+export function listenUserDoc(
+  collectionName: "exerciseLibrary" | "weeklyPlans",
+  userId: string,
+  onChange: (data: Record<string, unknown> | null, fromCache: boolean) => void,
+  onError: (e: Error) => void
+): () => void {
+  return onSnapshot(
+    doc(db, collectionName, userId),
+    { includeMetadataChanges: true },
+    (snap) => onChange(snap.exists() ? (snap.data() as Record<string, unknown>) : null, snap.metadata.fromCache),
+    onError
+  );
+}
+
+/**
+ * Drops the connection and opens a new one.
+ *
+ * Firestore only notices the network coming back on its own retry timer, which
+ * backs off to a minute or more, because the browser signal it would otherwise
+ * listen for doesn't exist on React Native. This is what the browser build does
+ * when that signal fires; cloud-cache calls it when the app returns to the
+ * front, the likeliest moment the signal is back.
+ */
+export async function restartNetwork(): Promise<void> {
+  await disableNetwork(db);
+  await enableNetwork(db);
+}
+
+/** The signed-in uid as Firebase confirms it: null until then, or when signed out. */
+export function onConfirmedUid(listener: (uid: string | null) => void): () => void {
+  return onAuthStateChanged(auth, (user) => listener(user?.uid ?? null));
 }
 
 export function computeStats(workouts: Workout[]): Omit<UserStatistics, "userId"> {

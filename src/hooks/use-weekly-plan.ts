@@ -1,7 +1,14 @@
 import { useEffect, useState } from "react";
+import { Alert } from "react-native";
 
 import { useAuth } from "@/context/AuthContext";
-import { subscribeWeeklyPlan, setWeeklyPlan, EMPTY_WEEKLY_PLAN, type WeeklyPlan } from "@/lib/data";
+import {
+  LibraryNotLoadedError,
+  subscribeWeeklyPlan,
+  setWeeklyPlan,
+  EMPTY_WEEKLY_PLAN,
+  type WeeklyPlan,
+} from "@/lib/data";
 
 // The user's recurring weekday → template split (see subscribeWeeklyPlan). Empty
 // slots are rest days. Changing a day writes the whole array back.
@@ -28,6 +35,9 @@ export function useWeeklyPlan() {
       // weeklyPlans Firestore rule hasn't been added yet).
       setPlan(plan);
       console.warn("Couldn't save weekly split", e);
+      // The one refusal someone can act on: the split has never loaded on
+      // this phone. Without saying so, the day just snaps back.
+      if (e instanceof LibraryNotLoadedError) Alert.alert("Couldn't change your split", e.message);
     }
   }
 

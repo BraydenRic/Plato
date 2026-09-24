@@ -4,10 +4,11 @@ import { Text } from "react-native";
 import { AuthProvider, useAuth } from "../AuthContext";
 
 /**
- * The device keeps a copy of a signed-in user's weigh-in log so the app works
- * with no signal. The privacy policy says that copy goes when the session
- * does — on sign-out and on account deletion — so both are pinned here, along
- * with the order: the copy is dropped before the account is let go of.
+ * The device keeps copies of a signed-in user's data so the app works with no
+ * signal: the weigh-in log, and the offline copy of everything else. The
+ * privacy policy says those copies go when the session does — on sign-out and
+ * on account deletion — so both are pinned here, along with the order: the
+ * copies are dropped before the account is let go of.
  */
 
 const calls: string[] = [];
@@ -50,6 +51,14 @@ jest.mock("@/lib/bodyweight-cache", () => ({
     calls.push(`forget:${uid}`);
   },
 }));
+jest.mock("@/lib/cloud-cache", () => ({
+  openCloudSession: () => {},
+  closeCloudSession: async () => {},
+  whenCloudSynced: async () => {},
+  forgetCloudData: async (uid: string) => {
+    calls.push(`forgetCloud:${uid}`);
+  },
+}));
 jest.mock("@/lib/firestore", () => ({
   deleteAllUserData: async () => {
     calls.push("deleteData");
@@ -87,14 +96,14 @@ async function mounted() {
   await act(async () => {});
 }
 
-it("drops the device's copy of the weigh-ins on sign-out, before signing out", async () => {
+it("drops the device's copies on sign-out, before signing out", async () => {
   await mounted();
 
   await act(async () => {
     await auth.signOut();
   });
 
-  expect(calls).toEqual(["forget:u1", "signOut"]);
+  expect(calls).toEqual(["forgetCloud:u1", "forget:u1", "signOut"]);
 });
 
 it("drops it on account deletion too", async () => {
@@ -104,5 +113,5 @@ it("drops it on account deletion too", async () => {
     await auth.deleteAccount("pw");
   });
 
-  expect(calls).toEqual(["deleteData", "forget:u1", "deleteUser"]);
+  expect(calls).toEqual(["deleteData", "forgetCloud:u1", "forget:u1", "deleteUser"]);
 });

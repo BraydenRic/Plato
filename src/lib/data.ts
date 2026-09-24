@@ -1,4 +1,5 @@
-import * as cloud from "./firestore";
+import * as cloud from "./cloud-cache";
+import { stripUndefined } from "./firestore";
 import * as local from "./local-store";
 import { isGuestUserId, isLocalWorkoutId } from "./local-store";
 import type { ExerciseLibrary, WeeklyPlan } from "./firestore";
@@ -13,11 +14,17 @@ import type { BodyweightEntry, UserStatistics, Workout, WorkoutExercise } from "
  * created locally — rather than from a global "am I a guest?" flag. That means
  * a call can never be sent to the wrong backend because some flag was stale,
  * including mid-migration when both stores briefly hold data.
+ *
+ * Signed-in calls go to cloud-cache, which keeps a copy on the phone and
+ * syncs it with Firestore, rather than to Firestore itself. So the cloud side
+ * works without signal too, and a write here resolves once it's safe on the
+ * phone, not when the server acks it.
  */
 
 export { GUEST_USER_ID, isGuestUserId } from "./local-store";
 export { computeStats, sanitizeExercises, stripUndefined, EMPTY_WEEKLY_PLAN } from "./firestore";
 export type { ExerciseLibrary, WeeklyPlan } from "./firestore";
+export { LibraryNotLoadedError } from "./cloud-cache";
 
 // ── Workouts ─────────────────────────────────────────────────────────────────
 
@@ -52,7 +59,9 @@ export function createWorkout(
 ): Promise<string> {
   return isGuestUserId(workout.userId)
     ? local.createWorkout(workout)
-    : cloud.createWorkout(workout, preserveCreatedAt);
+    : preserveCreatedAt
+      ? cloud.createWorkout(workout)
+      : cloud.createWorkout({ ...workout, createdAt: new Date() });
 }
 
 export function updateWorkout(id: string, updates: Partial<Workout>): Promise<void> {
@@ -86,7 +95,7 @@ export function createWorkoutLocalFirst(workout: Omit<Workout, "id">): {
 } {
   return isGuestUserId(workout.userId)
     ? local.createWorkoutLocalFirst(workout)
-    : cloud.createWorkoutLocalFirst(cloud.stripUndefined(workout));
+    : cloud.createWorkoutLocalFirst(stripUndefined(workout));
 }
 
 export function startFromTemplate(
@@ -95,7 +104,7 @@ export function startFromTemplate(
   scheduledFor?: Date
 ): { id: string; saved: Promise<void> } {
   return createWorkoutLocalFirst(
-    cloud.stripUndefined({
+    stripUndefined({
       userId,
       name: template.name,
       isTemplate: false,
@@ -109,7 +118,7 @@ export function startFromTemplate(
 
 export function saveAsTemplate(workout: Workout, name: string): Promise<string> {
   return createWorkout(
-    cloud.stripUndefined({
+    stripUndefined({
       userId: workout.userId,
       name,
       isTemplate: true,

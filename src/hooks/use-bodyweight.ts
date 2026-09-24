@@ -44,6 +44,19 @@ const RETRY_DELAYS_MS = [2_000, 5_000, 15_000, 30_000];
 let editSeq = 0;
 
 /**
+ * Accounts whose log has actually been seen on this phone this launch, from
+ * the cloud or from the device copy.
+ *
+ * A weigh-in writes the whole log back. Written over a log that was never
+ * seen, like a new phone opened with no signal, it would replace the real
+ * history with a single entry. So until an account is in here, weigh-ins are
+ * shown but held in `heldEdits`. The first real read adds them to what it
+ * found, then writes.
+ */
+const knownLogs = new Set<string>();
+const heldEdits = new Map<string, ((log: BodyweightEntry[]) => BodyweightEntry[])[]>();
+
+/**
  * The weigh-in log, oldest first.
  *
  * Fetched rather than subscribed: unlike workouts, this changes only when the
@@ -93,6 +106,7 @@ export function useBodyweight() {
     if (!seed && cacheable) {
       readCachedBodyweight(userId).then((cached) => {
         if (cancelled || fresh || !cached || lastRead.has(userId)) return;
+        knownLogs.add(userId);
         lastRead.set(userId, cached);
         setLog(cached);
         setLoading(false);
@@ -103,13 +117,32 @@ export function useBodyweight() {
       clearTimeout(retryTimer);
       const seqAtStart = editSeq;
       getBodyweightLog(userId)
-        .then((entries) => {
+        .then((fetched) => {
           fresh = true;
+          knownLogs.add(userId);
+          let entries = fetched;
+          const held = heldEdits.get(userId);
+          if (held) {
+            // The first real read since weigh-ins were held back. Add them to
+            // it and save the result. That's the write they were waiting for.
+            heldEdits.delete(userId);
+            entries = held.reduce((log, edit) => edit(log), fetched);
+            setBodyweightLog(userId, entries).catch((e) => console.warn("Couldn't save held weigh-ins", e));
+            lastRead.set(userId, entries);
+            if (cancelled) return;
+            if (cacheable) writeCachedBodyweight(userId, entries);
+            setLog(entries);
+            setLoading(false);
+            return;
+          }
           // An edit made while this was in flight is newer than what it read.
           if (editSeq !== seqAtStart) return;
           lastRead.set(userId, entries);
-          if (cacheable) writeCachedBodyweight(userId, entries);
+          // Not after the screen has let go. A read that lands after sign-out
+          // would otherwise put the weigh-ins back on the phone just after
+          // signing out deleted them.
           if (cancelled) return;
+          if (cacheable) writeCachedBodyweight(userId, entries);
           setLog(entries);
           setLoading(false);
         })
@@ -168,20 +201,35 @@ export function useBodyweight() {
     [completed, dataUserId]
   );
 
+  /**
+   * Shows an edit to the log at once, then saves it, or holds it back while
+   * the log has never been seen (see knownLogs).
+   */
+  const applyEdit = useCallback(
+    async (userId: string, edit: (log: BodyweightEntry[]) => BodyweightEntry[], day: Date) => {
+      const next = edit(log);
+      editSeq += 1;
+      setLog(next);
+      lastRead.set(userId, next);
+      if (!isGuestUserId(userId) && !knownLogs.has(userId)) {
+        heldEdits.set(userId, [...(heldEdits.get(userId) ?? []), edit]);
+        return;
+      }
+      if (!isGuestUserId(userId)) writeCachedBodyweight(userId, next);
+      await setBodyweightLog(userId, next);
+      reprice(day, next);
+    },
+    [log, reprice]
+  );
+
   const record = useCallback(
     async (lbs: number, when: Date = new Date()) => {
       if (!dataUserId || !Number.isFinite(lbs) || lbs <= 0) return;
       // Optimistic: the number is already on screen before the write lands, and
       // a failure leaves the log as the server has it on the next read.
-      const next = withBodyweightEntry(log, { date: when, lbs });
-      editSeq += 1;
-      setLog(next);
-      lastRead.set(dataUserId, next);
-      if (!isGuestUserId(dataUserId)) writeCachedBodyweight(dataUserId, next);
-      await setBodyweightLog(dataUserId, next);
-      reprice(when, next);
+      await applyEdit(dataUserId, (base) => withBodyweightEntry(base, { date: when, lbs }), when);
     },
-    [dataUserId, log, reprice]
+    [dataUserId, applyEdit]
   );
 
   /**
@@ -193,16 +241,10 @@ export function useBodyweight() {
   const remove = useCallback(
     async (day: Date) => {
       if (!dataUserId) return;
-      const next = withoutBodyweightEntry(log, day);
-      if (next.length === log.length) return;
-      editSeq += 1;
-      setLog(next);
-      lastRead.set(dataUserId, next);
-      if (!isGuestUserId(dataUserId)) writeCachedBodyweight(dataUserId, next);
-      await setBodyweightLog(dataUserId, next);
-      reprice(day, next);
+      if (withoutBodyweightEntry(log, day).length === log.length) return;
+      await applyEdit(dataUserId, (base) => withoutBodyweightEntry(base, day), day);
     },
-    [dataUserId, log, reprice]
+    [dataUserId, log, applyEdit]
   );
 
   return { log, loading, record, remove, latest: log.length > 0 ? log[log.length - 1] : null };

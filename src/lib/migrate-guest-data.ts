@@ -1,11 +1,12 @@
+// Straight to Firestore, not through data.ts. data.ts resolves a write once
+// it's safe on the phone, but this deletes each workout from the guest store
+// as soon as its write resolves. It has to know the server has it first.
 import {
   computeStats,
   createWorkout,
   getCompletedWorkouts,
   stripUndefined,
   upsertUserStats,
-} from "./data";
-import {
   countActiveWorkouts,
   getBodyweightLog,
   getExerciseLibrary,
