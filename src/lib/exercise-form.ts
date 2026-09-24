@@ -6162,6 +6162,847 @@ export const FORM_GUIDES: Record<string, FormGuide> = {
       },
     ],
   },
+  "v-squat": {
+    setup: [
+      "Shoulders under the pads, back flat against the pad behind you.",
+      "Feet a little forward on the platform, about shoulder width.",
+    ],
+    execution: [
+      "Release the safety and sit down along the arc until the thighs pass parallel.",
+      "Drive up through the whole foot without locking the knees hard.",
+    ],
+    watchFor: [
+      {
+        mistake: "Heels lifting as you reach the bottom.",
+        fix: "Move your feet a little higher on the platform and push through your whole foot.",
+      },
+      {
+        mistake: "Cutting depth as the weight goes up.",
+        fix: "Keep the same depth on every rep. If you can't reach it any more, the weight is too heavy.",
+      },
+    ],
+  },
+  "reverse-hack-squat": {
+    setup: [
+      "Face the back pad with your chest against it and shoulders under the pads.",
+      "Feet about hip width, a little lower on the platform than a normal hack squat.",
+    ],
+    execution: [
+      "Push the hips back as you lower, keeping the chest on the pad.",
+      "Drive up by pushing the hips forward and standing tall.",
+    ],
+    watchFor: [
+      {
+        mistake: "Chest peeling off the pad at the bottom.",
+        fix: "Stay pressed against the pad the whole rep. If you can't, stop the descent a little higher.",
+      },
+      {
+        mistake: "Rounding the lower back to chase depth.",
+        fix: "Only go as low as your back stays flat. This one is about the hinge, not how far down you get.",
+      },
+    ],
+  },
+  "barbell-hack-squat": {
+    setup: [
+      "Bar on the floor behind your heels, feet hip width.",
+      "Squat down and grip it just outside the hips, arms straight, chest up.",
+    ],
+    execution: [
+      "Drive through the feet and stand up, the bar sliding up the backs of the legs.",
+      "Lower it back down the same way, sitting straight down between the heels.",
+    ],
+    watchFor: [
+      {
+        mistake: "Leaning forward so the hips rise first.",
+        fix: "Keep your chest up and your hips low. Raise your heels on small plates if you can't stay upright.",
+      },
+      {
+        mistake: "The bar scraping the calves and hamstrings.",
+        fix: "Wear long socks or trousers and keep the bar close without dragging it up your skin.",
+      },
+    ],
+  },
+  "horizontal-leg-press": {
+    setup: [
+      "Set the seat so your knees start at about 90° with the feet flat on the plate.",
+      "Back and hips flat against the pad, hands on the handles.",
+    ],
+    execution: [
+      "Press the plate away through the whole foot until the legs are almost straight.",
+      "Return slowly until the knees are back at the start angle.",
+    ],
+    watchFor: [
+      {
+        mistake: "Seat so close that the hips curl off the pad at the start.",
+        fix: "Move the seat back until your lower back stays flat at the bottom of each rep.",
+      },
+      {
+        mistake: "Snapping the knees straight at the top.",
+        fix: "Stop just short of lockout so the load stays on your legs, not your knee joints.",
+      },
+    ],
+  },
+  "vertical-leg-press": {
+    setup: [
+      "Lie on your back with the hips under the sled and the lower back flat on the pad.",
+      "Feet shoulder width on the plate, directly over the hips.",
+    ],
+    execution: [
+      "Unlock the sled and lower it by bending the knees toward the chest.",
+      "Press it straight back up without locking out.",
+    ],
+    watchFor: [
+      {
+        mistake: "Lowering so far that the hips lift off the pad.",
+        fix: "Stop where your tailbone starts to curl up. That is the bottom of your range.",
+      },
+      {
+        mistake: "Skipping the safety stops.",
+        fix: "Set the stops just below your lowest point before the first rep. With the sled over your body, they are not optional.",
+      },
+    ],
+  },
+  "iso-lateral-leg-press": {
+    setup: [
+      "Back and hips flat against the pad, one foot on each plate.",
+      "Load both sides the same and release both catches before the first rep.",
+    ],
+    execution: [
+      "Press both plates away together, or one leg at a time with the other held still.",
+      "Lower under control to a deep knee bend and press again.",
+    ],
+    watchFor: [
+      {
+        mistake: "Letting one plate lead as the set gets hard.",
+        fix: "Keep both plates level. When one starts to lag, that is your weaker leg telling you where the set ends.",
+      },
+      {
+        mistake: "Hips twisting on single-leg reps.",
+        fix: "Keep both hips pressed into the pad and the idle foot braced, so only the working leg moves.",
+      },
+    ],
+  },
+  "low-bar-squat": {
+    setup: [
+      "Bar across the rear delts, just below the top of the shoulders.",
+      "Hands narrow enough to trap the bar there, wrists straight.",
+      "Feet a little wider than shoulder width, toes out, brace before you unrack.",
+    ],
+    execution: [
+      "Push the hips back and down, letting the chest lean forward to keep the bar over the middle of the foot.",
+      "Reach depth, then drive the hips and back up together.",
+    ],
+    watchFor: [
+      {
+        mistake: "The bar sliding down the back.",
+        fix: "Grip narrower and squeeze your upper back tight, so your rear delts make a shelf for the bar to sit on.",
+      },
+      {
+        mistake: "Wrists bent back carrying the weight.",
+        fix: "Keep your wrists in line with your forearms. The bar belongs on your back, not in your hands.",
+      },
+    ],
+  },
+  "pause-squat": {
+    setup: [
+      "Set up exactly as for a back squat, bar on the upper back.",
+      "Use noticeably less than your normal squat weight.",
+    ],
+    execution: [
+      "Squat to your normal depth and hold still for one to two seconds.",
+      "Stay braced through the pause, then drive straight up.",
+    ],
+    watchFor: [
+      {
+        mistake: "Relaxing at the bottom so the pause turns into a sag.",
+        fix: "Keep your brace and tension through the whole pause. You should be ready to stand at any moment.",
+      },
+      {
+        mistake: "Cutting the pause short as the set gets harder.",
+        fix: "Count it out, and use a weight you can pause honestly on every rep.",
+      },
+    ],
+  },
+  "overhead-squat": {
+    setup: [
+      "Wide, snatch-width grip, bar locked out overhead above the back of the head.",
+      "Feet shoulder width, toes slightly out.",
+    ],
+    execution: [
+      "Push up into the bar and squat down, keeping it over the middle of the foot.",
+      "Stand up with the arms locked and the bar still.",
+    ],
+    watchFor: [
+      {
+        mistake: "The bar drifting forward as you descend.",
+        fix: "Push your head slightly through your arms and keep the bar over your mid-foot. Practise with a dowel or empty bar until it stays put.",
+      },
+      {
+        mistake: "Elbows softening under the weight.",
+        fix: "Lock your elbows and actively press up into the bar for the whole rep.",
+      },
+    ],
+  },
+  "dumbbell-squat": {
+    setup: [
+      "A dumbbell in each hand at your sides, feet shoulder width.",
+      "Chest up, shoulders back.",
+    ],
+    execution: [
+      "Squat down between the feet, letting the dumbbells hang straight.",
+      "Drive back up through the whole foot.",
+    ],
+    watchFor: [
+      {
+        mistake: "Leaning forward so the dumbbells swing in front of the knees.",
+        fix: "Keep your chest up and let the bells hang beside your feet. Go lighter if you can't.",
+      },
+      {
+        mistake: "Grip giving out before the legs.",
+        fix: "Use straps, or switch to a goblet squat once the dumbbells get too heavy to hold.",
+      },
+    ],
+  },
+  "kettlebell-front-squat": {
+    setup: [
+      "Clean two kettlebells to the rack, handles at the collarbones, bells on the forearms.",
+      "Elbows tucked in close, feet shoulder width.",
+    ],
+    execution: [
+      "Squat down keeping the elbows inside the knees and the chest tall.",
+      "Drive up without letting the bells pull you forward.",
+    ],
+    watchFor: [
+      {
+        mistake: "Elbows flaring out so the bells drag you forward.",
+        fix: "Squeeze your elbows in toward your ribs. The tighter the rack, the easier it is to stay upright.",
+      },
+      {
+        mistake: "Wrists bending back under the bells.",
+        fix: "Punch your hands through so the handles sit low in the palm and your wrists stay straight.",
+      },
+    ],
+  },
+  "heel-elevated-goblet-squat": {
+    setup: [
+      "Heels on a wedge or small plates, toes on the floor.",
+      "Hold a dumbbell or kettlebell at the chest.",
+    ],
+    execution: [
+      "Squat straight down, letting the knees travel forward over the toes.",
+      "Go as deep as you can with an upright chest, then drive up.",
+    ],
+    watchFor: [
+      {
+        mistake: "Heels sliding off the plates.",
+        fix: "Use a proper wedge or a flat plate that sits still, and check your feet before every set.",
+      },
+      {
+        mistake: "Pushing the hips back like a normal squat.",
+        fix: "Think of sitting straight down between your heels. The point is forward knees and an upright torso.",
+      },
+    ],
+  },
+  "spanish-squat": {
+    setup: [
+      "Loop a heavy band around a rack at knee height and step into it, band behind the knees.",
+      "Walk back until the band is tight, feet hip width.",
+    ],
+    execution: [
+      "Sit back into the band, keeping the shins vertical and the torso upright.",
+      "Go down to about parallel and stand back up.",
+    ],
+    watchFor: [
+      {
+        mistake: "Knees drifting forward past the band.",
+        fix: "Lean back into the band and keep your shins vertical. The band holds your knees back so the quads take the load.",
+      },
+      {
+        mistake: "A band too light to lean into.",
+        fix: "Double it up or use a heavier one. It needs to hold your weight as you sit back.",
+      },
+    ],
+  },
+  "smith-bulgarian-split-squat": {
+    setup: [
+      "Bench behind you at knee height, bar across the upper back.",
+      "Front foot far enough forward that the shin is roughly vertical at the bottom.",
+    ],
+    execution: [
+      "Lower straight down until the back knee is just above the floor.",
+      "Drive up through the front foot.",
+    ],
+    watchFor: [
+      {
+        mistake: "Front foot too close to the bar.",
+        fix: "Do one set with an empty bar to find the spot where your front knee sits over your foot at the bottom.",
+      },
+      {
+        mistake: "Pushing off the back foot.",
+        fix: "Keep your back foot relaxed on the bench. It is there for balance, and the front leg does the lifting.",
+      },
+    ],
+  },
+  "front-foot-elevated-split-squat": {
+    setup: [
+      "Front foot on a plate or low step, back foot on the floor behind you.",
+      "Hold dumbbells at your sides to add load.",
+    ],
+    execution: [
+      "Drop the back knee toward the floor, letting it go below the level of the front foot.",
+      "Drive up through the front foot to stand.",
+    ],
+    watchFor: [
+      {
+        mistake: "A step so high you lose your balance.",
+        fix: "Start with something an inch or two high. The raise is for extra depth, not a harder balance test.",
+      },
+      {
+        mistake: "Short, choppy reps that skip the bottom.",
+        fix: "Lower until your back knee nearly touches the floor. The deep stretch is the reason for the step.",
+      },
+    ],
+  },
+  "landmine-reverse-lunge": {
+    setup: [
+      "Hold the end of a landmine bar at the chest with both hands.",
+      "Stand tall, feet hip width.",
+    ],
+    execution: [
+      "Step one foot back and lower the back knee toward the floor.",
+      "Drive through the front foot to return to standing.",
+    ],
+    watchFor: [
+      {
+        mistake: "Letting the bar pull you forward onto the front toes.",
+        fix: "Keep the bar tight to your chest and your weight through your front heel.",
+      },
+      {
+        mistake: "Stepping back so short that the front knee shoots forward.",
+        fix: "Take a long enough step that your front shin stays close to vertical at the bottom.",
+      },
+    ],
+  },
+  "skater-squat": {
+    setup: [
+      "Stand on one leg with a pad or folded mat on the floor behind you.",
+      "Arms forward, or a light weight in both hands to counterbalance.",
+    ],
+    execution: [
+      "Bend the standing knee and lower the free knee toward the pad behind you.",
+      "Touch the pad lightly and stand back up.",
+    ],
+    watchFor: [
+      {
+        mistake: "Dropping onto the back knee.",
+        fix: "Touch the pad lightly and keep all your weight on the standing leg. Stack another mat on it if you can't control the last part.",
+      },
+      {
+        mistake: "The standing knee caving in.",
+        fix: "Keep your knee in line with your middle toe the whole way down and up.",
+      },
+    ],
+  },
+  "box-pistol-squat": {
+    setup: [
+      "Box or bench behind you at a height you can sit to under control.",
+      "Stand on one leg, the other held out in front, arms forward.",
+    ],
+    execution: [
+      "Sit back slowly until you touch the box.",
+      "Drive up through the standing foot without rocking.",
+    ],
+    watchFor: [
+      {
+        mistake: "Falling onto the box for the last few inches.",
+        fix: "Lower slowly the whole way down. If the end of the rep drops, use a higher box.",
+      },
+      {
+        mistake: "Rocking back and swinging up.",
+        fix: "Pause on the box without relaxing, then stand straight up. Momentum builds nothing toward a full pistol.",
+      },
+    ],
+  },
+  "lateral-step-up": {
+    setup: [
+      "Stand side-on to a box, the near foot flat on top.",
+      "Hold dumbbells at your sides to add load.",
+    ],
+    execution: [
+      "Drive through the top foot to stand on the box.",
+      "Lower the other foot back down slowly to a light touch.",
+    ],
+    watchFor: [
+      {
+        mistake: "Pushing off the bottom foot.",
+        fix: "Keep the floor foot light and let the top leg do the lifting. A lower box helps if you keep bouncing up.",
+      },
+      {
+        mistake: "Top knee caving in as you rise.",
+        fix: "Keep your knee pointing over your toes, and lower the box if it keeps caving.",
+      },
+    ],
+  },
+  "single-leg-extension": {
+    setup: [
+      "Set the machine as for a normal leg extension, back against the pad.",
+      "Pad on the front of one ankle, the other leg tucked out of the way.",
+    ],
+    execution: [
+      "Extend the knee until the leg is straight and squeeze the quad.",
+      "Lower slowly, and finish all your reps before switching legs.",
+    ],
+    watchFor: [
+      {
+        mistake: "Hips lifting off the seat to swing the weight.",
+        fix: "Hold the handles and keep your hips down. If they lift, the weight is too heavy for one leg.",
+      },
+      {
+        mistake: "Starting with the stronger leg every time.",
+        fix: "Start with your weaker leg and match its reps on the other side.",
+      },
+    ],
+  },
+  "iso-lateral-leg-extension": {
+    setup: [
+      "Adjust the seat so your knees line up with the machine's pivot.",
+      "Pads on the front of the ankles, back flat against the pad.",
+    ],
+    execution: [
+      "Extend both legs, or one at a time, and squeeze at the top.",
+      "Lower under control until the knees are bent past 90°.",
+    ],
+    watchFor: [
+      {
+        mistake: "Knees out of line with the pivot.",
+        fix: "Move the seat until your knee joint sits right beside the pivot point. Out of line, the pad rubs up your shin instead of moving with it.",
+      },
+      {
+        mistake: "Letting the arms crash down between reps.",
+        fix: "Take two or three seconds on the way down and stop just short of the bottom so the quads keep working.",
+      },
+    ],
+  },
+  "kneeling-leg-curl": {
+    setup: [
+      "Kneel on the pad with the forearms or chest supported.",
+      "Working ankle under the roller, knee just off the end of the pad.",
+    ],
+    execution: [
+      "Curl the heel up toward the glute and squeeze.",
+      "Lower under control to nearly straight, then switch sides after the set.",
+    ],
+    watchFor: [
+      {
+        mistake: "Arching the lower back to lift the weight.",
+        fix: "Keep your hips down and your back still. If they move, the weight is too heavy.",
+      },
+      {
+        mistake: "Letting the leg drop fast on the way down.",
+        fix: "Lower for two to three seconds. The slow lowering is where much of the work gets done.",
+      },
+    ],
+  },
+  "sliding-leg-curl": {
+    setup: [
+      "Lie on your back on a smooth floor, heels on sliders or a towel.",
+      "Lift the hips so the body is straight from shoulders to knees.",
+    ],
+    execution: [
+      "Slide the heels out slowly until the legs are nearly straight, hips staying up.",
+      "Pull the heels back in toward the glutes.",
+    ],
+    watchFor: [
+      {
+        mistake: "Hips dropping as the legs straighten.",
+        fix: "Squeeze your glutes and keep your hips high. Only slide out as far as you can hold them there.",
+      },
+      {
+        mistake: "Sliding out so fast you collapse at the end.",
+        fix: "Take three or four seconds to slide out. If you can't pull back in yet, lower the hips and draw the heels back to start.",
+      },
+    ],
+  },
+  "dumbbell-leg-curl": {
+    setup: [
+      "Lie face down on a flat bench, knees just off the end.",
+      "Have a partner set a dumbbell between your feet, or place it there carefully.",
+    ],
+    execution: [
+      "Squeeze the dumbbell with the feet and curl the heels toward the glutes.",
+      "Lower slowly to nearly straight.",
+    ],
+    watchFor: [
+      {
+        mistake: "Curling past vertical so the dumbbell slides out.",
+        fix: "Stop when your shins are just short of vertical. Past that, the weight tips toward your back.",
+      },
+      {
+        mistake: "Going heavy before the dumbbell feels secure.",
+        fix: "Start light until you can hold the dumbbell firmly between your feet. It is an awkward weight to drop safely.",
+      },
+    ],
+  },
+  "cable-leg-curl": {
+    setup: [
+      "Ankle strap on a low cable, face the machine and hold it for support.",
+      "Step back until there is tension with the leg straight.",
+    ],
+    execution: [
+      "Curl the heel up behind you, keeping the thigh still.",
+      "Lower slowly until the leg is straight.",
+    ],
+    watchFor: [
+      {
+        mistake: "The thigh swinging back to help the curl.",
+        fix: "Keep your knee pointing at the floor and move only below the knee.",
+      },
+      {
+        mistake: "Leaning the torso forward as you tire.",
+        fix: "Stand tall and hold the machine. If you have to lean, drop the weight.",
+      },
+    ],
+  },
+  "smith-romanian-deadlift": {
+    setup: [
+      "Bar at mid-thigh height, feet hip width under the bar.",
+      "Grip just outside the legs and unhook with a flat back.",
+    ],
+    execution: [
+      "Push the hips back and lower the bar down the front of the legs.",
+      "Stop at a strong hamstring stretch, then drive the hips forward to stand.",
+    ],
+    watchFor: [
+      {
+        mistake: "Feet set so the fixed bar pulls you onto your toes.",
+        fix: "Stand with the bar over your mid-foot. The bar can't move toward you, so your feet have to be in the right place.",
+      },
+      {
+        mistake: "Bending the knees more to reach lower.",
+        fix: "Keep the same soft knee bend and stop where your hamstrings are fully stretched.",
+      },
+    ],
+  },
+  "b-stance-rdl": {
+    setup: [
+      "Front foot flat, back foot a half step behind with only the toes down.",
+      "Most of your weight on the front leg, dumbbells or a bar in hand.",
+    ],
+    execution: [
+      "Hinge at the hips, lowering the weight along the front leg.",
+      "Stop at a strong stretch in the front hamstring, then drive up.",
+    ],
+    watchFor: [
+      {
+        mistake: "Shifting weight onto the back foot.",
+        fix: "Use the back foot as a kickstand for balance only. Your front heel should carry most of the load.",
+      },
+      {
+        mistake: "Rounding the back to go lower.",
+        fix: "Stop at a full hamstring stretch with your back flat. Depth past that comes from your spine, not your hip.",
+      },
+    ],
+  },
+  "side-lying-hip-adduction": {
+    setup: [
+      "Lie on your side with your head resting on your arm.",
+      "Cross the top leg over and plant that foot on the floor in front of you.",
+    ],
+    execution: [
+      "Lift the straight bottom leg as high as you can.",
+      "Lower it slowly without resting it on the floor.",
+    ],
+    watchFor: [
+      {
+        mistake: "Rolling back onto the hip to lift higher.",
+        fix: "Stay stacked on your side. The range is small, and rolling moves the work away from the inner thigh.",
+      },
+      {
+        mistake: "Swinging the leg up quickly.",
+        fix: "Lift and lower slowly with a pause at the top. Add an ankle weight once it gets easy.",
+      },
+    ],
+  },
+  "adductor-squeeze": {
+    setup: [
+      "Lie on your back with the knees bent and feet flat.",
+      "Place a ball, rolled towel or foam roller between the knees.",
+    ],
+    execution: [
+      "Squeeze the knees together as hard as you can and hold.",
+      "Breathe steadily, then relax fully between holds.",
+    ],
+    watchFor: [
+      {
+        mistake: "Holding the breath through the squeeze.",
+        fix: "Breathe out slowly as you squeeze and keep breathing through the hold.",
+      },
+      {
+        mistake: "Going to a maximal squeeze straight away.",
+        fix: "Build up over a few holds, starting around half effort. Save the hard squeezes for when the inner thighs are warm.",
+      },
+    ],
+  },
+  "cable-hip-flexion": {
+    setup: [
+      "Ankle strap on a low cable, stand facing away from the machine.",
+      "Hold the frame or a post for balance and stand tall.",
+    ],
+    execution: [
+      "Drive the knee up in front until the thigh is about parallel to the floor.",
+      "Lower slowly back to a straight leg.",
+    ],
+    watchFor: [
+      {
+        mistake: "Leaning back to get the knee higher.",
+        fix: "Stay tall and stop where your thigh reaches hip height. Leaning back just shortens the movement.",
+      },
+      {
+        mistake: "Letting the cable yank the leg back.",
+        fix: "Control the return and stop with the foot just behind you, keeping tension on the cable.",
+      },
+    ],
+  },
+  "standing-calf-raise-machine": {
+    setup: [
+      "Shoulders under the pads, balls of the feet on the edge of the block.",
+      "Stand tall with the knees straight but not locked.",
+    ],
+    execution: [
+      "Rise as high onto the toes as you can and pause.",
+      "Lower until the heels drop well below the block for a full stretch.",
+    ],
+    watchFor: [
+      {
+        mistake: "Bending the knees to bounce the weight up.",
+        fix: "Keep your legs straight and let only your ankles move. If your knees bend, the weight is too heavy.",
+      },
+      {
+        mistake: "Short reps that never reach the stretch.",
+        fix: "Pause a second at the bottom with the heels down. The stretch is the part most people skip.",
+      },
+    ],
+  },
+  "barbell-calf-raise": {
+    setup: [
+      "Bar on the upper back from a rack, balls of the feet on a plate or block.",
+      "Feet hip width, stand tall and braced.",
+    ],
+    execution: [
+      "Rise onto the toes as high as you can and pause.",
+      "Lower under control until the heels drop below the plate.",
+    ],
+    watchFor: [
+      {
+        mistake: "Losing balance forward and back.",
+        fix: "Brace hard and keep the bar over your mid-foot. Do these inside a rack with the safeties set.",
+      },
+      {
+        mistake: "Bouncing through fast half reps.",
+        fix: "Pause at the top and bottom of each rep. Slower reps with less weight do more for the calves.",
+      },
+    ],
+  },
+  "dumbbell-calf-raise": {
+    setup: [
+      "Balls of both feet on a step, heels hanging off.",
+      "A dumbbell in each hand at your sides.",
+    ],
+    execution: [
+      "Rise onto the toes as high as you can and squeeze.",
+      "Lower slowly until you feel a full stretch.",
+    ],
+    watchFor: [
+      {
+        mistake: "Grip failing before the calves.",
+        fix: "Use straps, or hold one dumbbell and a rail and switch to single-leg reps.",
+      },
+      {
+        mistake: "Leaning forward onto the toes.",
+        fix: "Stand tall with your weight over the balls of your feet and let your ankles do the moving.",
+      },
+    ],
+  },
+  "hack-squat-calf-raise": {
+    setup: [
+      "Shoulders under the pads, balls of the feet on the bottom edge of the platform.",
+      "Legs straight and the safeties in place.",
+    ],
+    execution: [
+      "Push up through the toes as far as you can and pause.",
+      "Lower until the heels drop below the platform edge.",
+    ],
+    watchFor: [
+      {
+        mistake: "Bending the knees and turning it into a partial squat.",
+        fix: "Keep your legs straight. Only your ankles should move.",
+      },
+      {
+        mistake: "Feet slipping off the platform edge.",
+        fix: "Set the balls of your feet firmly on the edge and check before loading heavy. Shoes with grip help.",
+      },
+    ],
+  },
+  "seated-db-calf-raise": {
+    setup: [
+      "Sit on the end of a bench with the balls of the feet on a plate or step.",
+      "Rest a dumbbell on each knee and hold them in place.",
+    ],
+    execution: [
+      "Raise the heels as high as you can and pause.",
+      "Lower slowly to a full stretch.",
+    ],
+    watchFor: [
+      {
+        mistake: "Dumbbells rolling off the knees.",
+        fix: "Hold them firmly on your lower thighs, or lay a folded towel across your knees to keep them in place.",
+      },
+      {
+        mistake: "Rushing reps without a stretch.",
+        fix: "Let your heels drop fully below the step and pause there before each rep.",
+      },
+    ],
+  },
+  "seated-tibialis-raise": {
+    setup: [
+      "Sit on a bench or box with the feet out in front, heels on the floor.",
+      "Hook a tib bar or a dumbbell between the feet over the toes.",
+    ],
+    execution: [
+      "Pull the toes up toward the shins as far as they go.",
+      "Lower slowly until the toes point down.",
+    ],
+    watchFor: [
+      {
+        mistake: "Going heavy with a short range.",
+        fix: "Pick a load you can move through the whole range. The front of the shin tires fast, so start light.",
+      },
+      {
+        mistake: "Lifting the heels off the floor.",
+        fix: "Keep your heels down as the pivot and let only the front of the foot move.",
+      },
+    ],
+  },
+  "pogo-jump": {
+    setup: [
+      "Stand tall with the feet hip width.",
+      "Weight on the balls of the feet, knees nearly straight.",
+    ],
+    execution: [
+      "Bounce off the floor using mostly the ankles, quick and small.",
+      "Spend as little time on the ground as you can.",
+    ],
+    watchFor: [
+      {
+        mistake: "Bending the knees and turning it into squat jumps.",
+        fix: "Keep your knees almost straight and your ankles stiff. The spring comes from the lower leg.",
+      },
+      {
+        mistake: "Landing flat on the heels.",
+        fix: "Stay on the balls of your feet and keep each contact short and quiet.",
+      },
+    ],
+  },
+  "broad-jump": {
+    setup: [
+      "Feet hip width behind a line.",
+      "Swing the arms back as you dip into a quarter squat.",
+    ],
+    execution: [
+      "Swing the arms forward and jump out as far as you can.",
+      "Land softly on both feet with the knees bent, and hold the landing.",
+    ],
+    watchFor: [
+      {
+        mistake: "Landing stiff-legged.",
+        fix: "Land with bent knees and hips, as if sitting back into a quarter squat.",
+      },
+      {
+        mistake: "Stumbling forward after the landing.",
+        fix: "Only count jumps you can stick. If you can't hold the landing, jump a little shorter.",
+      },
+    ],
+  },
+  "tuck-jump": {
+    setup: [
+      "Feet hip width, arms at your sides.",
+      "Dip into a quarter squat.",
+    ],
+    execution: [
+      "Jump straight up and pull the knees toward the chest.",
+      "Straighten the legs before you land and absorb it softly.",
+    ],
+    watchFor: [
+      {
+        mistake: "Landing with the legs still tucked.",
+        fix: "Snap your legs back down in the air so you land on your feet with the knees bent.",
+      },
+      {
+        mistake: "Rounding forward to reach the knees.",
+        fix: "Bring your knees up to your chest, not your chest down to your knees. Stay tall.",
+      },
+    ],
+  },
+  "depth-jump": {
+    setup: [
+      "Stand on a box, knee height or lower to start.",
+      "Toes at the edge, arms ready.",
+    ],
+    execution: [
+      "Step off rather than jumping off, and land on both feet.",
+      "As soon as you touch down, jump straight up as high as you can.",
+    ],
+    watchFor: [
+      {
+        mistake: "Using a box that's too high.",
+        fix: "Start low. If you sink deep on landing before you can jump, the box is too high.",
+      },
+      {
+        mistake: "Pausing on the ground before the jump.",
+        fix: "Treat the floor as hot. Spend as little time on it as you can between landing and jumping.",
+      },
+    ],
+  },
+  "jumping-lunge": {
+    setup: [
+      "Start in a lunge, front knee bent, back knee just off the floor.",
+      "Chest up, arms ready to drive.",
+    ],
+    execution: [
+      "Jump straight up and switch legs in the air.",
+      "Land softly in a lunge on the other side and go straight into the next rep.",
+    ],
+    watchFor: [
+      {
+        mistake: "The back knee slamming into the floor on landing.",
+        fix: "Land with bent knees and stop just short of the floor. Slow down until you can control it.",
+      },
+      {
+        mistake: "Feet landing in a line as you tire.",
+        fix: "Keep your feet hip width apart side to side, as if on two rails, so each landing is stable.",
+      },
+    ],
+  },
+  "single-leg-wall-sit": {
+    setup: [
+      "Back flat against a wall, slide down until the thighs are parallel.",
+      "Shins vertical, then lift one foot a little off the floor.",
+    ],
+    execution: [
+      "Hold with the working knee over the ankle and the back flat.",
+      "Switch legs and hold the same time on the other side.",
+    ],
+    watchFor: [
+      {
+        mistake: "Hips shifting over toward the standing leg.",
+        fix: "Keep your hips level and your back square against the wall.",
+      },
+      {
+        mistake: "Sliding up the wall as you tire.",
+        fix: "Hold the depth you started at. End the set when you can't, rather than creeping up.",
+      },
+    ],
+  },
   "hip-thrust": {
     setup: [
       "Shoulder blades on a bench, bar across the hips with a pad.",
@@ -6539,6 +7380,346 @@ export const FORM_GUIDES: Record<string, FormGuide> = {
       {
         mistake: "Rotating the toes up to the ceiling.",
         fix: "Keep your toes pointing forward so the side of the glute does the work.",
+      },
+    ],
+  },
+  "dumbbell-hip-thrust": {
+    setup: [
+      "Shoulder blades on a bench, dumbbell across the crease of the hips.",
+      "Feet flat and hip width, hands holding the ends of the dumbbell.",
+    ],
+    execution: [
+      "Drive through the heels and lift the hips to a straight line from knee to shoulder.",
+      "Squeeze at the top, then lower under control.",
+    ],
+    watchFor: [
+      {
+        mistake: "The dumbbell rolling toward the stomach.",
+        fix: "Hold both ends and keep it on the crease of your hips. A folded mat underneath stops it rolling and saves your hip bones.",
+      },
+      {
+        mistake: "Arching the lower back to finish the rep.",
+        fix: "Tuck your chin and ribs, and finish by squeezing your glutes rather than leaning back.",
+      },
+    ],
+  },
+  "kas-glute-bridge": {
+    setup: [
+      "Upper back on a bench, a little lower on it than for a hip thrust.",
+      "Bar on the hips with a pad, feet flat, shins vertical at the top.",
+    ],
+    execution: [
+      "Lift the hips to lockout, then lower only about halfway.",
+      "Drive back up without letting the hips sink further.",
+    ],
+    watchFor: [
+      {
+        mistake: "Sliding the upper back up and down the bench.",
+        fix: "Keep your torso fixed on the bench and move only at the hips. That short range is the whole point.",
+      },
+      {
+        mistake: "Resting at the bottom.",
+        fix: "Stop halfway down and go straight back up so the glutes never get a break.",
+      },
+    ],
+  },
+  "feet-elevated-glute-bridge": {
+    setup: [
+      "Lie on your back with the heels on a bench or step, knees bent.",
+      "Arms flat on the floor at your sides.",
+    ],
+    execution: [
+      "Drive the heels down and lift the hips as high as you can.",
+      "Squeeze at the top and lower until the hips just touch.",
+    ],
+    watchFor: [
+      {
+        mistake: "Pushing through the toes.",
+        fix: "Press through your heels, and pull your toes up if you need the reminder.",
+      },
+      {
+        mistake: "Arching the back at the top.",
+        fix: "Stop when your hips line up with your knees and shoulders. Any higher comes from your lower back.",
+      },
+    ],
+  },
+  "single-leg-glute-bridge": {
+    setup: [
+      "Lie on your back with one foot flat and the other leg held up.",
+      "Working heel close to the hips.",
+    ],
+    execution: [
+      "Drive through the heel and lift the hips, keeping them level.",
+      "Pause at the top and lower under control.",
+    ],
+    watchFor: [
+      {
+        mistake: "Hip dropping on the unsupported side.",
+        fix: "Keep your hips level, as if balancing a glass on them. Lift less high if you have to.",
+      },
+      {
+        mistake: "Pushing off with the raised leg.",
+        fix: "Keep the free leg in the air or hug that knee to your chest so it can't help.",
+      },
+    ],
+  },
+  "marching-glute-bridge": {
+    setup: [
+      "Lie on your back, knees bent, feet flat.",
+      "Lift into a glute bridge.",
+    ],
+    execution: [
+      "Lift one foot a few inches, keeping the hips up and level.",
+      "Put it down and lift the other, alternating.",
+    ],
+    watchFor: [
+      {
+        mistake: "Hips sagging or tilting as each foot lifts.",
+        fix: "Squeeze the glute of the planted leg before lifting the other foot, and keep your hips square.",
+      },
+      {
+        mistake: "Marching fast to get it over with.",
+        fix: "Lift each foot slowly and hold it for a beat. The control is the exercise.",
+      },
+    ],
+  },
+  "kneeling-hip-thrust": {
+    setup: [
+      "Band anchored low behind you and running across the front of the hips.",
+      "Kneel upright on a pad, knees hip width.",
+    ],
+    execution: [
+      "Sit the hips back toward the heels, keeping the chest up.",
+      "Drive the hips forward until you are kneeling tall, and squeeze the glutes.",
+    ],
+    watchFor: [
+      {
+        mistake: "Leaning back at the top instead of finishing with the hips.",
+        fix: "Stop when your hips are fully forward under your shoulders. Squeeze your glutes rather than arching.",
+      },
+      {
+        mistake: "Rounding forward on the way down.",
+        fix: "Keep your chest up and push your hips back, as if reaching for a wall behind you with them.",
+      },
+    ],
+  },
+  "45-degree-hip-extension": {
+    setup: [
+      "Set the pad just below the crease of the hips so you can fold freely.",
+      "Feet turned out slightly, weight in the heels.",
+    ],
+    execution: [
+      "Round the upper back slightly and lower the torso toward the floor.",
+      "Drive up by squeezing the glutes until the body forms a straight line.",
+    ],
+    watchFor: [
+      {
+        mistake: "Arching the lower back past straight at the top.",
+        fix: "Stop in a straight line from head to heels. Past that is your lower back, not your glutes.",
+      },
+      {
+        mistake: "Pad set so high it blocks the hips.",
+        fix: "Lower the pad until the crease of your hips sits over its edge. You should be able to bend freely at the hip.",
+      },
+    ],
+  },
+  "bench-reverse-hyper": {
+    setup: [
+      "Lie face down on a high bench with the hips at the edge and the legs hanging.",
+      "Hold the bench tight with both hands.",
+    ],
+    execution: [
+      "Lift both legs up behind you until they line up with the torso.",
+      "Lower slowly without letting the feet touch down.",
+    ],
+    watchFor: [
+      {
+        mistake: "Swinging the legs up with momentum.",
+        fix: "Lift slowly and pause at the top. Swinging hands the work to your lower back.",
+      },
+      {
+        mistake: "Lifting the legs higher than the body.",
+        fix: "Stop when your legs line up with your torso. Any higher just arches your back.",
+      },
+    ],
+  },
+  "kettlebell-sumo-deadlift": {
+    setup: [
+      "Wide stance, toes out, kettlebell on the floor between the feet.",
+      "Push the hips back and bend the knees to grip the handle, back flat, chest up.",
+    ],
+    execution: [
+      "Drive through the heels and stand up tall, squeezing the glutes.",
+      "Lower the bell back to the floor the same way.",
+    ],
+    watchFor: [
+      {
+        mistake: "Rounding the back to reach the bell.",
+        fix: "Push your hips back and bend your knees more. Raise the bell on a plate if you can't reach it with a flat back.",
+      },
+      {
+        mistake: "Knees caving in as you stand.",
+        fix: "Push your knees out over your toes all the way up.",
+      },
+    ],
+  },
+  "single-arm-kettlebell-swing": {
+    setup: [
+      "Bell a foot in front of you, feet shoulder width.",
+      "Hinge and grip the handle with one hand, the other arm free.",
+    ],
+    execution: [
+      "Hike the bell back between the legs, then snap the hips forward.",
+      "Float it to chest height and let it fall back into the next hike.",
+    ],
+    watchFor: [
+      {
+        mistake: "Shoulders twisting toward the bell.",
+        fix: "Keep your shoulders square and brace hard. Resisting the twist is what makes this different from two hands.",
+      },
+      {
+        mistake: "Lifting the bell with the arm.",
+        fix: "Let your arm hang like a rope. Your hips send the bell up, and the arm just holds on.",
+      },
+    ],
+  },
+  "smith-reverse-lunge": {
+    setup: [
+      "Bar across the upper back, feet hip width under it.",
+      "Unhook and stand tall.",
+    ],
+    execution: [
+      "Step one foot back and lower until the back knee is just above the floor.",
+      "Drive through the front foot and step back up.",
+    ],
+    watchFor: [
+      {
+        mistake: "Front foot set right under the bar.",
+        fix: "Stand with your front foot slightly ahead of the bar, so your front shin stays close to vertical when you step back.",
+      },
+      {
+        mistake: "Leaning forward and pushing off the back foot.",
+        fix: "Keep your weight in your front heel and lead the rep with that leg.",
+      },
+    ],
+  },
+  "deficit-reverse-lunge": {
+    setup: [
+      "Stand on a plate or low step, one to four inches high.",
+      "Dumbbells at your sides, or bodyweight to start.",
+    ],
+    execution: [
+      "Step back off the plate and lower the back knee toward the floor.",
+      "Drive through the front heel and step back up.",
+    ],
+    watchFor: [
+      {
+        mistake: "A step so high you lose balance.",
+        fix: "Start with a single plate. A little extra depth is all this needs.",
+      },
+      {
+        mistake: "Staying bolt upright the whole way.",
+        fix: "Lean forward slightly from the hips to bias the glute, keeping your back flat as you do.",
+      },
+    ],
+  },
+  "crossover-step-up": {
+    setup: [
+      "Stand beside a box so it's to one side of you.",
+      "Hold dumbbells at your sides to add load.",
+    ],
+    execution: [
+      "Cross the far leg in front and plant that foot on the box.",
+      "Drive up through it to stand, then lower back down slowly.",
+    ],
+    watchFor: [
+      {
+        mistake: "Pushing off the floor foot.",
+        fix: "Keep the floor foot light and let the leg on the box lift you.",
+      },
+      {
+        mistake: "Knee caving in on the box.",
+        fix: "Push your knee out over your toes as you drive up. Lower the box if it won't stay in line.",
+      },
+    ],
+  },
+  "seated-banded-hip-abduction": {
+    setup: [
+      "Sit on the edge of a bench, band just above the knees.",
+      "Feet flat, hands holding the bench.",
+    ],
+    execution: [
+      "Push the knees out against the band as far as you can.",
+      "Return slowly, keeping tension on the band.",
+    ],
+    watchFor: [
+      {
+        mistake: "Letting the band snap the knees back together.",
+        fix: "Control the return and stop before your knees touch, so the band never goes slack.",
+      },
+      {
+        mistake: "Rocking the torso to push the knees apart.",
+        fix: "Sit still and move only at the hips. Lean forward slightly if you want more of the upper glute.",
+      },
+    ],
+  },
+  "monster-walk": {
+    setup: [
+      "Band around the knees or ankles, feet hip width.",
+      "Quarter squat, chest up.",
+    ],
+    execution: [
+      "Step forward and out on a diagonal, one foot then the other.",
+      "Walk backward the same way.",
+    ],
+    watchFor: [
+      {
+        mistake: "Feet coming together between steps.",
+        fix: "Keep your feet at least hip width apart so the band stays tight the whole walk.",
+      },
+      {
+        mistake: "Standing up tall as you go.",
+        fix: "Stay in a quarter squat. Standing up takes the glutes out of it.",
+      },
+    ],
+  },
+  "side-plank-hip-abduction": {
+    setup: [
+      "Side plank on the forearm, elbow under the shoulder.",
+      "Legs straight and stacked, hips lifted.",
+    ],
+    execution: [
+      "Raise the top leg as high as you can without the hips dropping.",
+      "Lower it slowly and repeat, then switch sides.",
+    ],
+    watchFor: [
+      {
+        mistake: "Hips sagging as the leg lifts.",
+        fix: "Press into your forearm and push your bottom hip up. End the set when you can't hold the line.",
+      },
+      {
+        mistake: "The top leg swinging forward.",
+        fix: "Keep the top leg in line with your body, toes pointing forward.",
+      },
+    ],
+  },
+  "hip-airplane": {
+    setup: [
+      "Stand on one leg with a slight knee bend, holding a rack or wall if needed.",
+      "Hinge forward until the torso is nearly level, free leg reaching back.",
+    ],
+    execution: [
+      "Rotate the hips and torso open toward the ceiling.",
+      "Rotate back down to square and slightly past, keeping the standing knee still.",
+    ],
+    watchFor: [
+      {
+        mistake: "Turning only the shoulders.",
+        fix: "Lead with your pelvis. Your shoulders and hips should turn together as one piece.",
+      },
+      {
+        mistake: "The standing knee drifting in and out.",
+        fix: "Keep your knee pointing forward the whole time. The rotation happens at the hip, not the knee.",
       },
     ],
   },
