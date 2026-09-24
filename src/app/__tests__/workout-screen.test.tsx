@@ -100,15 +100,18 @@ jest.mock("react-native-gesture-handler/ReanimatedSwipeable", () => "ReanimatedS
 // Renders its rows rather than nothing, so the template editor's cards are
 // drawn too — a stand-in that rendered null is how a template showing "BW not
 // set" whatever the log held went unnoticed by every test here.
+// Keeps the props it was last given, so tests can read the spring the list was
+// handed and play a drop through its onDragEnd.
+let mockDragListProps: Record<string, any> = {};
 jest.mock("react-native-draggable-flatlist", () => ({
   __esModule: true,
-  default: ({
-    data,
-    renderItem,
-  }: {
+  default: (props: {
     data: unknown[];
     renderItem: (info: { item: unknown; drag: () => void; isActive: boolean }) => React.ReactNode;
-  }) => data.map((item) => renderItem({ item, drag: () => {}, isActive: false })),
+  }) => {
+    mockDragListProps = props;
+    return props.data.map((item) => props.renderItem({ item, drag: () => {}, isActive: false }));
+  },
   ScaleDecorator: ({ children }: { children: React.ReactNode }) => children,
 }));
 
@@ -437,5 +440,48 @@ describe("the keypad's Back and Next", () => {
     fireEvent.press(screen.getByText("Next"));
 
     expect(lastFocused()).toBe(2);
+  });
+});
+
+/**
+ * Reordering a template left the screen unresponsive for a beat after every
+ * drop. The drag list locks itself until the drop's spring finishes, and its
+ * default spring was tuned for Reanimated 2/3's "within 0.2px" stopping rule;
+ * Reanimated 4 ignores that and waits for the energy to reach 6e-9 of its
+ * start, which that overdamped spring took ~1.8s to do.
+ */
+describe("reordering a template", () => {
+  const template = () => ({ ...workoutWith(["Bench Press", "Barbell Row", "Curl"]), isTemplate: true });
+
+  it("settles drops with a spring Reanimated 4 lets finish promptly", async () => {
+    await loadWorkout(template());
+
+    const spring = mockDragListProps.animationConfig;
+    // A stopping point it can reach, rather than Reanimated 4's 6e-9 default.
+    expect(spring.energyThreshold).toBeGreaterThanOrEqual(1e-5);
+    // Near-critical damping: no overshoot, and none of the overdamped crawl.
+    const zeta = spring.damping / (2 * Math.sqrt(spring.stiffness * spring.mass));
+    expect(zeta).toBeGreaterThanOrEqual(1);
+    expect(zeta).toBeLessThan(1.2);
+  });
+
+  it("saves the new order, touching only the cards that moved", async () => {
+    await loadWorkout(template());
+    const [bench, row, curl] = mockDragListProps.data;
+
+    await act(async () => {
+      mockDragListProps.onDragEnd({ from: 2, to: 1, data: [bench, curl, row] });
+    });
+
+    const lastCall = mockUpdateWorkout.mock.calls.at(-1) as unknown as [string, { exercises: any[] }];
+    const saved = lastCall[1].exercises;
+    expect(saved.map((ex: { exercise: { name: string } }) => ex.exercise.name)).toEqual([
+      "Bench Press",
+      "Curl",
+      "Barbell Row",
+    ]);
+    expect(saved.map((ex: { orderIndex: number }) => ex.orderIndex)).toEqual([0, 1, 2]);
+    // Bench never moved, so it is the same object and its card needn't redraw.
+    expect(saved[0]).toBe(bench);
   });
 });

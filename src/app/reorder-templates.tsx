@@ -5,7 +5,7 @@ import { router } from "expo-router";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import DraggableFlatList, { ScaleDecorator } from "react-native-draggable-flatlist";
 
-import { Radius, Spacing } from "@/constants/theme";
+import { DRAG_LIFT_SCALE, DRAG_SPRING, Radius, Spacing } from "@/constants/theme";
 import { makeStyles, usePalette } from "@/context/AppearanceContext";
 import { useTheme } from "@/context/ThemeContext";
 import { useWorkouts } from "@/hooks/use-workouts";
@@ -52,10 +52,13 @@ export default function ReorderTemplatesScreen() {
       <DraggableFlatList
         data={order}
         keyExtractor={(t) => t.id}
+        // Same spring as the template editor: the list stays locked until a
+        // drop settles, and its default takes ~1.8s to under Reanimated 4.
+        animationConfig={DRAG_SPRING}
         onDragEnd={({ data }) => persist(data)}
         contentContainerStyle={styles.list}
         renderItem={({ item, drag, isActive }) => (
-          <ScaleDecorator>
+          <ScaleDecorator activeScale={DRAG_LIFT_SCALE}>
             <View
               style={[
                 styles.row,

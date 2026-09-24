@@ -463,6 +463,35 @@ export const MaxContentWidth = 800;
  * copy, buttons, empty states, card content — scales without a cap, so the app
  * still grows with the reader's chosen text size.
  */
+/**
+ * The spring every drag-to-reorder list settles with — both the card you drop
+ * and the neighbours sliding aside to make room.
+ *
+ * The list's own default was tuned for Reanimated 2/3, where it stopped a
+ * spring once it was within 0.2px of its target. Reanimated 4 ignores that and
+ * ends a spring only when its energy is down to 6e-9 of where it started, and
+ * the default is heavily overdamped (ζ ≈ 2.2), so its slow tail took about 1.8s
+ * to get there. The list stays locked until the drop's spring finishes, which
+ * is what "a delay from when I stop moving them until I can move around again"
+ * was; the same slow spring is why the cards slid aside sluggishly.
+ *
+ * Critically damped (damping = 2√(stiffness × mass)) so nothing overshoots,
+ * stiff enough to cover most of the distance in under 70ms, and ended at an
+ * energy ratio of 1e-5. Simulated against Reanimated 4's own stopping rule, a
+ * 200px drop is done in about 0.3s with half a pixel left, which the
+ * finishing snap to the exact target covers invisibly.
+ */
+export const DRAG_SPRING = { mass: 1, stiffness: 1000, damping: 64, energyThreshold: 1e-5 };
+
+/**
+ * How much a card grows while it's held, in place of the drag list's default
+ * 10%. At full width that pushed a card past the screen's margins, and the
+ * pick-up spring is fixed inside the list's decorator — as overdamped as its
+ * default — so a big scale crept for long enough to see. A slight lift reads
+ * as "picked up" without either problem.
+ */
+export const DRAG_LIFT_SCALE = 1.02;
+
 export const FontScaleCap = {
   /** Keypad bar: Back/Done/Next have to stay on one row above the keyboard. */
   keypad: 1.4,

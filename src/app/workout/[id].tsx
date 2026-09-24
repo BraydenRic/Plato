@@ -23,7 +23,7 @@ import {
 import Ionicons from "@expo/vector-icons/Ionicons";
 
 import { Button, Card, EmptyState } from "@/components/ui";
-import { FontScaleCap, Radius, Spacing } from "@/constants/theme";
+import { DRAG_LIFT_SCALE, DRAG_SPRING, FontScaleCap, Radius, Spacing } from "@/constants/theme";
 import { makeStyles, usePalette } from "@/context/AppearanceContext";
 import { getWorkout, getCompletedWorkouts, reopenWorkout, saveAsTemplate, stripUndefined, subscribeWorkout, updateWorkout, upsertUserStats, computeStats, deleteWorkout } from "@/lib/data";
 import { useWorkouts } from "@/hooks/use-workouts";
@@ -683,11 +683,18 @@ export default function WorkoutScreen() {
           <DraggableFlatList
             data={workout.exercises}
             keyExtractor={(ex) => ex.id}
+            animationConfig={DRAG_SPRING}
             onDragEnd={({ data }) => {
               // saveExercises shows the new order straight away, so the list
               // doesn't snap back while the write round-trips. orderIndex keeps
               // other readers (like plato-web) in agreement.
-              saveExercises(data.map((ex, i) => ({ ...ex, orderIndex: i })));
+              //
+              // Only cards whose position changed get a new object. Rebuilding
+              // all of them redrew every card at the moment of the drop, right
+              // as the list hands control back.
+              saveExercises(
+                data.map((ex, i) => (ex.orderIndex === i ? ex : { ...ex, orderIndex: i }))
+              );
             }}
             containerStyle={{ flex: 1 }}
             contentContainerStyle={styles.dragScroll}
@@ -720,7 +727,7 @@ export default function WorkoutScreen() {
               />
             }
             renderItem={({ item, drag, isActive }) => (
-              <ScaleDecorator>
+              <ScaleDecorator activeScale={DRAG_LIFT_SCALE}>
                 <View style={styles.dragItem}>
                   <ExerciseCard
                     exercise={item}
