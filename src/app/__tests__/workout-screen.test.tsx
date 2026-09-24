@@ -1,5 +1,5 @@
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react-native";
-import { Alert } from "react-native";
+import { Alert, TextInput } from "react-native";
 
 import WorkoutScreen from "../workout/[id]";
 import type { Workout } from "@/types";
@@ -346,5 +346,96 @@ describe("renaming a workout", () => {
       "Couldn't rename",
       expect.stringContaining("connection")
     );
+  });
+});
+
+/**
+ * Next and Back "sometimes jump a place or two". Every set input records itself
+ * on press-in, so the keypad bar can open before the keyboard — but a scroll
+ * that starts with a finger on another set's box presses it without focusing
+ * it. Counting from the last press then sent Next on from the box scrolled
+ * over, not from the one being typed in.
+ */
+describe("the keypad's Back and Next", () => {
+  // Three exercises of one set each: weight, reps, weight, reps, weight, reps.
+  const names = ["Bench Press", "Barbell Row", "Curl"];
+  let focused: unknown = null;
+  let registry: jest.SpyInstance;
+
+  // The set inputs in reading order — the first TextInput is the title.
+  const setInputs = () => screen.UNSAFE_getAllByType(TextInput).slice(1);
+  const proto = TextInput.prototype as unknown as { focus: jest.Mock; isFocused: jest.Mock };
+
+  beforeEach(() => {
+    focused = null;
+    proto.focus.mockClear();
+    // Mirrors React Native's focus registry: whichever input was last really
+    // focused, by a tap or by focus(), is the one that answers true.
+    proto.isFocused.mockImplementation(function (this: unknown) {
+      return this === focused;
+    });
+    proto.focus.mockImplementation(function (this: unknown) {
+      focused = this;
+    });
+    registry = jest
+      .spyOn(TextInput.State, "currentlyFocusedInput")
+      // The registry only needs to be non-empty while something is focused.
+      .mockImplementation((() => (focused ? {} : null)) as never);
+  });
+
+  afterEach(() => {
+    proto.isFocused.mockReset();
+    proto.focus.mockReset();
+    registry.mockRestore();
+  });
+
+  /** Tap into an input the way a finger does: press, then focus. */
+  function tapInto(index: number) {
+    const input = setInputs()[index];
+    fireEvent(input, "pressIn");
+    focused = input.instance;
+    fireEvent(input, "focus");
+  }
+
+  // Which set input, by position, focus() was last called on. A position
+  // rather than the instance itself: a failing toBe on two component instances
+  // makes Jest try to print them, and they're circular enough to exhaust memory.
+  const lastFocused = () => {
+    const target = proto.focus.mock.contexts.at(-1);
+    return setInputs().findIndex((input) => input.instance === target);
+  };
+
+  it("moves on from the field being typed in, not one a scroll started on", async () => {
+    await loadWith(names);
+    tapInto(1); // first set's reps
+
+    // A scroll that begins with a finger on the third set's weight.
+    fireEvent(setInputs()[4], "pressIn");
+    fireEvent.press(screen.getByText("Next"));
+
+    // Second set's weight — the field after reps 1, not after weight 3.
+    expect(lastFocused()).toBe(2);
+  });
+
+  it("steps back from the field being typed in, too", async () => {
+    await loadWith(names);
+    tapInto(3); // second set's reps
+
+    fireEvent(setInputs()[0], "pressIn");
+    fireEvent.press(screen.getByText("Back"));
+
+    expect(lastFocused()).toBe(2);
+  });
+
+  it("counts two quick taps on Next as two steps", async () => {
+    await loadWith(names);
+    tapInto(0);
+
+    // No focus events in between: the second tap arrives before the first
+    // field's onFocus would have.
+    fireEvent.press(screen.getByText("Next"));
+    fireEvent.press(screen.getByText("Next"));
+
+    expect(lastFocused()).toBe(2);
   });
 });

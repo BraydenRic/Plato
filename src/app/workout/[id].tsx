@@ -347,9 +347,40 @@ export default function WorkoutScreen() {
     );
   }
 
+  /**
+   * The field the keyboard is actually typing into — asked of the inputs
+   * themselves, not remembered from the last touch.
+   *
+   * Remembering was the bug behind Next and Back "jumping a place or two".
+   * Every input records itself on press-in, which it has to so the keypad bar
+   * can open before the keyboard does, but a press-in is not a focus: start a
+   * scroll with your finger on another set's box and that box recorded itself
+   * while the cursor stayed exactly where it was. The next Next then counted
+   * from the box you'd scrolled over. React Native's own focus registry is set
+   * synchronously by focus() and by a tap alike, so isFocused() can't go stale
+   * that way — and it also keeps two quick taps on Next from both counting from
+   * the same field before the first one's focus event has arrived.
+   *
+   * The remembered key is still the fallback for the one moment it's right and
+   * the registry is empty: a field pressed and not yet focused.
+   */
+  function currentField(): string | null {
+    // isFocused() compares against the registry and, by React Native's own
+    // admission, answers true for null === null — so with nothing focused at
+    // all, any input whose native ref hasn't attached would claim it. Only ask
+    // once something really holds focus.
+    if (TextInput.State.currentlyFocusedInput() != null) {
+      for (const [key, node] of inputRefs.current) {
+        if (node.isFocused()) return key;
+      }
+    }
+    return focusedField.current;
+  }
+
   function focusNext() {
     const order = inputOrder();
-    const start = focusedField.current ? order.indexOf(focusedField.current) : -1;
+    const current = currentField();
+    const start = current ? order.indexOf(current) : -1;
     for (let i = start + 1; i < order.length; i++) {
       const node = inputRefs.current.get(order[i]);
       if (node) {
@@ -364,7 +395,8 @@ export default function WorkoutScreen() {
   // Mirror of focusNext, for stepping back to fix the previous entry.
   function focusPrev() {
     const order = inputOrder();
-    const start = focusedField.current ? order.indexOf(focusedField.current) : order.length;
+    const current = currentField();
+    const start = current ? order.indexOf(current) : order.length;
     for (let i = start - 1; i >= 0; i--) {
       const node = inputRefs.current.get(order[i]);
       if (node) {
