@@ -16,7 +16,7 @@ import { Button, Card, EmptyState, SectionLabel } from "@/components/ui";
 import { FontScaleCap, Radius, Spacing } from "@/constants/theme";
 import { makeStyles, usePalette } from "@/context/AppearanceContext";
 import { useAuth } from "@/context/AuthContext";
-import { useWorkouts } from "@/hooks/use-workouts";
+import { AWAITING_SYNC_MESSAGE, useWorkouts } from "@/hooks/use-workouts";
 import {
   createWorkoutLocalFirst,
   deleteWorkout,
@@ -60,7 +60,7 @@ export default function WorkoutsScreen() {
   const router = useRouter();
   // `user` only drives the greeting — guests have no account, so it falls back.
   const { user, dataUserId } = useAuth();
-  const { loading, error, active, planned, completed, templates } = useWorkouts();
+  const { loading, error, awaitingSync, active, planned, completed, templates } = useWorkouts();
   const { plan, assignDay } = useWeeklyPlan();
   const [starting, setStarting] = useState(false);
   const [picker, setPicker] = useState<PickerConfig | null>(null);
@@ -516,6 +516,9 @@ export default function WorkoutsScreen() {
 
         {loading && <ActivityIndicator color={theme.accent} style={{ marginTop: Spacing.five }} />}
         {error && !loading && <EmptyState title="Couldn't load workouts" message={error} />}
+        {awaitingSync && !loading && !error && (
+          <EmptyState title="Waiting for a connection" message={AWAITING_SYNC_MESSAGE} />
+        )}
 
         {visibleActive.length > 0 && (
           <View style={styles.section}>

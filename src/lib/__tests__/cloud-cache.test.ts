@@ -665,6 +665,37 @@ describe("after review", () => {
   });
 });
 
+describe("a phone that has never been online since installing", () => {
+  it("says the history isn't here yet, rather than that there is none", async () => {
+    const { cc } = launch();
+    await openWithList(cc);
+    serverSends([], true);
+
+    expect(cc.awaitingFirstSync(UID)).toBe(true);
+  });
+
+  it("stops saying so once the server has answered", async () => {
+    const { cc } = launch();
+    await openWithList(cc);
+    serverSends([]);
+
+    expect(cc.awaitingFirstSync(UID)).toBe(false);
+  });
+
+  it("never says so offline once a copy has been kept, even an empty one", async () => {
+    let { cc } = launch();
+    const first = await openWithList(cc);
+    serverSends([]);
+    await first.session.persistNow();
+
+    ({ cc } = launch());
+    await openWithList(cc);
+    serverSends([], true);
+
+    expect(cc.awaitingFirstSync(UID)).toBe(false);
+  });
+});
+
 describe("encoding", () => {
   it("round-trips dates, including Firestore Timestamps nested in sets", () => {
     const { encode, decode } = launch().cc;

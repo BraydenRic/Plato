@@ -7,7 +7,7 @@ import { ActiveWorkoutBar } from "@/components/active-workout-bar";
 import { Card, EmptyState } from "@/components/ui";
 import { FontScaleCap, Radius, Spacing } from "@/constants/theme";
 import { makeStyles, usePalette } from "@/context/AppearanceContext";
-import { useWorkouts } from "@/hooks/use-workouts";
+import { AWAITING_SYNC_MESSAGE, useWorkouts } from "@/hooks/use-workouts";
 import { deleteWorkout } from "@/lib/data";
 import { useWeightUnit } from "@/context/UnitContext";
 import { useTheme } from "@/context/ThemeContext";
@@ -18,7 +18,7 @@ export default function HistoryScreen() {
   const styles = useStyles();
   const palette = usePalette();
   const router = useRouter();
-  const { completed, loading } = useWorkouts();
+  const { completed, loading, awaitingSync } = useWorkouts();
 
   // Group by month so years of history stay scannable.
   const sections = useMemo(() => {
@@ -55,7 +55,11 @@ export default function HistoryScreen() {
       </View>
 
       {!loading && completed.length === 0 ? (
-        <EmptyState title="No workouts yet" message="Finished workouts land here permanently." />
+        awaitingSync ? (
+          <EmptyState title="Waiting for a connection" message={AWAITING_SYNC_MESSAGE} />
+        ) : (
+          <EmptyState title="No workouts yet" message="Finished workouts land here permanently." />
+        )
       ) : (
         <SectionList
           sections={sections}

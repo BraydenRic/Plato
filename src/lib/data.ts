@@ -45,6 +45,11 @@ export function subscribeWorkout(
   return store.subscribeWorkout(id, onChange);
 }
 
+/** See cloud-cache.awaitingFirstSync. A guest's data is always all here. */
+export function awaitingFirstSync(userId: string): boolean {
+  return !isGuestUserId(userId) && cloud.awaitingFirstSync(userId);
+}
+
 export function getWorkout(id: string): Promise<Workout | null> {
   return isLocalWorkoutId(id) ? local.getWorkout(id) : cloud.getWorkout(id);
 }

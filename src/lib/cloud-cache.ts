@@ -604,6 +604,11 @@ class Session {
     return !!this.state.weeklyPlan || this.planHeard;
   }
 
+  /** Whether this phone has ever had the full history from the server. */
+  hasEverSynced(): boolean {
+    return this.meta.workoutsSynced || this.workoutsServerSynced;
+  }
+
   /** Whether a missing workout is known to be gone, rather than not arrived yet. */
   workoutsComplete(): boolean {
     return this.workoutsServerSynced;
@@ -855,6 +860,15 @@ export async function forgetCloudData(uid: string): Promise<void> {
 /** Changes on this phone the server hasn't acked yet, for the sign-out warning. */
 export function pendingChangeCount(uid: string): number {
   return current?.uid === uid ? current.pendingCount() : 0;
+}
+
+/**
+ * Whether this phone has never had the account's history, so an empty list
+ * means "not here yet" rather than "none". True only on a phone that hasn't
+ * been online since installing or updating: from then on the copy is kept.
+ */
+export function awaitingFirstSync(uid: string): boolean {
+  return current?.uid === uid && !current.hasEverSynced();
 }
 
 /** Resolves once the server has answered for this account's workouts this launch. */
