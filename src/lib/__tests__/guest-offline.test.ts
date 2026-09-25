@@ -54,6 +54,7 @@ let data: Data;
 beforeEach(async () => {
   await AsyncStorage.clear();
   jest.resetModules();
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
   data = require("../data");
 });
 
@@ -94,6 +95,7 @@ it("keeps a guest's data across a restart, since it all lives on the phone", asy
   await saved;
 
   jest.resetModules();
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
   const fresh = require("../data") as Data;
 
   const names = await new Promise<string[]>((resolve) => {

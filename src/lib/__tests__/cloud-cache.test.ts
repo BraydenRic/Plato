@@ -96,11 +96,13 @@ function launch(): { cc: CloudCache; appState: (state: string) => void } {
   // A new process hasn't heard from Firebase yet.
   fake.confirmedUid = null;
   let handler: ((state: string) => void) | null = null;
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
   const { AppState } = require("react-native");
   jest.spyOn(AppState, "addEventListener").mockImplementation((...args: unknown[]) => {
     handler = args[1] as (state: string) => void;
     return { remove: () => {} };
   });
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
   const cc = require("../cloud-cache") as CloudCache;
   return { cc, appState: (state) => handler?.(state) };
 }
