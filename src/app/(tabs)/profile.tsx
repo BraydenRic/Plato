@@ -2,6 +2,7 @@ import Ionicons from "@expo/vector-icons/Ionicons";
 import { useEffect, useState } from "react";
 import { Alert, Pressable, ScrollView, Text, View, useWindowDimensions } from "react-native";
 import { Image } from "expo-image";
+import Constants from "expo-constants";
 import { useRouter } from "expo-router";
 
 import { Button, Card, SectionLabel, Stepper } from "@/components/ui";
@@ -30,6 +31,7 @@ export default function ProfileScreen() {
     discardGuestData,
     signOut,
     unsyncedChangeCount,
+    offlineDiagnostics,
     updateDisplayName,
     deleteAccount,
     refreshUser,
@@ -540,12 +542,30 @@ export default function ProfileScreen() {
             {isGuest ? "Delete all data" : "Delete account"}
           </Text>
         </Pressable>
+
+        {/* Which build this is, for bug reports. Long-pressing it shows the
+            state of the offline copy: the one part of the app whose failures
+            happen out of sight, on the phone, between launches. */}
+        <Pressable
+          onLongPress={() => {
+            offlineDiagnostics().then((report) => Alert.alert("Offline copy", report));
+          }}
+          delayLongPress={600}>
+          <Text style={styles.version}>
+            Version {Constants.expoConfig?.version ?? "?"} ({Constants.expoConfig?.ios?.buildNumber ?? "?"})
+          </Text>
+        </Pressable>
       </ScrollView>
     </View>
   );
 }
 
 const useStyles = makeStyles((c) => ({
+  version: {
+    textAlign: "center",
+    fontSize: 12,
+    color: c.textTertiary,
+  },
   safe: {
     flex: 1,
     backgroundColor: c.bg,

@@ -698,6 +698,69 @@ describe("a phone that has never been online since installing", () => {
   });
 });
 
+describe("saving whatever a real account holds", () => {
+  it("saves a workout carrying a circular or non-plain object instead of failing the whole save", async () => {
+    const { cc } = launch();
+    const { session } = await openWithList(cc);
+    class DocumentReferenceLike {
+      self = this;
+    }
+    const odd = makeWorkout({ id: "odd", userId: UID }) as Workout & Record<string, unknown>;
+    const loop: Record<string, unknown> = { name: "loop" };
+    loop.me = loop;
+    (odd.exercises as unknown as unknown[]).push({ ref: new DocumentReferenceLike(), loop } as never);
+    serverSends([odd, makeWorkout({ id: "fine", userId: UID })]);
+
+    await session.persistNow();
+
+    const saved = (await AsyncStorage.getAllKeys()).filter((k) => k.includes(":w:"));
+    expect(saved).toHaveLength(2);
+  });
+
+  it("tries a failed save again rather than treating it as saved", async () => {
+    const { cc } = launch();
+    const { session } = await openWithList(cc);
+    const multiSet = jest.spyOn(AsyncStorage, "multiSet").mockRejectedValueOnce(new Error("disk full"));
+    serverSends([makeWorkout({ id: "w1", userId: UID })]);
+    await session.persistNow();
+    expect((await AsyncStorage.getAllKeys()).some((k) => k.endsWith(":w:w1"))).toBe(false);
+
+    await session.persistNow();
+
+    expect((await AsyncStorage.getAllKeys()).some((k) => k.endsWith(":w:w1"))).toBe(true);
+    multiSet.mockRestore();
+  });
+
+  it("reads entries one by one when the bulk read fails", async () => {
+    let { cc } = launch();
+    const first = await openWithList(cc);
+    serverSends([makeWorkout({ id: "w1", userId: UID, name: "Kept" })]);
+    await first.session.persistNow();
+
+    ({ cc } = launch());
+    const multiGet = jest.spyOn(AsyncStorage, "multiGet").mockRejectedValueOnce(new Error("bad entry"));
+    const { shown } = await openWithList(cc);
+
+    expect(shown.at(-1)?.map((w) => w.name)).toEqual(["Kept"]);
+    multiGet.mockRestore();
+  });
+
+  it("reports what the copy is doing, including the last save before this launch", async () => {
+    let { cc } = launch();
+    const first = await openWithList(cc);
+    serverSends([makeWorkout({ id: "w1", userId: UID })]);
+    await first.session.persistNow();
+
+    ({ cc } = launch());
+    await openWithList(cc);
+    const report = await cc.offlineDiagnostics(UID);
+
+    expect(report).toContain("On disk: 1 workouts for this account");
+    expect(report).toContain("Workouts in the copy: 1");
+    expect(report).toMatch(/Last save before this launch: .*1 saved of 1/);
+  });
+});
+
 describe("encoding", () => {
   it("round-trips dates, including Firestore Timestamps nested in sets", () => {
     const { encode, decode } = launch().cc;

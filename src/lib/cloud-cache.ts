@@ -60,23 +60,51 @@ import type { BodyweightEntry, ExerciseLibrary, UserStatistics, WeeklyPlan, Work
 
 const DATE_TAG = "$date";
 
-export function encode(value: unknown): unknown {
+/**
+ * Makes a value safe to save as JSON.
+ *
+ * It has to survive whatever a real account holds, not just what Plato
+ * writes. A workout edited elsewhere could carry a Firestore object that isn't
+ * plain data (a document reference, say), and walking into one of those
+ * follows its links back into the SDK until the stack runs out. So only plain
+ * objects and arrays are walked. Other class instances keep their toJSON form
+ * if they have one, and anything circular is cut.
+ */
+export function encode(value: unknown, ancestors: Set<object> = new Set()): unknown {
   if (value instanceof Date) {
     return Number.isNaN(value.getTime()) ? null : { [DATE_TAG]: value.toISOString() };
   }
-  if (Array.isArray(value)) return value.map(encode);
-  if (value && typeof value === "object") {
-    const maybeTimestamp = value as { toDate?: unknown };
-    if (typeof maybeTimestamp.toDate === "function") {
+  if (!value || typeof value !== "object") return typeof value === "function" ? undefined : value;
+  const maybeTimestamp = value as { toDate?: unknown; toJSON?: unknown };
+  if (typeof maybeTimestamp.toDate === "function") {
+    try {
       return encode((maybeTimestamp.toDate as () => Date).call(value));
+    } catch {
+      return null;
     }
+  }
+  if (ancestors.has(value)) return null;
+  const proto = Object.getPrototypeOf(value);
+  if (!Array.isArray(value) && proto !== Object.prototype && proto !== null) {
+    if (typeof maybeTimestamp.toJSON !== "function") return null;
+    try {
+      return encode((maybeTimestamp.toJSON as () => unknown).call(value), ancestors);
+    } catch {
+      return null;
+    }
+  }
+  ancestors.add(value);
+  try {
+    if (Array.isArray(value)) return value.map((v) => encode(v, ancestors) ?? null);
     const out: Record<string, unknown> = {};
     for (const [key, v] of Object.entries(value)) {
-      if (v !== undefined) out[key] = encode(v);
+      const encoded = encode(v, ancestors);
+      if (encoded !== undefined) out[key] = encoded;
     }
     return out;
+  } finally {
+    ancestors.delete(value);
   }
-  return value;
 }
 
 export function decode(value: unknown): unknown {
@@ -241,6 +269,45 @@ const PERSIST_BATCH = 25;
 
 type Listener = () => void;
 
+interface LoadReport {
+  keys: number;
+  workouts: number;
+  unreadable: number;
+  error: string | null;
+}
+
+interface SaveReport {
+  at: string;
+  considered: number;
+  written: number;
+  failed: number;
+  error: string | null;
+}
+
+/**
+ * The outcome of the last save, kept on disk. The launch after a failure is
+ * where the failure shows (an empty offline copy), so it's the one that
+ * needs to know what went wrong the time before.
+ */
+const saveReportKey = (uid: string) => `${PREFIX}:${uid}:lastsave`;
+
+async function readSaveReport(uid: string): Promise<SaveReport | null> {
+  try {
+    const raw = await AsyncStorage.getItem(saveReportKey(uid));
+    return raw ? (JSON.parse(raw) as SaveReport) : null;
+  } catch {
+    return null;
+  }
+}
+
+async function writeSaveReport(uid: string, report: SaveReport): Promise<void> {
+  try {
+    await AsyncStorage.setItem(saveReportKey(uid), JSON.stringify(report));
+  } catch {
+    // Diagnostics only.
+  }
+}
+
 export class LibraryNotLoadedError extends Error {
   constructor(what: string) {
     super(`Your ${what} hasn't loaded on this phone yet. Connect once and it will.`);
@@ -283,6 +350,10 @@ class Session {
   /** Serializes disk writes, so an older snapshot can't land after a newer one. */
   private diskChain: Promise<unknown> = Promise.resolve();
 
+  private loadReport: LoadReport | null = null;
+  private lastSave: SaveReport | null = null;
+  private previousSave: SaveReport | null = null;
+
   private listCache: { version: number; list: Workout[] } | null = null;
   private version = 0;
   private syncWaiters: (() => void)[] = [];
@@ -299,9 +370,21 @@ class Session {
   // ── Loading ──────────────────────────────────────────────────────────────
 
   private async load(): Promise<void> {
+    const report: LoadReport = { keys: 0, workouts: 0, unreadable: 0, error: null };
     try {
       const keys = (await AsyncStorage.getAllKeys()).filter((k) => k.startsWith(`${PREFIX}:${this.uid}:`));
-      const pairs = await AsyncStorage.multiGet(keys);
+      report.keys = keys.length;
+      let pairs: readonly (readonly [string, string | null])[];
+      try {
+        pairs = await AsyncStorage.multiGet(keys);
+      } catch (e) {
+        // One bad entry fails the whole batched read. Read them one at a time
+        // instead, so it costs only that entry.
+        report.error = `bulk read failed (${String(e)}); read one by one`;
+        pairs = await Promise.all(
+          keys.map(async (key) => [key, await AsyncStorage.getItem(key).catch(() => null)] as const)
+        );
+      }
       const prefix = workoutPrefix(this.uid);
       for (const [key, raw] of pairs) {
         if (raw == null) continue;
@@ -316,16 +399,21 @@ class Session {
             const id = key.slice(prefix.length);
             this.state.workouts.set(id, workoutFrom(id, value as Record<string, unknown>));
             this.savedJson.set(id, raw);
+            report.workouts++;
           }
         } catch (e) {
           // One unreadable entry costs that entry, not the whole copy. The
           // server's next answer puts it back.
+          report.unreadable++;
           console.warn(`Skipped an unreadable offline entry (${key})`, e);
         }
       }
     } catch (e) {
+      report.error = String(e);
       console.warn("Couldn't read the offline copy; starting from the server", e);
     }
+    this.loadReport = report;
+    this.previousSave = await readSaveReport(this.uid);
     this.state.library = this.meta.library ? libraryFrom({ ...this.meta.library }, EMPTY_LIBRARY) : null;
     this.state.weeklyPlan = this.meta.weeklyPlan ? planFrom({ days: this.meta.weeklyPlan }) : null;
     // The copy is saved on a delay and the outbox isn't, so the outbox can be
@@ -428,6 +516,12 @@ class Session {
       this.meta.workoutsSynced = true;
       if (this.meta.statsDirty) this.recomputeStats();
       this.syncWaiters.splice(0).forEach((resolve) => resolve());
+      // Save the whole history now rather than after the usual delay. This is
+      // the copy that lets the next launch work offline, and the app may be
+      // closed any moment after the list appears.
+      this.changed();
+      void this.persistNow();
+      return;
     } else {
       for (const { id, workout } of changes) {
         if (workout) this.state.workouts.set(id, workout);
@@ -631,6 +725,21 @@ class Session {
     return this.outbox.length;
   }
 
+  /** Plain-language state of the offline copy, for the diagnostics in Profile. */
+  describe(): string[] {
+    const save = (r: SaveReport | null) =>
+      r ? `${r.at.slice(11, 19)} · ${r.written} saved of ${r.considered}${r.failed ? ` · ${r.failed} failed` : ""}${r.error ? ` · ${r.error}` : ""}` : "none";
+    const load = this.loadReport;
+    return [
+      `Workouts in the copy: ${this.state.workouts.size}`,
+      `At launch: ${load ? `${load.keys} entries, ${load.workouts} workouts${load.unreadable ? `, ${load.unreadable} unreadable` : ""}${load.error ? ` · ${load.error}` : ""}` : "still loading"}`,
+      `Synced this launch: ${this.workoutsServerSynced ? "yes" : "no"} · ever: ${this.meta.workoutsSynced ? "yes" : "no"}`,
+      `Signed in confirmed: ${this.authConfirmed ? "yes" : "no"} · waiting to send: ${this.outbox.length}`,
+      `Last save: ${save(this.lastSave)}`,
+      `Last save before this launch: ${save(this.previousSave)}`,
+    ];
+  }
+
   whenSynced(): Promise<void> {
     if (this.workoutsServerSynced) return Promise.resolve();
     return new Promise((resolve) => this.syncWaiters.push(resolve));
@@ -704,31 +813,55 @@ class Session {
     const ids = [...this.touched];
     this.touched.clear();
     const prefix = workoutPrefix(this.uid);
+    const report: SaveReport = { at: new Date().toISOString(), considered: ids.length, written: 0, failed: 0, error: null };
     const run = this.diskChain.then(async () => {
       for (let from = 0; from < ids.length; from += PERSIST_BATCH) {
         if (from > 0) await new Promise((resolve) => setTimeout(resolve, 0));
         if (this.closed) return;
         const sets: [string, string][] = [];
         const removals: string[] = [];
-        for (const id of ids.slice(from, from + PERSIST_BATCH)) {
+        const batch = ids.slice(from, from + PERSIST_BATCH);
+        for (const id of batch) {
           const workout = this.state.workouts.get(id);
           if (!workout) {
-            if (this.savedJson.delete(id)) removals.push(prefix + id);
+            if (this.savedJson.has(id)) removals.push(prefix + id);
             continue;
           }
-          const json = JSON.stringify(encode(workout));
+          let json: string;
+          try {
+            json = JSON.stringify(encode(workout));
+          } catch (e) {
+            // One workout that can't be saved must not stop the rest.
+            report.failed++;
+            report.error = `workout ${id}: ${String(e)}`;
+            continue;
+          }
           if (this.savedJson.get(id) === json) continue;
-          this.savedJson.set(id, json);
           sets.push([prefix + id, json]);
         }
-        if (sets.length) await AsyncStorage.multiSet(sets);
-        if (removals.length) await AsyncStorage.multiRemove(removals);
+        try {
+          if (sets.length) await AsyncStorage.multiSet(sets);
+          if (removals.length) await AsyncStorage.multiRemove(removals);
+          // Recorded as saved only once the write has landed, so a failed one
+          // is tried again rather than skipped as though it were on disk.
+          for (const [key, json] of sets) this.savedJson.set(key.slice(prefix.length), json);
+          for (const key of removals) this.savedJson.delete(key.slice(prefix.length));
+          report.written += sets.length;
+        } catch (e) {
+          report.failed += sets.length;
+          report.error = String(e);
+          batch.forEach((id) => this.touched.add(id));
+        }
       }
       if (this.closed) return;
       const metaJson = JSON.stringify(encode(this.meta));
       if (metaJson !== this.savedMetaJson) {
-        this.savedMetaJson = metaJson;
         await AsyncStorage.setItem(metaKey(this.uid), metaJson);
+        this.savedMetaJson = metaJson;
+      }
+      if (ids.length > 0 || report.error) {
+        this.lastSave = report;
+        await writeSaveReport(this.uid, report);
       }
     });
     this.diskChain = run.catch((e) => console.warn("Couldn't save the offline copy", e));
@@ -796,7 +929,9 @@ function watchAppState(): void {
     // iOS can close a backgrounded app without warning. Nothing is lost if it
     // does, because the outbox is already on disk, but saving the copy now
     // saves re-deriving it on the next launch.
-    else if (next === "background") void current?.persistNow();
+    // "inactive" is the app switcher: swiping the app away from there can end
+    // it without a "background" first.
+    else if (next === "background" || next === "inactive") void current?.persistNow();
   });
 }
 
@@ -855,6 +990,27 @@ export async function forgetCloudData(uid: string): Promise<void> {
   }
   const keys = (await AsyncStorage.getAllKeys()).filter((k) => k.startsWith(`${PREFIX}:${uid}:`));
   if (keys.length) await AsyncStorage.multiRemove(keys);
+}
+
+/**
+ * What the offline copy is doing, in plain language, for the diagnostics
+ * behind the version line in Profile. Reads the disk as well, so a copy saved
+ * under a different account shows up.
+ */
+export async function offlineDiagnostics(uid: string | null): Promise<string> {
+  const lines: string[] = [`Account: ${uid ? uid.slice(0, 6) + "…" : "none"}`];
+  try {
+    const keys = (await AsyncStorage.getAllKeys()).filter((k) => k.startsWith(`${PREFIX}:`));
+    const accounts = new Set(keys.map((k) => k.split(":")[1]));
+    const mine = uid ? keys.filter((k) => k.startsWith(workoutPrefix(uid))).length : 0;
+    lines.push(`On disk: ${mine} workouts for this account · ${accounts.size} account${accounts.size === 1 ? "" : "s"} with a copy`);
+  } catch (e) {
+    lines.push(`On disk: couldn't read (${String(e)})`);
+  }
+  if (!current) lines.push("No session open");
+  else if (uid && current.uid !== uid) lines.push(`Session is for a different account (${current.uid.slice(0, 6)}…)`);
+  else lines.push(...current.describe());
+  return lines.join("\n");
 }
 
 /** Changes on this phone the server hasn't acked yet, for the sign-out warning. */

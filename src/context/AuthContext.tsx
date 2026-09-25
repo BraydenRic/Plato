@@ -22,6 +22,7 @@ import { forgetCachedBodyweight } from "@/lib/bodyweight-cache";
 import {
   closeCloudSession,
   forgetCloudData,
+  offlineDiagnostics,
   openCloudSession,
   pendingChangeCount,
   whenCloudSynced,
@@ -79,6 +80,8 @@ interface AuthContextType {
   signOut: () => Promise<void>;
   /** Changes on this phone the server hasn't acked, which signing out would lose. */
   unsyncedChangeCount: () => number;
+  /** What the offline copy is doing, for the diagnostics behind Profile's version line. */
+  offlineDiagnostics: () => Promise<string>;
   /** Emails a password reset link. Never reveals whether the account exists. */
   resetPassword: (email: string) => Promise<void>;
   /** Re-sends the verification email for the signed-in account. */
@@ -111,6 +114,7 @@ const AuthContext = createContext<AuthContextType>({
   canUseApple: false,
   signOut: async () => {},
   unsyncedChangeCount: () => 0,
+  offlineDiagnostics: async () => "",
   resetPassword: async () => {},
   resendVerificationEmail: async () => {},
   refreshUser: async () => {},
@@ -435,6 +439,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         canUseApple: appleSignInSupported,
         signOut,
         unsyncedChangeCount: () => (user ? pendingChangeCount(user.uid) : 0),
+        offlineDiagnostics: () => offlineDiagnostics(user?.uid ?? null),
         resetPassword,
         resendVerificationEmail,
         refreshUser,
