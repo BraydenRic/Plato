@@ -86,6 +86,16 @@ jest.mock("../firestore", () => {
 const UID = "aB3xY7zQ1mN5pR8sT2vW4yZ6cD0e";
 type CloudCache = typeof import("../cloud-cache");
 
+/**
+ * Every "process" a test launched. A module reset doesn't stop the old one's
+ * timers, so a delayed save from one test could land on the next test's disk.
+ * Each is closed when its test ends.
+ */
+const launched: CloudCache[] = [];
+afterEach(async () => {
+  await Promise.all(launched.splice(0).map((cc) => cc.closeCloudSession()));
+});
+
 /** A fresh process: new module state, same disk. */
 function launch(): { cc: CloudCache; appState: (state: string) => void } {
   jest.resetModules();
@@ -104,6 +114,7 @@ function launch(): { cc: CloudCache; appState: (state: string) => void } {
   });
   // eslint-disable-next-line @typescript-eslint/no-require-imports
   const cc = require("../cloud-cache") as CloudCache;
+  launched.push(cc);
   return { cc, appState: (state) => handler?.(state) };
 }
 
