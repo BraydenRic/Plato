@@ -5,12 +5,13 @@ iOS workout tracker built with Expo (React Native), live on the App Store. It sh
 ## Features
 
 - **Workout logging.** Start empty, from a template, or from the day's weekly-split slot. Enter weight × reps on a gym-friendly keypad with Back / Done / Next, copy the previous set in one tap, and time holds and cardio with a per-set stopwatch. Sets complete themselves once filled in.
-- **Rest timer.** Off by default, and set in Profile. It survives leaving the workout screen.
+- **Rest timer.** Off by default, and set in Profile. It and a running set stopwatch survive leaving the workout screen and the app being closed: each is one saved wall-clock time, so it reopens still counting.
 - **Live Activity.** The workout in progress sits on the Lock Screen and in the Dynamic Island, with a running clock and the rest countdown.
 - **Templates, weekly split and planning.** Reusable templates (up to 20), a weekday → template split, and workouts planned or backfilled on any calendar day.
 - **Exercise library.** 500 built-ins across 11 categories, including Neck, each with a form guide. Custom exercises, edits to built-ins and hidden built-ins are stored as per-user deltas.
 - **Progress.** Full history, per-exercise progress charts (weight, reps, estimated 1RM), weekly sets per muscle group, and a muscle map.
 - **Body weight.** Dated weigh-ins, a trend chart, and bodyweight exercises valued at what you weighed *on the day you trained*. A finished workout's volume is frozen, so a later weigh-in never rewrites it.
+- **Works offline.** With or without an account: history, templates and the library open with no signal, and changes sync when it's back. See [Offline](#offline).
 - **Guest mode.** The whole app works with no account, stored on the device. Signing up later moves everything into the account.
 - **Accounts.** Sign in with Apple, Google, or email and password (email must be verified). Account deletion is in the app.
 - **Appearance.** Light, dark or system, seven accent colours, and a matching home-screen icon.

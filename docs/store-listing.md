@@ -69,6 +69,9 @@ templates — and workouts that missed it are corrected.
 
 Back and Next on the keypad move exactly one field, every time.
 
+A running timer on a plank or cardio set, and the rest countdown, now keep
+going even if you swipe Plato closed.
+
 Search results no longer hide behind the keyboard, and the bar for your
 workout in progress has a cleaner look.
 ```
@@ -88,7 +91,7 @@ own weight and to value bodyweight exercises. No HealthKit access.
 
 ## Checklist for the version page
 
-- Build: **1.2.0** (build number assigned by EAS — fill in from TestFlight)
+- Build: **1.2.0 (53)** — offline mode and the timer fix, tested on TestFlight
 - Privacy Policy URL: https://braydenric.github.io/Plato/
 - App Privacy → Data Types: **Health** added under Health & Fitness
   (App Functionality · linked to identity · not used for tracking)
