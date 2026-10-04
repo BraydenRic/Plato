@@ -411,3 +411,104 @@ describe("SetTimerContext", () => {
     expect(box.current!.timer).toEqual(timer);
   });
 });
+
+/**
+ * Swiping the app away ends it, and both timers lived only in memory: a plank
+ * timer came back at zero, a rest came back gone. Each is saved now. A second
+ * provider mounted over the same disk stands in for the next launch.
+ */
+describe("timers surviving the app being closed", () => {
+  it("brings a running set stopwatch back still counting from when it started", async () => {
+    const startedAt = Date.now() - 45_000;
+    const before = mountHook(useSetTimer, SetTimerProvider);
+    act(() => before.current.startTimer({ workoutId: "w1", exerciseId: "e1", setId: "s1", startedAt }));
+    await settle();
+
+    const after = mountHook(useSetTimer, SetTimerProvider);
+    await settle();
+
+    expect(after.current.timer).toEqual({ workoutId: "w1", exerciseId: "e1", setId: "s1", startedAt });
+  });
+
+  it("stays stopped once stopped", async () => {
+    const before = mountHook(useSetTimer, SetTimerProvider);
+    act(() => before.current.startTimer({ workoutId: "w1", exerciseId: "e1", setId: "s1", startedAt: Date.now() }));
+    act(() => before.current.clearTimer());
+    await settle();
+
+    const after = mountHook(useSetTimer, SetTimerProvider);
+    await settle();
+
+    expect(after.current.timer).toBeNull();
+  });
+
+  it("drops a stopwatch left running for half a day as forgotten", async () => {
+    await AsyncStorage.setItem(
+      "running_set_timer",
+      JSON.stringify({ workoutId: "w1", exerciseId: "e1", setId: "s1", startedAt: Date.now() - 13 * 3_600_000 })
+    );
+
+    const after = mountHook(useSetTimer, SetTimerProvider);
+    await settle();
+
+    expect(after.current.timer).toBeNull();
+    expect(await AsyncStorage.getItem("running_set_timer")).toBeNull();
+  });
+
+  it("doesn't let the saved stopwatch replace one started as the app opened", async () => {
+    await AsyncStorage.setItem(
+      "running_set_timer",
+      JSON.stringify({ workoutId: "w1", exerciseId: "e1", setId: "old", startedAt: Date.now() - 60_000 })
+    );
+    const ctx = mountHook(useSetTimer, SetTimerProvider);
+    const fresh = { workoutId: "w1", exerciseId: "e1", setId: "new", startedAt: Date.now() };
+    act(() => ctx.current.startTimer(fresh));
+    await settle();
+
+    expect(ctx.current.timer).toEqual(fresh);
+  });
+
+  it("ignores a saved stopwatch it can't read", async () => {
+    await AsyncStorage.setItem("running_set_timer", "{not json");
+    const ctx = mountHook(useSetTimer, SetTimerProvider);
+    await settle();
+    expect(ctx.current.timer).toBeNull();
+  });
+
+  it("brings a rest back mid-countdown, extensions included", async () => {
+    await AsyncStorage.setItem("rest_seconds", "90");
+    const before = mountHook(useRestTimer, RestTimerProvider);
+    await settle();
+    act(() => before.current.startRest("w1"));
+    act(() => before.current.extendRest(15_000));
+    act(() => before.current.extendRest(15_000));
+    const endsAt = before.current.rest!.endsAt;
+    await settle();
+
+    const after = mountHook(useRestTimer, RestTimerProvider);
+    await settle();
+
+    expect(after.current.rest).toEqual({ workoutId: "w1", endsAt });
+  });
+
+  it("stays gone once a rest is skipped", async () => {
+    await AsyncStorage.setItem("rest_seconds", "60");
+    const before = mountHook(useRestTimer, RestTimerProvider);
+    await settle();
+    act(() => before.current.startRest("w1"));
+    act(() => before.current.endRest());
+    await settle();
+
+    const after = mountHook(useRestTimer, RestTimerProvider);
+    await settle();
+
+    expect(after.current.rest).toBeNull();
+  });
+
+  it("leaves behind a rest that ended long ago", async () => {
+    await AsyncStorage.setItem("running_rest", JSON.stringify({ workoutId: "w1", endsAt: Date.now() - 2 * 3_600_000 }));
+    const after = mountHook(useRestTimer, RestTimerProvider);
+    await settle();
+    expect(after.current.rest).toBeNull();
+  });
+});

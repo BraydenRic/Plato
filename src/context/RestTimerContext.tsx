@@ -1,7 +1,32 @@
-import { createContext, useContext, useEffect, useState } from "react";
+import { createContext, useContext, useEffect, useRef, useState } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
 const STORAGE_KEY = "rest_seconds";
+/**
+ * The running rest itself, so it survives iOS ending the app. Same reasoning as
+ * the set stopwatch: the deadline is wall-clock, so saving it is enough to come
+ * back mid-countdown instead of with no rest at all, and the Live Activity
+ * keeps its countdown rather than losing it on the next update.
+ */
+const RUNNING_KEY = "running_rest";
+/**
+ * A rest that ended longer ago than this when the app reopens is left behind.
+ * Recent ones come back even though they're over, since the Live Activity is
+ * holding at 0:00 for them.
+ */
+export const MAX_RESUMED_REST_OVERDUE_MS = 60 * 60 * 1000;
+
+function parseRest(raw: string | null): RunningRest | null {
+  if (!raw) return null;
+  try {
+    const r = JSON.parse(raw) as Partial<RunningRest>;
+    const valid = typeof r.workoutId === "string" && typeof r.endsAt === "number" && Number.isFinite(r.endsAt);
+    if (!valid || Date.now() - r.endsAt! > MAX_RESUMED_REST_OVERDUE_MS) return null;
+    return r as RunningRest;
+  } catch {
+    return null;
+  }
+}
 // Off by default — the countdown is opt-in from Profile.
 const DEFAULT_SECONDS = 0;
 
@@ -88,7 +113,34 @@ export function RestTimerProvider({ children }: { children: React.ReactNode }) {
   // Above the navigator for the same reason the set stopwatch is: the workout
   // screen unmounts the moment you leave it, which used to cancel a rest that
   // was still running. The deadline is wall-clock, so it resumes correctly.
-  const [rest, setRest] = useState<RunningRest | null>(null);
+  const [rest, setRestState] = useState<RunningRest | null>(null);
+  /**
+   * The current rest, readable without waiting for a render, so "+15s" pressed
+   * twice quickly extends twice rather than both building on the same value.
+   */
+  const restRef = useRef<RunningRest | null>(null);
+  /** A rest was started, extended or ended this launch, so the saved one is out of date. */
+  const touched = useRef(false);
+
+  function setRest(next: RunningRest | null) {
+    touched.current = true;
+    restRef.current = next;
+    setRestState(next);
+    if (next) AsyncStorage.setItem(RUNNING_KEY, JSON.stringify(next)).catch(() => {});
+    else AsyncStorage.removeItem(RUNNING_KEY).catch(() => {});
+  }
+
+  useEffect(() => {
+    AsyncStorage.getItem(RUNNING_KEY)
+      .then((raw) => {
+        if (touched.current) return;
+        const saved = parseRest(raw);
+        restRef.current = saved;
+        if (saved) setRestState(saved);
+        else if (raw) AsyncStorage.removeItem(RUNNING_KEY).catch(() => {});
+      })
+      .catch(() => {});
+  }, []);
 
   function startRest(workoutId: string) {
     if (restSeconds <= 0) return;
@@ -96,7 +148,8 @@ export function RestTimerProvider({ children }: { children: React.ReactNode }) {
   }
 
   function extendRest(ms: number) {
-    setRest((current) => (current == null ? null : { ...current, endsAt: current.endsAt + ms }));
+    const current = restRef.current;
+    setRest(current == null ? null : { ...current, endsAt: current.endsAt + ms });
   }
 
   function endRest() {
