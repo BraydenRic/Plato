@@ -772,6 +772,34 @@ describe("saving whatever a real account holds", () => {
   });
 });
 
+describe("two accounts on one phone", () => {
+  // A's copy can still be on disk when B signs in: sessions that expire
+  // rather than sign out keep it, so unsent changes aren't lost.
+  it("never shows one account's workouts or custom exercises to another", async () => {
+    let { cc } = launch();
+    const first = await openWithList(cc);
+    serverSends([makeWorkout({ id: "a-workout", userId: UID, name: "A's template", isTemplate: true })]);
+    fake.docs.exerciseLibrary!.onChange({ custom: [{ id: "custom-a", name: "A's Secret Curl" }], removedIds: [], overrides: [] }, false);
+    await first.session.persistNow();
+
+    ({ cc } = launch());
+    const OTHER = "zZ9otherAccountUid000000000";
+    const shownToB: Workout[][] = [];
+    const libraryForB: unknown[] = [];
+    const session = cc.openCloudSession(OTHER);
+    cc.subscribeWorkouts(OTHER, (list) => shownToB.push(list));
+    cc.subscribeExerciseLibrary(OTHER, (lib) => libraryForB.push(lib));
+    await session.loaded;
+    serverSends([], true);
+    fake.docs.exerciseLibrary!.onChange(null, true);
+    await settle();
+
+    expect(shownToB.flat()).toEqual([]);
+    expect(JSON.stringify(libraryForB)).not.toContain("Secret Curl");
+    expect(await cc.getCompletedWorkouts(OTHER)).toEqual([]);
+  });
+});
+
 describe("encoding", () => {
   it("round-trips dates, including Firestore Timestamps nested in sets", () => {
     const { encode, decode } = launch().cc;
