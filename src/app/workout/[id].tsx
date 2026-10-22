@@ -94,6 +94,14 @@ export default function WorkoutScreen() {
   const [loading, setLoading] = useState(true);
   const [finishing, setFinishing] = useState(false);
   const [resuming, setResuming] = useState(false);
+  /**
+   * Reorder mode for a started or planned workout: the cards collapse to one
+   * row each with a grip. Separate from the logging list rather than making
+   * those cards draggable, because a card with five sets fills most of the
+   * screen and is clumsy to carry, and because that list holds the inputs the
+   * keypad's Next and Back walk through, which is no place for a drag system.
+   */
+  const [reordering, setReordering] = useState(false);
   const { restSeconds, rest, startRest, extendRest, endRest } = useRestTimer();
   const { log: bodyweightLog } = useBodyweight();
   // Only this workout's rest. A rest outlives the screen by design, so without
@@ -620,8 +628,14 @@ export default function WorkoutScreen() {
   }
 
   function openMenu() {
+    // Commit whatever is being typed. A set input saves when it loses focus,
+    // and reorder mode unmounts the inputs, so a number typed but not yet
+    // blurred would otherwise be dropped on the way in.
+    Keyboard.dismiss();
+    const canReorder = !isTemplate && !isDone && workout!.exercises.length >= 2;
     Alert.alert(workout!.name, undefined, [
       { text: "Cancel", style: "cancel" },
+      ...(canReorder ? [{ text: "Reorder exercises", onPress: () => setReordering(true) }] : []),
       // A template can't be re-saved as one — hide the option there.
       ...(isTemplate
         ? []
@@ -685,9 +699,14 @@ export default function WorkoutScreen() {
               <Text style={styles.clock} maxFontSizeMultiplier={FontScaleCap.title}>{formatClock(elapsed)}</Text>
             )}
           </View>
-          <Pressable onPress={openMenu} hitSlop={12}>
-            <Ionicons name="ellipsis-horizontal" size={24} color={palette.textSecondary} />
-          </Pressable>
+          {reordering && !isDone ? (
+            // Keeps the bar balanced; the way out is the Done button below.
+            <View style={{ width: 24 }} />
+          ) : (
+            <Pressable onPress={openMenu} hitSlop={12} testID="workout-menu">
+              <Ionicons name="ellipsis-horizontal" size={24} color={palette.textSecondary} />
+            </Pressable>
+          )}
         </View>
 
         {isTemplate ? (
@@ -759,6 +778,61 @@ export default function WorkoutScreen() {
                 </View>
               </ScaleDecorator>
             )}
+          />
+        ) : reordering && !isDone ? (
+          <DraggableFlatList
+            data={workout.exercises}
+            keyExtractor={(ex) => ex.id}
+            animationConfig={DRAG_SPRING}
+            onDragEnd={({ data }) =>
+              // Same write as the template editor's: only moved exercises get a
+              // new object, and their sets travel with them untouched.
+              saveExercises(data.map((ex, i) => (ex.orderIndex === i ? ex : { ...ex, orderIndex: i })))
+            }
+            containerStyle={{ flex: 1 }}
+            contentContainerStyle={styles.dragScroll}
+            ListHeaderComponent={
+              <View style={styles.reorderHeader}>
+                <Text style={styles.reorderTitle} maxFontSizeMultiplier={FontScaleCap.title}>
+                  Reorder exercises
+                </Text>
+                <Text style={styles.reorderHint}>
+                  {"Drag the handles. Sets you've logged move with their exercise."}
+                </Text>
+              </View>
+            }
+            renderItem={({ item, drag, isActive }) => {
+              const done = item.sets.filter((set) => set.isCompleted).length;
+              return (
+                <ScaleDecorator activeScale={DRAG_LIFT_SCALE}>
+                  <View
+                    style={[
+                      styles.reorderRow,
+                      isActive && { borderColor: theme.accent, backgroundColor: theme.accentSoft },
+                    ]}>
+                    <View style={{ flex: 1, gap: 2 }}>
+                      <Text style={styles.reorderName} maxFontSizeMultiplier={FontScaleCap.heading}>
+                        {item.exercise.name}
+                      </Text>
+                      <Text style={styles.reorderMeta}>
+                        {isPlanned ? "" : `${done}/`}
+                        {item.sets.length} set{item.sets.length === 1 ? "" : "s"}
+                        {timing?.exerciseId === item.id ? " · timer running" : ""}
+                      </Text>
+                    </View>
+                    {/* Touching the grip hands the gesture to the drag system at once. */}
+                    <Pressable
+                      onPressIn={drag}
+                      disabled={isActive}
+                      hitSlop={10}
+                      style={styles.dragHandle}
+                      testID="reorder-handle">
+                      <Ionicons name="reorder-two" size={22} color={palette.textSecondary} />
+                    </Pressable>
+                  </View>
+                </ScaleDecorator>
+              );
+            }}
           />
         ) : (
           <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
@@ -857,7 +931,10 @@ export default function WorkoutScreen() {
             missing button, the other ends the session. */}
         {!keypadOpen && !keyboardUp && (
         <View style={styles.footer}>
-          {isTemplate ? (
+          {reordering && !isDone ? (
+            // In place of Finish, so a reorder can't end the session by accident.
+            <Button title="Done" onPress={() => setReordering(false)} />
+          ) : isTemplate ? (
             <Button title="Done" variant="secondary" onPress={() => router.back()} />
           ) : isDone ? (
             <Button title="Resume workout" variant="secondary" onPress={resumeWorkout} loading={resuming} />
@@ -1658,6 +1735,39 @@ const useStyles = makeStyles((c) => ({
   },
   dragItem: {
     marginBottom: Spacing.three,
+  },
+  reorderHeader: {
+    gap: Spacing.one,
+    marginBottom: Spacing.three,
+  },
+  reorderTitle: {
+    fontSize: 22,
+    fontWeight: "800",
+    color: c.text,
+  },
+  reorderHint: {
+    fontSize: 14,
+    color: c.textTertiary,
+  },
+  reorderRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.three,
+    backgroundColor: c.surface,
+    borderWidth: 1,
+    borderColor: c.border,
+    borderRadius: Radius.md,
+    padding: Spacing.three,
+    marginBottom: Spacing.two,
+  },
+  reorderName: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: c.text,
+  },
+  reorderMeta: {
+    fontSize: 13,
+    color: c.textTertiary,
   },
   dragHandle: {
     width: 30,

@@ -485,3 +485,83 @@ describe("reordering a template", () => {
     expect(saved[0]).toBe(bench);
   });
 });
+
+/**
+ * A workout already under way couldn't be reordered at all — only templates
+ * had the drag list. Reorder mode collapses the cards to one row each.
+ */
+describe("reordering a workout in progress", () => {
+  /** Opens the ⋯ menu and presses the named option. */
+  function pressMenuOption(label: string) {
+    const alert = jest.spyOn(Alert, "alert").mockImplementation((_t, _m, buttons) => {
+      buttons?.find((b) => b.text === label)?.onPress?.();
+    });
+    fireEvent.press(screen.getByTestId("workout-menu"));
+    return alert;
+  }
+
+  it("offers reordering from the menu once there are two exercises", async () => {
+    await loadWith(["Bench Press", "Barbell Row"]);
+    let offered: string[] = [];
+    jest.spyOn(Alert, "alert").mockImplementation((_t, _m, buttons) => {
+      offered = (buttons ?? []).map((b) => b.text ?? "");
+    });
+
+    fireEvent.press(screen.getByTestId("workout-menu"));
+
+    expect(offered).toContain("Reorder exercises");
+  });
+
+  it("doesn't offer it with only one exercise", async () => {
+    let offered: string[] = [];
+    jest.spyOn(Alert, "alert").mockImplementation((_t, _m, buttons) => {
+      offered = (buttons ?? []).map((b) => b.text ?? "");
+    });
+
+    await loadWith(["Bench Press"]);
+    fireEvent.press(screen.getByTestId("workout-menu"));
+    expect(offered).not.toContain("Reorder exercises");
+  });
+
+  it("doesn't offer it once the workout is finished", async () => {
+    let offered: string[] = [];
+    jest.spyOn(Alert, "alert").mockImplementation((_t, _m, buttons) => {
+      offered = (buttons ?? []).map((b) => b.text ?? "");
+    });
+    await loadWorkout({ ...workoutWith(["Bench Press", "Barbell Row"]), completedAt: new Date() });
+
+    fireEvent.press(screen.getByTestId("workout-menu"));
+
+    expect(offered).not.toContain("Reorder exercises");
+  });
+
+  it("saves the new order with the logged sets travelling with their exercise", async () => {
+    const w = workoutWith(["Bench Press", "Barbell Row", "Curl"]);
+    w.exercises[2].sets = [{ id: "done", weightUnit: "lbs", weight: 30, reps: 12, isCompleted: true }];
+    await loadWorkout(w);
+    pressMenuOption("Reorder exercises");
+    // One grip per exercise. (The list's header isn't drawn by the stand-in.)
+    expect(screen.getAllByTestId("reorder-handle")).toHaveLength(3);
+    const [bench, row, curl] = mockDragListProps.data;
+
+    await act(async () => {
+      mockDragListProps.onDragEnd({ from: 2, to: 0, data: [curl, bench, row] });
+    });
+
+    const saved = (mockUpdateWorkout.mock.calls.at(-1) as unknown as [string, { exercises: any[] }])[1].exercises;
+    expect(saved.map((ex: { exercise: { name: string } }) => ex.exercise.name)).toEqual(["Curl", "Bench Press", "Barbell Row"]);
+    expect(saved.map((ex: { orderIndex: number }) => ex.orderIndex)).toEqual([0, 1, 2]);
+    expect(saved[0].sets).toEqual(curl.sets);
+  });
+
+  it("swaps Finish for Done while reordering, and Done brings the sets back", async () => {
+    await loadWith(["Bench Press", "Barbell Row"]);
+    pressMenuOption("Reorder exercises");
+
+    expect(screen.queryByText("Finish workout")).toBeNull();
+    fireEvent.press(screen.getByText("Done"));
+
+    expect(screen.getByText("Finish workout")).toBeTruthy();
+    expect(screen.queryAllByTestId("reorder-handle")).toHaveLength(0);
+  });
+});
