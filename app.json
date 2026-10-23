@@ -179,7 +179,14 @@
             }
           }
         ]
-      ]
+      ],
+      [
+        "@bacons/apple-targets",
+        {
+          "appleTeamId": "PQYVLGQVTP"
+        }
+      ],
+      "./plugins/with-watch-plist-only"
     ],
     "experiments": {
       "typedRoutes": true,

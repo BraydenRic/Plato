@@ -71,11 +71,21 @@ const RestTimerContext = createContext<{
   restSeconds: number;
   setRestSeconds: (seconds: number) => void;
   rest: RunningRest | null;
-  /** Begins a rest of the configured length. No-op when the timer is off. */
-  startRest: (workoutId: string) => void;
+  /**
+   * Begins a rest of the configured length. No-op when the timer is off.
+   * `fromMs` backdates it to when the set was actually done — a set logged on
+   * the watch can reach the phone a moment (or, offline, much) later.
+   */
+  startRest: (workoutId: string, fromMs?: number) => void;
   /** Pushes the deadline out, for the "+15s" control. */
   extendRest: (ms: number) => void;
   endRest: () => void;
+  /**
+   * Both the setting and any running rest have been read back. Before that,
+   * restSeconds is the default and a rest from the last launch isn't known —
+   * which matters to work done the instant the app launches (the watch sync).
+   */
+  loaded: boolean;
 }>({
   restSeconds: DEFAULT_SECONDS,
   setRestSeconds: () => {},
@@ -83,6 +93,7 @@ const RestTimerContext = createContext<{
   startRest: () => {},
   extendRest: () => {},
   endRest: () => {},
+  loaded: true,
 });
 
 /**
@@ -121,6 +132,8 @@ export function RestTimerProvider({ children }: { children: React.ReactNode }) {
   const restRef = useRef<RunningRest | null>(null);
   /** A rest was started, extended or ended this launch, so the saved one is out of date. */
   const touched = useRef(false);
+  const [settingLoaded, setSettingLoaded] = useState(false);
+  const [runningLoaded, setRunningLoaded] = useState(false);
 
   function setRest(next: RunningRest | null) {
     touched.current = true;
@@ -139,12 +152,13 @@ export function RestTimerProvider({ children }: { children: React.ReactNode }) {
         if (saved) setRestState(saved);
         else if (raw) AsyncStorage.removeItem(RUNNING_KEY).catch(() => {});
       })
-      .catch(() => {});
+      .catch(() => {})
+      .finally(() => setRunningLoaded(true));
   }, []);
 
-  function startRest(workoutId: string) {
+  function startRest(workoutId: string, fromMs?: number) {
     if (restSeconds <= 0) return;
-    setRest({ workoutId, endsAt: Date.now() + restSeconds * 1000 });
+    setRest({ workoutId, endsAt: (fromMs ?? Date.now()) + restSeconds * 1000 });
   }
 
   function extendRest(ms: number) {
@@ -157,10 +171,13 @@ export function RestTimerProvider({ children }: { children: React.ReactNode }) {
   }
 
   useEffect(() => {
-    AsyncStorage.getItem(STORAGE_KEY).then((raw) => {
-      const parsed = Number(raw);
-      if (raw != null && Number.isFinite(parsed) && parsed >= 0) setRestSecondsState(parsed);
-    });
+    AsyncStorage.getItem(STORAGE_KEY)
+      .then((raw) => {
+        const parsed = Number(raw);
+        if (raw != null && Number.isFinite(parsed) && parsed >= 0) setRestSecondsState(parsed);
+      })
+      .catch(() => {})
+      .finally(() => setSettingLoaded(true));
   }, []);
 
   function setRestSeconds(seconds: number) {
@@ -170,7 +187,15 @@ export function RestTimerProvider({ children }: { children: React.ReactNode }) {
 
   return (
     <RestTimerContext.Provider
-      value={{ restSeconds, setRestSeconds, rest, startRest, extendRest, endRest }}>
+      value={{
+        restSeconds,
+        setRestSeconds,
+        rest,
+        startRest,
+        extendRest,
+        endRest,
+        loaded: settingLoaded && runningLoaded,
+      }}>
       {children}
     </RestTimerContext.Provider>
   );

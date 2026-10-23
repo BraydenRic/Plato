@@ -1,0 +1,64 @@
+[
+{
+  "at" : 1792780210000,
+  "exerciseId" : "we-bench",
+  "kind" : "logSet",
+  "opId" : "9828B8B5-871B-4874-92DF-F4C42E04E72D",
+  "reps" : 5,
+  "setId" : "s2",
+  "unit" : "lbs",
+  "weight" : 182.5,
+  "workoutId" : "w-live"
+},
+{
+  "at" : 1792780210000,
+  "duration" : 60,
+  "exerciseId" : "we-plank",
+  "kind" : "logSet",
+  "opId" : "02C90C2A-AF68-4F89-9836-EE0FE69CA577",
+  "setId" : "k1",
+  "unit" : "lbs",
+  "workoutId" : "w-live"
+},
+{
+  "at" : 1792780210000,
+  "exerciseId" : "we-bench",
+  "kind" : "undoSet",
+  "opId" : "81E64A5A-0C3E-4C2F-9347-A70C4E24607E",
+  "setId" : "s1",
+  "workoutId" : "w-live"
+},
+{
+  "at" : 1792780210000,
+  "exerciseId" : "we-bench",
+  "kind" : "addSet",
+  "opId" : "4A88FC7D-4573-4F41-B813-2B2CE14B2143",
+  "setId" : "B3C1A2E4-1111-4222-8333-944455556666",
+  "workoutId" : "w-live"
+},
+{
+  "at" : 1792780210000,
+  "kind" : "startTemplate",
+  "opId" : "CB864DB0-5303-4A15-BD0F-E60081CE8F07",
+  "templateId" : "t-push"
+},
+{
+  "at" : 1792780210000,
+  "kind" : "finish",
+  "opId" : "0AE6ADEC-91A5-4419-9CCA-4B86886428D3",
+  "workoutId" : "w-live"
+},
+{
+  "at" : 1792780210000,
+  "kind" : "extendRest",
+  "opId" : "8B42D304-7BAF-48B9-8A86-9151249000BF",
+  "seconds" : 15,
+  "workoutId" : "w-live"
+},
+{
+  "at" : 1792780210000,
+  "kind" : "endRest",
+  "opId" : "A83B1B53-CAFB-4AE0-A76C-F35665EF95A2",
+  "workoutId" : "w-live"
+}
+]

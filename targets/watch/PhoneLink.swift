@@ -1,0 +1,95 @@
+import Foundation
+import WatchConnectivity
+
+/// The watch's end of the link to the phone (modules/plato-watch on the
+/// other side). Callbacks arrive on the main thread.
+final class PhoneLink: NSObject, WCSessionDelegate {
+  var onSnapshot: ((String) -> Void)?
+  var onReady: (() -> Void)?
+
+  func activate() {
+    guard WCSession.isSupported() else { return }
+    WCSession.default.delegate = self
+    WCSession.default.activate()
+  }
+
+  var isActivated: Bool {
+    WCSession.default.activationState == .activated
+  }
+
+  /// Asks the phone for its newest snapshot instead of waiting for the next
+  /// change to bring one.
+  func requestSnapshot() {
+    let session = WCSession.default
+    guard session.activationState == .activated, session.isReachable else { return }
+    session.sendMessage(["kind": "hello"], replyHandler: { [weak self] reply in
+      guard let json = reply["snapshot"] as? String, !json.isEmpty else { return }
+      DispatchQueue.main.async { self?.onSnapshot?(json) }
+    }, errorHandler: { _ in })
+  }
+
+  /// Sends one op. `completion(true)` once the phone has it on disk, or once
+  /// the system has queued it for delivery — which survives this app closing.
+  ///
+  /// A message gets an answer, and wakes the phone app if it isn't running,
+  /// so that's tried first. When the phone is out of reach the op goes in the
+  /// system queue instead, unless `allowQueue` is false: that's for a start,
+  /// which is pointless if it lands an hour later.
+  ///
+  /// Each way keeps its own order, but nothing orders one against the other,
+  /// so once anything is waiting in the queue, everything after it goes the
+  /// same way. Otherwise a Finish sent as a message could reach the phone
+  /// before the sets queued ahead of it.
+  func send(opId: String, json: String, allowQueue: Bool, completion: @escaping (Bool) -> Void) {
+    let session = WCSession.default
+    guard session.activationState == .activated else {
+      completion(false)
+      return
+    }
+    let payload: [String: Any] = ["opId": opId, "op": json]
+    let fallBack: () -> Void = {
+      if allowQueue {
+        session.transferUserInfo(payload)
+        completion(true)
+      } else {
+        completion(false)
+      }
+    }
+    guard session.isReachable, !(allowQueue && !session.outstandingUserInfoTransfers.isEmpty) else {
+      fallBack()
+      return
+    }
+    session.sendMessage(payload, replyHandler: { reply in
+      let stored = reply["ok"] as? Bool ?? false
+      DispatchQueue.main.async {
+        if stored {
+          completion(true)
+        } else {
+          fallBack()
+        }
+      }
+    }, errorHandler: { _ in
+      DispatchQueue.main.async { fallBack() }
+    })
+  }
+
+  // MARK: WCSessionDelegate
+
+  func session(_ session: WCSession, activationDidCompleteWith activationState: WCSessionActivationState, error: Error?) {
+    let context = session.receivedApplicationContext
+    DispatchQueue.main.async {
+      if let json = context["snapshot"] as? String { self.onSnapshot?(json) }
+      self.onReady?()
+    }
+  }
+
+  func session(_ session: WCSession, didReceiveApplicationContext applicationContext: [String: Any]) {
+    guard let json = applicationContext["snapshot"] as? String else { return }
+    DispatchQueue.main.async { self.onSnapshot?(json) }
+  }
+
+  func sessionReachabilityDidChange(_ session: WCSession) {
+    guard session.isReachable else { return }
+    DispatchQueue.main.async { self.onReady?() }
+  }
+}

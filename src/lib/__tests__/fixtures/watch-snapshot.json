@@ -1,0 +1,114 @@
+{
+  "v": 1,
+  "sentAt": 1792780200000,
+  "account": "signedIn",
+  "unit": "lbs",
+  "restSeconds": 90,
+  "restEndsAt": 1792780260000,
+  "accent": "#8b5cf6",
+  "onAccent": "#ffffff",
+  "workout": {
+    "id": "w-live",
+    "name": "Push Day",
+    "startedAt": 1792778400000,
+    "exercises": [
+      {
+        "id": "we-bench",
+        "name": "Bench Press",
+        "kind": "weight",
+        "sets": [
+          {
+            "id": "s1",
+            "done": true,
+            "weight": 185,
+            "reps": 5,
+            "duration": null,
+            "lastWeight": 180,
+            "lastReps": 5,
+            "lastDuration": null
+          },
+          {
+            "id": "s2",
+            "done": false,
+            "weight": 176.4,
+            "reps": null,
+            "duration": null,
+            "lastWeight": 180,
+            "lastReps": 4,
+            "lastDuration": null
+          },
+          {
+            "id": "s3",
+            "done": false,
+            "weight": null,
+            "reps": null,
+            "duration": null,
+            "lastWeight": null,
+            "lastReps": null,
+            "lastDuration": null
+          }
+        ]
+      },
+      {
+        "id": "we-pull",
+        "name": "Pull-Up",
+        "kind": "bodyweight",
+        "sets": [
+          {
+            "id": "p1",
+            "done": false,
+            "weight": null,
+            "reps": null,
+            "duration": null,
+            "lastWeight": 25,
+            "lastReps": 8,
+            "lastDuration": null
+          },
+          {
+            "id": "p2",
+            "done": false,
+            "weight": null,
+            "reps": null,
+            "duration": null,
+            "lastWeight": null,
+            "lastReps": null,
+            "lastDuration": null
+          }
+        ]
+      },
+      {
+        "id": "we-plank",
+        "name": "Plank",
+        "kind": "timed",
+        "sets": [
+          {
+            "id": "k1",
+            "done": true,
+            "weight": null,
+            "reps": null,
+            "duration": 45,
+            "lastWeight": null,
+            "lastReps": null,
+            "lastDuration": null
+          }
+        ]
+      }
+    ]
+  },
+  "templates": [
+    {
+      "id": "t-push",
+      "name": "Push Day",
+      "exercises": [
+        "Bench Press",
+        "Pull-Up"
+      ],
+      "exerciseCount": 2,
+      "setCount": 4
+    }
+  ],
+  "applied": [
+    "op-1",
+    "op-2"
+  ]
+}

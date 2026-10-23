@@ -7,6 +7,7 @@ import { GestureHandlerRootView } from "react-native-gesture-handler";
 
 import { BodyweightVolumeRepair } from "@/components/bodyweight-volume-repair";
 import { LiveActivitySync } from "@/components/live-activity-sync";
+import { WatchSync } from "@/components/watch-sync";
 import { AuthProvider, useAuth } from "@/context/AuthContext";
 import { RestTimerProvider } from "@/context/RestTimerContext";
 import { SetTimerProvider } from "@/context/SetTimerContext";
@@ -231,6 +232,7 @@ export default function RootLayout() {
                   <DefaultSetsProvider>
                     <ThemedStatusBar />
                     <LiveActivitySync />
+                    <WatchSync />
                     <BodyweightVolumeRepair />
                     <RootNavigator />
                   </DefaultSetsProvider>

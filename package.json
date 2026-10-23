@@ -3,6 +3,7 @@
   "main": "expo-router/entry",
   "version": "1.2.0",
   "dependencies": {
+    "@bacons/apple-targets": "4.0.7",
     "@expo/vector-icons": "^15.0.2",
     "@react-native-async-storage/async-storage": "2.2.0",
     "@react-native-google-signin/google-signin": "16.1.2",
@@ -67,5 +68,12 @@
       "<rootDir>/jest.setup.js"
     ]
   },
-  "private": true
+  "private": true,
+  "expo": {
+    "autolinking": {
+      "exclude": [
+        "@bacons/apple-targets"
+      ]
+    }
+  }
 }
