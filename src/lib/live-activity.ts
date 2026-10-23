@@ -43,6 +43,8 @@ const ACTIVITY_STYLE = {
   timerType: "digital" as const,
   imagePosition: "right" as const,
   imageSize: { width: 40, height: 40 },
+  // The Apple Watch's Smart Stack (see watchImage).
+  smallImageSize: { width: 24, height: 24 },
   contentFit: "contain" as const,
 };
 
@@ -55,6 +57,19 @@ const ACTIVITY_STYLE = {
  */
 export function activityImage(theme: ActivityTheme): string {
   return `plato-logo-${theme.id}`;
+}
+
+/**
+ * The same logo at 48px, for the Apple Watch's Smart Stack.
+ *
+ * The watch showed a blank square where the logo goes. The main logos are
+ * 512px, added as single-scale images, so the system takes each for a 512pt
+ * picture, and Apple requires a Live Activity's image to be no bigger than
+ * where it's drawn: the phone copes, the watch's slot (about 24pt here) draws
+ * nothing. The watch layout uses this name in preference to the main one.
+ */
+export function watchImage(theme: ActivityTheme): string {
+  return `${activityImage(theme)}-small`;
 }
 
 function workoutState(
@@ -89,6 +104,7 @@ function workoutState(
     } as unknown as LiveActivityState["progressBar"],
     imageName: activityImage(theme),
     dynamicIslandImageName: activityImage(theme),
+    smallImageName: watchImage(theme),
   };
 }
 
@@ -157,6 +173,7 @@ export function stopWorkoutActivity(activityId: string, title: string, theme: Ac
       progressBar: { progress: 1 },
       imageName: activityImage(theme),
       dynamicIslandImageName: activityImage(theme),
+      smallImageName: watchImage(theme),
     });
   } catch {
     // Already gone — nothing to clean up.

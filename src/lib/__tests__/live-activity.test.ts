@@ -121,3 +121,44 @@ describe("the themed logo", () => {
     expect(mockUpdateActivity.mock.calls[0]).toHaveLength(2);
   });
 });
+
+/**
+ * The Apple Watch showed a blank square for the logo: the 512px images are far
+ * bigger than its Smart Stack slot, which then draws nothing. It gets its own
+ * small copy, sent alongside the main one.
+ */
+describe("on the Apple Watch", () => {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const fs = require("fs") as typeof import("fs");
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const path = require("path") as typeof import("path");
+  const dir = path.join(__dirname, "..", "..", "..", "assets", "liveActivity");
+
+  it("has a small logo on disk for every theme, small enough for the watch", () => {
+    for (const theme of Object.values(THEMES)) {
+      const file = path.join(dir, `${activity.watchImage(theme)}.png`);
+      expect(fs.existsSync(file)).toBe(true);
+      // PNG width and height live at bytes 16–24 of the header.
+      const header = fs.readFileSync(file).subarray(16, 24);
+      expect([header.readUInt32BE(0), header.readUInt32BE(4)]).toEqual([48, 48]);
+    }
+  });
+
+  it("sends the small logo when the activity starts, updates and ends", () => {
+    activity.startWorkoutActivity(workout, 3, 12, THEMES.cobalt, null);
+    activity.updateWorkoutActivity("activity-1", workout, 4, 12, THEMES.cobalt, null);
+    activity.stopWorkoutActivity("activity-1", "Workout finished", THEMES.cobalt);
+
+    const small = "plato-logo-cobalt-small";
+    expect((mockStartActivity.mock.calls[0][0] as Record<string, unknown>).smallImageName).toBe(small);
+    expect((mockUpdateActivity.mock.calls[0][1] as Record<string, unknown>).smallImageName).toBe(small);
+    expect((mockStopActivity.mock.calls[0][1] as Record<string, unknown>).smallImageName).toBe(small);
+  });
+
+  it("draws it at the watch's size, not the lock screen's", () => {
+    activity.startWorkoutActivity(workout, 3, 12, THEMES.violet, null);
+    expect(mockStartActivity.mock.calls[0][1]).toEqual(
+      expect.objectContaining({ smallImageSize: { width: 24, height: 24 } })
+    );
+  });
+});
