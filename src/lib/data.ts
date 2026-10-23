@@ -21,8 +21,7 @@ import type { BodyweightEntry, UserStatistics, Workout, WorkoutExercise } from "
  * phone, not when the server acks it.
  */
 
-export { GUEST_USER_ID, isGuestUserId } from "./local-store";
-export { computeStats, sanitizeExercises, stripUndefined, EMPTY_WEEKLY_PLAN } from "./firestore";
+export { computeStats, stripUndefined, EMPTY_WEEKLY_PLAN } from "./firestore";
 export type { ExerciseLibrary, WeeklyPlan } from "./firestore";
 export { LibraryNotLoadedError } from "./cloud-cache";
 
@@ -58,15 +57,12 @@ export function getCompletedWorkouts(userId: string): Promise<Workout[]> {
   return isGuestUserId(userId) ? local.getCompletedWorkouts(userId) : cloud.getCompletedWorkouts(userId);
 }
 
-export function createWorkout(
-  workout: Omit<Workout, "id">,
-  preserveCreatedAt = false
-): Promise<string> {
+// Stamped now: saveAsTemplate, the only caller, makes a new template. (The
+// guest migration, which keeps old dates, writes through firestore.ts.)
+export function createWorkout(workout: Omit<Workout, "id">): Promise<string> {
   return isGuestUserId(workout.userId)
     ? local.createWorkout(workout)
-    : preserveCreatedAt
-      ? cloud.createWorkout(workout)
-      : cloud.createWorkout({ ...workout, createdAt: new Date() });
+    : cloud.createWorkout({ ...workout, createdAt: new Date() });
 }
 
 export function updateWorkout(id: string, updates: Partial<Workout>): Promise<void> {
@@ -91,9 +87,7 @@ function blankSets(exercises: WorkoutExercise[]): WorkoutExercise[] {
   }));
 }
 
-// Without `scheduledFor` the workout starts immediately; with it, it becomes a
-// plan for that day — no startedAt until the user actually begins it.
-/** See firestore.createWorkoutLocalFirst — navigate on `id`, watch `saved`. */
+/** Hands back the new id at once, with the write still going: navigate on `id`, watch `saved`. */
 export function createWorkoutLocalFirst(workout: Omit<Workout, "id">): {
   id: string;
   saved: Promise<void>;
@@ -103,6 +97,8 @@ export function createWorkoutLocalFirst(workout: Omit<Workout, "id">): {
     : cloud.createWorkoutLocalFirst(stripUndefined(workout));
 }
 
+// Without `scheduledFor` the workout starts immediately; with it, it becomes a
+// plan for that day — no startedAt until the user actually begins it.
 export function startFromTemplate(
   template: Workout,
   userId: string,

@@ -19,12 +19,6 @@ import { isExpoGo } from "./google-signin";
 // only appears in real builds, same as Google.
 export const appleSignInSupported = Platform.OS === "ios" && !isExpoGo;
 
-/** Resolves true on iOS 13+ devices where Sign in with Apple can run. */
-export async function appleSignInAvailable(): Promise<boolean> {
-  if (!appleSignInSupported) return false;
-  return AppleAuthentication.isAvailableAsync();
-}
-
 /**
  * Runs the native Apple sheet and converts the result into a Firebase
  * credential. Resolves to null if the user dismissed the sheet (not an

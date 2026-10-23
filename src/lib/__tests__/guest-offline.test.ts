@@ -67,7 +67,6 @@ it("runs a whole guest session on the phone, never touching the cloud", async ()
     makeWorkout({ userId: GUEST, name: "Push", startedAt: new Date() })
   );
   await saved;
-  expect(data.isGuestUserId(GUEST)).toBe(true);
   await data.updateWorkout(id, { exercises: [] });
   await data.updateWorkout(id, { completedAt: new Date(), durationMinutes: 45 });
   const completed = await data.getCompletedWorkouts(GUEST);

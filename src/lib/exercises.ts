@@ -734,36 +734,3 @@ export function filterExercises(
     );
   });
 }
-
-export const WORKOUT_TEMPLATES = [
-  {
-    name: "Push Day",
-    description: "Chest, shoulders, triceps",
-    exercises: ["bench-press", "ohp", "incline-bench", "lateral-raise", "tricep-pushdown", "skull-crusher"],
-    icon: "💪",
-  },
-  {
-    name: "Pull Day",
-    description: "Back, biceps, rear delts",
-    exercises: ["deadlift", "pull-up", "barbell-row", "lat-pulldown", "barbell-curl", "face-pull"],
-    icon: "🏋️",
-  },
-  {
-    name: "Leg Day",
-    description: "Quads, hamstrings, glutes, calves",
-    exercises: ["squat", "romanian-dl", "leg-press", "lunges", "leg-curl", "calf-raise"],
-    icon: "🦵",
-  },
-  {
-    name: "Upper Body",
-    description: "Full upper body",
-    exercises: ["bench-press", "barbell-row", "ohp", "pull-up", "barbell-curl", "tricep-pushdown"],
-    icon: "🔝",
-  },
-  {
-    name: "Full Body",
-    description: "Total body compound movements",
-    exercises: ["squat", "bench-press", "deadlift", "ohp", "barbell-row", "pull-up"],
-    icon: "⚡",
-  },
-];

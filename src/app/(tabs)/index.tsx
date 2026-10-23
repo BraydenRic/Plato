@@ -96,7 +96,7 @@ export default function WorkoutsScreen() {
    * The workout we are in the middle of opening, hidden from this screen for
    * as long as the push takes to cover it.
    *
-   * Creating one updates Firestore's cache immediately, but pushing the workout
+   * Creating one updates the phone's copy immediately, but pushing the workout
    * screen takes an animation to cover this list — so the new row and its
    * calendar dot appear underneath the incoming screen and are visible for the
    * length of the transition. Navigating before the write lands (see

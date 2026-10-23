@@ -205,9 +205,8 @@ it("shows an added set immediately", async () => {
 });
 
 it("doesn't let a focus re-read undo an edit made while it was in flight", async () => {
-  // The re-read is a *server* read, so it can only ever describe the workout as
-  // it was before an edit that hasn't been acked yet. It resolves here after the
-  // delete, which is the race a user hits by deleting straight after reopening
+  // The re-read can start before an edit and land after it, carrying the
+  // workout as it was. It resolves here after the delete, which is the race a user hits by deleting straight after reopening
   // the screen — the exercise reappearing a second after they removed it.
   let resolveRead: (w: Workout) => void = () => {};
   mockGetWorkout = jest.fn(

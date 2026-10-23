@@ -1,7 +1,7 @@
 import { ActivityIndicator, Text } from "react-native";
 import { fireEvent, render, screen } from "@testing-library/react-native";
 
-import { Button, Card, Chip, Divider, EmptyState, Field, SectionLabel, Stepper } from "../ui";
+import { Button, Card, Chip, EmptyState, Field, SectionLabel, Stepper } from "../ui";
 
 // Pulls in expo-font's native loader, which has no place in a unit test.
 jest.mock("@expo/vector-icons/Ionicons", () => "Ionicons");
@@ -130,10 +130,6 @@ describe("layout primitives", () => {
   it("SectionLabel renders its children", () => {
     render(<SectionLabel>Preferences</SectionLabel>);
     expect(screen.getByText("Preferences")).toBeTruthy();
-  });
-
-  it("Divider renders without needing any props", () => {
-    expect(() => render(<Divider />)).not.toThrow();
   });
 });
 

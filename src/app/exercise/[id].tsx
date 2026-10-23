@@ -332,15 +332,4 @@ const useStyles = makeStyles((c) => ({
     padding: Spacing.three,
     gap: Spacing.two,
   },
-  mapLabels: {
-    flexDirection: "row",
-    justifyContent: "space-around",
-  },
-  mapLabel: {
-    fontSize: 11,
-    fontWeight: "600",
-    color: c.textTertiary,
-    textTransform: "uppercase",
-    letterSpacing: 1,
-  },
 }));

@@ -66,11 +66,6 @@ export function Card({ style, ...rest }: ViewProps) {
   return <View style={[styles.card, style]} {...rest} />;
 }
 
-export function Divider() {
-  const styles = useStyles();
-  return <View style={styles.divider} />;
-}
-
 // ── Steppers ──────────────────────────────────────────────────────────────────
 
 interface StepperProps {
@@ -246,11 +241,6 @@ const useStyles = makeStyles((c) => ({
     borderWidth: 1,
     borderColor: c.border,
     padding: Spacing.three,
-  },
-  divider: {
-    height: 1,
-    backgroundColor: c.border,
-    marginVertical: Spacing.two,
   },
   field: {
     backgroundColor: c.surfaceRaised,

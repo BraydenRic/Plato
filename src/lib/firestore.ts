@@ -23,7 +23,6 @@ import { auth, db } from "./firebase";
 import {
   EMPTY_WEEKLY_PLAN,
   isActiveWorkout,
-  reopenTiming,
   sanitizeExercises,
   workoutVolumeLbs,
 } from "./workout-utils";
@@ -36,9 +35,9 @@ import type {
   Workout,
 } from "@/types";
 
-// Re-exported so existing importers of this module keep working; both now live
-// in Firebase-free modules so the guest store can share them.
-export { sanitizeExercises, EMPTY_WEEKLY_PLAN };
+// Re-exported for data.ts. It lives in a Firebase-free module so the guest
+// store can share it.
+export { EMPTY_WEEKLY_PLAN };
 export type { ExerciseLibrary, WeeklyPlan };
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -118,50 +117,6 @@ export async function countActiveWorkouts(userId: string): Promise<number> {
 }
 
 /**
- * Live subscription to one workout — the workout screen's source of truth.
- *
- * The error callback is not optional in practice. A Firestore listener that
- * errors is finished: it does not retry, and without a handler it takes the
- * failure with it, so the screen simply stops receiving updates and there is
- * nothing anywhere to say why. That is the shape of a bug that cost three
- * builds — edits to a freshly created workout not appearing until it was
- * closed and reopened — and the suspected cause is reachable from here: this
- * attaches the moment the workout screen opens, which is before
- * createWorkoutLocalFirst's write has necessarily reached the server, and the
- * read rule tests `resource.data.userId` against a document that does not
- * exist yet.
- *
- * Logged rather than surfaced. The screen has two other paths to the truth (its
- * own edits render optimistically, and it re-reads on focus), so a dead
- * listener is no longer something to interrupt anyone about — but it should
- * never again be something nobody can see.
- */
-export function subscribeWorkout(
-  id: string,
-  onChange: (workout: Workout | null) => void
-): () => void {
-  return onSnapshot(
-    doc(db, "workouts", id),
-    (snap) => {
-      if (!snap.exists()) {
-        onChange(null);
-        return;
-      }
-      onChange(workoutFromDoc(snap.id, snap.data() as Record<string, unknown>));
-    },
-    (e) => {
-      console.warn(`Live updates for workout ${id} stopped: ${e.code ?? e.message}`, e);
-    }
-  );
-}
-
-export async function getWorkout(id: string): Promise<Workout | null> {
-  const snap = await getDoc(doc(db, "workouts", id));
-  if (!snap.exists()) return null;
-  return workoutFromDoc(snap.id, snap.data() as Record<string, unknown>);
-}
-
-/**
  * `preserveCreatedAt` keeps the date already on the workout instead of stamping
  * it server-side. Only migration passes it: guest workouts were created days or
  * weeks ago, and re-stamping them would drop the whole backlog onto today.
@@ -176,46 +131,6 @@ export async function createWorkout(
     createdAt: preserveCreatedAt && workout.createdAt ? workout.createdAt : serverTimestamp(),
   });
   return ref.id;
-}
-
-/**
- * Creates a workout and hands back its id straight away, with the write still
- * in flight.
- *
- * addDoc generates the id on the client and Firestore's cache reflects the new
- * document immediately, but the promise only settles on server ack. Awaiting it
- * before navigating means the list underneath re-renders with the new workout
- * and sits there for a whole round-trip — visible as the workout appearing
- * under today just before the screen opens.
- *
- * The caller navigates on `id` and watches `saved` for failure. Deliberately
- * not used by the migration, which must know a workout is really in the cloud
- * before removing it from the device.
- */
-export function createWorkoutLocalFirst(workout: Omit<Workout, "id">): {
-  id: string;
-  saved: Promise<void>;
-} {
-  const ref = doc(collection(db, "workouts"));
-  const saved = setDoc(ref, {
-    ...workout,
-    createdAt: workout.createdAt ?? serverTimestamp(),
-  });
-  return { id: ref.id, saved };
-}
-
-export async function updateWorkout(id: string, updates: Partial<Workout>): Promise<void> {
-  await updateDoc(doc(db, "workouts", id), updates);
-}
-
-export async function deleteWorkout(workout: Workout): Promise<void> {
-  await deleteDoc(doc(db, "workouts", workout.id));
-  // Removing a finished workout changes lifetime stats — re-derive the synced
-  // doc so other readers (plato-web) don't see stale totals or streaks.
-  if (workout.completedAt && !workout.isTemplate) {
-    const remaining = await getCompletedWorkouts(workout.userId);
-    await upsertUserStats({ userId: workout.userId, ...computeStats(remaining) });
-  }
 }
 
 /**
@@ -246,20 +161,6 @@ export async function deleteAllUserData(userId: string): Promise<void> {
 // user created plus ids of defaults they removed. The default exercises live in
 // the app bundle, so resetting is just clearing this doc.
 
-export function subscribeExerciseLibrary(
-  userId: string,
-  onChange: (library: ExerciseLibrary) => void
-): () => void {
-  return onSnapshot(doc(db, "exerciseLibrary", userId), (snap) => {
-    const d = snap.data();
-    onChange({
-      custom: (d?.custom as Exercise[]) ?? [],
-      removedIds: (d?.removedIds as string[]) ?? [],
-      overrides: (d?.overrides as Exercise[]) ?? [],
-    });
-  });
-}
-
 export async function updateExerciseLibrary(userId: string, library: ExerciseLibrary): Promise<void> {
   await setDoc(doc(db, "exerciseLibrary", userId), { userId, ...library }, { merge: true });
 }
@@ -276,19 +177,6 @@ export async function getExerciseLibrary(userId: string): Promise<ExerciseLibrar
 }
 
 // ── Weekly split ────────────────────────────────────────────────────────────
-// A recurring weekday → template map. Purely a suggestion layer: it never
-// creates workout docs on its own, so it adds zero ongoing writes. Indexed by
-// JS getDay() (0 = Sunday … 6 = Saturday); null means a rest day.
-export function subscribeWeeklyPlan(
-  userId: string,
-  onChange: (plan: WeeklyPlan) => void
-): () => void {
-  return onSnapshot(doc(db, "weeklyPlans", userId), (snap) => {
-    const stored = (snap.data()?.days as (string | null)[] | undefined) ?? [];
-    // Normalize to exactly 7 slots so callers can index by weekday safely.
-    onChange(Array.from({ length: 7 }, (_, i) => stored[i] ?? null));
-  });
-}
 
 /** One-shot read, so migration only fills weekdays the account left empty. */
 export async function getWeeklyPlan(userId: string): Promise<WeeklyPlan> {
@@ -301,47 +189,6 @@ export async function setWeeklyPlan(userId: string, days: WeeklyPlan): Promise<v
   // Arrays are replaced wholesale on merge (not deep-merged), so writing the
   // full 7-slot array both assigns and clears days in one call.
   await setDoc(doc(db, "weeklyPlans", userId), { userId, days }, { merge: true });
-}
-
-// Reopen a finished workout so an accidental finish can be undone or missed
-// sets filled in. A workout finished today resumes as a live session; one from
-// a past day becomes a backlog edit anchored to its original calendar day, so
-// re-finishing it doesn't silently move it to today.
-export async function reopenWorkout(workout: Workout): Promise<void> {
-  const updates: Record<string, unknown> = {
-    completedAt: deleteField(),
-    durationMinutes: deleteField(),
-    totalVolume: deleteField(),
-  };
-  const timing = reopenTiming(workout);
-  if (timing.kind === "backlog") {
-    updates.startedAt = deleteField();
-    updates.scheduledFor = timing.scheduledFor;
-  } else if (timing.kind === "resume") {
-    updates.startedAt = timing.startedAt;
-  }
-  await updateDoc(doc(db, "workouts", workout.id), updates);
-}
-
-// Live subscription for the workouts list — keeps the UI in sync while a
-// workout is in progress without manual refetching.
-// Single equality filter + client-side sort: needs no composite Firestore index.
-export function subscribeWorkouts(
-  userId: string,
-  onChange: (workouts: Workout[]) => void,
-  onError?: (e: Error) => void
-): () => void {
-  const q = query(collection(db, "workouts"), where("userId", "==", userId));
-  return onSnapshot(
-    q,
-    (snap) => {
-      const workouts = snap.docs
-        .map((d) => workoutFromDoc(d.id, d.data() as Record<string, unknown>))
-        .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
-      onChange(workouts);
-    },
-    onError
-  );
 }
 
 // Firestore rejects `undefined` field values, so strip them before writing.
@@ -395,8 +242,9 @@ export async function upsertUserStats(stats: UserStatistics): Promise<void> {
 }
 
 // ── Plumbing for the offline copy (cloud-cache.ts) ──────────────────────────
-// Everything above is the app's original, one-call-per-operation API. What
-// follows is the smaller set of primitives cloud-cache builds on: it keeps the
+// Everything above is called directly by the guest migration and account
+// deletion, which need the server's answer. What follows is the smaller set
+// of primitives cloud-cache builds on: it keeps the
 // device's own copy of a signed-in user's data and decides what reaches the
 // screen, so these hand it raw changes and snapshot metadata rather than
 // finished answers.

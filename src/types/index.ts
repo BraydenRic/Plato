@@ -58,8 +58,6 @@ export interface Workout {
   orderIndex?: number;
 }
 
-export type WorkoutStatus = "none" | "inProgress" | "completed";
-
 /** One weigh-in. Dated, so a set can be valued against the weight at the time. */
 export interface BodyweightEntry {
   /** Day of the weigh-in. One entry per day; a second replaces the first. */
@@ -78,22 +76,6 @@ export interface UserStatistics {
   longestStreak: number;
   lastWorkoutDate?: Date;
 }
-
-
-export type MuscleGroup =
-  | "All"
-  | "Chest"
-  | "Back"
-  | "Shoulders"
-  | "Biceps"
-  | "Triceps"
-  | "Forearms"
-  | "Neck"
-  | "Legs"
-  | "Glutes"
-  | "Core"
-  | "Cardio"
-  | "Full Body";
 
 /**
  * A user's customisations to the bundled exercise list. The defaults ship in the
@@ -114,8 +96,3 @@ export interface ExerciseLibrary {
  */
 export type WeeklyPlan = (string | null)[];
 
-export interface VolumeDataPoint {
-  date: string;
-  volume: number;
-  workouts: number;
-}

@@ -1167,7 +1167,7 @@ export async function deleteWorkout(workout: Workout): Promise<void> {
   }
 }
 
-/** See firestore.reopenWorkout, which this mirrors field for field. */
+/** Same fields as local-store.reopenWorkout; reopenTiming decides resume-live vs reopen-on-its-day. */
 export function reopenWorkout(workout: Workout): Promise<void> {
   const data: Record<string, unknown> = {};
   const deleteFields = ["completedAt", "durationMinutes", "totalVolume"];

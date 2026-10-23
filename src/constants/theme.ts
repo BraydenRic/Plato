@@ -1,5 +1,3 @@
-import { Platform } from "react-native";
-
 // Plato design language — shared with plato-web.
 // Zinc surfaces, one themeable accent, tabular numerals for logged numbers.
 //
@@ -442,27 +440,6 @@ export const Radius = {
   full: 999,
 } as const;
 
-export const Fonts = Platform.select({
-  ios: {
-    sans: "system-ui",
-    rounded: "ui-rounded",
-    mono: "ui-monospace",
-  },
-  default: {
-    sans: "normal",
-    rounded: "normal",
-    mono: "monospace",
-  },
-});
-
-export const MaxContentWidth = 800;
-
-/**
- * Dynamic Type ceilings for the handful of places text shares a fixed row with
- * something else and has nowhere to wrap. Everything else — headings, body
- * copy, buttons, empty states, card content — scales without a cap, so the app
- * still grows with the reader's chosen text size.
- */
 /**
  * The spring every drag-to-reorder list settles with — both the card you drop
  * and the neighbours sliding aside to make room.
@@ -492,6 +469,12 @@ export const DRAG_SPRING = { mass: 1, stiffness: 1000, damping: 64, energyThresh
  */
 export const DRAG_LIFT_SCALE = 1.02;
 
+/**
+ * Dynamic Type ceilings for the handful of places text shares a fixed row with
+ * something else and has nowhere to wrap. Everything else — headings, body
+ * copy, buttons, empty states, card content — scales without a cap, so the app
+ * still grows with the reader's chosen text size.
+ */
 export const FontScaleCap = {
   /** Keypad bar: Back/Done/Next have to stay on one row above the keyboard. */
   keypad: 1.4,

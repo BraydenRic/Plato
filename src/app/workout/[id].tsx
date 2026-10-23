@@ -178,8 +178,8 @@ export default function WorkoutScreen() {
     return () => clearTimeout(check);
   }, [keypadOpen]);
 
-  // Live subscription: picks up exercises added from the modal instantly, and
-  // reads from the device store instead of Firestore for a guest's workouts.
+  // Live subscription: picks up exercises added from the modal instantly. It
+  // reads the phone's copy, the account's offline copy or the guest store.
   useEffect(() => {
     if (!id) return;
     return subscribeWorkout(id, (next) => {
@@ -201,10 +201,9 @@ export default function WorkoutScreen() {
    * Cheap: one document read, only on focus, and it no-ops when the
    * subscription already did its job.
    *
-   * It must never win against an edit made while it was in flight. This reads
-   * the server, so a delete made a moment after the screen regained focus would
-   * otherwise be undone by a copy fetched before it — the exercise reappearing
-   * a second after it was removed.
+   * It must never win against an edit made while it was in flight. A read that
+   * started before a delete can land after it, and would put back a copy taken
+   * before it — the exercise reappearing a second after it was removed.
    */
   useFocusEffect(
     useCallback(() => {
