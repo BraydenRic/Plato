@@ -183,12 +183,12 @@ export function Chip({ label, active, onPress }: { label: string; active?: boole
   );
 }
 
-export function EmptyState({ title, message }: { title: string; message: string }) {
+export function EmptyState({ title, message }: { title: string; message?: string }) {
   const styles = useStyles();
   return (
     <View style={styles.empty}>
       <Text style={styles.emptyTitle}>{title}</Text>
-      <Text style={styles.emptyMessage}>{message}</Text>
+      {message ? <Text style={styles.emptyMessage}>{message}</Text> : null}
     </View>
   );
 }

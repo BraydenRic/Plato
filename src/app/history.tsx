@@ -49,7 +49,7 @@ export default function HistoryScreen() {
         <View style={{ flex: 1, gap: 2 }}>
           <Text style={styles.title} maxFontSizeMultiplier={FontScaleCap.title}>History</Text>
           <Text style={styles.subtitle}>
-            {completed.length} workout{completed.length === 1 ? "" : "s"} · kept forever
+            {completed.length} workout{completed.length === 1 ? "" : "s"}
           </Text>
         </View>
       </View>

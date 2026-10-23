@@ -99,8 +99,7 @@ export function ExerciseProgress({ exerciseId }: { exerciseId: string }) {
     return (
       <View style={styles.card}>
         <Text style={styles.emptyText}>
-          No sets logged yet. Finish a workout with this exercise and your PR and progress
-          chart will appear here.
+          No sets logged yet. Your PR and chart appear after your first workout with it.
         </Text>
       </View>
     );
@@ -197,9 +196,6 @@ export function ExerciseProgress({ exerciseId }: { exerciseId: string }) {
       <View style={styles.axisRow}>
         <Text style={styles.axisLabel}>
           {chartPoints[0].date.toLocaleDateString(undefined, { month: "short", day: "numeric" })}
-        </Text>
-        <Text style={styles.axisLabel}>
-          {metric === "e1rm" ? "est. 1rm per session" : "top set per session"}
         </Text>
         <Text style={styles.axisLabel}>
           {chartPoints[chartPoints.length - 1].date.toLocaleDateString(undefined, {

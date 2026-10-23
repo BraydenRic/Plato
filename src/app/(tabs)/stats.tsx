@@ -99,8 +99,7 @@ export default function StatsScreen() {
     <View style={styles.safe}>
       <ScrollView contentContainerStyle={styles.scroll}>
         <View style={styles.header}>
-          <Text style={styles.title} maxFontSizeMultiplier={FontScaleCap.title}>Statistics</Text>
-          <Text style={styles.subtitle}>Lifetime, across all devices</Text>
+          <Text style={styles.title} maxFontSizeMultiplier={FontScaleCap.title}>Stats</Text>
         </View>
 
         <View style={styles.streakRow}>
@@ -139,7 +138,7 @@ export default function StatsScreen() {
                 {/* The numbers are bare, and a bare number next to a muscle
                     name could be sets, reps or pounds. Said once above the
                     column rather than repeated on all six rows. */}
-                <Text style={styles.setHeading}>Sets completed this week</Text>
+                <Text style={styles.setHeading}>Sets</Text>
                 {weekSets.map((row) => (
                   <View key={row.category} style={styles.setRow}>
                     <Text
@@ -166,7 +165,7 @@ export default function StatsScreen() {
 
             <Text style={styles.muscleCaption}>
               {weekMuscles.workoutCount === 0
-                ? "Nothing logged yet this week — the body fills in as you train."
+                ? "Nothing logged this week yet."
                 : `From ${weekMuscles.workoutCount} workout${weekMuscles.workoutCount === 1 ? "" : "s"} since Monday`}
             </Text>
           </Card>
@@ -239,10 +238,6 @@ const useStyles = makeStyles((c) => ({
     fontWeight: "800",
     color: c.text,
     letterSpacing: -0.5,
-  },
-  subtitle: {
-    fontSize: 14,
-    color: c.textTertiary,
   },
   streakRow: {
     flexDirection: "row",

@@ -797,7 +797,7 @@ export default function WorkoutScreen() {
                   Reorder exercises
                 </Text>
                 <Text style={styles.reorderHint}>
-                  {"Drag the handles. Sets you've logged move with their exercise."}
+                  Logged sets move with their exercise.
                 </Text>
               </View>
             }
@@ -867,7 +867,7 @@ export default function WorkoutScreen() {
             </View>
 
             {workout.exercises.length === 0 && (
-              <EmptyState title="No exercises yet" message="Add your first exercise to start logging sets." />
+              <EmptyState title="No exercises yet" />
             )}
 
             {workout.exercises.map((exercise) => (

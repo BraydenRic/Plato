@@ -47,7 +47,6 @@ export default function ReorderTemplatesScreen() {
           <Text style={[styles.doneText, { color: theme.accentText }]}>Done</Text>
         </Pressable>
       </View>
-      <Text style={styles.hint}>Drag the handles to set the order they appear in.</Text>
 
       <DraggableFlatList
         data={order}
@@ -106,13 +105,6 @@ const useStyles = makeStyles((c) => ({
   doneText: {
     fontSize: 15,
     fontWeight: "700",
-  },
-  hint: {
-    fontSize: 13,
-    color: c.textTertiary,
-    paddingHorizontal: Spacing.three,
-    paddingTop: Spacing.one,
-    paddingBottom: Spacing.three,
   },
   list: {
     paddingHorizontal: Spacing.three,

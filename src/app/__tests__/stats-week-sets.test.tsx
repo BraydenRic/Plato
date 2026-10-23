@@ -71,7 +71,8 @@ it("says what the numbers are", () => {
 
   render(<StatsScreen />);
 
-  expect(screen.getByText("Sets completed this week")).toBeTruthy();
+  // The weekly column heading, alongside the lifetime grid's own "Sets" tile.
+  expect(screen.getAllByText("Sets")).toHaveLength(2);
   expect(screen.getByText("Chest")).toBeTruthy();
   expect(screen.getByText("6")).toBeTruthy();
 });
@@ -96,6 +97,7 @@ it("leaves out last week", () => {
 
   render(<StatsScreen />);
 
-  expect(screen.queryByText("Sets completed this week")).toBeNull();
+  // Only the lifetime tile: no weekly column without a set this week.
+  expect(screen.getAllByText("Sets")).toHaveLength(1);
   expect(screen.queryByText("Legs")).toBeNull();
 });

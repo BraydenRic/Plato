@@ -126,7 +126,7 @@ export default function BodyweightScreen() {
         <View style={{ flex: 1, gap: 2 }}>
           <Text style={styles.title} maxFontSizeMultiplier={FontScaleCap.title}>Bodyweight</Text>
           <Text style={styles.subtitle}>
-            {log.length} weigh-in{log.length === 1 ? "" : "s"} · tap one to fix it
+            {log.length} weigh-in{log.length === 1 ? "" : "s"}
           </Text>
         </View>
       </View>
@@ -187,7 +187,7 @@ export default function BodyweightScreen() {
 
               {shown.length === 0 ? (
                 <Text style={styles.rangeEmpty}>
-                  Nothing weighed in this range. The log below still has everything.
+                  No weigh-ins in this range.
                 </Text>
               ) : (
                 <BodyweightChart log={shown} unit={unit} height={220} />

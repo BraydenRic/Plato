@@ -314,8 +314,8 @@ export default function ProfileScreen() {
             ]}>
             <Text style={styles.upgradeTitle}>Back up your workouts</Text>
             <Text style={styles.upgradeText}>
-              Your history is only on this phone right now. Create an account and it syncs across
-              your devices — everything you&apos;ve already logged comes with you.
+              Only on this phone for now. Create an account to sync it — everything you&apos;ve
+              logged comes with you.
             </Text>
             <Button
               title="Create account or sign in"
@@ -427,7 +427,6 @@ export default function ProfileScreen() {
           <Card style={styles.themeCard}>
             <View style={{ flex: 1 }}>
               <Text style={styles.prefTitle}>Appearance</Text>
-              <Text style={styles.prefHint}>Light, dark, or whatever your phone is set to</Text>
             </View>
             <View style={styles.segment}>
               {APPEARANCE_PREFS.map((p) => {
@@ -451,7 +450,7 @@ export default function ProfileScreen() {
             <View style={styles.themeHeader}>
               <View style={{ flex: 1 }}>
                 <Text style={styles.prefTitle}>Accent</Text>
-                <Text style={styles.prefHint}>Colours the app and your home screen icon</Text>
+                <Text style={styles.prefHint}>Colors the app and your home screen icon</Text>
               </View>
               <Text style={[styles.themeName, { color: theme.accentText }]}>{theme.label}</Text>
             </View>
@@ -487,7 +486,6 @@ export default function ProfileScreen() {
           <Card style={[styles.prefCard, stackPrefs && styles.prefCardStacked, styles.cardGap]}>
             <View style={{ flex: 1 }}>
               <Text style={styles.prefTitle}>Weight unit</Text>
-              <Text style={styles.prefHint}>Used for new sets and displayed volumes</Text>
             </View>
             <View style={styles.segment}>
               {(["lbs", "kg"] as const).map((u) => (
@@ -506,7 +504,7 @@ export default function ProfileScreen() {
           <Card style={[styles.prefCard, stackPrefs && styles.prefCardStacked, styles.cardGap]}>
             <View style={{ flex: 1 }}>
               <Text style={styles.prefTitle}>Rest timer</Text>
-              <Text style={styles.prefHint}>Countdown after checking off a set</Text>
+              <Text style={styles.prefHint}>Starts after each logged set</Text>
             </View>
             <Stepper
               accessibilityLabel="Rest timer"
@@ -519,13 +517,12 @@ export default function ProfileScreen() {
           </Card>
           <Card style={[styles.prefCard, stackPrefs && styles.prefCardStacked, styles.cardGap]}>
             <View style={{ flex: 1 }}>
-              <Text style={styles.prefTitle}>Default sets</Text>
-              <Text style={styles.prefHint}>Sets a new exercise starts with</Text>
+              <Text style={styles.prefTitle}>Sets per new exercise</Text>
             </View>
             {/* Matches the rest timer beside it. The context clamps, so the
                 stepper only has to say when it has run out of room. */}
             <Stepper
-              accessibilityLabel="Default sets"
+              accessibilityLabel="Sets per new exercise"
               value={String(defaultSets)}
               onStep={(d) => setDefaultSets(defaultSets + d)}
               canDecrement={defaultSets > MIN_SETS}

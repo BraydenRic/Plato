@@ -51,7 +51,7 @@ type PickerOption = {
   active?: boolean;
   onPress: () => void;
 };
-type PickerConfig = { title: string; subtitle?: string; options: PickerOption[] };
+type PickerConfig = { title: string; options: PickerOption[] };
 
 export default function WorkoutsScreen() {
   const styles = useStyles();
@@ -258,7 +258,6 @@ export default function WorkoutsScreen() {
     const isPast = day.getTime() < today.getTime();
     setPicker({
       title: `${isPast ? "Log for" : "Plan for"} ${relativeDay(day)}`,
-      subtitle: "Start from scratch or use a template.",
       options: [
         { key: "empty", label: "Empty workout", onPress: () => planEmpty(day) },
         ...templates.map((t) => ({
@@ -320,11 +319,10 @@ export default function WorkoutsScreen() {
     }
     setPicker({
       title: day.toLocaleDateString(undefined, { weekday: "long" }),
-      subtitle: "Pick a template for this day, or set it as rest.",
       options: [
         {
           key: "rest",
-          label: "Rest (no workout)",
+          label: "Rest",
           active: plan[weekday] == null,
           onPress: () => assignDay(weekday, null),
         },
@@ -473,13 +471,10 @@ export default function WorkoutsScreen() {
                     {selectedIsToday ? "Start" : selectedIsFuture ? "Plan" : "Log"}
                   </Text>
                 </Pressable>
-              ) : (
+              ) : selectedIsToday ? null : (
+                // Today says nothing: "Start empty workout" sits right below.
                 <Text style={styles.dayPanelEmpty}>
-                  {selectedIsFuture
-                    ? "Nothing planned yet."
-                    : selectedIsToday
-                      ? "Nothing logged today."
-                      : "Rest day."}
+                  {selectedIsFuture ? "Nothing planned yet." : "Rest day."}
                 </Text>
               ))}
             {dayWorkouts.map((w) => (
@@ -639,7 +634,6 @@ export default function WorkoutsScreen() {
         <View style={styles.sheet}>
           <View style={styles.sheetHandle} />
           <Text style={styles.sheetTitle} maxFontSizeMultiplier={FontScaleCap.heading}>{picker?.title}</Text>
-          {picker?.subtitle ? <Text style={styles.sheetSubtitle}>{picker.subtitle}</Text> : null}
           <ScrollView contentContainerStyle={styles.sheetList} showsVerticalScrollIndicator>
             {picker?.options.map((o) => (
               <Pressable
@@ -1029,11 +1023,6 @@ const useStyles = makeStyles((c) => ({
     fontWeight: "800",
     color: c.text,
     letterSpacing: -0.3,
-  },
-  sheetSubtitle: {
-    fontSize: 13,
-    color: c.textTertiary,
-    marginTop: 2,
   },
   sheetList: {
     gap: Spacing.two,

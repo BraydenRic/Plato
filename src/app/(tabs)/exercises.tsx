@@ -73,7 +73,7 @@ export default function ExercisesScreen() {
           {/* Beside two header buttons, so it's narrower than the screen:
               uncapped it split "movements" mid-word at the largest sizes. */}
           <Text style={styles.subtitle} maxFontSizeMultiplier={FontScaleCap.heading}>
-            {exercises.length} movements · hold one to delete
+            {exercises.length} exercises
           </Text>
         </View>
         {isModified && (
