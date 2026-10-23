@@ -173,3 +173,13 @@ it("offers an empty state rather than a chart with nothing in it", () => {
 
   expect(screen.getByText("No weigh-ins yet")).toBeTruthy();
 });
+
+it("lets the first weigh-in be logged from the empty state", () => {
+  mockLog = [];
+  render(<BodyweightScreen />);
+
+  fireEvent.press(screen.getByText("Log today's weigh-in"));
+  press(promptFor("Bodyweight").buttons, "Save", "182.5");
+
+  expect(mockRecord).toHaveBeenCalledWith(182.5, expect.any(Date));
+});

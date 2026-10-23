@@ -133,10 +133,16 @@ export default function BodyweightScreen() {
 
       <ScrollView contentContainerStyle={styles.scroll}>
         {!loading && log.length === 0 ? (
-          <EmptyState
-            title="No weigh-ins yet"
-            message="Log one and your bodyweight sets start counting toward your volume."
-          />
+          <>
+            <EmptyState
+              title="No weigh-ins yet"
+              message="Log one and your bodyweight sets start counting toward your volume."
+            />
+            {/* The button below the chart only exists once there is a chart, so
+                without this the empty state told you to log one and gave you no
+                way to. */}
+            <Button title="Log today's weigh-in" onPress={logToday} />
+          </>
         ) : (
           <>
             <Card style={styles.chartCard}>
