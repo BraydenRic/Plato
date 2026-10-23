@@ -6,6 +6,7 @@ iOS workout tracker built with Expo (React Native), live on the App Store. It sh
 
 - **Workout logging.** Start empty, from a template, or from the day's weekly-split slot, and reorder exercises mid-session. Enter weight × reps on a gym-friendly keypad with Back / Done / Next, copy the previous set in one tap, and time holds and cardio with a per-set stopwatch. Sets complete themselves once filled in.
 - **Rest timer.** Off by default, and set in Profile. It and a running set stopwatch survive leaving the workout screen and the app being closed: each is one saved wall-clock time, so it reopens still counting.
+- **Apple Watch.** A watch app for the workout in progress: the next set's weight × reps ready to adjust with the Digital Crown, one tap (or double tap) to log it, the rest countdown, and Finish. With nothing running it lists your templates to start one. See [Apple Watch](#apple-watch).
 - **Resume bar and Live Activity.** The bar above the tabs leads back to the workout in progress (and lists the others if more than one is running). The newest also sits on the Lock Screen and in the Dynamic Island, with a running clock and the rest countdown.
 - **Templates, weekly split and planning.** Reusable templates (up to 20), a weekday → template split, and workouts planned or backfilled on any calendar day.
 - **Exercise library.** 600 built-ins across 11 categories, including Neck, each with a form guide. Custom exercises, edits to built-ins and hidden built-ins are stored as per-user deltas.
@@ -70,7 +71,7 @@ src/
 │   ├── exercise/[id].tsx        # Form guide + progress chart (modal)
 │   ├── history.tsx, bodyweight.tsx, reorder-templates.tsx
 │   └── sign-in.tsx, verify-email.tsx
-├── components/                  # UI kit, resume bar, charts, muscle map, Live Activity sync
+├── components/                  # UI kit, resume bar, charts, muscle map, Live Activity + watch sync
 ├── context/                     # Auth, appearance/theme, units, rest + set timers, default sets
 ├── hooks/                       # Workouts, active workout, bodyweight, library, weekly plan
 ├── lib/
@@ -84,10 +85,13 @@ src/
 │   ├── exercise-form.ts         # Form guide per built-in, keyed by id
 │   ├── workout-utils.ts         # Volume, streaks, dates, previous sets
 │   ├── bodyweight-cache.ts      # Offline copy of the weigh-in log
+│   ├── watch-protocol.ts        # What the phone and the Apple Watch send each other
 │   └── live-activity.ts
 ├── constants/theme.ts           # Palettes (light/dark) and the seven accents
 └── types/index.ts               # Domain types, shared with plato-web
-plugins/                         # Config plugin patching the Live Activity widget
+targets/watch/                   # The Apple Watch app (SwiftUI), built by @bacons/apple-targets
+modules/plato-watch/             # WatchConnectivity bridge on the phone (local Expo module)
+plugins/                         # Config plugins: Live Activity widget patch, watch Info.plist
 scripts/apple-transfer/          # One-off tool for an App Store team transfer
 docs/                            # Privacy policy (GitHub Pages) and store listing
 ```
@@ -109,6 +113,19 @@ Signed-in accounts work with no signal, the same as guests. The Firebase JS SDK 
 - **Whole-document writes wait until the document is known.** The library and weekly split are refused until they've loaded; weigh-ins are held back. This stops a copy that never loaded from overwriting the real one. Lifetime stats wait for the full history.
 
 Guest-to-account migration still writes straight to Firestore, because it deletes each guest workout once the server has it.
+
+### Apple Watch
+
+The watch app logs the workout in progress and starts templates; it is not the whole app, and it never talks to Firestore. The phone is the only source of truth:
+
+- **Phone → watch: one snapshot.** [watch-sync.tsx](src/components/watch-sync.tsx) sends the workout the resume bar leads with, the templates, the unit, the rest setting and countdown, and the theme accent, through WatchConnectivity's application context, whenever any of it changes. Signed out sends an empty one, so the watch never keeps the last account's data.
+- **Watch → phone: ops.** "Log this set", "add a set", "finish", "start this template", each with an id. The phone's native side ([modules/plato-watch](modules/plato-watch)) writes them to disk *before* answering the watch, because a set sent from the watch usually wakes the phone app in the background, before React is running. JavaScript applies them through data.ts once an account is loaded, so they get the offline copy and the outbox like any edit, and the screen, resume bar and Live Activity simply see a set being logged.
+- **Each op lands once.** Applied ids are remembered (resends are skipped) and echoed back in the next snapshot; until then the watch lays its own unapplied changes over the snapshot, so Done shows instantly even out of range. Ops sent out of range go through the system's delivery queue. Starting a workout is the exception: it needs the phone now, because a workout appearing an hour later is worse than none.
+- **Versions.** Xcode won't embed a watch app whose version or build number differs from the phone's. EAS stamps both into the watch's own Info.plist, and [with-watch-plist-only.js](plugins/with-watch-plist-only.js) makes that file the only source.
+
+[watch-protocol.ts](src/lib/watch-protocol.ts) holds the contract; the Swift side is [Models.swift](targets/watch/Models.swift). The fixtures in `src/lib/__tests__/fixtures/` pin it from both ends. Everything in `targets/watch/` except its config and Info.plist compiles into the watch app, so keep only Swift sources there.
+
+To take the watch app out: delete `targets/watch`, `modules/plato-watch`, `plugins/with-watch-plist-only.js`, `assets/watch`, the two app.json plugin entries, `<WatchSync />` in the root layout, and the `@bacons/apple-targets` dependency.
 
 Finishing a workout stores `totalVolume`, priced at that day's weigh-in, and recomputes `userStats/{uid}`, which plato-web reads.
 
