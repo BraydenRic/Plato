@@ -5,7 +5,10 @@
  * (see src/components/watch-sync.tsx), never to Firestore.
  *
  * Everything in this folder except this file and Info.plist is compiled into
- * the watch target, so keep it to Swift sources.
+ * the watch target, so keep it to Swift sources. In particular, no
+ * PrivacyInfo.xcprivacy: React Native's pod install attaches its aggregated
+ * manifest (which declares UserDefaults) to every app target, this one
+ * included, and a second copy fails the build with "Multiple commands produce".
  *
  * @type {import('@bacons/apple-targets/app.plugin').ConfigFunction}
  */
