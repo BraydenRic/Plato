@@ -9,7 +9,7 @@ import { FontScaleCap, Radius, Spacing } from "@/constants/theme";
 import { makeStyles, usePalette } from "@/context/AppearanceContext";
 import { useRestTimer } from "@/context/RestTimerContext";
 import { useTheme } from "@/context/ThemeContext";
-import { useActiveWorkout } from "@/hooks/use-active-workout";
+import { useActiveWorkout, useOtherLiveWorkouts } from "@/hooks/use-active-workout";
 import { completedSetCount, formatClock, totalSetCount } from "@/lib/workout-utils";
 import type { Workout } from "@/types";
 
@@ -26,9 +26,10 @@ export function ActiveWorkoutBar() {
   const styles = useStyles();
   const insets = useSafeAreaInsets();
   const workout = useActiveWorkout();
+  const others = useOtherLiveWorkouts(workout?.id ?? null);
 
   if (!workout) return <View style={[styles.idle, { height: insets.top }]} />;
-  return <ResumeBar workout={workout} topInset={insets.top} />;
+  return <ResumeBar workouts={[workout, ...others]} topInset={insets.top} />;
 }
 
 /**
@@ -48,21 +49,97 @@ export function ActiveWorkoutBar() {
  * a running rest turns it accent — so colour on this card means "something is
  * counting down for you", rather than being the permanent state it was when
  * the clock was always tinted and therefore said nothing.
+ *
+ * With more than one workout running, the newest leads and a plain count with
+ * a chevron at the end opens the rest as more rows of the same card. Tapping
+ * the lead row still goes straight to the newest, so the common case costs
+ * nothing extra.
  */
-function ResumeBar({ workout, topInset }: { workout: Workout; topInset: number }) {
+function ResumeBar({ workouts, topInset }: { workouts: Workout[]; topInset: number }) {
   const styles = useStyles();
   const palette = usePalette();
-  const theme = useTheme();
   const router = useRouter();
-  const { rest } = useRestTimer();
+  const [expanded, setExpanded] = useState(false);
+  const multiple = workouts.length > 1;
 
-  // One clock drives both readouts. A second interval for the countdown would
+  // One clock drives every readout. A second interval for the countdown would
   // buy nothing: both are shown to the whole second.
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
     const timer = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(timer);
   }, []);
+
+  // Down to one again (the other was finished or deleted): nothing to list.
+  useEffect(() => {
+    if (!multiple) setExpanded(false);
+  }, [multiple]);
+
+  function open(workout: Workout) {
+    setExpanded(false);
+    router.push(`/workout/${workout.id}`);
+  }
+
+  const [lead, ...rest] = workouts;
+  return (
+    <View style={[styles.wrap, { paddingTop: topInset }]}>
+      <View style={styles.card}>
+        <View style={styles.row}>
+          <BarRow
+            workout={lead}
+            now={now}
+            onPress={() => open(lead)}
+            testID="active-workout-bar"
+            chevron={!multiple}
+          />
+          {multiple && (
+            <Pressable
+              onPress={() => setExpanded((open) => !open)}
+              hitSlop={8}
+              accessibilityRole="button"
+              accessibilityLabel={
+                expanded ? "Hide the other workouts" : `${workouts.length} workouts running. Show them all.`
+              }
+              testID="active-workout-toggle"
+              style={styles.toggle}>
+              <View style={styles.divider} />
+              <Text style={styles.count} maxFontSizeMultiplier={FontScaleCap.grid}>
+                {workouts.length}
+              </Text>
+              <Ionicons name={expanded ? "chevron-up" : "chevron-down"} size={15} color={palette.textTertiary} />
+            </Pressable>
+          )}
+        </View>
+        {expanded &&
+          rest.map((workout) => (
+            <View key={workout.id} style={[styles.row, styles.extraRow]}>
+              <BarRow workout={workout} now={now} onPress={() => open(workout)} testID="active-workout-row" chevron />
+            </View>
+          ))}
+      </View>
+    </View>
+  );
+}
+
+/** One workout's line: ring, name, set count and its clock (or its rest). */
+function BarRow({
+  workout,
+  now,
+  onPress,
+  testID,
+  chevron,
+}: {
+  workout: Workout;
+  now: number;
+  onPress: () => void;
+  testID: string;
+  /** Inside the press target, so the whole width opens the workout. */
+  chevron?: boolean;
+}) {
+  const styles = useStyles();
+  const palette = usePalette();
+  const theme = useTheme();
+  const { rest } = useRestTimer();
 
   const startedAtMs = workout.startedAt?.getTime();
   const elapsed = startedAtMs ? Math.max(0, Math.floor((now - startedAtMs) / 1000)) : 0;
@@ -86,56 +163,46 @@ function ResumeBar({ workout, topInset }: { workout: Workout; topInset: number }
   const roomyText = fontScale <= 1.36;
 
   return (
-    <View style={[styles.wrap, { paddingTop: topInset }]}>
-      {/*
-        One line, not two. Stacking the name over the set count read better in
-        isolation and came to ~56pt before any margin — which is exactly the
-        height at which permanent chrome starts crowding the screen it is
-        supposed to be serving. One line keeps the card at 44pt.
-      */}
-      <Pressable
-        testID="active-workout-bar"
-        accessibilityRole="button"
-        accessibilityLabel={`${workout.name}, ${meta}, ${
-          resting ? `resting, ${formatClock(restLeft)} left` : `${formatClock(elapsed)} elapsed`
-        }. Back to workout.`}
-        onPress={() => router.push(`/workout/${workout.id}`)}
-        style={({ pressed }) => [styles.card, pressed && styles.cardPressed]}>
-        <ProgressRing
-          progress={total > 0 ? done / total : 0}
-          color={theme.accent}
-          trackColor={palette.borderStrong}
-        />
-        <Text style={styles.name} numberOfLines={1} maxFontSizeMultiplier={FontScaleCap.grid}>
-          {workout.name}
-        </Text>
-        {/* Dim and small against the clock, so two numbers sharing a corner
-            don't read as one. */}
-        {roomyText && (
-          <>
-            <Text style={styles.meta} numberOfLines={1} maxFontSizeMultiplier={FontScaleCap.grid}>
-              {meta}
-            </Text>
-            <View style={styles.divider} />
-          </>
-        )}
-        {resting ? (
-          <View style={styles.readoutRow}>
-            <Ionicons name="timer-outline" size={14} color={theme.accentText} />
-            <Text
-              style={[styles.readout, { color: theme.accentText }]}
-              maxFontSizeMultiplier={FontScaleCap.grid}>
-              {`Rest ${formatClock(restLeft)}`}
-            </Text>
-          </View>
-        ) : (
-          <Text style={styles.readout} maxFontSizeMultiplier={FontScaleCap.grid}>
-            {formatClock(elapsed)}
+    // One line, not two. Stacking the name over the set count read better in
+    // isolation and came to ~56pt before any margin — which is exactly the
+    // height at which permanent chrome starts crowding the screen it is
+    // supposed to be serving. One line keeps the card at 44pt.
+    <Pressable
+      testID={testID}
+      accessibilityRole="button"
+      accessibilityLabel={`${workout.name}, ${meta}, ${
+        resting ? `resting, ${formatClock(restLeft)} left` : `${formatClock(elapsed)} elapsed`
+      }. Back to workout.`}
+      onPress={onPress}
+      style={({ pressed }) => [styles.rowMain, pressed && styles.rowPressed]}>
+      <ProgressRing progress={total > 0 ? done / total : 0} color={theme.accent} trackColor={palette.borderStrong} />
+      <Text style={styles.name} numberOfLines={1} maxFontSizeMultiplier={FontScaleCap.grid}>
+        {workout.name}
+      </Text>
+      {/* Dim and small against the clock, so two numbers sharing a corner
+          don't read as one. */}
+      {roomyText && (
+        <>
+          <Text style={styles.meta} numberOfLines={1} maxFontSizeMultiplier={FontScaleCap.grid}>
+            {meta}
           </Text>
-        )}
-        <Ionicons name="chevron-forward" size={15} color={palette.textTertiary} />
-      </Pressable>
-    </View>
+          <View style={styles.divider} />
+        </>
+      )}
+      {resting ? (
+        <View style={styles.readoutRow}>
+          <Ionicons name="timer-outline" size={14} color={theme.accentText} />
+          <Text style={[styles.readout, { color: theme.accentText }]} maxFontSizeMultiplier={FontScaleCap.grid}>
+            {`Rest ${formatClock(restLeft)}`}
+          </Text>
+        </View>
+      ) : (
+        <Text style={styles.readout} maxFontSizeMultiplier={FontScaleCap.grid}>
+          {formatClock(elapsed)}
+        </Text>
+      )}
+      {chevron && <Ionicons name="chevron-forward" size={15} color={palette.textTertiary} />}
+    </Pressable>
   );
 }
 
@@ -196,21 +263,46 @@ const useStyles = makeStyles((c) => ({
     paddingBottom: Spacing.two,
   },
   card: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: Spacing.two,
     backgroundColor: c.surface,
     borderWidth: 1,
     borderColor: c.border,
     borderRadius: Radius.md,
+    overflow: "hidden",
+  },
+  row: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  extraRow: {
+    borderTopWidth: 1,
+    borderTopColor: c.border,
+  },
+  rowMain: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.two,
     paddingLeft: 12,
     paddingRight: 10,
     // 11 + a 20pt ring + 11 + the 2pt border lands the card on 44pt, the height
     // of the nav bar it stands in for and the minimum comfortable tap target.
     paddingVertical: 11,
   },
-  cardPressed: {
+  rowPressed: {
     backgroundColor: c.surfaceRaised,
+  },
+  toggle: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.two,
+    alignSelf: "stretch",
+    paddingRight: 10,
+  },
+  count: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: c.textTertiary,
+    fontVariant: ["tabular-nums"],
   },
   name: {
     flex: 1,

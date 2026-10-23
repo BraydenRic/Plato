@@ -18,9 +18,11 @@ import type { Workout, WorkoutSet } from "@/types";
 const mockPush = jest.fn();
 let mockRest: { workoutId: string; endsAt: number } | null = null;
 let mockWorkout: Workout | null = null;
+let mockOthers: Workout[] = [];
 
 jest.mock("@/hooks/use-active-workout", () => ({
   useActiveWorkout: () => mockWorkout,
+  useOtherLiveWorkouts: () => mockOthers,
 }));
 
 jest.mock("react-native-safe-area-context", () => ({
@@ -86,6 +88,7 @@ beforeEach(() => {
   jest.clearAllMocks();
   mockRest = null;
   mockWorkout = workout();
+  mockOthers = [];
   jest.useFakeTimers();
   jest.setSystemTime(NOW);
   dims = jest.spyOn(require("react-native"), "useWindowDimensions");
@@ -221,5 +224,63 @@ describe("at large text sizes", () => {
     render(<ActiveWorkoutBar />);
 
     expect(screen.getByText("2/4 sets")).toBeTruthy();
+  });
+});
+
+/**
+ * Two sessions at once used to leave the second with no way back from the
+ * tabs: the bar named only the newest. Now a plain count opens the rest.
+ */
+describe("with more than one workout running", () => {
+  const legs = () =>
+    workout({ id: "w2", name: "Legs", startedAt: new Date(NOW.getTime() - 62 * 60_000) });
+
+  it("adds nothing when there's only one", () => {
+    render(<ActiveWorkoutBar />);
+    expect(screen.queryByTestId("active-workout-toggle")).toBeNull();
+  });
+
+  it("shows how many are running, and lists the others only when asked", () => {
+    mockOthers = [legs()];
+    render(<ActiveWorkoutBar />);
+
+    expect(screen.getByText("2")).toBeTruthy();
+    expect(screen.queryByText("Legs")).toBeNull();
+
+    fireEvent.press(screen.getByTestId("active-workout-toggle"));
+
+    expect(screen.getByText("Legs")).toBeTruthy();
+    expect(screen.getByText("1:02:00")).toBeTruthy();
+  });
+
+  it("opens whichever one is tapped, and folds the list away", () => {
+    mockOthers = [legs()];
+    render(<ActiveWorkoutBar />);
+    fireEvent.press(screen.getByTestId("active-workout-toggle"));
+
+    fireEvent.press(screen.getByTestId("active-workout-row"));
+
+    expect(mockPush).toHaveBeenCalledWith("/workout/w2");
+    expect(screen.queryByText("Legs")).toBeNull();
+  });
+
+  it("still takes the lead row straight to the newest", () => {
+    mockOthers = [legs()];
+    render(<ActiveWorkoutBar />);
+
+    fireEvent.press(screen.getByTestId("active-workout-bar"));
+
+    expect(mockPush).toHaveBeenCalledWith("/workout/w1");
+  });
+
+  it("puts a rest on the row of the workout it belongs to", () => {
+    mockOthers = [legs()];
+    mockRest = { workoutId: "w2", endsAt: NOW.getTime() + 45_000 };
+    render(<ActiveWorkoutBar />);
+    fireEvent.press(screen.getByTestId("active-workout-toggle"));
+
+    expect(screen.getByText("Rest 0:45")).toBeTruthy();
+    // The lead row keeps its own elapsed clock.
+    expect(screen.getByText("5:00")).toBeTruthy();
   });
 });

@@ -1,6 +1,6 @@
 import { act, renderHook } from "@testing-library/react-native";
 
-import { REVEAL_DELAY_MS, useActiveWorkout } from "../use-active-workout";
+import { REVEAL_DELAY_MS, useActiveWorkout, useOtherLiveWorkouts } from "../use-active-workout";
 import type { Workout } from "@/types";
 
 /**
@@ -135,4 +135,22 @@ it("re-delays when a second workout takes over as the live one", () => {
 
   settle();
   expect(result.current?.id).toBe("w2");
+});
+
+describe("the other workouts running", () => {
+  it("lists every live workout but the one the bar leads with, newest first", () => {
+    mockActive = [
+      workout("oldest", new Date(NOW.getTime() - 3 * 3_600_000)),
+      workout("lead", new Date(NOW.getTime() - 60_000)),
+      workout("middle", new Date(NOW.getTime() - 3_600_000)),
+    ];
+    const { result } = renderHook(() => useOtherLiveWorkouts("lead"));
+    expect(result.current.map((w) => w.id)).toEqual(["middle", "oldest"]);
+  });
+
+  it("lists nothing while the bar has no lead to show", () => {
+    mockActive = [workout("a", NOW), workout("b", NOW)];
+    const { result } = renderHook(() => useOtherLiveWorkouts(null));
+    expect(result.current).toEqual([]);
+  });
 });

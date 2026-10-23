@@ -14,8 +14,8 @@ import type { Workout } from "@/types";
  * but the push takes an animation to cover this list, so the new workout is
  * visible underneath the incoming screen for the length of it. Every list here
  * that can show that workout has to hold it back, and the failure mode is
- * forgetting one: "In progress" rendered it unfiltered while the calendar
- * directly below correctly didn't. This asserts against the whole screen rather
+ * forgetting one: an "In progress" list (since removed) rendered it unfiltered
+ * while the calendar directly below correctly didn't. This asserts against the whole screen rather
  * than a single section so a list added later is covered by default.
  *
  * The other half is when it comes back. Waiting until this screen is focused

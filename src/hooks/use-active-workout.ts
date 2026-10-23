@@ -45,3 +45,18 @@ export function useActiveWorkout(): Workout | null {
 
   return revealedId === currentId ? current : null;
 }
+
+/**
+ * Every other workout still running, newest first.
+ *
+ * The bar leads with the newest (see useActiveWorkout) and offers these behind
+ * a toggle. Before, a second session had no way back from the tabs at all: the
+ * bar only ever named one, and the Home list that also showed them is gone.
+ */
+export function useOtherLiveWorkouts(currentId: string | null): Workout[] {
+  const { active } = useWorkouts();
+  if (!currentId) return [];
+  return active
+    .filter((w) => w.id !== currentId)
+    .sort((a, b) => (b.startedAt?.getTime() ?? 0) - (a.startedAt?.getTime() ?? 0));
+}

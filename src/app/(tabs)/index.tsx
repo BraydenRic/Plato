@@ -136,14 +136,6 @@ export default function WorkoutsScreen() {
     [templates, openingId]
   );
 
-  // And for In progress, which lists the same workouts the calendar does. This
-  // one was missed, so starting a workout flashed it here even while the
-  // calendar below correctly held it back.
-  const visibleActive = useMemo(
-    () => active.filter((w) => w.id !== openingId),
-    [active, openingId]
-  );
-
   // Everything except templates has a home on the calendar.
   const dated = useMemo(
     () => [...active, ...planned, ...completed].filter((w) => w.id !== openingId),
@@ -520,17 +512,9 @@ export default function WorkoutsScreen() {
           <EmptyState title="Waiting for a connection" message={AWAITING_SYNC_MESSAGE} />
         )}
 
-        {visibleActive.length > 0 && (
-          <View style={styles.section}>
-            <SectionLabel>In progress</SectionLabel>
-            {visibleActive.map((w) => (
-              <WorkoutRow key={w.id} workout={w}
-                onPress={() => router.push(`/workout/${w.id}`)}
-                onLongPress={() => confirmDelete(w)} />
-            ))}
-          </View>
-        )}
-
+        {/* No "In progress" list: a live workout is already in the resume bar
+            above the tabs and on its day in the calendar, and a third copy here
+            only pushed everything else down. */}
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
             <SectionLabel>Templates</SectionLabel>
