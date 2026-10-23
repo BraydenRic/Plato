@@ -91,6 +91,20 @@ export function isActiveWorkout(workout: {
  * once, here, instead of separately at each of them.
  */
 /**
+ * A day's workouts in the order you set (Home → Reorder).
+ *
+ * Ones never reordered have no orderIndex: they keep the order they're passed
+ * in (in progress, then planned, then finished, as Home has always listed
+ * them) and come after any that have a place, so a workout added to a
+ * reordered day lands at the end rather than jumping in. The sort is stable,
+ * which is what keeps that order.
+ */
+export function sortDayWorkouts(workouts: Workout[]): Workout[] {
+  const unset = Number.MAX_SAFE_INTEGER;
+  return [...workouts].sort((a, b) => (a.orderIndex ?? unset) - (b.orderIndex ?? unset));
+}
+
+/**
  * The live workout the bar and the Live Activity lead with: the one you last
  * opened (see current-workout), or the newest if that one isn't live any more.
  */

@@ -14,6 +14,7 @@ const mockPush = jest.fn();
 let mockCompleted: Workout[] = [];
 let mockTemplates: Workout[] = [];
 let mockPlanned: Workout[] = [];
+let mockActive: Workout[] = [];
 let mockPlan: (string | null)[] = [null, null, null, null, null, null, null];
 
 // Tuesday 4 August 2026.
@@ -30,7 +31,7 @@ jest.mock("@/hooks/use-workouts", () => ({
   useWorkouts: () => ({
     loading: false,
     error: null,
-    active: [],
+    active: mockActive,
     planned: mockPlanned,
     completed: mockCompleted,
     templates: mockTemplates,
@@ -67,6 +68,7 @@ beforeEach(() => {
   mockCompleted = [];
   mockTemplates = [];
   mockPlanned = [];
+  mockActive = [];
   mockPlan = [null, null, null, null, null, null, null];
 });
 
@@ -146,5 +148,36 @@ describe("a planned workout's row", () => {
 
     expect(screen.getByText(/3 sets planned/)).toBeTruthy();
     expect(screen.queryByText("PLANNED")).toBeNull();
+  });
+});
+
+describe("reordering a day", () => {
+  const started = (id: string, name: string, hour: number, orderIndex?: number) =>
+    workout(id, name, { startedAt: new Date(2026, 7, 4, hour), orderIndex });
+
+  it("offers Reorder only once the day has more than one workout", async () => {
+    mockActive = [started("a", "Push", 9)];
+    await renderHome();
+    expect(screen.queryByTestId("reorder-day")).toBeNull();
+  });
+
+  it("opens the reorder screen for the day on show", async () => {
+    mockActive = [started("a", "Push", 9), started("b", "Legs", 10)];
+    await renderHome();
+
+    fireEvent.press(screen.getByTestId("reorder-day"));
+
+    expect(mockPush).toHaveBeenCalledWith({
+      pathname: "/reorder-day",
+      params: { day: String(new Date(2026, 7, 4).getTime()) },
+    });
+  });
+
+  it("lists the day in the order you set, not the order they started", async () => {
+    mockActive = [started("a", "Push", 9, 1), started("b", "Legs", 10, 0)];
+    await renderHome();
+
+    const names = screen.getAllByText(/^(Push|Legs)$/).map((n) => n.props.children);
+    expect(names).toEqual(["Legs", "Push"]);
   });
 });

@@ -33,6 +33,7 @@ import {
   MAX_TEMPLATES,
   relativeDay,
   sameDay,
+  sortDayWorkouts,
   startOfDay,
   startOfWeek,
   totalSetCount,
@@ -150,9 +151,7 @@ export default function WorkoutsScreen() {
   );
   const dayWorkouts = useMemo(
     () =>
-      dated
-        .filter((w) => sameDay(workoutDay(w), selectedDay))
-        .sort((a, b) => workoutDay(a).getTime() - workoutDay(b).getTime()),
+      sortDayWorkouts(dated.filter((w) => sameDay(workoutDay(w), selectedDay))),
     [dated, selectedDay]
   );
   // The weekly-split template for the selected day, shown as a ghost suggestion
@@ -392,7 +391,7 @@ export default function WorkoutsScreen() {
             {weekDays.map((day) => {
               const isToday = sameDay(day, today);
               const isSelected = sameDay(day, selectedDay);
-              const dayItems = dated.filter((w) => sameDay(workoutDay(w), day));
+              const dayItems = sortDayWorkouts(dated.filter((w) => sameDay(workoutDay(w), day)));
               // A finished workout gets a green box + glow so completed days read
               // at a glance, not just from the small dot. The selected day keeps
               // its accent highlight instead.
@@ -448,7 +447,20 @@ export default function WorkoutsScreen() {
 
           {/* ── Selected day ── */}
           <View style={styles.dayPanel}>
-            <Text style={styles.dayPanelTitle} maxFontSizeMultiplier={FontScaleCap.title}>{relativeDay(selectedDay)}</Text>
+            <View style={styles.dayPanelHeader}>
+              <Text style={styles.dayPanelTitle} maxFontSizeMultiplier={FontScaleCap.title}>{relativeDay(selectedDay)}</Text>
+              {/* Only once there's more than one to put in order. */}
+              {dayWorkouts.length > 1 && (
+                <Pressable
+                  onPress={() =>
+                    router.push({ pathname: "/reorder-day", params: { day: String(startOfDay(selectedDay).getTime()) } })
+                  }
+                  hitSlop={8}
+                  testID="reorder-day">
+                  <Text style={[styles.sectionAction, { color: theme.accentText }]}>Reorder</Text>
+                </Pressable>
+              )}
+            </View>
 
             {dayWorkouts.length === 0 &&
               (daySuggestion ? (
@@ -914,6 +926,11 @@ const useStyles = makeStyles((c) => ({
     borderTopWidth: 1,
     borderTopColor: c.border,
     paddingTop: Spacing.three,
+  },
+  dayPanelHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
   },
   dayPanelTitle: {
     fontSize: 13,
