@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
 
 import { useWorkouts } from "@/hooks/use-workouts";
-import { liveWorkout } from "@/lib/workout-utils";
+import { useCurrentWorkoutId } from "@/lib/current-workout";
+import { leadWorkout } from "@/lib/workout-utils";
 import type { Workout } from "@/types";
 
 /**
@@ -26,7 +27,7 @@ export const REVEAL_DELAY_MS = 500;
  */
 export function useActiveWorkout(): Workout | null {
   const { active } = useWorkouts();
-  const current = liveWorkout(active) ?? null;
+  const current = leadWorkout(active, useCurrentWorkoutId()) ?? null;
   const currentId = current?.id ?? null;
   const [revealedId, setRevealedId] = useState<string | null>(null);
 

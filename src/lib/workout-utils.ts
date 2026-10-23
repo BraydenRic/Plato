@@ -90,6 +90,14 @@ export function isActiveWorkout(workout: {
  * different sessions would be worse than either choice. So the pick is made
  * once, here, instead of separately at each of them.
  */
+/**
+ * The live workout the bar and the Live Activity lead with: the one you last
+ * opened (see current-workout), or the newest if that one isn't live any more.
+ */
+export function leadWorkout(active: Workout[], preferredId: string | null): Workout | undefined {
+  return active.find((w) => w.id === preferredId) ?? liveWorkout(active);
+}
+
 export function liveWorkout(active: Workout[]): Workout | undefined {
   return active.reduce<Workout | undefined>(
     (latest, w) =>

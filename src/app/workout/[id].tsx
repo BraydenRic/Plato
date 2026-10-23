@@ -32,6 +32,7 @@ import { isBodyweightExercise, isTimedExercise } from "@/lib/exercises";
 import { useRestTimer } from "@/context/RestTimerContext";
 import { useBodyweight } from "@/hooks/use-bodyweight";
 import { useSetTimer } from "@/context/SetTimerContext";
+import { markCurrentWorkout } from "@/lib/current-workout";
 import { useWeightUnit } from "@/context/UnitContext";
 import { useTheme } from "@/context/ThemeContext";
 import { bodyweightOn, formatBodyweightLoad, convertWeight, displayVolume, formatClock, liveSetSeconds, newId, previousSetsByExercise, relativeDay, sameDay, startOfDay, workoutDay, workoutVolumeLbs, completedSetCount, totalSetCount, MAX_TEMPLATES, MAX_ACTIVE_WORKOUTS } from "@/lib/workout-utils";
@@ -232,6 +233,12 @@ export default function WorkoutScreen() {
   const isTemplate = !!workout?.isTemplate;
   // Scheduled ahead of time and not yet begun: editable as a plan, no clock.
   const isPlanned = !!workout && !isTemplate && !workout.startedAt && !workout.completedAt;
+  // A live workout you open becomes the one the resume bar and the Live
+  // Activity lead with, so with two running they follow the one you're in.
+  const isLive = !!workout && !isTemplate && !!workout.startedAt && !workout.completedAt;
+  useEffect(() => {
+    if (isLive && id) markCurrentWorkout(id);
+  }, [isLive, id]);
   const scheduledDayMs = workout?.scheduledFor ? startOfDay(workout.scheduledFor).getTime() : null;
   const todayMs = startOfDay(new Date()).getTime();
   // A plan for a day that isn't today — a past one is backfilling a forgotten

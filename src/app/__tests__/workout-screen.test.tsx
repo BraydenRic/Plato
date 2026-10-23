@@ -103,6 +103,10 @@ jest.mock("react-native-gesture-handler/ReanimatedSwipeable", () => "ReanimatedS
 // Keeps the props it was last given, so tests can read the spring the list was
 // handed and play a drop through its onDragEnd.
 let mockDragListProps: Record<string, any> = {};
+const mockMarkCurrent = jest.fn();
+jest.mock("@/lib/current-workout", () => ({
+  markCurrentWorkout: (id: string) => mockMarkCurrent(id),
+}));
 jest.mock("react-native-draggable-flatlist", () => ({
   __esModule: true,
   default: (props: {
@@ -562,5 +566,18 @@ describe("reordering a workout in progress", () => {
 
     expect(screen.getByText("Finish workout")).toBeTruthy();
     expect(screen.queryAllByTestId("reorder-handle")).toHaveLength(0);
+  });
+});
+
+describe("which live workout the bar leads with", () => {
+  it("becomes the workout you open, if it's live", async () => {
+    await loadWith(["Bench Press"]);
+    expect(mockMarkCurrent).toHaveBeenCalledWith("w1");
+  });
+
+  it("isn't changed by opening a finished workout or a template", async () => {
+    await loadWorkout({ ...workoutWith(["Bench Press"]), completedAt: new Date() });
+    await loadWorkout({ ...workoutWith(["Bench Press"]), isTemplate: true, startedAt: undefined });
+    expect(mockMarkCurrent).not.toHaveBeenCalled();
   });
 });
