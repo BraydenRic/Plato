@@ -6,7 +6,7 @@ iOS workout tracker built with Expo (React Native), live on the App Store. It sh
 
 - **Workout logging.** Start empty, from a template, or from the day's weekly-split slot, and reorder exercises mid-session. Enter weight × reps on a gym-friendly keypad with Back / Done / Next, copy the previous set in one tap, and time holds and cardio with a per-set stopwatch. Sets complete themselves once filled in.
 - **Rest timer.** Off by default, and set in Profile. It and a running set stopwatch survive leaving the workout screen and the app being closed: each is one saved wall-clock time, so it reopens still counting.
-- **Live Activity.** The workout in progress sits on the Lock Screen and in the Dynamic Island, with a running clock and the rest countdown.
+- **Resume bar and Live Activity.** The bar above the tabs leads back to the workout in progress (and lists the others if more than one is running). The newest also sits on the Lock Screen and in the Dynamic Island, with a running clock and the rest countdown.
 - **Templates, weekly split and planning.** Reusable templates (up to 20), a weekday → template split, and workouts planned or backfilled on any calendar day.
 - **Exercise library.** 600 built-ins across 11 categories, including Neck, each with a form guide. Custom exercises, edits to built-ins and hidden built-ins are stored as per-user deltas.
 - **Progress.** Full history, per-exercise progress charts (weight, reps, estimated 1RM), weekly sets per muscle group, and a muscle map.

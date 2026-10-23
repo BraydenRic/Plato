@@ -76,8 +76,10 @@ Back and Next on the keypad move exactly one field, every time.
 A running timer on a plank or cardio set, and the rest countdown, now keep
 going even if you swipe Plato closed.
 
-Search results no longer hide behind the keyboard, and the bar for your
-workout in progress has a cleaner look.
+Search results no longer hide behind the keyboard. The bar for your
+workout in progress has a cleaner look, and if you have two going at once it
+lists both. Home is tidier too: History is one row near the top, and the
+weekly split folds away until you need it.
 ```
 
 ## Notes for App Review
