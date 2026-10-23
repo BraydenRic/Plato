@@ -97,7 +97,7 @@ own weight and to value bodyweight exercises. No HealthKit access.
 
 ## Checklist for the version page
 
-- Build: **1.2.0 (54)** — offline mode, the timer fix, mid-workout reorder and 600 exercises
+- Build: **1.2.0 (55)** — offline mode, the timer fix, mid-workout reorder, 600 exercises, and the tidier Home and resume bar
 - Privacy Policy URL: https://braydenric.github.io/Plato/
 - App Privacy → Data Types: **Health** added under Health & Fitness
   (App Functionality · linked to identity · not used for tracking)
