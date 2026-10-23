@@ -84,6 +84,13 @@ export default function WorkoutsScreen() {
     () => Array.from({ length: 7 }, (_, i) => addDays(weekStart, i)),
     [weekStart.getTime()]
   );
+  const [splitOpen, setSplitOpen] = useState(false);
+  // What the folded split says: the days that have a template, in week order.
+  const splitSummary =
+    weekDays
+      .filter((day) => templateForDay(day))
+      .map((day) => `${day.toLocaleDateString(undefined, { weekday: "short" })} ${templateForDay(day)!.name}`)
+      .join(" · ") || "Set a template for each weekday";
 
   /**
    * The workout we are in the middle of opening, hidden from this screen for
@@ -562,57 +569,63 @@ export default function WorkoutsScreen() {
           )}
         </View>
 
-        {/* ── Weekly split: a recurring template per weekday, suggested on the
-            calendar above. Sits below Templates since those get daily use. ── */}
-        <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <SectionLabel>Weekly split</SectionLabel>
-            <Text style={styles.splitHint}>Repeats every week</Text>
-          </View>
-          <Card style={styles.splitCard}>
-            {weekDays.map((day, i) => {
-              const t = templateForDay(day);
-              return (
-                <Pressable
-                  key={day.getDay()}
-                  onPress={() => editSplitDay(day)}
-                  style={[styles.splitRow, i > 0 && styles.splitRowBorder]}>
-                  <Text style={styles.splitDay}>
-                    {day.toLocaleDateString(undefined, { weekday: "long" })}
-                  </Text>
-                  <Text style={[styles.splitTemplate, !t && styles.splitRest]} numberOfLines={1}>
-                    {t ? t.name : "Rest"}
-                  </Text>
-                  <Ionicons name="chevron-forward" size={16} color={palette.textTertiary} />
-                </Pressable>
-              );
-            })}
-          </Card>
-        </View>
-
-        <View style={styles.section}>
-          <SectionLabel>History</SectionLabel>
-          {!loading && completed.length === 0 ? (
-            <EmptyState
-              title="No workouts yet"
-              message="Start an empty workout above and log your first sets."
-            />
-          ) : (
-            <Pressable onPress={() => router.push("/history")}>
+        {/* One row, right under Templates, where it used to sit below the
+            whole weekly split as a "History" heading over a "Full history"
+            card. Hidden until there is something in it. */}
+        {completed.length > 0 && (
+          <View style={styles.section}>
+            <Pressable onPress={() => router.push("/history")} accessibilityRole="button" testID="history-link">
               {({ pressed }) => (
                 <Card style={[styles.historyLink, pressed && { opacity: 0.8 }]}>
                   <Ionicons name="time-outline" size={20} color={theme.accentText} />
-                  <View style={{ flex: 1, gap: 2 }}>
-                    <Text style={styles.rowTitle}>Full history</Text>
-                    <Text style={styles.rowMeta}>
-                      {completed.length} workout{completed.length === 1 ? "" : "s"}, kept forever
-                    </Text>
-                  </View>
+                  <Text style={[styles.rowTitle, { flex: 1 }]}>History</Text>
+                  <Text style={styles.rowMeta}>
+                    {completed.length} workout{completed.length === 1 ? "" : "s"}
+                  </Text>
                   <Ionicons name="chevron-forward" size={16} color={palette.textTertiary} />
                 </Card>
               )}
             </Pressable>
-          )}
+          </View>
+        )}
+
+        {/* ── Weekly split: a recurring template per weekday, suggested on the
+            calendar above. Folded to one line by default: seven always-open
+            rows were the longest thing on this screen for something set once
+            and rarely touched, and the calendar already shows each day's pick. ── */}
+        <View style={styles.section}>
+          <Card style={styles.splitCard}>
+            <Pressable
+              onPress={() => setSplitOpen((open) => !open)}
+              accessibilityRole="button"
+              accessibilityState={{ expanded: splitOpen }}
+              testID="split-toggle"
+              style={styles.splitHeader}>
+              <Text style={styles.rowTitle}>Weekly split</Text>
+              <Text style={styles.splitSummary} numberOfLines={1}>
+                {splitSummary}
+              </Text>
+              <Ionicons name={splitOpen ? "chevron-up" : "chevron-down"} size={16} color={palette.textTertiary} />
+            </Pressable>
+            {splitOpen &&
+              weekDays.map((day) => {
+                const t = templateForDay(day);
+                return (
+                  <Pressable
+                    key={day.getDay()}
+                    onPress={() => editSplitDay(day)}
+                    style={[styles.splitRow, styles.splitRowBorder]}>
+                    <Text style={styles.splitDay}>
+                      {day.toLocaleDateString(undefined, { weekday: "long" })}
+                    </Text>
+                    <Text style={[styles.splitTemplate, !t && styles.splitRest]} numberOfLines={1}>
+                      {t ? t.name : "Rest"}
+                    </Text>
+                    <Ionicons name="chevron-forward" size={16} color={palette.textTertiary} />
+                  </Pressable>
+                );
+              })}
+          </Card>
         </View>
       </ScrollView>
 
@@ -862,8 +875,16 @@ const useStyles = makeStyles((c) => ({
     fontSize: 14,
     fontWeight: "700",
   },
-  splitHint: {
-    fontSize: 12,
+  splitHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.three,
+    paddingVertical: Spacing.three,
+  },
+  splitSummary: {
+    flex: 1,
+    textAlign: "right",
+    fontSize: 13,
     color: c.textTertiary,
   },
   splitCard: {
