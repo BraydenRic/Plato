@@ -711,11 +711,10 @@ function WorkoutRow({
               {total > 0 && isPlanned && ` · ${total} sets planned`}
             </Text>
           </View>
-          {isPlanned ? (
-            <View style={[styles.plannedBadge, { backgroundColor: theme.accentSoft }]}>
-              <Text style={[styles.plannedText, { color: theme.accentText }]} maxFontSizeMultiplier={FontScaleCap.grid}>PLANNED</Text>
-            </View>
-          ) : volume > 0 ? (
+          {/* A plan gets the plain chevron rather than a PLANNED pill: the line
+              beside it already says "sets planned", and the calendar marks the
+              day with a hollow dot. */}
+          {!isPlanned && volume > 0 ? (
             <Text style={[styles.volume, { color: theme.accentText }]} maxFontSizeMultiplier={FontScaleCap.title}>{displayVolume(volume, unit)}</Text>
           ) : (
             <Ionicons name="chevron-forward" size={16} color={palette.textTertiary} />
@@ -999,16 +998,6 @@ const useStyles = makeStyles((c) => ({
     fontSize: 14,
     fontWeight: "700",
     fontVariant: ["tabular-nums"],
-  },
-  plannedBadge: {
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: Radius.full,
-  },
-  plannedText: {
-    fontSize: 11,
-    fontWeight: "700",
-    letterSpacing: 1,
   },
   sheetBackdrop: {
     flex: 1,

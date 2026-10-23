@@ -13,6 +13,7 @@ import type { Workout } from "@/types";
 const mockPush = jest.fn();
 let mockCompleted: Workout[] = [];
 let mockTemplates: Workout[] = [];
+let mockPlanned: Workout[] = [];
 let mockPlan: (string | null)[] = [null, null, null, null, null, null, null];
 
 // Tuesday 4 August 2026.
@@ -30,7 +31,7 @@ jest.mock("@/hooks/use-workouts", () => ({
     loading: false,
     error: null,
     active: [],
-    planned: [],
+    planned: mockPlanned,
     completed: mockCompleted,
     templates: mockTemplates,
   }),
@@ -65,6 +66,7 @@ beforeEach(() => {
   mockPush.mockClear();
   mockCompleted = [];
   mockTemplates = [];
+  mockPlanned = [];
   mockPlan = [null, null, null, null, null, null, null];
 });
 
@@ -118,5 +120,31 @@ describe("the weekly split", () => {
 
     fireEvent.press(screen.getByTestId("split-toggle"));
     expect(screen.queryByText("Wednesday")).toBeNull();
+  });
+});
+
+describe("a planned workout's row", () => {
+  it("says it's planned in its own line, with no pill repeating it", async () => {
+    // Thursday of this week, with three sets laid out.
+    mockPlanned = [
+      workout("p1", "Leg Day", {
+        scheduledFor: new Date(2026, 7, 6),
+        exercises: [
+          {
+            id: "e1",
+            exerciseId: "squat",
+            exercise: { id: "squat", name: "Squat", category: "Legs", musclesWorked: ["Quads"], description: "" },
+            orderIndex: 0,
+            sets: [1, 2, 3].map((n) => ({ id: `s${n}`, weightUnit: "lbs" as const, isCompleted: false })),
+          },
+        ],
+      }),
+    ];
+    await renderHome();
+    // Select Thursday on the week strip so its row is on screen.
+    fireEvent.press(screen.getByText("6"));
+
+    expect(screen.getByText(/3 sets planned/)).toBeTruthy();
+    expect(screen.queryByText("PLANNED")).toBeNull();
   });
 });
