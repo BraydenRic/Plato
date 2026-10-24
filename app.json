@@ -181,7 +181,7 @@
         ]
       ],
       [
-        "@bacons/apple-targets",
+        "./plugins/with-watch-targets",
         {
           "appleTeamId": "PQYVLGQVTP"
         }

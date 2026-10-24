@@ -18,6 +18,10 @@ const { IOSConfig, withFinalizedMod } = require("expo/config-plugins");
  * one Xcode lets win, which nobody documents. Switching generation off for the
  * watch target leaves one source, EAS's.
  *
+ * The same goes for anything embedded in the watch app (the complication),
+ * whose versions must match the app it sits in; those are matched by bundle id
+ * prefix, and each has a complete Info.plist of its own in its targets folder.
+ *
  * It runs as a finalized mod because the target doesn't exist until
  * apple-targets' own Xcode mod has run, and that mod refuses anything added
  * after it.
@@ -35,7 +39,7 @@ module.exports = function withWatchPlistOnly(config, { bundleIdSuffix = ".watchk
         const settings = configuration?.buildSettings;
         if (!settings) continue;
         const bundleId = String(settings.PRODUCT_BUNDLE_IDENTIFIER ?? "").replace(/"/g, "");
-        if (bundleId !== watchBundleId) continue;
+        if (bundleId !== watchBundleId && !bundleId.startsWith(watchBundleId + ".")) continue;
         settings.GENERATE_INFOPLIST_FILE = "NO";
         changed += 1;
       }
