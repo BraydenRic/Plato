@@ -201,10 +201,15 @@ struct ExercisePage: View {
       isContinuous: false,
       isHapticFeedbackEnabled: true
     )
-    // Tapping a number opens the pad for it; the crown is for small changes.
-    .onTapGesture {
+    // A tap gives this number the crown; a double tap opens the pad to type
+    // it. One tap opening the pad made it too easy to land in it by accident.
+    // The double tap is declared first so SwiftUI waits to tell them apart.
+    .onTapGesture(count: 2) {
       focus = field
       keypadField = field
+    }
+    .onTapGesture {
+      focus = field
     }
   }
 
