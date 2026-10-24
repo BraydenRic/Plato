@@ -17,10 +17,14 @@ struct ExercisePage: View {
   @State private var draft = Draft(weight: 0, reps: 0, duration: 0)
   @State private var draftSetId: String?
   @State private var showingSets = false
+  /// The number being typed on the number pad, if it's open.
+  @State private var keypadField: Field?
   @FocusState private var focus: Field?
 
-  enum Field: Hashable {
+  enum Field: Hashable, Identifiable {
     case weight, reps
+
+    var id: Self { self }
   }
 
   private var editingIndex: Int? {
@@ -123,6 +127,43 @@ struct ExercisePage: View {
       .disabled(draft.reps <= 0)
       .handGestureShortcut(.primaryAction)
     }
+    // On the editor rather than beside the set list's sheet: two sheets on
+    // one view is asking for one of them not to show.
+    .sheet(item: $keypadField) { field in
+      NavigationStack {
+        keypad(for: field)
+      }
+    }
+  }
+
+  private func keypad(for field: Field) -> KeypadView {
+    let isWeight = field == .weight
+    return KeypadView(
+      title: isWeight ? (exercise.kind == .bodyweight ? "Added" : "Weight") : "Reps",
+      placeholder: isWeight ? Logbook.weightText(draft.weight, kind: exercise.kind) : "\(draft.reps)",
+      entry: KeypadEntry(
+        // Half kilos are real plates; half pounds aren't worth a key.
+        allowsDecimal: isWeight && store.unit == "kg" && exercise.kind != .bodyweight,
+        allowsSign: isWeight && exercise.kind == .bodyweight,
+        maxWholeDigits: isWeight ? 4 : 3
+      ),
+      onDone: { typed in
+        if let typed {
+          let range = crownRange(field)
+          let value = min(max(typed, range.lowerBound), range.upperBound)
+          if isWeight {
+            draft.weight = Logbook.tidyWeight(value, unit: store.unit)
+          } else {
+            draft.reps = Int(value.rounded())
+          }
+          Haptics.click()
+        }
+        keypadField = nil
+        // The crown stays on the number just typed, for a nudge either way.
+        focus = field
+      },
+      onCancel: { keypadField = nil }
+    )
   }
 
   private var weightCaption: String {
@@ -160,7 +201,11 @@ struct ExercisePage: View {
       isContinuous: false,
       isHapticFeedbackEnabled: true
     )
-    .onTapGesture { focus = field }
+    // Tapping a number opens the pad for it; the crown is for small changes.
+    .onTapGesture {
+      focus = field
+      keypadField = field
+    }
   }
 
   private func timedEditor(_ index: Int) -> some View {
@@ -244,7 +289,9 @@ struct ExercisePage: View {
     let id = exercise.sets[index].id
     guard id != draftSetId else { return }
     draftSetId = id
-    draft = Logbook.draft(for: index, in: exercise)
+    var next = Logbook.draft(for: index, in: exercise)
+    next.weight = Logbook.tidyWeight(next.weight, unit: store.unit)
+    draft = next
   }
 
   /// The crown goes to the number most likely to change: weight on an
@@ -262,7 +309,13 @@ struct ExercisePage: View {
   private func crownBinding(_ field: Field) -> Binding<Double> {
     switch field {
     case .weight:
-      return $draft.weight
+      // Snapped like reps are: the crown passes through in-between values as
+      // it turns, and shown raw they read as a weight stuck in decimals.
+      let step = Logbook.weightStep(unit: store.unit)
+      return Binding(
+        get: { draft.weight },
+        set: { draft.weight = Logbook.snap($0, step: step) }
+      )
     case .reps:
       return Binding(
         get: { Double(draft.reps) },
@@ -276,7 +329,7 @@ struct ExercisePage: View {
     case .weight:
       return exercise.kind == .bodyweight ? -300...500 : 0...2000
     case .reps:
-      return 0...100
+      return 0...999
     }
   }
 

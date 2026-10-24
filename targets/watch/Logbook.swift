@@ -118,6 +118,21 @@ enum Logbook {
     unit == "kg" ? 2.5 : 5
   }
 
+  /// The crown reports in-between values while it turns, so what it hands
+  /// over is snapped to the nearest step before it's shown — otherwise the
+  /// weight flickers through decimals on its way from 185 to 190.
+  static func snap(_ value: Double, step: Double) -> Double {
+    guard step > 0 else { return value }
+    return (value / step).rounded() * step
+  }
+
+  /// Weights as the watch shows them: whole pounds, half kilos. A prefill can
+  /// carry more (a set logged in kg, shown in lbs, is 176.4) and that's
+  /// precision nobody can load on a bar.
+  static func tidyWeight(_ weight: Double, unit: String) -> Double {
+    unit == "kg" ? (weight * 2).rounded() / 2 : weight.rounded()
+  }
+
   static func number(_ value: Double) -> String {
     if value == value.rounded() && abs(value) < 100_000 {
       return String(Int(value))
@@ -175,5 +190,74 @@ enum Logbook {
   static func setCounts(in workout: WatchWorkout) -> (done: Int, total: Int) {
     let sets = workout.exercises.flatMap { $0.sets }
     return (sets.filter { $0.done }.count, sets.count)
+  }
+}
+
+/// A key on the number pad.
+enum KeypadKey: Equatable {
+  case digit(Int)
+  case point
+  case sign
+  case delete
+}
+
+/// What's been typed on the number pad so far.
+///
+/// Starts empty, with the current value shown greyed out behind it, so the
+/// first key replaces the number rather than adding to it — typing 225 over
+/// 185 gives 225, not 185225.
+struct KeypadEntry: Equatable {
+  let allowsDecimal: Bool
+  let allowsSign: Bool
+  let maxWholeDigits: Int
+  private(set) var text = ""
+  private(set) var negative = false
+
+  init(allowsDecimal: Bool, allowsSign: Bool, maxWholeDigits: Int) {
+    self.allowsDecimal = allowsDecimal
+    self.allowsSign = allowsSign
+    self.maxWholeDigits = maxWholeDigits
+  }
+
+  var isEmpty: Bool { text.isEmpty && !negative }
+
+  var display: String {
+    (negative ? "\u{2212}" : "") + (text.isEmpty ? "0" : text)
+  }
+
+  /// nil until a digit has been typed.
+  var value: Double? {
+    var digits = text
+    if digits.hasSuffix(".") { digits.removeLast() }
+    guard !digits.isEmpty, let number = Double(digits) else { return nil }
+    return negative ? -number : number
+  }
+
+  mutating func press(_ key: KeypadKey) {
+    switch key {
+    case .digit(let digit):
+      guard (0...9).contains(digit) else { return }
+      if let point = text.firstIndex(of: ".") {
+        // One decimal place: 82.5 kg, never 82.55.
+        guard text[text.index(after: point)...].isEmpty else { return }
+        text.append(String(digit))
+      } else if text == "0" {
+        text = String(digit)
+      } else if text.count < maxWholeDigits {
+        text.append(String(digit))
+      }
+    case .point:
+      guard allowsDecimal, !text.contains(".") else { return }
+      text = (text.isEmpty ? "0" : text) + "."
+    case .sign:
+      guard allowsSign else { return }
+      negative.toggle()
+    case .delete:
+      if !text.isEmpty {
+        text.removeLast()
+      } else {
+        negative = false
+      }
+    }
   }
 }

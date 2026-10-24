@@ -32,6 +32,8 @@
 	<key>WKRunsIndependentlyOfCompanionApp</key>
 	<false/>
 	<key>WKSupportsLiveActivityLaunchAttributeTypes</key>
-	<array/>
+	<array>
+		<string>LiveActivityAttributes</string>
+	</array>
 </dict>
 </plist>

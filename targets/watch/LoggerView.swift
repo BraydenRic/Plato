@@ -85,7 +85,8 @@ struct RestView: View {
   }
 
   private func nextSummary(_ next: (exercise: WatchExercise, index: Int)) -> String {
-    let draft = Logbook.draft(for: next.index, in: next.exercise)
+    var draft = Logbook.draft(for: next.index, in: next.exercise)
+    draft.weight = Logbook.tidyWeight(draft.weight, unit: store.unit)
     let set = "Set \(next.index + 1)"
     switch next.exercise.kind {
     case .timed:
