@@ -14,7 +14,9 @@ module.exports = () => ({
   name: "PlatoComplication",
   displayName: "Plato",
   // Under the watch app's id, as Apple requires for anything embedded in it.
-  bundleIdentifier: ".watchkitapp.complication",
+  // Not ".complication": Apple reserves <watch app id>.complication as the
+  // push topic for complication updates, and won't register it as an App ID.
+  bundleIdentifier: ".watchkitapp.widgets",
   deploymentTarget: "11.0",
   frameworks: ["SwiftUI", "WidgetKit"],
   images: {
