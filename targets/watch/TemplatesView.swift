@@ -27,6 +27,12 @@ struct TemplatesView: View {
             }
           }
         }
+        // Which build the watch is running — watch apps update on their own
+        // schedule, a while after the phone, so "is this the new one?" comes up.
+        Text(versionLabel)
+          .font(.caption2)
+          .foregroundStyle(.secondary)
+          .listRowBackground(Color.clear)
       }
       .navigationTitle("Start")
       .navigationDestination(for: WatchTemplate.self) { template in
@@ -34,6 +40,13 @@ struct TemplatesView: View {
       }
     }
   }
+}
+
+private var versionLabel: String {
+  let info = Bundle.main.infoDictionary
+  let version = info?["CFBundleShortVersionString"] as? String ?? "?"
+  let build = info?["CFBundleVersion"] as? String ?? "?"
+  return "Plato \(version) (\(build))"
 }
 
 /// A look at the template before starting it, so a stray tap on the list

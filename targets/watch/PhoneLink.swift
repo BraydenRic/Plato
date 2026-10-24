@@ -83,6 +83,13 @@ final class PhoneLink: NSObject, WCSessionDelegate {
     }
   }
 
+  /// The same snapshot, sent as a message while this app is open so it
+  /// arrives straight away rather than when the system delivers the context.
+  func session(_ session: WCSession, didReceiveMessage message: [String: Any]) {
+    guard let json = message["snapshot"] as? String else { return }
+    DispatchQueue.main.async { self.onSnapshot?(json) }
+  }
+
   func session(_ session: WCSession, didReceiveApplicationContext applicationContext: [String: Any]) {
     guard let json = applicationContext["snapshot"] as? String else { return }
     DispatchQueue.main.async { self.onSnapshot?(json) }

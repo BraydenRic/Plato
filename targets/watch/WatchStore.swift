@@ -4,9 +4,16 @@ import SwiftUI
 
 /// A template start waiting on the phone.
 struct StartRequest: Equatable {
+  enum Failure: Equatable {
+    /// The request never got to the phone.
+    case unreachable
+    /// The phone has it but hasn't come back with a workout.
+    case noAnswer
+  }
+
   let template: WatchTemplate
   let opId: String
-  var failed: Bool
+  var failure: Failure?
 }
 
 /// The "Workout saved" screen after finishing from the watch.
@@ -41,6 +48,7 @@ final class WatchStore: ObservableObject {
   private var sending: (opId: String, since: Date)?
   private var restTimer: Timer?
   private var startTimeout: DispatchWorkItem?
+  private var startPoll: Timer?
 
   private enum Keys {
     static let snapshot = "plato.watch.snapshot.v1"
@@ -49,7 +57,12 @@ final class WatchStore: ObservableObject {
   }
 
   /// How long a start waits for the phone to come back with the workout.
-  private let startPatience: TimeInterval = 20
+  /// Generous: the phone may have to launch Plato in the background first,
+  /// and the request itself is known to have arrived (a start that doesn't
+  /// reach the phone fails at once, see settle).
+  private let startPatience: TimeInterval = 60
+  /// How often a start asks the phone for news while it waits.
+  private let startPollInterval: TimeInterval = 2
   /// An op the phone never confirms is dropped after this, so one lost on the
   /// way can't hold the watch's view of a set forever.
   private let pendingLifetimeMs: Double = 6 * 60 * 60 * 1000
@@ -165,16 +178,23 @@ final class WatchStore: ObservableObject {
   func startWorkout(_ template: WatchTemplate) {
     var op = WatchOp(kind: .startTemplate, at: Date().ms)
     op.templateId = template.id
-    start = StartRequest(template: template, opId: op.opId, failed: false)
+    stopWaitingForStart()
+    start = StartRequest(template: template, opId: op.opId, failure: nil)
     enqueue(op)
 
-    startTimeout?.cancel()
     let timeout = DispatchWorkItem { [weak self] in
       guard let self, self.start?.opId == op.opId, self.workout == nil else { return }
-      self.start?.failed = true
+      self.stopWaitingForStart()
+      self.start?.failure = .noAnswer
     }
     startTimeout = timeout
     DispatchQueue.main.asyncAfter(deadline: .now() + startPatience, execute: timeout)
+    // Ask rather than wait to be told. The phone also sends its snapshot as a
+    // message while this app is open, so this is the second of two ways the
+    // new workout gets here quickly.
+    startPoll = Timer.scheduledTimer(withTimeInterval: startPollInterval, repeats: true) { [weak self] _ in
+      self?.link.requestSnapshot()
+    }
   }
 
   func retryStart() {
@@ -183,8 +203,15 @@ final class WatchStore: ObservableObject {
   }
 
   func cancelStart() {
-    startTimeout?.cancel()
+    stopWaitingForStart()
     start = nil
+  }
+
+  private func stopWaitingForStart() {
+    startTimeout?.cancel()
+    startTimeout = nil
+    startPoll?.invalidate()
+    startPoll = nil
   }
 
   func finish(_ workout: WatchWorkout) {
@@ -243,7 +270,10 @@ final class WatchStore: ObservableObject {
         // A start is never queued for later, so not reaching the phone now
         // means it didn't happen.
         pending.remove(at: index)
-        if start?.opId == op.opId { start?.failed = true }
+        if start?.opId == op.opId {
+          stopWaitingForStart()
+          start?.failure = .unreachable
+        }
       }
       savePending()
     }
@@ -273,7 +303,7 @@ final class WatchStore: ObservableObject {
     savePending()
 
     if next.workout != nil || !next.isSignedIn {
-      startTimeout?.cancel()
+      stopWaitingForStart()
       start = nil
     }
     if let run = timedRun, !workoutHasSet(run.setId) {

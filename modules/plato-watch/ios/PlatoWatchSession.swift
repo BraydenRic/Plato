@@ -49,7 +49,23 @@ final class PlatoWatchSession: NSObject, WCSessionDelegate {
       self.pendingContext = json
       self.lastContext = json
       self.flushContext()
+      self.sendLive(json)
     }
+  }
+
+  /**
+   Must run on `queue`. The application context is the reliable way to keep
+   the watch current, but the system delivers it when it sees fit — often
+   10–20 seconds later. While the watch app is open (that's what reachable
+   means from this side) the snapshot also goes as a message, which arrives
+   at once: a workout started from the watch shows up there in a moment
+   instead of after a wait that looks like it failed.
+   */
+  private func sendLive(_ json: String) {
+    let session = WCSession.default
+    guard session.activationState == .activated, session.isPaired, session.isWatchAppInstalled,
+          session.isReachable else { return }
+    session.sendMessage(["snapshot": json], replyHandler: nil, errorHandler: nil)
   }
 
   /** Must run on `queue`. */

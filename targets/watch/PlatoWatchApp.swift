@@ -68,11 +68,11 @@ struct StartingView: View {
   var body: some View {
     ScrollView {
       VStack(spacing: 10) {
-        if request.failed {
-          Text("Couldn't reach your iPhone")
+        if let failure = request.failure {
+          Text(failure == .unreachable ? "Couldn't reach your iPhone" : "Your iPhone hasn't started it")
             .font(.headline)
             .multilineTextAlignment(.center)
-          Text("Keep it nearby, then try again.")
+          Text(failure == .unreachable ? "Keep it nearby, then try again." : "Open Plato on your iPhone, then try again.")
             .font(.footnote)
             .foregroundStyle(.secondary)
             .multilineTextAlignment(.center)
