@@ -57,8 +57,10 @@ struct PlatoComplicationView: View {
     }
   }
 
+  /// A template image, so the face can tint it like its other complications.
   private var logo: some View {
     Image("logo")
+      .renderingMode(.template)
       .resizable()
       .scaledToFit()
       .widgetAccentable()

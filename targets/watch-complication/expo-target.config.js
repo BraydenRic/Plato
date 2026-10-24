@@ -20,6 +20,9 @@ module.exports = () => ({
   deploymentTarget: "11.0",
   frameworks: ["SwiftUI", "WidgetKit"],
   images: {
-    logo: "../../assets/images/splash-icon.png",
+    // Its own small copy (80 px). Complications won't draw a large image —
+    // the 512 px splash logo left the slot blank, as it once did the Live
+    // Activity's.
+    logo: "../../assets/watch/complication-logo.png",
   },
 });
