@@ -30,7 +30,7 @@ npx expo start --tunnel    # tunnel, because LAN mode can't cross the WSL2 bound
 Copy `.env.example` to `.env.local` and fill in the Firebase config. Expo Go runs most of the app, but **Apple and Google sign-in, the Live Activity and alternate icons need a real build**, because they're native code. In Expo Go, use email/password or guest mode.
 
 ```bash
-npm test                   # jest, ~700 tests
+npm test                   # jest, ~1,100 tests
 npx tsc --noEmit           # type-check
 npm run lint
 ```
@@ -145,6 +145,7 @@ With an Apple Watch, the watch tracks it:
 - **Pause and end on the watch**, which sends them as ops. Ending on the phone lists the session in the snapshot's `endedCardio`, and the watch stops and sends what it measured.
 - **`finishCardio`** carries time, distance, calories, heart rate, the Health workout's id and a record of distance against moving time; the phone works out splits and best efforts from it ([cardio-tracking.ts](src/lib/cardio-tracking.ts)), where Jest can check them. A finish with no session behind it brings the whole session in.
 - **Live numbers** go to the phone every 5 s while in reach (`onLive`, [watch-live.ts](src/lib/watch-live.ts)); never stored.
+- **The run page on the wrist** ([CardioViews.swift](targets/watch/CardioViews.swift)) is sized for the smallest watch it runs on, 40 mm: clock, distance, pace (`--:--` until there's enough to say) and heart rate in about 140 of a page's ~160 points. Average pace moves every 5 s there and on the phone — worked out every second it twitched.
 - **Matching by kind and start time** (within 5 minutes) is only for a session the phone woke the watch for: `startCardio` carries `fromPhone`, and a run started on the wrist is never taken for a session discarded on the phone. A watch that takes over a phone session late gets the phone's stretch counted first — its moving time, and on foot its step count — on the clock and in what's saved.
 - The session is saved to Apple Health by the watch, for the rings. Plato reads nothing from Health except during its own sessions — there's no import of other apps' workouts.
 

@@ -25,9 +25,14 @@ interface ButtonProps extends PressableProps {
   variant?: ButtonVariant;
   loading?: boolean;
   compact?: boolean;
+  /**
+   * One line, shrinking to fit, for a button sharing its row: half a
+   * 320-point iPhone SE's width is a few points short of "Start workout".
+   */
+  fit?: boolean;
 }
 
-export function Button({ title, variant = "primary", loading, compact, disabled, style, ...rest }: ButtonProps) {
+export function Button({ title, variant = "primary", loading, compact, fit, disabled, style, ...rest }: ButtonProps) {
   const styles = useStyles();
   const palette = usePalette();
   const theme = useTheme();
@@ -53,7 +58,12 @@ export function Button({ title, variant = "primary", loading, compact, disabled,
       {loading ? (
         <ActivityIndicator color={c.fg} size="small" />
       ) : (
-        <Text style={[styles.buttonText, compact && styles.buttonTextCompact, { color: c.fg }]} maxFontSizeMultiplier={FontScaleCap.button}>{title}</Text>
+        <Text
+          style={[styles.buttonText, compact && styles.buttonTextCompact, { color: c.fg }]}
+          maxFontSizeMultiplier={FontScaleCap.button}
+          {...(fit ? { numberOfLines: 1, adjustsFontSizeToFit: true, minimumFontScale: 0.75 } : {})}>
+          {title}
+        </Text>
       )}
     </Pressable>
   );

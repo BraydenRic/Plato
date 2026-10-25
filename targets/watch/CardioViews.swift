@@ -87,6 +87,11 @@ struct CardioLiveView: View {
 /// Pace is a figure in its own right, as big as distance and on the page from
 /// the first second: a small grey line under the distance, there only once
 /// it had enough to go on, read as no pace at all.
+///
+/// Sized for the smallest watch it runs on, 40 mm, where a page has about
+/// 160 points of height: clock 34 + two figures 26 + the heart-rate row with
+/// a 34-point pause button comes to about 140. PAUSED sits beside the clock,
+/// not under it, so pausing doesn't push the page past the bottom edge.
 struct CardioMetricsPage: View {
   @EnvironmentObject private var store: WatchStore
   @EnvironmentObject private var tracker: CardioTracker
@@ -95,15 +100,18 @@ struct CardioMetricsPage: View {
     TimelineView(.periodic(from: .now, by: 1)) { context in
       let elapsed = tracker.elapsed(at: context.date)
       VStack(alignment: .leading, spacing: 0) {
-        Text(Logbook.clock(Int(elapsed)))
-          .font(.plateNumber(34))
-          .foregroundStyle(tracker.state == .paused ? Color.secondary : store.accent)
-          .lineLimit(1)
-          .minimumScaleFactor(0.6)
-        if tracker.state == .paused {
-          Text("PAUSED")
-            .font(.caption2.weight(.semibold))
-            .foregroundStyle(.secondary)
+        HStack(alignment: .firstTextBaseline, spacing: 4) {
+          Text(Logbook.clock(Int(elapsed)))
+            .font(.plateNumber(34))
+            .foregroundStyle(tracker.state == .paused ? Color.secondary : store.accent)
+            .lineLimit(1)
+            .minimumScaleFactor(0.6)
+          if tracker.state == .paused {
+            Text("PAUSED")
+              .font(.caption2.weight(.semibold))
+              .foregroundStyle(.secondary)
+              .fixedSize()
+          }
         }
         if tracker.kind.tracksDistance {
           CardioFigure(
@@ -119,15 +127,21 @@ struct CardioMetricsPage: View {
             .font(.plateNumber(22))
           Spacer(minLength: 0)
           // Here as well as on the controls page, so double tap pauses from
-          // the page you're looking at mid-run.
+          // the page you're looking at mid-run. A fixed 34-point circle: a
+          // standard watch button is taller, and on a 40 mm watch the page
+          // ran out of room.
           Button {
             Haptics.click()
             if tracker.state == .paused { tracker.resume() } else { tracker.pause() }
           } label: {
             Image(systemName: tracker.state == .paused ? "play.fill" : "pause.fill")
+              .font(.system(size: 14, weight: .semibold))
+              .frame(width: 34, height: 34)
+              .background(RoundedRectangle(cornerRadius: 17).fill(Color.white.opacity(0.18)))
           }
-          .buttonStyle(.bordered)
+          .buttonStyle(.plain)
           .handGestureShortcut(.primaryAction)
+          .accessibilityLabel(tracker.state == .paused ? "Resume" : "Pause")
         }
       }
       .frame(maxWidth: .infinity, alignment: .leading)

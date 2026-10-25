@@ -247,8 +247,12 @@ export function CardioSession({
         ) : (
           <View style={styles.live}>
             <View style={styles.clockWrap}>
+              {/* An hour in, "1:00:00" at this size is wider than a 320-point
+                  iPhone SE: it shrinks to fit rather than break the line. */}
               <Text
                 style={[styles.clock, isPausedNow && { color: palette.textTertiary }]}
+                numberOfLines={1}
+                adjustsFontSizeToFit
                 maxFontSizeMultiplier={FontScaleCap.title}
                 accessibilityLabel={`${isPausedNow ? "Paused at" : "Moving time"} ${formatClock(seconds)}`}>
                 {formatClock(seconds)}
@@ -621,7 +625,7 @@ function FinishedSession({ workout, onAddDistance }: { workout: Workout; onAddDi
       </View>
 
       <View style={styles.hero}>
-        <Text style={styles.heroValue} maxFontSizeMultiplier={FontScaleCap.title}>
+        <Text style={styles.heroValue} numberOfLines={1} adjustsFontSizeToFit maxFontSizeMultiplier={FontScaleCap.title}>
           {distance ? distance.split(" ")[0] : formatClock(seconds)}
           {distance ? (
             <Text style={styles.heroUnit} maxFontSizeMultiplier={FontScaleCap.title}>

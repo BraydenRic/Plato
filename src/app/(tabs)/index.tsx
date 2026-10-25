@@ -518,13 +518,15 @@ export default function WorkoutsScreen() {
               // step in front of every lifting session.
               <View style={styles.startRow}>
                 {/* Half the card each: the standard 24pt side padding left
-                    "Start workout" a few points short of one line. */}
+                    "Start workout" a few points short of one line, and on the
+                    narrowest phones it shrinks a little rather than wrap. */}
                 <View style={{ flex: 1 }}>
-                  <Button title="Start workout" onPress={quickStart} loading={starting} style={styles.startButton} />
+                  <Button title="Start workout" onPress={quickStart} loading={starting} style={styles.startButton} fit />
                 </View>
                 <View style={{ flex: 1 }}>
                   <Button
                     title="Start cardio"
+                    fit
                     variant="secondary"
                     onPress={() => router.push("/start-cardio")}
                     style={styles.startButton}
