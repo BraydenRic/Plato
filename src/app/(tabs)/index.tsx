@@ -503,11 +503,18 @@ export default function WorkoutsScreen() {
               // Side by side, so cardio is one tap away without becoming a
               // step in front of every lifting session.
               <View style={styles.startRow}>
+                {/* Half the card each: the standard 24pt side padding left
+                    "Start workout" a few points short of one line. */}
                 <View style={{ flex: 1 }}>
-                  <Button title="Start workout" onPress={quickStart} loading={starting} />
+                  <Button title="Start workout" onPress={quickStart} loading={starting} style={styles.startButton} />
                 </View>
                 <View style={{ flex: 1 }}>
-                  <Button title="Start cardio" variant="secondary" onPress={() => router.push("/start-cardio")} />
+                  <Button
+                    title="Start cardio"
+                    variant="secondary"
+                    onPress={() => router.push("/start-cardio")}
+                    style={styles.startButton}
+                  />
                 </View>
               </View>
             )}
@@ -764,6 +771,9 @@ const useStyles = makeStyles((c) => ({
   startRow: {
     flexDirection: "row",
     gap: Spacing.two,
+  },
+  startButton: {
+    paddingHorizontal: Spacing.two,
   },
   safe: {
     flex: 1,
