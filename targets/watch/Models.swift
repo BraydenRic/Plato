@@ -86,11 +86,23 @@ struct WatchSnapshot: Codable, Equatable {
   let workout: WatchWorkout?
   let templates: [WatchTemplate]
   let applied: [String]
-  /// Sessions ended on the phone that a watch may still be tracking — ids
-  /// and watch start op ids. Absent from older phones.
-  var endedCardio: [String]? = nil
+  /// Sessions ended or thrown away on the phone that a watch may still be
+  /// tracking. Absent from older phones.
+  var endedCardio: [EndedCardio]? = nil
 
   var isSignedIn: Bool { account == "signedIn" }
+}
+
+/// A session ended on the phone, described every way the watch might know it.
+struct EndedCardio: Codable, Equatable {
+  let id: String
+  let startOpId: String?
+  /// A CardioKind's raw value.
+  let kind: String
+  /// ms since epoch
+  let startedAt: Double
+  /// Thrown away: keep nothing, Health included.
+  let discard: Bool
 }
 
 /// One change made on the watch, sent to the phone to apply.
@@ -100,7 +112,7 @@ struct WatchOp: Codable, Identifiable, Equatable {
     case startCardio, pauseCardio, resumeCardio, finishCardio
   }
 
-  private(set) var opId: String
+  let opId: String
   let kind: Kind
   /// ms since epoch
   let at: Double
@@ -133,15 +145,6 @@ struct WatchOp: Codable, Identifiable, Equatable {
   var curve: [Double]?
 
   var id: String { opId }
-
-  /// The same op, said to have happened at `at` instead.
-  func withTime(_ at: Double) -> WatchOp {
-    var copy = WatchOp(kind: kind, at: at, workoutId: workoutId, exerciseId: exerciseId, setId: setId)
-    copy.opId = opId
-    copy.session = session
-    copy.indoor = indoor
-    return copy
-  }
 
   init(kind: Kind, at: Double, workoutId: String? = nil, exerciseId: String? = nil, setId: String? = nil) {
     self.opId = UUID().uuidString

@@ -8,6 +8,7 @@ import { Card, EmptyState } from "@/components/ui";
 import { FontScaleCap, Radius, Spacing } from "@/constants/theme";
 import { makeStyles, usePalette } from "@/context/AppearanceContext";
 import { AWAITING_SYNC_MESSAGE, useWorkouts } from "@/hooks/use-workouts";
+import { recordCardioDiscard } from "@/lib/cardio-discards";
 import { deleteWorkout } from "@/lib/data";
 import { useWeightUnit } from "@/context/UnitContext";
 import { useTheme } from "@/context/ThemeContext";
@@ -34,7 +35,15 @@ export default function HistoryScreen() {
   function confirmDelete(workout: Workout) {
     Alert.alert("Delete workout?", `"${workout.name}" will be permanently removed.`, [
       { text: "Cancel", style: "cancel" },
-      { text: "Delete", style: "destructive", onPress: () => deleteWorkout(workout) },
+      {
+        text: "Delete",
+        style: "destructive",
+        onPress: () => {
+          // A watch still finishing it stops, and keeps nothing.
+          recordCardioDiscard(workout);
+          deleteWorkout(workout);
+        },
+      },
     ]);
   }
 

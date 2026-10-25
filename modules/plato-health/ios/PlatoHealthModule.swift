@@ -23,8 +23,8 @@ public class PlatoHealthModule: Module {
       try await self.requestAccess()
     }
 
-    AsyncFunction("startWatchWorkout") { (kind: String, indoor: Bool) async throws -> Bool in
-      return try await self.startWatchWorkout(kind: kind, indoor: indoor)
+    AsyncFunction("startWatchWorkout") { (kind: String, indoor: Bool, poolMetres: Double) async throws -> Bool in
+      return try await self.startWatchWorkout(kind: kind, indoor: indoor, poolMetres: poolMetres)
     }
   }
 
@@ -63,9 +63,9 @@ public class PlatoHealthModule: Module {
 
   /// Wakes Plato's watch app into a session of this kind. False when there's
   /// no watch to wake — none paired, or not on a wrist.
-  private func startWatchWorkout(kind: String, indoor: Bool) async throws -> Bool {
+  private func startWatchWorkout(kind: String, indoor: Bool, poolMetres: Double) async throws -> Bool {
     guard HKHealthStore.isHealthDataAvailable() else { return false }
-    let configuration = Self.configuration(kind: kind, indoor: indoor)
+    let configuration = Self.configuration(kind: kind, indoor: indoor, poolMetres: poolMetres)
     return try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Bool, Error>) in
       store.startWatchApp(toHandle: configuration) { started, error in
         if let error = error {
@@ -79,7 +79,7 @@ public class PlatoHealthModule: Module {
 
   /// The same mapping as the watch's CardioKind.configuration — two copies,
   /// because the phone and the watch are separate apps; keep them matching.
-  private static func configuration(kind: String, indoor: Bool) -> HKWorkoutConfiguration {
+  private static func configuration(kind: String, indoor: Bool, poolMetres: Double) -> HKWorkoutConfiguration {
     let configuration = HKWorkoutConfiguration()
     switch kind {
     case "walk": configuration.activityType = .walking
@@ -94,7 +94,7 @@ public class PlatoHealthModule: Module {
     if kind == "swim" {
       configuration.swimmingLocationType = indoor ? .pool : .openWater
       if indoor {
-        configuration.lapLength = HKQuantity(unit: HKUnit.meter(), doubleValue: 25)
+        configuration.lapLength = HKQuantity(unit: HKUnit.meter(), doubleValue: poolMetres > 0 ? poolMetres : 25)
       }
     } else {
       configuration.locationType = indoor ? .indoor : .outdoor

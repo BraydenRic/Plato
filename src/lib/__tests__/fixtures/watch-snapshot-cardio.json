@@ -42,7 +42,19 @@
   "templates": [],
   "applied": [],
   "endedCardio": [
-    "w-old",
-    "start-0"
+    {
+      "id": "w-old",
+      "startOpId": "start-0",
+      "kind": "walk",
+      "startedAt": 1792770000000,
+      "discard": false
+    },
+    {
+      "id": "w-gone",
+      "startOpId": null,
+      "kind": "run",
+      "startedAt": 1792775000000,
+      "discard": true
+    }
   ]
 }

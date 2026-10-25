@@ -6,7 +6,7 @@ import {
   bankRunningTimer,
   buildWatchSnapshot,
   displayWeight,
-  endedCardioIds,
+  endedCardio,
   finishedFields,
   opTime,
   parseWatchLive,
@@ -141,7 +141,17 @@ describe("buildWatchSnapshot", () => {
       cardio: { kind: "run", pausedAtMs: 1792779000000, pausedSeconds: 30, watch: true, watchStartOpId: "start-1" },
       exercises: [workoutExercise("we-run", exercise("running", "Running", { category: "Cardio" }), [set("r1")])],
     };
-    const built = snapshot({ workout: run, templates: [], completed: [], rest: null, applied: [], endedCardio: ["w-old", "start-0"] });
+    const built = snapshot({
+      workout: run,
+      templates: [],
+      completed: [],
+      rest: null,
+      applied: [],
+      endedCardio: [
+        { id: "w-old", startOpId: "start-0", kind: "walk", startedAt: 1792770000000, discard: false },
+        { id: "w-gone", startOpId: null, kind: "run", startedAt: 1792775000000, discard: true },
+      ],
+    });
     expect(JSON.parse(JSON.stringify(built))).toEqual(cardioSnapshotFixture);
   });
 
@@ -499,6 +509,16 @@ describe("cardio ops from the watch", () => {
     expect(parseWatchOp({ ...base, kind: "pauseCardio", workoutId: null, startOpId: null })).toBeNull();
   });
 
+  // Tracked before the watch heard any id: kind and start are enough to find it.
+  it("takes a pause known only by its kind and start", () => {
+    expect(parseWatchOp({ ...base, kind: "pauseCardio", session: "walk", startedAt: NOW - 60_000 })).toMatchObject({
+      kind: "pauseCardio",
+      workoutId: null,
+      startOpId: null,
+      session: "walk",
+    });
+  });
+
   it("refuses a kind of session it doesn't know", () => {
     expect(parseWatchOp({ ...base, kind: "startCardio", session: "skydive", indoor: false })).toBeNull();
   });
@@ -542,14 +562,16 @@ describe("sessions ended on the phone", () => {
   });
 
   it("lists a watch-tracked session still waiting for what the watch measured", () => {
-    expect(endedCardioIds([ended({})], NOW)).toEqual(["w-live", "s-1"]);
+    expect(endedCardio([ended({})], NOW)).toEqual([
+      { id: "w-live", startOpId: "s-1", kind: "run", startedAt: START.getTime(), discard: false },
+    ]);
   });
 
   it("stops once the watch's numbers are in, after a while, or for one the watch never tracked", () => {
     const withData = ended({});
     withData.exercises = [{ ...withData.exercises[0], sets: [{ ...withData.exercises[0].sets[0], tracked: { source: "Apple Watch" } }] }];
-    expect(endedCardioIds([withData], NOW)).toEqual([]);
-    expect(endedCardioIds([ended({ completedAt: new Date(NOW - 7 * 3600_000) })], NOW)).toEqual([]);
-    expect(endedCardioIds([ended({ cardio: { kind: "run" } })], NOW)).toEqual([]);
+    expect(endedCardio([withData], NOW)).toEqual([]);
+    expect(endedCardio([ended({ completedAt: new Date(NOW - 7 * 3600_000) })], NOW)).toEqual([]);
+    expect(endedCardio([ended({ cardio: { kind: "run" } })], NOW)).toEqual([]);
   });
 });

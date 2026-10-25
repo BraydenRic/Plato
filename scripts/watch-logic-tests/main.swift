@@ -131,7 +131,10 @@ if let cardioSnapshot = try? JSONDecoder().decode(WatchSnapshot.self, from: card
   let c = cardioSnapshot.workout?.cardio
   check(c?.kind == "run" && c?.indoor == false && c?.watch == true && c?.startOpId == "start-1", "decodes a session's cardio")
   check(c?.pausedAtMs == 1792779000000 && c?.pausedSeconds == 30, "decodes a session's pause")
-  check(cardioSnapshot.endedCardio == ["w-old", "start-0"], "decodes sessions ended on the phone")
+  let ended = cardioSnapshot.endedCardio ?? []
+  check(ended.count == 2 && ended[0].id == "w-old" && ended[0].startOpId == "start-0" && ended[0].kind == "walk" && !ended[0].discard,
+        "decodes a session ended on the phone")
+  check(ended[1].startOpId == nil && ended[1].startedAt == 1792775000000 && ended[1].discard, "decodes one thrown away, with no start op")
 } else {
   check(false, "decodes the cardio snapshot")
 }
@@ -167,6 +170,9 @@ let thinned = long.flat(limit: 1500)
 check(thinned.count / 2 <= 1500, "thinned to the limit")
 check(thinned[0] == 0 && thinned[thinned.count - 2] == 30000 && thinned[thinned.count - 1] == 9000, "first and last kept")
 check(CurveRecorder().flat() == [0, 0], "an empty record is just the start")
+var precise = CurveRecorder()
+precise.record(metres: 123.456789, seconds: 40.04999)
+check(precise.flat() == [0, 0, 123.5, 40], "sent to a tenth, so a long run fits in one message")
 
 check(CardioFormat.distance(3.1 * CardioFormat.mile, kind: .run, weightUnit: "lbs") == "3.10", "miles to two places")
 check(CardioFormat.distance(5000, kind: .run, weightUnit: "kg") == "5.00", "kilometres to two places")

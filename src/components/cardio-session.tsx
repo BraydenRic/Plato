@@ -27,6 +27,7 @@ import {
   resumed,
   sessionSet,
 } from "@/lib/cardio-session";
+import { recordCardioDiscard } from "@/lib/cardio-discards";
 import { computeStats, deleteWorkout, getCompletedWorkouts, stripUndefined, updateWorkout, upsertUserStats } from "@/lib/data";
 import { liveFor, useWatchLive } from "@/lib/watch-live";
 import { formatClock } from "@/lib/workout-utils";
@@ -172,6 +173,8 @@ export function CardioSession({
               style: "destructive",
               onPress: () => {
                 router.back();
+                // A watch still tracking it stops, and keeps nothing.
+                recordCardioDiscard(workout);
                 deleteWorkout(workout).catch(() => Alert.alert("Couldn't delete", "Check your connection and try again."));
               },
             },

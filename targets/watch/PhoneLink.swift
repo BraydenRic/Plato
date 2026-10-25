@@ -103,6 +103,13 @@ final class PhoneLink: NSObject, WCSessionDelegate {
     DispatchQueue.main.async { self.onSnapshot?(json) }
   }
 
+  /// A queued op that failed on the way goes back in the queue. The op was
+  /// marked delivered when it was queued, so nothing else would send it again.
+  func session(_ session: WCSession, didFinish userInfoTransfer: WCSessionUserInfoTransfer, error: Error?) {
+    guard error != nil else { return }
+    session.transferUserInfo(userInfoTransfer.userInfo)
+  }
+
   func sessionReachabilityDidChange(_ session: WCSession) {
     guard session.isReachable else { return }
     DispatchQueue.main.async { self.onReady?() }

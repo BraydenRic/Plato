@@ -120,6 +120,17 @@ struct CardioMetricsPage: View {
             .foregroundStyle(.red)
           Text(tracker.heartRate.map { String(Int($0.rounded())) } ?? "--")
             .font(.plateNumber(20))
+          Spacer(minLength: 0)
+          // Here as well as on the controls page, so double tap pauses from
+          // the page you're looking at mid-run.
+          Button {
+            Haptics.click()
+            if tracker.state == .paused { tracker.resume() } else { tracker.pause() }
+          } label: {
+            Image(systemName: tracker.state == .paused ? "play.fill" : "pause.fill")
+          }
+          .buttonStyle(.bordered)
+          .handGestureShortcut(.primaryAction)
         }
       }
       .frame(maxWidth: .infinity, alignment: .leading)
@@ -159,7 +170,7 @@ struct CardioSplitsPage: View {
   }
 }
 
-/// Pause or resume — double tap does it too — and End, after a check.
+/// Pause or resume, and End, after a check.
 struct CardioControlsPage: View {
   @EnvironmentObject private var store: WatchStore
   @EnvironmentObject private var tracker: CardioTracker
@@ -181,7 +192,6 @@ struct CardioControlsPage: View {
           .frame(maxWidth: .infinity)
       }
       .buttonStyle(.borderedProminent)
-      .handGestureShortcut(.primaryAction)
       Button(role: .destructive) {
         confirmingEnd = true
       } label: {
@@ -235,7 +245,8 @@ struct CardioFinishedView: View {
 }
 
 /// A session going on the phone that this watch isn't tracking — started
-/// with the watch off a wrist, say. Its clock, and the offer to track the rest.
+/// with the watch off a wrist, say. Just its clock: tracking half a run here
+/// would make a session that's half measured.
 struct PhoneSessionView: View {
   @EnvironmentObject private var store: WatchStore
   let workout: WatchWorkout
@@ -251,18 +262,9 @@ struct PhoneSessionView: View {
           Text(Logbook.clock(movingSeconds(at: context.date)))
             .font(.plateNumber(34))
         }
-        Text("On your iPhone")
+        Label("On your iPhone", systemImage: kind.symbol(indoor: cardio?.indoor ?? false))
           .font(.footnote)
           .foregroundStyle(.secondary)
-        Button {
-          store.trackHere(workout)
-        } label: {
-          Label("Track Here", systemImage: kind.symbol(indoor: cardio?.indoor ?? false))
-            .font(.headline)
-            .foregroundStyle(store.onAccent)
-            .frame(maxWidth: .infinity)
-        }
-        .buttonStyle(.borderedProminent)
       }
     }
   }

@@ -15,9 +15,17 @@ import { useWorkouts } from "@/hooks/use-workouts";
 import { SESSION_KINDS, kindInfo, newCardioSession, placeLabel, sessionTarget, type Place } from "@/lib/cardio-session";
 import PlatoHealth from "../../modules/plato-health";
 import PlatoWatch from "../../modules/plato-watch";
-import { createWorkoutLocalFirst, stripUndefined, updateWorkout } from "@/lib/data";
+import { createWorkoutLocalFirst, stripUndefined } from "@/lib/data";
 import { MAX_ACTIVE_WORKOUTS } from "@/lib/workout-utils";
 import type { CardioSessionKind, Workout } from "@/types";
+
+/**
+ * A pool's length, which the watch counts laps against. Pools in lbs
+ * countries are mostly 25 yards, elsewhere 25 metres; a guess either way, but
+ * the right one more often than a fixed 25 m.
+ */
+const POOL_METRES = 25;
+const POOL_YARDS_IN_METRES = 25 * 0.9144;
 
 /** The last kind and place started on this phone, so a runner's next tap is Start. */
 export const LAST_CARDIO_KEY = "plato.cardio.last.v1";
@@ -77,7 +85,7 @@ export default function StartCardioScreen() {
     // Straight onto the clock, with this picker gone from the stack behind it.
     router.replace(`/workout/${id}`);
     saved.catch(() => Alert.alert("Couldn't start", "Check your connection and try again."));
-    void trackOnWatch(id, session.cardio!);
+    void trackOnWatch(session.cardio!);
   }
 
   /**
@@ -86,12 +94,14 @@ export default function StartCardioScreen() {
    * middle of anything. With no watch, or the watch off a wrist, the session
    * just runs on the phone's clock.
    */
-  async function trackOnWatch(id: string, cardio: NonNullable<Workout["cardio"]>) {
+  async function trackOnWatch(cardio: NonNullable<Workout["cardio"]>) {
     try {
       if (!PlatoHealth || !PlatoWatch?.isWatchAppInstalled()) return;
       await PlatoHealth.requestAccess();
-      const started = await PlatoHealth.startWatchWorkout(cardio.kind, !!cardio.indoor);
-      if (started) await updateWorkout(id, { cardio: { ...cardio, watch: true } });
+      // Waking the app proves nothing: the session is marked as tracked on the
+      // watch when the watch says it's tracking (its startCardio, in
+      // watch-sync), and until then runs on the phone's clock.
+      await PlatoHealth.startWatchWorkout(cardio.kind, !!cardio.indoor, unit === "kg" ? POOL_METRES : POOL_YARDS_IN_METRES);
     } catch {
       // No watch to track it; the phone's clock has it.
     }

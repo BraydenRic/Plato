@@ -28,7 +28,7 @@ import {
   applySetOp,
   bankRunningTimer,
   buildWatchSnapshot,
-  endedCardioIds,
+  endedCardio,
   finishedFields,
   opTime,
   parseWatchLive,
@@ -41,6 +41,7 @@ import { distanceKind } from "@/lib/cardio";
 import { newCardioSession, paused, resumed, sessionTarget } from "@/lib/cardio-session";
 import { curveFromFlat, trackedFromWatch } from "@/lib/cardio-tracking";
 import { setWatchLive } from "@/lib/watch-live";
+import { cardioDiscards, isDiscarded, loadCardioDiscards, useCardioDiscards } from "@/lib/cardio-discards";
 import {
   MAX_ACTIVE_WORKOUTS,
   bodyweightOn,
@@ -137,6 +138,11 @@ function WatchSyncBridge() {
   const latest = useRef<WatchSyncContext | null>(null);
   const lastSent = useRef<string | null>(null);
   const chain = useRef(Promise.resolve());
+  // Re-renders when a session is discarded, so the watch hears at once.
+  const discards = useCardioDiscards();
+  useEffect(() => {
+    void loadCardioDiscards();
+  }, []);
 
   useEffect(() => {
     Promise.all([AsyncStorage.getItem(APPLIED_KEY), AsyncStorage.getItem(STAMPS_KEY)])
@@ -204,7 +210,10 @@ function WatchSyncBridge() {
         applied: applied ?? [],
         // Within the last six hours, give or take — exact enough for a list
         // that only has to outlast a watch out of range for a run.
-        endedCardio: endedCardioIds(completed, Math.floor(Date.now() / 600_000) * 600_000),
+        endedCardio: [
+          ...endedCardio(completed, Math.floor(Date.now() / 600_000) * 600_000),
+          ...(discards.length > 0 ? cardioDiscards() : []),
+        ],
         // Stamped at send time; leaving it out here keeps the key stable
         // across renders that changed nothing.
         now: 0,
@@ -475,6 +484,25 @@ export async function applyWatchOp(op: WatchOp, ctx: WatchSyncContext): Promise<
     case "startCardio": {
       // Here already: a resend, or its finish arrived first and brought it in.
       if (sessionStartedBy(op.opId, ctx)) return;
+      if (isDiscarded({ workoutId: null, startOpId: op.opId, session: op.session, startedAt: op.at })) return;
+      // The watch is now tracking a session the phone started and woke it
+      // for: the same session, not a second one. Marked as tracked there only
+      // now, when the watch says so — the phone waking the app proves nothing.
+      const phoneStarted = [...ctx.active].find(
+        (w) =>
+          w.cardio?.kind === op.session &&
+          !w.cardio.watchStartOpId &&
+          !!w.startedAt &&
+          Math.abs(w.startedAt.getTime() - op.at) < SAME_START_MS
+      );
+      if (phoneStarted) {
+        const fresh = (await getWorkout(phoneStarted.id)) ?? phoneStarted;
+        if (!fresh.cardio || fresh.completedAt) return;
+        const cardio = { ...fresh.cardio, watch: true, watchStartOpId: op.opId };
+        await updateWorkout(fresh.id, stripUndefined({ cardio }) as Partial<Workout>);
+        ctx.active = ctx.active.map((w) => (w.id === fresh.id ? { ...w, cardio } : w));
+        return;
+      }
       // At the limit, it waits for its finish, which brings it in regardless —
       // the run is happening on the watch whether or not the phone has room.
       if (ctx.active.length >= MAX_ACTIVE_WORKOUTS) return;
@@ -493,6 +521,7 @@ export async function applyWatchOp(op: WatchOp, ctx: WatchSyncContext): Promise<
 
     case "pauseCardio":
     case "resumeCardio": {
+      if (isDiscarded(op)) return;
       const session = await findSession(op, ctx);
       if (!session?.cardio || session.completedAt || !session.startedAt) return;
       const at = opTime(op.at, now, session.startedAt.getTime());
@@ -502,6 +531,8 @@ export async function applyWatchOp(op: WatchOp, ctx: WatchSyncContext): Promise<
     }
 
     case "finishCardio": {
+      // Thrown away on the phone: whatever the watch measured goes with it.
+      if (isDiscarded(op)) return;
       const { exercise } = sessionTarget(op.session, op.indoor);
       const ground = distanceKind(exercise);
       const tracked = trackedFromWatch({
@@ -515,10 +546,18 @@ export async function applyWatchOp(op: WatchOp, ctx: WatchSyncContext): Promise<
         isRun: op.session === "run",
       });
       const distance = ground && op.distance && op.distance > 0 ? Math.round(op.distance * 10) / 10 : undefined;
-      const durationMinutes = Math.max(1, Math.round(op.duration / 60));
       const session = await findSession(op, ctx);
+      // Started on the phone, the session's clock began a few seconds — the
+      // Health sheet, the watch waking — before the watch's did. That time
+      // was spent in the session too.
+      const lead = session?.startedAt ? Math.max(0, Math.round((op.startedAt - session.startedAt.getTime()) / 1000)) : 0;
+      const duration = op.duration + (lead < SAME_START_MS / 1000 ? lead : 0);
+      const durationMinutes = Math.max(1, Math.round(duration / 60));
 
       if (!session) {
+        // Ended before it got going — seconds, and nowhere — isn't a session
+        // worth bringing in on its own.
+        if (op.duration < MIN_SESSION_SECONDS && !distance) return;
         // Its start never landed — refused at the limit, or lost — so the
         // finish brings the whole session in, finished.
         const fresh = newCardioSession(op.session, op.indoor, {
@@ -536,7 +575,7 @@ export async function applyWatchOp(op: WatchOp, ctx: WatchSyncContext): Promise<
             totalVolume: 0,
             exercises: fresh.exercises.map((ex) => ({
               ...ex,
-              sets: ex.sets.map((set) => ({ ...set, duration: op.duration, distance, tracked, isCompleted: true, completedAt })),
+              sets: ex.sets.map((set) => ({ ...set, duration, distance, tracked, isCompleted: true, completedAt })),
             })),
           })
         );
@@ -561,7 +600,7 @@ export async function applyWatchOp(op: WatchOp, ctx: WatchSyncContext): Promise<
                       ...set,
                       // The watch measured these; a distance typed on the
                       // phone stays only if the watch had none.
-                      duration: op.duration > 0 ? op.duration : set.duration,
+                      duration: duration > 0 ? duration : set.duration,
                       distance: distance ?? set.distance,
                       tracked,
                       isCompleted: true,
@@ -605,6 +644,8 @@ function sessionStartedBy(startOpId: string, ctx: WatchSyncContext): Workout | u
 
 /** A session started on the phone and this close to the watch's start is the one it woke the watch for. */
 const SAME_START_MS = 5 * 60 * 1000;
+/** Shorter than this, with no distance, a finish with nothing behind it is a false start. */
+const MIN_SESSION_SECONDS = 10;
 
 /**
  * The session a cardio op is about: by the phone's id, once the watch knows

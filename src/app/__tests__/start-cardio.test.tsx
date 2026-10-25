@@ -106,24 +106,17 @@ it("refuses a sixth session in progress, as Start workout does", async () => {
 });
 
 describe("with a watch", () => {
-  it("asks for Health access, wakes the watch into the session, and marks it tracked there", async () => {
+  // Waking the app proves nothing: the session's marked as tracked on the
+  // watch only when the watch says it is (see watch-sync).
+  it("asks for Health access and wakes the watch, without claiming it's tracking yet", async () => {
     mockWatchInstalled = true;
     await mount();
     await act(async () => {
       fireEvent.press(screen.getByText("Start outdoor run"));
     });
     expect(mockHealth.requestAccess.mock.invocationCallOrder[0]).toBeLessThan(mockHealth.startWatchWorkout.mock.invocationCallOrder[0]);
-    expect(mockHealth.startWatchWorkout).toHaveBeenCalledWith("run", false);
-    expect(mockUpdate).toHaveBeenCalledWith("new-session", { cardio: { kind: "run", indoor: false, watch: true } });
-  });
-
-  it("runs on the phone's clock when the watch can't be woken", async () => {
-    mockWatchInstalled = true;
-    mockHealth.startWatchWorkout.mockImplementation(async () => false);
-    await mount();
-    await act(async () => {
-      fireEvent.press(screen.getByText("Start outdoor run"));
-    });
+    // 25 yards, for someone in pounds.
+    expect(mockHealth.startWatchWorkout).toHaveBeenCalledWith("run", false, 22.86);
     expect(mockUpdate).not.toHaveBeenCalled();
     expect(mockReplace).toHaveBeenCalledWith("/workout/new-session");
   });

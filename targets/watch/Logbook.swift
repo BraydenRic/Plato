@@ -25,6 +25,12 @@ enum Logbook {
   /// shows as logged straight away rather than when the phone answers.
   static func overlay(_ ops: [WatchOp], on workout: WatchWorkout?) -> WatchWorkout? {
     guard var result = workout else { return nil }
+    // A session this watch has ended but the phone hasn't heard about: gone,
+    // even when the end went out before the watch learned the session's id.
+    if let mine = result.cardio?.startOpId,
+       ops.contains(where: { $0.kind == .finishCardio && $0.startOpId == mine }) {
+      return nil
+    }
     for op in ops where op.workoutId == result.id {
       switch op.kind {
       case .finish, .finishCardio:

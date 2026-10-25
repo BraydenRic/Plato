@@ -99,11 +99,26 @@ export interface WatchSnapshot {
   /** Recently applied op ids, so the watch knows which of its own edits have landed. */
   applied: string[];
   /**
-   * Sessions the watch was tracking that were ended on the phone — their ids,
-   * and the start op ids of the ones the watch started — so a watch still
-   * tracking one ends it and sends what it measured.
+   * Sessions the watch was tracking that were ended or thrown away on the
+   * phone, so a watch still tracking one stops: sending what it measured for
+   * one that ended, keeping nothing of one that was discarded.
    */
-  endedCardio: string[];
+  endedCardio: EndedCardio[];
+}
+
+/**
+ * A session ended on the phone, described every way a watch might know it:
+ * by the phone's id, by its own start op, or — never having heard either —
+ * by kind and start time.
+ */
+export interface EndedCardio {
+  id: string;
+  startOpId: string | null;
+  kind: CardioSessionKind;
+  /** ms since epoch */
+  startedAt: number;
+  /** Thrown away on the phone: the watch keeps nothing, Health included. */
+  discard: boolean;
 }
 
 const SESSION_KINDS: CardioSessionKind[] = ["run", "walk", "hike", "bike", "swim", "row", "elliptical", "stairs"];
@@ -115,15 +130,20 @@ export const ENDED_CARDIO_WINDOW_MS = 6 * 60 * 60 * 1000;
  * Watch-tracked sessions ended on the phone that are still waiting for what
  * the watch measured: finished, but with nothing from the watch on their set.
  */
-export function endedCardioIds(completed: Workout[], now: number): string[] {
-  const ids: string[] = [];
+export function endedCardio(completed: Workout[], now: number): EndedCardio[] {
+  const ended: EndedCardio[] = [];
   for (const w of completed) {
     if (!w.cardio?.watch || !w.completedAt || now - w.completedAt.getTime() > ENDED_CARDIO_WINDOW_MS) continue;
     if (w.exercises[0]?.sets[0]?.tracked) continue;
-    ids.push(w.id);
-    if (w.cardio.watchStartOpId) ids.push(w.cardio.watchStartOpId);
+    ended.push({
+      id: w.id,
+      startOpId: w.cardio.watchStartOpId ?? null,
+      kind: w.cardio.kind,
+      startedAt: (w.startedAt ?? w.createdAt).getTime(),
+      discard: false,
+    });
   }
-  return ids;
+  return ended;
 }
 
 /**
@@ -224,8 +244,8 @@ export function buildWatchSnapshot(input: {
   accent: string;
   onAccent: string;
   applied: string[];
-  /** See endedCardioIds. */
-  endedCardio?: string[];
+  /** See endedCardio, plus sessions discarded on the phone. */
+  endedCardio?: EndedCardio[];
   now: number;
 }): WatchSnapshot {
   // Signed out carries nothing at all: the watch must not keep showing the last
@@ -257,8 +277,9 @@ interface OpBase {
 
 /**
  * Which session an op is about: the phone's id once the watch has learned it,
- * and the watch's own start op id for one it started, which is all it has
- * until then. At least one of the two.
+ * and the watch's own start op id, which is all it has until then. Kind and
+ * start time are the last resort, for a session the watch tracked before ever
+ * hearing about it.
  */
 interface CardioRef {
   workoutId: string | null;
@@ -382,11 +403,11 @@ export function parseWatchOp(raw: unknown): WatchOp | null {
       return { ...base, kind: "startCardio", session: op.session as CardioSessionKind, indoor: op.indoor };
     case "pauseCardio":
     case "resumeCardio": {
-      const ref = cardioRef(op);
-      if (!ref) return null;
       // Kind and start help find a session the watch doesn't know the id of.
       const session = SESSION_KINDS.includes(op.session as CardioSessionKind) ? (op.session as CardioSessionKind) : undefined;
       const startedAt = typeof op.startedAt === "number" && Number.isFinite(op.startedAt) ? op.startedAt : undefined;
+      const ref = cardioRef(op, session != null && startedAt != null);
+      if (!ref) return null;
       return {
         ...base,
         ...ref,
@@ -396,10 +417,11 @@ export function parseWatchOp(raw: unknown): WatchOp | null {
       };
     }
     case "finishCardio": {
-      const ref = cardioRef(op);
-      if (!ref) return null;
       if (!SESSION_KINDS.includes(op.session as CardioSessionKind) || typeof op.indoor !== "boolean") return null;
       if (typeof op.startedAt !== "number" || !Number.isFinite(op.startedAt)) return null;
+      // A finish always says its kind and start, so it can be matched with no id at all.
+      const ref = cardioRef(op, true);
+      if (!ref) return null;
       const duration = finiteOrNull(op.duration, 0, 24 * 60 * 60);
       const distance = finiteOrNull(op.distance, 0, 1_000_000);
       const activeCalories = finiteOrNull(op.activeCalories, 0, 50_000);
@@ -434,10 +456,11 @@ export function parseWatchOp(raw: unknown): WatchOp | null {
   }
 }
 
-function cardioRef(op: Record<string, unknown>): CardioRef | null {
+/** Null when the op gives no way at all to tell which session it means. */
+function cardioRef(op: Record<string, unknown>, hasKindAndStart: boolean): CardioRef | null {
   const workoutId = isId(op.workoutId) ? op.workoutId : null;
   const startOpId = isId(op.startOpId) ? op.startOpId : null;
-  return workoutId || startOpId ? { workoutId, startOpId } : null;
+  return workoutId || startOpId || hasKindAndStart ? { workoutId, startOpId } : null;
 }
 
 /**

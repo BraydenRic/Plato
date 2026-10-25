@@ -23,6 +23,7 @@ import {
   startFromTemplate,
   stripUndefined,
 } from "@/lib/data";
+import { recordCardioDiscard } from "@/lib/cardio-discards";
 import { useWeightUnit } from "@/context/UnitContext";
 import { isCardioWorkout, workoutDistanceLabel } from "@/lib/cardio";
 import { useTheme } from "@/context/ThemeContext";
@@ -347,7 +348,15 @@ export default function WorkoutsScreen() {
       `"${workout.name}" will be permanently removed.`,
       [
         { text: "Cancel", style: "cancel" },
-        { text: "Delete", style: "destructive", onPress: () => deleteWorkout(workout) },
+        {
+          text: "Delete",
+          style: "destructive",
+          onPress: () => {
+            // A watch still tracking it stops, and keeps nothing.
+            recordCardioDiscard(workout);
+            deleteWorkout(workout);
+          },
+        },
       ]
     );
   }

@@ -2,6 +2,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { act, render } from "@testing-library/react-native";
 
 import { APPLIED_KEY, RETRY_MS, START_TTL_MS, WatchSync } from "../watch-sync";
+import { recordCardioDiscard, resetCardioDiscards } from "@/lib/cardio-discards";
 import type { Workout } from "@/types";
 
 /**
@@ -187,6 +188,7 @@ beforeEach(async () => {
   mockBridge.listener = null;
   mockBridge.liveListener = null;
   mockCreated = 0;
+  resetCardioDiscards();
   jest.clearAllMocks();
   mockStore.clear();
   mockAuth = { dataUserId: "u1", loading: false };
@@ -575,17 +577,49 @@ describe("cardio sessions from the watch", () => {
     expect(mockUpsertStats).toHaveBeenCalled();
   });
 
-  // Started on the phone, the watch woken into it: the watch may end it before
-  // it ever heard the phone's id, so it's matched by kind and start.
+  // Started on the phone, the watch woken into it: when the watch says it's
+  // tracking, that's the same session, now marked as tracked there.
+  it("takes a watch's start as tracking a session the phone started, not a new one", async () => {
+    const run = session({ cardio: { kind: "run", indoor: false } });
+    mockStore.set(run.id, run);
+    mockWorkouts.active = [run];
+    mockBridge.inbox = [entry({ opId: "start-w", kind: "startCardio", at: START.getTime() + 6000, session: "run", indoor: false })];
+    render(<WatchSync />);
+    await settle();
+    expect(mockCreate).not.toHaveBeenCalled();
+    expect(mockStore.get("run1")!.cardio).toEqual({ kind: "run", indoor: false, watch: true, watchStartOpId: "start-w" });
+  });
+
+  // The watch may end it before ever hearing the phone's id or its own start
+  // landing: matched by kind and start, with no ids at all.
   it("finds a session the phone started by its kind and start time", async () => {
     const run = session({ cardio: { kind: "run", watch: true } });
     mockStore.set(run.id, run);
     mockWorkouts.active = [run];
-    mockBridge.inbox = [finish({ startOpId: "watch-own-id", startedAt: START.getTime() + 4000 })];
+    mockBridge.inbox = [finish({ startOpId: null, startedAt: START.getTime() + 4000 })];
     render(<WatchSync />);
     await settle();
     expect(mockCreate).not.toHaveBeenCalled();
-    expect(mockStore.get("run1")!.exercises[0].sets[0].distance).toBe(5000);
+    const set = mockStore.get("run1")!.exercises[0].sets[0];
+    expect(set.distance).toBe(5000);
+    // The four seconds before the watch's clock began were spent in the session too.
+    expect(set.duration).toBe(1504);
+  });
+
+  it("brings nothing in for a false start with no session behind it", async () => {
+    mockBridge.inbox = [finish({ startOpId: "blip", duration: 4, distance: null, curve: null })];
+    render(<WatchSync />);
+    await settle();
+    expect(mockCreate).not.toHaveBeenCalled();
+  });
+
+  it("tells the watch about a session thrown away on the phone, and turns away its finish", async () => {
+    recordCardioDiscard(session({ id: "gone", cardio: { kind: "run", watch: true, watchStartOpId: "start-1" } }));
+    mockBridge.inbox = [finish()];
+    render(<WatchSync />);
+    await settle();
+    expect(lastSnapshot().endedCardio).toContainEqual({ id: "gone", startOpId: "start-1", kind: "run", startedAt: START.getTime(), discard: true });
+    expect(mockCreate).not.toHaveBeenCalled();
   });
 
   it("brings the whole session in when its start never landed", async () => {
@@ -630,7 +664,9 @@ describe("cardio sessions from the watch", () => {
     await settle();
     const snapshot = lastSnapshot();
     expect(snapshot.workout.cardio).toEqual({ kind: "run", indoor: false, pausedAtMs: null, pausedSeconds: 0, watch: true, startOpId: "start-1" });
-    expect(snapshot.endedCardio).toEqual(["ended", "start-2"]);
+    expect(snapshot.endedCardio).toEqual([
+      { id: "ended", startOpId: "start-2", kind: "walk", startedAt: START.getTime(), discard: false },
+    ]);
   });
 
   it("passes the watch's live readings on to the session screen", async () => {

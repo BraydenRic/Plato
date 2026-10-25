@@ -46,10 +46,15 @@ final class CardioTracker: NSObject, ObservableObject, HKWorkoutSessionDelegate,
   }
 
   enum Event {
+    /// The workout session is confirmed running — only now is it a session.
     case started
+    /// Picked back up after a relaunch.
+    case recovered
     case paused(Date)
     case resumed(Date)
     case finished(CardioResult)
+    /// Thrown away: ended, and nothing kept.
+    case discarded
     /// It never got going: Health said no, or the sensors couldn't start.
     case failed
   }
@@ -65,7 +70,7 @@ final class CardioTracker: NSObject, ObservableObject, HKWorkoutSessionDelegate,
   /// The phone's id for this session, once known.
   @Published private(set) var workoutId: String?
 
-  /// The start op's id, for a session started on the watch.
+  /// The id the phone first hears of this session by: the watch's start op.
   private(set) var startOpId: String?
   /// Started by the phone waking the app, not from the watch's own picker.
   private(set) var fromPhone = false
@@ -78,6 +83,13 @@ final class CardioTracker: NSObject, ObservableObject, HKWorkoutSessionDelegate,
   private var activeCalories: Double = 0
   private var avgHeartRate: Double?
   private var maxHeartRate: Double?
+  /// HealthKit has said the session is running. Until then a failure is a
+  /// start that didn't happen, not a session to save.
+  private var confirmed = false
+  /// Ending is under way; a second end (a failure on top of the end) is ignored.
+  private var finishing = false
+  /// End by throwing it away rather than saving it.
+  private var discarding = false
   private let identityKey = "plato.watch.cardio.v1"
 
   var isActive: Bool { state != .idle }
@@ -89,27 +101,36 @@ final class CardioTracker: NSObject, ObservableObject, HKWorkoutSessionDelegate,
 
   // MARK: Starting
 
-  /// From the watch's picker. `startOpId` is the op the phone hears about it by.
-  func start(kind: CardioKind, indoor: Bool, startOpId: String?, linkTo workoutId: String? = nil) {
-    begin(kind: kind, indoor: indoor, configuration: Self.configuration(kind: kind, indoor: indoor),
-          startOpId: startOpId, workoutId: workoutId, fromPhone: workoutId != nil)
+  /// From the watch's picker. `poolMetres` is the lap a pool swim counts.
+  func start(kind: CardioKind, indoor: Bool, poolMetres: Double) {
+    begin(kind: kind, indoor: indoor,
+          configuration: Self.configuration(kind: kind, indoor: indoor, poolMetres: poolMetres), fromPhone: false)
   }
 
   /// The phone started a session and woke this app to track it.
   func startFromPhone(_ configuration: HKWorkoutConfiguration) {
     let (kind, indoor) = Self.kind(of: configuration)
-    begin(kind: kind, indoor: indoor, configuration: configuration, startOpId: nil, workoutId: nil, fromPhone: true)
+    begin(kind: kind, indoor: indoor, configuration: configuration, fromPhone: true)
   }
 
-  private func begin(kind: CardioKind, indoor: Bool, configuration: HKWorkoutConfiguration,
-                     startOpId: String?, workoutId: String?, fromPhone: Bool) {
+  /// The id the phone will know this session by, given once it's running.
+  func assignStartOpId(_ id: String) {
+    guard startOpId == nil else { return }
+    startOpId = id
+    saveIdentity()
+  }
+
+  private func begin(kind: CardioKind, indoor: Bool, configuration: HKWorkoutConfiguration, fromPhone: Bool) {
     guard state == .idle else { return }
     state = .starting
     self.kind = kind
     self.indoor = indoor
-    self.startOpId = startOpId
-    self.workoutId = workoutId
+    self.startOpId = nil
+    self.workoutId = nil
     self.fromPhone = fromPhone
+    confirmed = false
+    finishing = false
+    discarding = false
     distance = 0
     heartRate = nil
     curve = CurveRecorder()
@@ -134,12 +155,20 @@ final class CardioTracker: NSObject, ObservableObject, HKWorkoutSessionDelegate,
       self.session = session
       self.builder = builder
       let start = Date()
-      session.startActivity(with: start)
-      builder.beginCollection(withStart: start) { _, _ in }
+      // The clock starts now; the session counts once HealthKit says it's
+      // running (didChangeTo), so a start that fails right away — no Health
+      // access — never reaches the phone as a run.
       startedAt = start
-      state = .running
-      saveIdentity()
-      onEvent?(.started)
+      session.startActivity(with: start)
+      builder.beginCollection(withStart: start) { [weak self] began, _ in
+        guard !began else { return }
+        DispatchQueue.main.async {
+          guard let self, !self.confirmed, self.state == .starting else { return }
+          session.end()
+          self.reset()
+          self.onEvent?(.failed)
+        }
+      }
     } catch {
       reset()
       onEvent?(.failed)
@@ -153,6 +182,10 @@ final class CardioTracker: NSObject, ObservableObject, HKWorkoutSessionDelegate,
         guard let self, let session else { return }
         let identity = self.loadIdentity()
         let builder = session.associatedWorkoutBuilder()
+        // The session and builder come back, the data source doesn't: without
+        // a new one nothing more is collected, and the run freezes at the
+        // moment of the relaunch.
+        builder.dataSource = HKLiveWorkoutDataSource(healthStore: self.healthStore, workoutConfiguration: session.workoutConfiguration)
         session.delegate = self
         builder.delegate = self
         self.session = session
@@ -165,10 +198,14 @@ final class CardioTracker: NSObject, ObservableObject, HKWorkoutSessionDelegate,
         self.fromPhone = identity?.fromPhone ?? false
         self.startedAt = session.startDate ?? Date()
         self.state = session.state == .paused ? .paused : .running
+        self.confirmed = true
+        self.finishing = false
+        self.discarding = false
         // The readings before the relaunch are gone from here; the distance
         // so far starts the record again, so splits carry on from it.
         self.curve = CurveRecorder()
         self.collect(from: builder)
+        self.onEvent?(.recovered)
       }
     }
   }
@@ -192,10 +229,17 @@ final class CardioTracker: NSObject, ObservableObject, HKWorkoutSessionDelegate,
     session?.resume()
   }
 
-  func end() {
-    guard state == .running || state == .paused else { return }
+  /// Ends it — saved to Health and sent to the phone, or, with `discard`,
+  /// thrown away: the phone discarded it, so nothing is kept anywhere.
+  func end(discard: Bool = false) {
+    guard state == .running || state == .paused || state == .starting else { return }
+    discarding = discard
     state = .ending
-    session?.end()
+    if let session {
+      session.end()
+    } else {
+      reset()
+    }
   }
 
   // MARK: HKWorkoutSessionDelegate
@@ -204,6 +248,11 @@ final class CardioTracker: NSObject, ObservableObject, HKWorkoutSessionDelegate,
                       from fromState: HKWorkoutSessionState, date: Date) {
     DispatchQueue.main.async {
       switch toState {
+      case .running where !self.confirmed:
+        self.confirmed = true
+        if self.state == .starting { self.state = .running }
+        self.saveIdentity()
+        self.onEvent?(.started)
       case .paused:
         self.state = .paused
         self.onEvent?(.paused(date))
@@ -220,12 +269,12 @@ final class CardioTracker: NSObject, ObservableObject, HKWorkoutSessionDelegate,
 
   func workoutSession(_ workoutSession: HKWorkoutSession, didFailWithError error: Error) {
     DispatchQueue.main.async {
-      // Ended underneath us. If it got going, what it measured is still worth
-      // sending; if not, there's nothing to keep.
-      if self.startedAt != nil, self.state != .idle, self.state != .ending {
+      // Ended underneath us. If it was confirmed running, what it measured is
+      // still worth sending; if it never got going, there's nothing to keep.
+      if self.confirmed {
         self.state = .ending
         self.finish(at: Date())
-      } else if self.state == .starting {
+      } else if self.state != .idle {
         self.reset()
         self.onEvent?(.failed)
       }
@@ -261,31 +310,53 @@ final class CardioTracker: NSObject, ObservableObject, HKWorkoutSessionDelegate,
   }
 
   private func finish(at date: Date) {
+    // Once only: a failure arriving on top of the end mustn't save it twice.
+    guard !finishing else { return }
+    finishing = true
     guard let builder, let startedAt else {
       reset()
       return
     }
+    // Thrown away on the phone — or ended before it was ever confirmed
+    // running, which makes it a false start rather than a session.
+    if discarding || !confirmed {
+      builder.discardWorkout()
+      reset()
+      onEvent?(.discarded)
+      return
+    }
     collect(from: builder)
     let moving = Int(builder.elapsedTime(at: date))
+    curve.close(metres: distance, seconds: Double(moving))
+    // Everything the result needs, taken now: by the time HealthKit calls
+    // back, nothing about this session should be read off the tracker.
+    let kind = self.kind
+    let indoor = self.indoor
+    let distance = kind.tracksDistance && self.distance > 0 ? self.distance : nil
+    let activeCalories = self.activeCalories > 0 ? self.activeCalories : nil
+    let avgHeartRate = self.avgHeartRate
+    let maxHeartRate = self.maxHeartRate
+    let curve = kind.tracksDistance ? self.curve.flat() : []
+    let workoutId = self.workoutId
+    let startOpId = self.startOpId
     builder.endCollection(withEnd: date) { [weak self] _, _ in
       builder.finishWorkout { workout, _ in
+        let result = CardioResult(
+          kind: kind,
+          indoor: indoor,
+          startedAt: startedAt,
+          duration: moving,
+          distance: distance,
+          activeCalories: activeCalories,
+          avgHeartRate: avgHeartRate,
+          maxHeartRate: maxHeartRate,
+          healthId: workout?.uuid.uuidString,
+          curve: curve,
+          workoutId: workoutId,
+          startOpId: startOpId
+        )
         DispatchQueue.main.async {
           guard let self else { return }
-          self.curve.close(metres: self.distance, seconds: Double(moving))
-          let result = CardioResult(
-            kind: self.kind,
-            indoor: self.indoor,
-            startedAt: startedAt,
-            duration: moving,
-            distance: self.kind.tracksDistance && self.distance > 0 ? self.distance : nil,
-            activeCalories: self.activeCalories > 0 ? self.activeCalories : nil,
-            avgHeartRate: self.avgHeartRate,
-            maxHeartRate: self.maxHeartRate,
-            healthId: workout?.uuid.uuidString,
-            curve: self.kind.tracksDistance ? self.curve.flat() : [],
-            workoutId: self.workoutId,
-            startOpId: self.startOpId
-          )
           self.reset()
           self.onEvent?(.finished(result))
         }
@@ -297,6 +368,8 @@ final class CardioTracker: NSObject, ObservableObject, HKWorkoutSessionDelegate,
     session = nil
     builder = nil
     startedAt = nil
+    confirmed = false
+    discarding = false
     workoutId = nil
     startOpId = nil
     fromPhone = false
@@ -334,7 +407,7 @@ final class CardioTracker: NSObject, ObservableObject, HKWorkoutSessionDelegate,
   }
 
   /// The same mapping as modules/plato-health on the phone; keep them matching.
-  static func configuration(kind: CardioKind, indoor: Bool) -> HKWorkoutConfiguration {
+  static func configuration(kind: CardioKind, indoor: Bool, poolMetres: Double = 25) -> HKWorkoutConfiguration {
     let configuration = HKWorkoutConfiguration()
     switch kind {
     case .run: configuration.activityType = .running
@@ -349,7 +422,7 @@ final class CardioTracker: NSObject, ObservableObject, HKWorkoutSessionDelegate,
     if kind == .swim {
       configuration.swimmingLocationType = indoor ? .pool : .openWater
       if indoor {
-        configuration.lapLength = HKQuantity(unit: HKUnit.meter(), doubleValue: 25)
+        configuration.lapLength = HKQuantity(unit: HKUnit.meter(), doubleValue: poolMetres)
       }
     } else {
       configuration.locationType = indoor ? .indoor : .outdoor

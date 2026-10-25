@@ -11,8 +11,11 @@ declare class PlatoHealthModule extends NativeModule {
    * session and save it to Health; the watch app shares this access.
    */
   requestAccess(): Promise<void>;
-  /** Wakes Plato's watch app into a session of this kind. False with no watch to wake. */
-  startWatchWorkout(kind: CardioSessionKind, indoor: boolean): Promise<boolean>;
+  /**
+   * Wakes Plato's watch app into a session of this kind. False with no watch
+   * to wake. `poolMetres` is the lap length a pool swim is counted against.
+   */
+  startWatchWorkout(kind: CardioSessionKind, indoor: boolean, poolMetres: number): Promise<boolean>;
 }
 
 /**

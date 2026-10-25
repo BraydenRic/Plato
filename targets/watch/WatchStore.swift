@@ -50,9 +50,6 @@ final class WatchStore: ObservableObject {
 
   let tracker = CardioTracker.shared
   private let link = PhoneLink()
-  /// The start op for a session begun from the watch's picker, sent once the
-  /// sensors are actually going — a start that fails tells the phone nothing.
-  private var pendingCardioStart: WatchOp?
   private var liveTimer: Timer?
   private let defaults = UserDefaults.standard
   /// The op being sent right now. One at a time, oldest first, so they reach
@@ -258,17 +255,10 @@ final class WatchStore: ObservableObject {
 
   /// From the picker: track it here, and tell the phone once it's going.
   func startCardio(_ kind: CardioKind, indoor: Bool) {
-    var op = WatchOp(kind: .startCardio, at: Date().ms)
-    op.session = kind.rawValue
-    op.indoor = indoor
-    pendingCardioStart = op
-    tracker.start(kind: kind, indoor: indoor, startOpId: op.opId)
-  }
-
-  /// A session already running on the phone: track the rest of it here.
-  func trackHere(_ workout: WatchWorkout) {
-    guard let cardio = workout.cardio, let kind = CardioKind(rawValue: cardio.kind) else { return }
-    tracker.start(kind: kind, indoor: cardio.indoor, startOpId: nil, linkTo: workout.id)
+    // A pool's length, guessed from the unit: 25 yards where people think in
+    // pounds, 25 metres elsewhere. The phone makes the same guess.
+    let pool = unit == "kg" ? 25 : 25 * CardioFormat.yard
+    tracker.start(kind: kind, indoor: indoor, poolMetres: pool)
   }
 
   func dismissCardioFinished() {
@@ -278,12 +268,21 @@ final class WatchStore: ObservableObject {
   private func handle(_ event: CardioTracker.Event) {
     switch event {
     case .started:
-      if var op = pendingCardioStart, op.opId == tracker.startOpId {
-        if let started = tracker.startedAt { op = op.withTime(started.ms) }
-        enqueue(op)
-      }
-      pendingCardioStart = nil
+      // Every session, however it was started, introduces itself to the
+      // phone once it's really running: a watch start becomes a session
+      // there, a phone start learns the watch has it.
+      var op = WatchOp(kind: .startCardio, at: (tracker.startedAt ?? Date()).ms)
+      op.session = tracker.kind.rawValue
+      op.indoor = tracker.indoor
+      tracker.assignStartOpId(op.opId)
+      enqueue(op)
       startLiveUpdates()
+      if let snapshot { reconcileCardio(with: snapshot) }
+    case .recovered:
+      startLiveUpdates()
+      if let snapshot { reconcileCardio(with: snapshot) }
+    case .discarded:
+      stopLiveUpdates()
     case .paused(let date):
       enqueue(cardioOp(.pauseCardio, at: date.ms))
       sendLive()
@@ -308,7 +307,6 @@ final class WatchStore: ObservableObject {
       Haptics.confirm()
       cardioFinished = result
     case .failed:
-      pendingCardioStart = nil
       stopLiveUpdates()
     }
   }
@@ -365,11 +363,16 @@ final class WatchStore: ObservableObject {
         tracker.link(to: workout.id)
       }
     }
-    let ended = Set(next.endedCardio ?? [])
-    if let id = tracker.workoutId, ended.contains(id) {
-      tracker.end()
-    } else if let op = tracker.startOpId, ended.contains(op) {
-      tracker.end()
+    // Ended or thrown away on the phone: by id, by the watch's own start op,
+    // or — for one the watch never linked — by kind and start.
+    let ended = (next.endedCardio ?? []).first { entry in
+      if let id = tracker.workoutId, entry.id == id { return true }
+      if let mine = tracker.startOpId, entry.startOpId == mine { return true }
+      guard tracker.workoutId == nil, entry.kind == tracker.kind.rawValue, let started = tracker.startedAt else { return false }
+      return abs(entry.startedAt - started.ms) < sameStartMs
+    }
+    if let ended {
+      tracker.end(discard: ended.discard)
     }
   }
 

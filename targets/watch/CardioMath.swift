@@ -116,19 +116,24 @@ struct CurveRecorder: Codable, Equatable {
   /// Flat — metres, seconds, metres, seconds… — and at most `limit` points:
   /// evenly thinned, the first and last always kept, so a marathon still fits
   /// in one message.
-  func flat(limit: Int = 1500) -> [Double] {
+  ///
+  /// Rounded to a tenth: GPS is honest to metres, not micrometres, and
+  /// seventeen digits a number would make a marathon's record too big for one
+  /// message.
+  func flat(limit: Int = 1200) -> [Double] {
     let count = metres.count
     let step = max(1, Int((Double(count) / Double(max(limit - 1, 1))).rounded(.up)))
+    let tenth = { (value: Double) in (value * 10).rounded() / 10 }
     var out: [Double] = []
     var i = 0
     while i < count {
-      out.append(metres[i])
-      out.append(seconds[i])
+      out.append(tenth(metres[i]))
+      out.append(tenth(seconds[i]))
       i += step
     }
     if (count - 1) % step != 0 {
-      out.append(metres[count - 1])
-      out.append(seconds[count - 1])
+      out.append(tenth(metres[count - 1]))
+      out.append(tenth(seconds[count - 1]))
     }
     return out
   }
