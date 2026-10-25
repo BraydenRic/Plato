@@ -37,30 +37,32 @@ function flat(stretches: Stretch[]): number[] {
  */
 export function usePhoneDistance(workout: Workout, enabled: boolean): number | null {
   const [banked, setBanked] = useState<number | null>(null);
-  const [sinceResume, setSinceResume] = useState(0);
+  // Tagged with the start of the stretch it counts from, so a reading from
+  // before a pause or a resume is never added to the stretches since.
+  const [live, setLive] = useState<{ fromMs: number; metres: number } | null>(null);
   const [refused, setRefused] = useState(false);
   const counting = enabled && !refused && canCount(workout);
   const startMs = workout.startedAt?.getTime();
   const pausedAtMs = workout.cardio?.pausedAtMs;
+  const pauses = workout.cardio?.pauses;
   // One key for "the pauses changed", so a new array from the store with the
   // same pauses in it doesn't restart the count.
-  const pausesKey = JSON.stringify(workout.cardio?.pauses ?? []);
+  const pausesKey = JSON.stringify(pauses ?? []);
+  // Where the stretch under way began: the last resume, or the start.
+  const liveFromMs = pausedAtMs == null ? (pauses?.length ? pauses[pauses.length - 1].toMs : startMs) : undefined;
 
   useEffect(() => {
     if (!counting || !PlatoMotion || startMs == null) return;
     const motion = PlatoMotion;
     let cancelled = false;
-    const pauses: Stretch[] = JSON.parse(pausesKey);
-    const stretches = movingStretches(startMs, pausedAtMs ?? Date.now(), pauses);
+    const stretches = movingStretches(startMs, pausedAtMs ?? Date.now(), JSON.parse(pausesKey) as Stretch[]);
     // Running, the last stretch is the one under way: counted live.
-    const live = pausedAtMs == null ? stretches.pop() : undefined;
+    const underWay = pausedAtMs == null ? stretches.pop() : undefined;
 
     motion
       .distances(flat(stretches))
       .then((metres) => {
-        if (cancelled) return;
-        setBanked(metres.reduce((sum, m) => sum + Math.max(0, m), 0));
-        setSinceResume(0);
+        if (!cancelled) setBanked(metres.reduce((sum, m) => sum + Math.max(0, m), 0));
       })
       .catch((e: unknown) => {
         if (cancelled) return;
@@ -68,17 +70,17 @@ export function usePhoneDistance(workout: Workout, enabled: boolean): number | n
         setRefused(true);
       });
 
-    if (!live) return () => void (cancelled = true);
+    if (!underWay) return () => void (cancelled = true);
     const subscription = motion.addListener("onDistance", (reading) => {
       if (cancelled) return;
       if ("error" in reading) {
         traceWatch(`steps: live count failed (code ${reading.error})`);
         setRefused(true);
       } else {
-        setSinceResume(reading.distance);
+        setLive({ fromMs: underWay.fromMs, metres: reading.distance });
       }
     });
-    motion.startUpdates(live.fromMs);
+    motion.startUpdates(underWay.fromMs);
     return () => {
       cancelled = true;
       subscription.remove();
@@ -86,6 +88,7 @@ export function usePhoneDistance(workout: Workout, enabled: boolean): number | n
     };
   }, [counting, startMs, pausedAtMs, pausesKey]);
 
+  const sinceResume = live && live.fromMs === liveFromMs ? live.metres : 0;
   return counting && banked != null ? banked + sinceResume : null;
 }
 

@@ -390,6 +390,25 @@ describe("with the iPhone's step counter", () => {
     expect(screen.getByLabelText("Distance: 0.19 mi")).toBeTruthy();
   });
 
+  // The live count was from the start; once paused, what it covered is in
+  // the banked figure, and adding the old reading too would count it twice.
+  it("doesn't count a reading from before a pause on top of it", async () => {
+    const running = session("run");
+    const { rerender } = render(<CardioSession workout={running} onLocalChange={jest.fn()} />);
+    await act(async () => {});
+    await act(async () => {
+      mockMotion.listener!({ distance: 300, at: T0 + 50_000 });
+    });
+    expect(screen.getByLabelText("Distance: 0.19 mi")).toBeTruthy();
+    const pausedRun = { ...running, cardio: { kind: "run" as const, pausedAtMs: T0 + 60_000 } };
+    await act(async () => {
+      rerender(<CardioSession workout={pausedRun} onLocalChange={jest.fn()} />);
+    });
+    // One closed stretch, start to the pause: 200 m by the mock, and nothing live.
+    expect(mockMotion.distances).toHaveBeenLastCalledWith([T0, T0 + 60_000]);
+    expect(screen.getByLabelText("Distance: 0.12 mi")).toBeTruthy();
+  });
+
   it("saves what it counted on End, with splits, without asking how far", async () => {
     show(session("run", { cardio: { kind: "run", pausedSeconds: 10, pauses: [{ fromMs: T0 + 10_000, toMs: T0 + 20_000 }] } }));
     await act(async () => {});
