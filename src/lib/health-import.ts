@@ -29,8 +29,12 @@ export interface HealthWorkout {
   activeCalories: number | null;
   avgHeartRate: number | null;
   maxHeartRate: number | null;
-  /** Pauses and resumes, manual or automatic, in the order they happened. */
-  events: { type: "pause" | "resume"; ms: number }[];
+  /**
+   * Pauses and resumes in the order they happened. Manual and automatic ones
+   * are told apart because they overlap: auto-pause at a light, then a manual
+   * pause on top, and the manual resume doesn't mean you're moving yet.
+   */
+  events: { type: "pause" | "resume" | "motionPause" | "motionResume"; ms: number }[];
   /** What recorded it, as Health shows it ("Brayden's Apple Watch"). */
   source: string;
   sourceBundle: string;
@@ -72,6 +76,28 @@ export const IMPORTED_ACTIVITIES = Object.keys(IMPORTS);
  */
 const OWN_BUNDLE = "com.plato.workouts";
 
+/** When each workout already brought in ran, to recognise a second app's copy of it. */
+export function importedSpans(workouts: Workout[]): { startMs: number; endMs: number }[] {
+  const spans: { startMs: number; endMs: number }[] = [];
+  for (const w of workouts) {
+    if (!w.startedAt || !w.completedAt) continue;
+    if (!w.exercises.some((ex) => ex.sets.some((set) => set.tracked?.healthId))) continue;
+    spans.push({ startMs: w.startedAt.getTime(), endMs: w.completedAt.getTime() });
+  }
+  return spans;
+}
+
+/**
+ * Two recordings of one session: they share most of the shorter one's time.
+ * A run recorded by the watch and by Strava overlaps almost completely; a walk
+ * home straight after a run barely touches it.
+ */
+function sameSession(a: { startMs: number; endMs: number }, b: { startMs: number; endMs: number }): boolean {
+  const shared = Math.min(a.endMs, b.endMs) - Math.max(a.startMs, b.startMs);
+  const shorter = Math.min(a.endMs - a.startMs, b.endMs - b.startMs);
+  return shorter > 0 && shared >= shorter / 2;
+}
+
 /** Health ids already brought in, read off the workouts themselves. */
 export function importedHealthIds(workouts: Workout[]): Set<string> {
   const ids = new Set<string>();
@@ -84,14 +110,26 @@ export function importedHealthIds(workouts: Workout[]): Set<string> {
 }
 
 /**
- * The workouts worth importing out of what Health handed back.
+ * The workouts worth importing out of what Health handed back, oldest first —
+ * and the ones left out as second copies of a session, so the caller can
+ * remember those as handled too.
  *
  * `seen` is every id this phone has imported before, kept separately from the
  * workouts so that deleting an imported run in Plato is final: it's gone from
  * the workouts, but not from here, so the next import doesn't put it back.
+ *
+ * When two apps recorded the same session (the watch and Strava, a bike
+ * computer and the watch), only one comes in — the Apple Watch's own if it's
+ * one of them, since that's the copy with heart rate and splits — or the
+ * week's distance would count it twice.
  */
-export function workoutsToImport(found: HealthWorkout[], imported: Set<string>, seen: Set<string>): HealthWorkout[] {
-  return found.filter(
+export function workoutsToImport(
+  found: HealthWorkout[],
+  imported: Set<string>,
+  seen: Set<string>,
+  existing: { startMs: number; endMs: number }[] = []
+): { fresh: HealthWorkout[]; duplicates: HealthWorkout[] } {
+  const candidates = found.filter(
     (w) =>
       IMPORTS[w.activity] != null &&
       !imported.has(w.id) &&
@@ -99,17 +137,40 @@ export function workoutsToImport(found: HealthWorkout[], imported: Set<string>, 
       !w.sourceBundle.startsWith(OWN_BUNDLE) &&
       w.duration > 0
   );
+  const apple = (w: HealthWorkout) => (w.sourceBundle.startsWith("com.apple") ? 0 : 1);
+  const taken = [...existing];
+  const fresh: HealthWorkout[] = [];
+  const duplicates: HealthWorkout[] = [];
+  for (const w of [...candidates].sort((a, b) => apple(a) - apple(b) || a.startMs - b.startMs)) {
+    if (taken.some((span) => sameSession(span, w))) {
+      duplicates.push(w);
+    } else {
+      taken.push(w);
+      fresh.push(w);
+    }
+  }
+  return { fresh: fresh.sort((a, b) => a.startMs - b.startMs), duplicates };
 }
 
 // ── Time and distance ────────────────────────────────────────────────────────
 
-/** Paused stretches, from Health's pause/resume events. */
+/**
+ * Paused stretches, from Health's pause/resume events: paused for as long as
+ * either a manual or an automatic pause is on.
+ */
 export function pausesFrom(events: HealthWorkout["events"], endMs: number): { startMs: number; endMs: number }[] {
   const pauses: { startMs: number; endMs: number }[] = [];
+  let manual = false;
+  let motion = false;
   let pausedAt: number | null = null;
   for (const e of [...events].sort((a, b) => a.ms - b.ms)) {
-    if (e.type === "pause" && pausedAt == null) pausedAt = e.ms;
-    else if (e.type === "resume" && pausedAt != null) {
+    if (e.type === "pause") manual = true;
+    else if (e.type === "resume") manual = false;
+    else if (e.type === "motionPause") motion = true;
+    else if (e.type === "motionResume") motion = false;
+    const paused = manual || motion;
+    if (paused && pausedAt == null) pausedAt = e.ms;
+    else if (!paused && pausedAt != null) {
       pauses.push({ startMs: pausedAt, endMs: e.ms });
       pausedAt = null;
     }
@@ -145,15 +206,22 @@ export function distanceCurve(
   const seconds: number[] = [];
   let total = 0;
   let lastT = 0;
+  let lastEndMs = startMs;
   for (const s of [...samples].sort((a, b) => a.startMs - b.startMs)) {
     if (!(s.metres > 0) || s.endMs < s.startMs) continue;
+    // Some apps log distance as instants: a reading stamped at one moment
+    // holding everything since the last. Taken as instants, each would be a
+    // jump of metres in no time, and the fastest kilometre would come out
+    // quicker than it was run — so it's spread over the gap it covers.
+    const fromMs = s.endMs > s.startMs ? s.startMs : Math.min(lastEndMs, s.endMs);
     // Clamped so an overlap between samples can't make time run backwards.
-    const t0 = Math.max(lastT, movingSeconds(s.startMs));
+    const t0 = Math.max(lastT, movingSeconds(fromMs));
     const t1 = Math.max(t0, movingSeconds(s.endMs));
     metres.push(total, total + s.metres);
     seconds.push(t0, t1);
     total += s.metres;
     lastT = t1;
+    lastEndMs = Math.max(lastEndMs, s.endMs);
   }
   return { metres, seconds };
 }

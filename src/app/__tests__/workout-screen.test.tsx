@@ -67,12 +67,15 @@ jest.mock("@/hooks/use-bodyweight", () => ({
   }),
 }));
 
+let mockRestSeconds = 0;
+const mockStartRest = jest.fn();
 jest.mock("@/context/RestTimerContext", () => ({
-  useRestTimer: () => ({ restSeconds: 0, rest: null, startRest: jest.fn(), stopRest: jest.fn() }),
+  useRestTimer: () => ({ restSeconds: mockRestSeconds, rest: null, startRest: mockStartRest, stopRest: jest.fn() }),
 }));
 
+let mockTimer: { workoutId: string; exerciseId: string; setId: string; startedAt: number } | null = null;
 jest.mock("@/context/SetTimerContext", () => ({
-  useSetTimer: () => ({ timing: null, startTimer: jest.fn(), clearTimer: jest.fn() }),
+  useSetTimer: () => ({ timer: mockTimer, startTimer: jest.fn(), clearTimer: jest.fn() }),
 }));
 
 jest.mock("@/context/UnitContext", () => ({
@@ -167,6 +170,8 @@ beforeEach(() => {
   emitWorkout = null;
   mockGetWorkout = jest.fn(async () => null);
   mockBodyweightLog = [];
+  mockRestSeconds = 0;
+  mockTimer = null;
 });
 
 afterEach(() => {
@@ -639,6 +644,33 @@ describe("cardio", () => {
     const [set] = savedSets();
     expect(set.duration).toBeUndefined();
     expect(set.isCompleted).toBe(true);
+  });
+
+  // Typed before or during the run, a distance would otherwise start the
+  // rest countdown while still running.
+  it("doesn't start the rest timer for a distance typed in", async () => {
+    mockRestSeconds = 90;
+    await loadWorkout(runWorkout([{ id: "s1", weightUnit: "lbs", isCompleted: false }]));
+    const distance = screen.getByLabelText("Distance, miles");
+    await act(async () => {
+      fireEvent.changeText(distance, "3.1");
+    });
+    await act(async () => {
+      fireEvent(distance, "endEditing");
+    });
+    expect(savedSets()[0].isCompleted).toBe(true);
+    expect(mockStartRest).not.toHaveBeenCalled();
+  });
+
+  it("starts the rest timer when the stopwatch stops, even on a set a distance already finished", async () => {
+    mockRestSeconds = 90;
+    mockTimer = { workoutId: "w1", exerciseId: "ex0", setId: "s1", startedAt: Date.now() - 600_000 };
+    await loadWorkout(runWorkout([{ id: "s1", weightUnit: "lbs", isCompleted: true, distance: 1609 }]));
+    await act(async () => {
+      fireEvent.press(screen.getByLabelText("Stop timer"));
+    });
+    expect(savedSets()[0]).toMatchObject({ duration: 600, distance: 1609, isCompleted: true });
+    expect(mockStartRest).toHaveBeenCalledWith("w1");
   });
 
   it("shows the pace under a set with both", async () => {

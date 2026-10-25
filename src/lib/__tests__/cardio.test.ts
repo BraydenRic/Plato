@@ -197,11 +197,21 @@ describe("cardio progress", () => {
   });
 
   it("takes a typed-in 5K as a 5K, scaled to the exact distance", () => {
-    // 3.1 miles is 4,989 m: under 5K, so it isn't one. 3.12 miles is.
-    const short = cardioSessions([makeWorkout({ completedAt: at("2026-10-20T08:00:00"), exercises: [cardio("running", [run({ distance: 3.1 * MILE })])] })]);
-    expect(cardioRecords(short).best["5k"]).toBeUndefined();
     const real = cardioSessions([makeWorkout({ completedAt: at("2026-10-20T08:00:00"), exercises: [cardio("running", [run({ distance: 5100, duration: 1530 })])] })]);
     expect(cardioRecords(real).best["5k"]).toBe(1500);
+  });
+
+  // 3.1 is how a 5K is written in miles, though it's 4,989 m.
+  it("counts the usual miles shorthand for a race as that race", () => {
+    const shorthand = cardioSessions([
+      makeWorkout({ completedAt: at("2026-10-20T08:00:00"), exercises: [cardio("running", [run({ distance: 3.1 * MILE, duration: 1500 })])] }),
+    ]);
+    expect(cardioRecords(shorthand).best["5k"]).toBe(1503);
+    // Three miles is just short of a 5K, not one.
+    const short = cardioSessions([
+      makeWorkout({ completedAt: at("2026-10-20T08:00:00"), exercises: [cardio("running", [run({ distance: 3 * MILE })])] }),
+    ]);
+    expect(cardioRecords(short).best["5k"]).toBeUndefined();
   });
 
   // A 10-mile run's average says nothing about its fastest mile.

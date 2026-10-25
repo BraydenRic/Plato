@@ -1,3 +1,4 @@
+import { cardioSetDone } from "./cardio";
 import { isBodyweightExercise, isTimedExercise } from "./exercises";
 import { convertWeight, liveSetSeconds, previousSetsByExercise, workoutVolumeLbs } from "./workout-utils";
 import type { Workout, WorkoutExercise, WorkoutSet } from "@/types";
@@ -348,7 +349,9 @@ export function applySetOp(
     const kind = watchSetKind(exercise);
     if (kind === "timed") {
       const seconds = op.duration != null && op.duration > 0 ? op.duration : undefined;
-      patch = { duration: seconds, isCompleted: seconds != null, completedAt: seconds != null ? at : undefined };
+      // A distance typed on the phone still counts, as it does there.
+      const done = cardioSetDone({ duration: seconds, distance: set.distance });
+      patch = { duration: seconds, isCompleted: done, completedAt: done ? at : undefined };
     } else {
       const reps = op.reps ?? undefined;
       const done = kind === "bodyweight" ? reps != null && reps > 0 : op.weight != null && reps != null && reps > 0;
@@ -395,8 +398,8 @@ export function bankRunningTimer(
               : {
                   ...s,
                   duration: seconds > 0 ? seconds : undefined,
-                  isCompleted: seconds > 0,
-                  completedAt: seconds > 0 ? new Date(now) : undefined,
+                  isCompleted: cardioSetDone({ duration: seconds, distance: s.distance }),
+                  completedAt: cardioSetDone({ duration: seconds, distance: s.distance }) ? new Date(now) : undefined,
                 }
           ),
         }

@@ -81,21 +81,31 @@ function TimedProgress({ exercise }: { exercise: Exercise }) {
   const { unit } = useWeightUnit();
   const ground = distanceKind(exercise);
 
-  // One per workout, newest first: the time and distance of its completed sets.
+  // One per workout, newest first: the time and distance of its completed
+  // sets. Pace comes only from sets that have both — a mile typed with no time
+  // beside three timed ones would otherwise make the session look faster.
   const sessions = useMemo(() => {
-    const out: { id: string; date: Date; seconds: number; metres: number }[] = [];
+    const out: { id: string; date: Date; seconds: number; metres: number; pacedSeconds: number; pacedMetres: number }[] = [];
     for (const w of completed) {
       let seconds = 0;
       let metres = 0;
+      let pacedSeconds = 0;
+      let pacedMetres = 0;
       for (const ex of w.exercises) {
         if (ex.exerciseId !== exercise.id) continue;
         for (const s of ex.sets) {
           if (!s.isCompleted) continue;
           seconds += s.duration ?? 0;
           metres += s.distance ?? 0;
+          if (s.duration && s.distance) {
+            pacedSeconds += s.duration;
+            pacedMetres += s.distance;
+          }
         }
       }
-      if (seconds > 0 || metres > 0) out.push({ id: w.id, date: w.completedAt!, seconds, metres });
+      if (seconds > 0 || metres > 0) {
+        out.push({ id: w.id, date: w.completedAt!, seconds, metres, pacedSeconds, pacedMetres });
+      }
     }
     return out;
   }, [completed, exercise.id]);
@@ -116,9 +126,9 @@ function TimedProgress({ exercise }: { exercise: Exercise }) {
   // Fastest average over a real distance — fewest seconds per metre.
   const floor = ground ? rateFloorMetres(ground, unit) : Infinity;
   const quickest = sessions
-    .filter((s) => s.metres >= floor && s.seconds > 0)
+    .filter((s) => s.pacedMetres >= floor && s.pacedSeconds > 0)
     .reduce<(typeof sessions)[number] | null>(
-      (best, s) => (!best || s.seconds / s.metres < best.seconds / best.metres ? s : best),
+      (best, s) => (!best || s.pacedSeconds / s.pacedMetres < best.pacedSeconds / best.pacedMetres ? s : best),
       null
     );
   const totalSeconds = sessions.reduce((sum, s) => sum + s.seconds, 0);
@@ -129,7 +139,7 @@ function TimedProgress({ exercise }: { exercise: Exercise }) {
           { label: "Longest", value: formatDistance(longestDistance, groundUnit) },
           {
             label: ground === "ride" ? "Fastest avg" : "Best pace",
-            value: quickest ? formatRate(quickest.metres, quickest.seconds, ground, unit)! : "—",
+            value: quickest ? formatRate(quickest.pacedMetres, quickest.pacedSeconds, ground, unit)! : "—",
           },
         ]
       : [
@@ -161,7 +171,7 @@ function TimedProgress({ exercise }: { exercise: Exercise }) {
 
       <View style={styles.recent}>
         {sessions.slice(0, RECENT_SESSIONS).map((s) => {
-          const rate = ground ? formatRate(s.metres, s.seconds, ground, unit) : null;
+          const rate = ground ? formatRate(s.pacedMetres, s.pacedSeconds, ground, unit) : null;
           return (
             <View key={s.id} style={styles.recentRow}>
               <Text style={styles.recentDate} maxFontSizeMultiplier={FontScaleCap.grid}>

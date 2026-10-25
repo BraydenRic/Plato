@@ -36,10 +36,17 @@ jest.mock("@/context/AuthContext", () => ({ useAuth: () => ({ dataUserId: mockUs
 jest.mock("@/context/UnitContext", () => ({ useWeightUnit: () => ({ unit: "lbs", loaded: true }) }));
 
 let mockCompleted: Workout[] = [];
+let mockActive: Workout[] = [];
 let mockLoading = false;
 let mockAwaitingSync = false;
 jest.mock("@/hooks/use-workouts", () => ({
-  useWorkouts: () => ({ completed: mockCompleted, loading: mockLoading, awaitingSync: mockAwaitingSync }),
+  useWorkouts: () => ({
+    completed: mockCompleted,
+    active: mockActive,
+    planned: [],
+    loading: mockLoading,
+    awaitingSync: mockAwaitingSync,
+  }),
 }));
 
 const mockCreate = jest.fn((_w: Omit<Workout, "id">) => ({ id: "new", saved: Promise.resolve() }));
@@ -54,13 +61,14 @@ jest.mock("@/lib/data", () => ({
 const NOW = Date.UTC(2026, 9, 24, 12, 0, 0);
 const DAY = 24 * 60 * 60 * 1000;
 
-function run(id: string): HealthWorkout {
+/** A run `daysAgo` days back. Distinct days, or they'd read as one session recorded twice. */
+function run(id: string, daysAgo = 2): HealthWorkout {
   return {
     id,
     activity: "running",
     indoor: false,
-    startMs: NOW - 2 * DAY,
-    endMs: NOW - 2 * DAY + 1500_000,
+    startMs: NOW - daysAgo * DAY,
+    endMs: NOW - daysAgo * DAY + 1500_000,
     duration: 1500,
     distance: 5000,
     activeCalories: 300,
@@ -107,9 +115,13 @@ beforeEach(async () => {
   jest.clearAllMocks();
   mockHealth.isAvailable.mockImplementation(() => true);
   mockHealth.requestAccess.mockImplementation(async () => {});
-  mockHealth.getWorkouts.mockImplementation(async () => []);
+  mockHealth.getWorkouts.mockReset().mockImplementation(async () => []);
+  // Reset, not just cleared: a queued one-off answer a test didn't use up
+  // would otherwise answer the next test's first call.
+  mockHealth.getDistanceSamples.mockReset().mockImplementation(async () => []);
   mockUserId = "u1";
   mockCompleted = [];
+  mockActive = [];
   mockLoading = false;
   mockAwaitingSync = false;
   jest.spyOn(Date, "now").mockReturnValue(NOW);
@@ -179,12 +191,91 @@ it("never brings the same workout in twice, or one that was deleted", async () =
       ],
     },
   ];
-  mockHealth.getWorkouts.mockImplementation(async () => [run("H-1"), run("H-2"), run("H-3")]);
+  mockHealth.getWorkouts.mockImplementation(async () => [run("H-1", 4), run("H-2", 3), run("H-3", 2)]);
   await mount();
 
   expect(mockCreate).toHaveBeenCalledTimes(1);
   expect(mockCreate.mock.calls[0][0].exercises[0].sets[0].tracked?.healthId).toBe("H-3");
   expect((await storedFor("u1")).seen).toEqual(["H-2", "H-3"]);
+});
+
+// Resuming an imported run takes it out of the finished list for a while.
+it("doesn't bring in a second copy of an imported run that was resumed", async () => {
+  await AsyncStorage.setItem(HEALTH_KEY_PREFIX + "u1", JSON.stringify({ enabled: true, seen: [] }));
+  mockActive = [
+    {
+      id: "w1",
+      userId: "u1",
+      name: "Outdoor Run",
+      isTemplate: false,
+      createdAt: new Date(NOW - DAY),
+      startedAt: new Date(NOW - DAY),
+      exercises: [
+        {
+          id: "e1",
+          exerciseId: "running",
+          exercise: { id: "running", name: "Running", category: "Cardio", musclesWorked: [], description: "" },
+          orderIndex: 0,
+          sets: [{ id: "s1", weightUnit: "lbs", isCompleted: true, tracked: { healthId: "H-1" } }],
+        },
+      ],
+    },
+  ];
+  mockHealth.getWorkouts.mockImplementation(async () => [run("H-1")]);
+  await mount();
+  expect(mockHealth.getWorkouts).toHaveBeenCalled();
+  expect(mockCreate).not.toHaveBeenCalled();
+});
+
+// Turned off partway through the first import: what came in is remembered,
+// so deleting it and turning the import back on doesn't bring it back.
+it("remembers each workout as it comes in, even if the import stops partway", async () => {
+  mockHealth.getWorkouts.mockImplementation(async () => [run("H-1", 4), run("H-2", 3), run("H-3", 2)]);
+  let release: (() => void) | null = null;
+  mockHealth.getDistanceSamples
+    .mockImplementationOnce(async () => [])
+    .mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          release = () => resolve([]);
+        })
+    );
+  await mount();
+  await act(async () => {
+    await api.setEnabled(true);
+  });
+  await flush();
+  // H-1 is in; H-2 is being read. Turn it off now.
+  await act(async () => {
+    await api.setEnabled(false);
+  });
+  await act(async () => release?.());
+  await flush();
+
+  expect(mockCreate).toHaveBeenCalledTimes(2);
+  const stored = await storedFor("u1");
+  expect(stored.enabled).toBe(false);
+  expect(stored.seen).toEqual(["H-1", "H-2"]);
+  expect(stored.lastSync).toBeUndefined();
+});
+
+it("goes again when asked while an import is still running", async () => {
+  await AsyncStorage.setItem(HEALTH_KEY_PREFIX + "u1", JSON.stringify({ enabled: true, lastSync: NOW - DAY, seen: [] }));
+  let finish: (() => void) | null = null;
+  mockHealth.getWorkouts.mockImplementationOnce(
+    () =>
+      new Promise((resolve) => {
+        finish = () => resolve([]);
+      })
+  );
+  await mount();
+  await act(async () => appStateListener?.("active"));
+  await flush();
+  expect(mockHealth.getWorkouts).toHaveBeenCalledTimes(1);
+
+  await act(async () => finish?.());
+  await flush();
+  expect(mockHealth.getWorkouts).toHaveBeenCalledTimes(2);
 });
 
 it("looks again each time Plato comes forward, back a week from the last look", async () => {
@@ -243,7 +334,7 @@ it("keeps the setting to the account that turned it on", async () => {
 
 it("stops partway when the account changes in the middle of an import", async () => {
   await AsyncStorage.setItem(HEALTH_KEY_PREFIX + "u1", JSON.stringify({ enabled: true, seen: [] }));
-  mockHealth.getWorkouts.mockImplementation(async () => [run("H-1"), run("H-2")]);
+  mockHealth.getWorkouts.mockImplementation(async () => [run("H-1", 3), run("H-2", 2)]);
   let release: (() => void) | null = null;
   mockHealth.getDistanceSamples.mockImplementationOnce(
     () =>

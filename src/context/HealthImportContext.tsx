@@ -11,6 +11,7 @@ import {
   IMPORTED_ACTIVITIES,
   buildImportedWorkout,
   importedHealthIds,
+  importedSpans,
   wantsDistanceSamples,
   workoutsToImport,
 } from "@/lib/health-import";
@@ -106,7 +107,7 @@ export function useHealthImport() {
 function HealthImportRunner({ children }: { children: React.ReactNode }) {
   const { dataUserId } = useAuth();
   const { unit, loaded: unitLoaded } = useWeightUnit();
-  const { completed, loading, awaitingSync } = useWorkouts();
+  const { completed, active, planned, loading, awaitingSync } = useWorkouts();
   // Null until this account's setting has been read, so nothing runs on a
   // guess — and reset on every account change, so one account's setting never
   // carries into the next.
@@ -139,28 +140,52 @@ function HealthImportRunner({ children }: { children: React.ReactNode }) {
     return () => sub.remove();
   }, []);
 
-  const imported = useMemo(() => importedHealthIds(completed), [completed]);
+  // Every workout, not just finished ones: an imported run that was resumed
+  // is live for a while, and still mustn't come in a second time.
+  const everyWorkout = useMemo(() => [...completed, ...active, ...planned], [completed, active, planned]);
+  const imported = useMemo(() => importedHealthIds(everyWorkout), [everyWorkout]);
+  const spans = useMemo(() => importedSpans(everyWorkout), [everyWorkout]);
 
   // What an import in flight reads: the newest render's values, not the ones
   // it started with — the account can change, or the setting be turned off,
   // between one workout and the next.
   // Declared before the effect that starts an import, so one started in the
   // same commit already reads this render.
-  const latest = useRef({ dataUserId, unit, imported, stored });
+  const latest = useRef({ dataUserId, unit, imported, spans, stored });
   useEffect(() => {
-    latest.current = { dataUserId, unit, imported, stored };
+    latest.current = { dataUserId, unit, imported, spans, stored };
   });
   const running = useRef(false);
+  // A reason to import arrived while one was running — the account changed,
+  // the setting went off and on — so go again when it's done rather than
+  // waiting for the next time the app comes forward.
+  const again = useRef(false);
 
   function save(userId: string, next: Stored) {
     if (latest.current.dataUserId === userId) setStored(next);
     AsyncStorage.setItem(HEALTH_KEY_PREFIX + userId, JSON.stringify(next)).catch(() => {});
   }
 
+  /**
+   * Records an import's progress for its own account, merged onto that
+   * account's setting as it is *now* — so turning it off mid-import isn't
+   * undone by the import saving. If the account has changed since, what's on
+   * screen belongs to someone else, so it merges onto what this import
+   * started from instead.
+   */
+  function saveProgress(userId: string, startedWith: Stored, patch: Partial<Stored>) {
+    const base = latest.current.dataUserId === userId ? (latest.current.stored ?? startedWith) : startedWith;
+    save(userId, { ...base, ...patch });
+  }
+
   async function runImport() {
+    if (running.current) {
+      again.current = true;
+      return;
+    }
     const userId = latest.current.dataUserId;
     const startedWith = latest.current.stored;
-    if (running.current || !PlatoHealth || !userId || !startedWith?.enabled) return;
+    if (!PlatoHealth || !userId || !startedWith?.enabled) return;
     running.current = true;
     setImporting(true);
     try {
@@ -169,9 +194,17 @@ function HealthImportRunner({ children }: { children: React.ReactNode }) {
         startedWith.lastSync != null ? startedWith.lastSync - LOOKBACK_MS : now - FIRST_IMPORT_DAYS * DAY_MS;
       const found = await PlatoHealth.getWorkouts(since, IMPORTED_ACTIVITIES);
       const seen = new Set(startedWith.seen);
-      const fresh = workoutsToImport(found, latest.current.imported, seen);
+      const { fresh, duplicates } = workoutsToImport(found, latest.current.imported, seen, latest.current.spans);
+      // Second copies are remembered as handled, so deleting the copy that
+      // was kept doesn't let the other one in.
+      const remember = () => [...seen].slice(-SEEN_LIMIT);
+      if (duplicates.length > 0) {
+        duplicates.forEach((w) => seen.add(w.id));
+        saveProgress(userId, startedWith, { seen: remember() });
+      }
+      let added = 0;
       for (const workout of fresh) {
-        if (latest.current.dataUserId !== userId || !latest.current.stored?.enabled) return;
+        if (latest.current.dataUserId !== userId || !latest.current.stored?.enabled) break;
         const samples = wantsDistanceSamples(workout.activity)
           ? // Without readings the workout still comes in, just without splits.
             await PlatoHealth.getDistanceSamples(workout.id).catch(() => [])
@@ -179,28 +212,35 @@ function HealthImportRunner({ children }: { children: React.ReactNode }) {
         await createWorkoutLocalFirst(
           buildImportedWorkout(workout, samples, { userId, weightUnit: latest.current.unit })
         ).saved;
+        added += 1;
+        // Saved after every one, not once at the end: an import cut short —
+        // the app closed, the setting turned off, a later one failing — must
+        // still know what it brought in, or deleting those would be undone.
         seen.add(workout.id);
+        saveProgress(userId, startedWith, { seen: remember() });
       }
-      if (latest.current.dataUserId !== userId) return;
-      if (fresh.length > 0) {
+      const finished = added === fresh.length;
+      if (added > 0 && latest.current.dataUserId === userId) {
         // Same as finishing a workout: the lifetime totals plato-web reads,
         // and the streak, count these now.
         const all = await getCompletedWorkouts(userId);
         await upsertUserStats({ userId, ...computeStats(all) });
       }
-      // Merged onto the setting as it is *now*, so turning it off while this
-      // ran isn't undone by this saving its progress.
-      save(userId, {
-        ...(latest.current.stored ?? startedWith),
-        lastSync: now,
-        seen: [...seen].slice(-SEEN_LIMIT),
-      });
-      setFailed(false);
+      // Only a complete pass moves the window on; one that stopped short
+      // looks again from where it started.
+      if (finished) saveProgress(userId, startedWith, { lastSync: now, seen: remember() });
+      if (latest.current.dataUserId === userId) setFailed(false);
     } catch {
-      setFailed(true);
+      // Reported to the account it was for. Another account's screen
+      // mustn't say its Health couldn't be read.
+      if (latest.current.dataUserId === userId) setFailed(true);
     } finally {
       running.current = false;
       setImporting(false);
+      if (again.current) {
+        again.current = false;
+        void runImportRef.current();
+      }
     }
   }
 

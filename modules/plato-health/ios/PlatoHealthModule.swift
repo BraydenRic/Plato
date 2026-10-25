@@ -152,13 +152,17 @@ public class PlatoHealthModule: Module {
     return workout.totalEnergyBurned?.doubleValue(for: HKUnit.kilocalorie())
   }
 
-  /// Pauses and resumes, the automatic kind included, for working out moving time.
+  /// Pauses and resumes, manual and automatic, for working out moving time.
   private func events(of workout: HKWorkout) -> [[String: Any]] {
     return (workout.workoutEvents ?? []).compactMap { event in
       let type: String
+      // Kept apart: an automatic pause and a manual one can overlap, and
+      // only the end of both means moving again.
       switch event.type {
-      case .pause, .motionPaused: type = "pause"
-      case .resume, .motionResumed: type = "resume"
+      case .pause: type = "pause"
+      case .resume: type = "resume"
+      case .motionPaused: type = "motionPause"
+      case .motionResumed: type = "motionResume"
       default: return nil
       }
       return ["type": type, "ms": event.dateInterval.start.timeIntervalSince1970 * 1000]

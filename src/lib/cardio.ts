@@ -234,17 +234,20 @@ export interface CardioSession {
 
 /**
  * A typed-in set stands for a standard distance only when it *is* that
- * distance, give or take a little — 3.1 miles is a 5K. A 10-mile run's average
- * pace says nothing about how fast its fastest mile was, so it isn't stretched
- * to cover one; only Health's mile-by-mile readings can say that.
+ * distance, give or take a little. A little short counts, because the way
+ * people write race distances in miles is: 3.1 for a 5K is 4,989 m, 26.2 for
+ * a marathon 42,165. A 10-mile run's average pace says nothing about how fast
+ * its fastest mile was, so it isn't stretched to cover one; only Health's
+ * mile-by-mile readings can say that.
  */
-const TYPED_EFFORT_SLACK = 1.05;
+const TYPED_EFFORT_UNDER = 0.99;
+const TYPED_EFFORT_OVER = 1.05;
 
 function typedBest(set: WorkoutSet): Partial<Record<BestEffortKey, number>> {
   const best: Partial<Record<BestEffortKey, number>> = {};
   if (!set.distance || !set.duration) return best;
   for (const effort of BEST_EFFORTS) {
-    if (set.distance >= effort.metres && set.distance <= effort.metres * TYPED_EFFORT_SLACK) {
+    if (set.distance >= effort.metres * TYPED_EFFORT_UNDER && set.distance <= effort.metres * TYPED_EFFORT_OVER) {
       best[effort.key] = Math.round((set.duration * effort.metres) / set.distance);
     }
   }

@@ -73,6 +73,22 @@ describe("pausesFrom", () => {
     expect(pausesFrom([{ type: "pause", ms: 80 }], 100)).toEqual([{ startMs: 80, endMs: 100 }]);
   });
 
+  // Auto-pause at a light, a manual pause on top, the manual resume, and only
+  // then moving again: paused the whole way.
+  it("stays paused until both a manual and an automatic pause have ended", () => {
+    expect(
+      pausesFrom(
+        [
+          { type: "motionPause", ms: 600 },
+          { type: "pause", ms: 650 },
+          { type: "resume", ms: 700 },
+          { type: "motionResume", ms: 900 },
+        ],
+        2000
+      )
+    ).toEqual([{ startMs: 600, endMs: 900 }]);
+  });
+
   it("ignores a resume with no pause before it, and a second pause while paused", () => {
     expect(
       pausesFrom(
@@ -103,6 +119,19 @@ describe("splits", () => {
     const samples = [...steady(START, 500, 120), ...steady(START + 180_000, 500, 120)];
     const pauses = [{ startMs: START + 120_000, endMs: START + 180_000 }];
     expect(splits(distanceCurve(samples, pauses, START), 1000)).toEqual([240]);
+  });
+
+  // Readings stamped at a single moment, each holding the distance since the
+  // last: spread over that gap, they time the run as it was run.
+  it("spreads instant readings over the time since the one before", () => {
+    const instants = Array.from({ length: 20 }, (_, i) => ({
+      startMs: START + (i + 1) * 30_000,
+      endMs: START + (i + 1) * 30_000,
+      metres: 100,
+    }));
+    const curve = distanceCurve(instants, [], START);
+    expect(splits(curve, 1000)).toEqual([300, 300]);
+    expect(fastest(curve, 1000)).toBe(300);
   });
 
   it("is empty for a run shorter than one unit", () => {
@@ -153,7 +182,25 @@ describe("what gets imported", () => {
       healthWorkout({ id: "mine", sourceBundle: "com.plato.workouts.watchkitapp" }),
       healthWorkout({ id: "empty", duration: 0 }),
     ];
-    expect(workoutsToImport(found, new Set(["already"]), new Set(["deleted"])).map((w) => w.id)).toEqual(["new"]);
+    expect(workoutsToImport(found, new Set(["already"]), new Set(["deleted"])).fresh.map((w) => w.id)).toEqual(["new"]);
+  });
+
+  it("keeps one copy of a session two apps recorded, the Apple Watch's", () => {
+    const watch = healthWorkout({ id: "watch", sourceBundle: "com.apple.health.X" });
+    const strava = healthWorkout({ id: "strava", sourceBundle: "com.strava.stravaride", startMs: START - 20_000 });
+    // A walk home right after: its own workout, not a copy.
+    const walk = healthWorkout({ id: "walk", activity: "walking", startMs: START + 1_500_000, endMs: START + 2_400_000 });
+    const { fresh, duplicates } = workoutsToImport([strava, watch, walk], new Set(), new Set());
+    expect(fresh.map((w) => w.id)).toEqual(["watch", "walk"]);
+    expect(duplicates.map((w) => w.id)).toEqual(["strava"]);
+  });
+
+  it("leaves out a second copy of a session that's already been imported", () => {
+    const { fresh, duplicates } = workoutsToImport([healthWorkout({ id: "late-copy" })], new Set(), new Set(), [
+      { startMs: START + 30_000, endMs: START + 1_480_000 },
+    ]);
+    expect(fresh).toEqual([]);
+    expect(duplicates.map((w) => w.id)).toEqual(["late-copy"]);
   });
 
   it("reads the ids already imported off the workouts", () => {

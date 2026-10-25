@@ -365,6 +365,53 @@ describe("applySetOp", () => {
   });
 });
 
+describe("cardio from the watch", () => {
+  const running = exercise("running", "Running", { category: "Cardio" });
+  const options = { unit: "lbs" as const, now: NOW };
+
+  function withRun(runSet: WorkoutSet): Workout {
+    const workout = liveWorkout();
+    workout.exercises.push(workoutExercise("we-run", running, [runSet]));
+    return workout;
+  }
+
+  const at = (result: ReturnType<typeof applySetOp>) => result!.exercises.find((e) => e.id === "we-run")!.sets[0];
+
+  // The watch has no distance field; a set the phone counts done by its
+  // distance must not be undone by the watch logging no time.
+  it("keeps a set done by its distance when the watch logs no time", () => {
+    const op: WatchSetOp = {
+      opId: "op",
+      kind: "logSet",
+      at: NOW - 1000,
+      workoutId: "w-live",
+      exerciseId: "we-run",
+      setId: "r1",
+      weight: null,
+      reps: null,
+      duration: 0,
+      unit: "lbs",
+    };
+    expect(at(applySetOp(withRun(set("r1", { distance: 5000, isCompleted: true })), op, options))).toMatchObject({
+      distance: 5000,
+      isCompleted: true,
+    });
+  });
+
+  it("clears the distance with everything else when the watch un-logs the set", () => {
+    const op: WatchSetOp = { opId: "op", kind: "undoSet", at: NOW, workoutId: "w-live", exerciseId: "we-run", setId: "r1" };
+    const after = at(applySetOp(withRun(set("r1", { distance: 5000, duration: 1500, isCompleted: true })), op, options));
+    expect(after.distance).toBeUndefined();
+    expect(after.isCompleted).toBe(false);
+  });
+
+  it("keeps a set with a distance done when a stopwatch banked on it reads zero", () => {
+    const workout = withRun(set("r1", { distance: 5000, isCompleted: true }));
+    const banked = bankRunningTimer(workout.exercises, { exerciseId: "we-run", setId: "r1", startedAt: NOW }, NOW);
+    expect(banked.find((e) => e.id === "we-run")!.sets[0]).toMatchObject({ distance: 5000, isCompleted: true });
+  });
+});
+
 describe("finishing from the watch", () => {
   it("writes the workout screen's finish fields", () => {
     const workout = liveWorkout();

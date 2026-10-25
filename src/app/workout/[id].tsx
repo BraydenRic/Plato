@@ -471,15 +471,28 @@ export default function WorkoutScreen() {
   // Sets complete themselves once a weight or reps value is entered (in the
   // SetRow's commit), so there's no checkbox — this just applies the patch and
   // kicks off the rest timer the moment a set first flips to done.
-  function patchSet(exerciseId: string, setId: string, patch: Partial<WorkoutSet>) {
+  //
+  // `effortEnded` is a stopwatch being stopped: that's the end of the work
+  // whatever the set said before, so rest starts even on a set already done —
+  // one completed early by a distance typed before the run.
+  function patchSet(
+    exerciseId: string,
+    setId: string,
+    patch: Partial<WorkoutSet>,
+    options: { effortEnded?: boolean } = {}
+  ) {
     const wasCompleted =
       workout!.exercises
         .find((ex) => ex.id === exerciseId)
         ?.sets.find((s) => s.id === setId)?.isCompleted ?? false;
     mutateSet(exerciseId, setId, patch);
+    // A distance typed in is bookkeeping, not the end of an effort: typed
+    // before or during a run, it would start the rest countdown mid-run.
+    const onlyDistance = "distance" in patch && !("duration" in patch) && !("reps" in patch) && !("weight" in patch);
+    const effortDone = options.effortEnded ? !!patch.isCompleted : !!patch.isCompleted && !wasCompleted && !onlyDistance;
     // No rest countdown while merely planning — only during a live session,
-    // only on the incomplete→complete flip, and only if the timer is on.
-    if (patch.isCompleted && !wasCompleted && !isDone && !isPlanned && restSeconds > 0) {
+    // and only if the timer is on.
+    if (effortDone && !isDone && !isPlanned && restSeconds > 0) {
       startRest(id);
     }
   }
@@ -497,11 +510,16 @@ export default function WorkoutScreen() {
       ?.sets.find((s) => s.id === t.setId)?.distance;
     // A distance typed before the clock was started still makes the set done.
     const done = cardioSetDone({ duration: secs, distance });
-    patchSet(t.exerciseId, t.setId, {
-      duration: secs > 0 ? secs : undefined,
-      isCompleted: done,
-      completedAt: done ? new Date() : undefined,
-    });
+    patchSet(
+      t.exerciseId,
+      t.setId,
+      {
+        duration: secs > 0 ? secs : undefined,
+        isCompleted: done,
+        completedAt: done ? new Date() : undefined,
+      },
+      { effortEnded: secs > 0 }
+    );
   }
 
   // Play/stop on a timed set. Stopping logs the elapsed seconds and completes
@@ -1511,6 +1529,8 @@ function SetRow({
             <Pressable
               onPress={onToggleTimer}
               hitSlop={6}
+              accessibilityRole="button"
+              accessibilityLabel={running ? "Stop timer" : "Start timer"}
               style={[
                 styles.timerButton,
                 { backgroundColor: theme.accentSoft, borderColor: theme.accent },
