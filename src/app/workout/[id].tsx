@@ -23,6 +23,7 @@ import {
 } from "expo-router";
 import Ionicons from "@expo/vector-icons/Ionicons";
 
+import { FigureRow, SplitsChart, type Figure, type SplitRow } from "@/components/cardio-figures";
 import { Button, Card, EmptyState } from "@/components/ui";
 import { DRAG_LIFT_SCALE, DRAG_SPRING, FontScaleCap, Radius, Spacing } from "@/constants/theme";
 import { makeStyles, usePalette } from "@/context/AppearanceContext";
@@ -40,6 +41,7 @@ import {
   parseDistanceText,
   workoutCardioSeconds,
   workoutDistanceLabel,
+  workoutRate,
   type DistanceKind,
 } from "@/lib/cardio";
 import { useRestTimer } from "@/context/RestTimerContext";
@@ -342,8 +344,15 @@ export default function WorkoutScreen() {
   const cardioDistance = workoutDistanceLabel(workout, weightUnit);
   const cardioSummary =
     !isTemplate && isCardioWorkout(workout) && (cardioSeconds > 0 || cardioDistance)
-      ? { seconds: cardioSeconds, distance: cardioDistance }
+      ? { seconds: cardioSeconds, distance: cardioDistance, rate: workoutRate(workout, weightUnit) }
       : null;
+  // With one timed distance in the workout, the hero's pace *is* that set's
+  // pace, so the set doesn't repeat it underneath.
+  const pacedSets = workout.exercises.reduce(
+    (n, ex) => n + ex.sets.filter((set) => set.isCompleted && set.distance && set.duration).length,
+    0
+  );
+  const heroHasPace = !!cardioSummary?.rate && pacedSets === 1;
 
   /**
    * Write the exercise list, and show it immediately.
@@ -907,20 +916,38 @@ export default function WorkoutScreen() {
             />
 
             {cardioSummary ? (
-              // A run reads as how far and how long. "0 lbs · 1/1 sets" is true
-              // and says nothing about it.
-              <View style={styles.summaryRow}>
-                {cardioSummary.distance ? (
-                  <>
-                    <Text style={styles.summaryText} maxFontSizeMultiplier={FontScaleCap.title}>
-                      {cardioSummary.distance}
-                    </Text>
-                    <Text style={styles.summaryDot}>·</Text>
-                  </>
-                ) : null}
-                <Text style={styles.summaryText} maxFontSizeMultiplier={FontScaleCap.title}>
-                  {formatClock(cardioSummary.seconds)}
+              // A run reads as how far and how long, as one big number and the
+              // two that qualify it. "0 lbs · 1/1 sets" is true and says
+              // nothing about it.
+              <View style={styles.cardioHero}>
+                <Text style={styles.cardioHeroValue} maxFontSizeMultiplier={FontScaleCap.title}>
+                  {cardioSummary.distance ? (
+                    <>
+                      {cardioSummary.distance.split(" ")[0]}
+                      <Text style={styles.cardioHeroUnit} maxFontSizeMultiplier={FontScaleCap.title}>
+                        {" "}
+                        {cardioSummary.distance.split(" ")[1]}
+                      </Text>
+                    </>
+                  ) : (
+                    formatClock(cardioSummary.seconds)
+                  )}
                 </Text>
+                {cardioSummary.distance && (
+                  <View style={[styles.summaryRow, styles.cardioHeroMeta]}>
+                    {cardioSummary.seconds > 0 && (
+                      <Text style={styles.summaryText} maxFontSizeMultiplier={FontScaleCap.title}>
+                        {formatClock(cardioSummary.seconds)}
+                      </Text>
+                    )}
+                    {cardioSummary.seconds > 0 && cardioSummary.rate && <Text style={styles.summaryDot}>·</Text>}
+                    {cardioSummary.rate && (
+                      <Text style={styles.summaryText} maxFontSizeMultiplier={FontScaleCap.title}>
+                        {cardioSummary.rate}
+                      </Text>
+                    )}
+                  </View>
+                )}
               </View>
             ) : (
               <View style={styles.summaryRow}>
@@ -964,6 +991,7 @@ export default function WorkoutScreen() {
                 timingStartedAt={timing?.exerciseId === exercise.id ? timing.startedAt : undefined}
                 bodyweightLbs={bodyweightLbs}
                 onToggleTimer={(setId, duration) => toggleSetTimer(exercise.id, setId, duration)}
+                heroHasPace={heroHasPace}
               />
             ))}
 
@@ -1103,6 +1131,7 @@ function ExerciseCard({
   timingStartedAt,
   bodyweightLbs,
   onToggleTimer,
+  heroHasPace,
 }: {
   exercise: WorkoutExercise;
   /** Last session's numbers, indexed by set position — holes where it was skipped. */
@@ -1122,6 +1151,8 @@ function ExerciseCard({
   /** What the lifter weighed when this workout happened, for the BW baseline. */
   bodyweightLbs?: number;
   onToggleTimer?: (setId: string, currentDuration?: number) => void;
+  /** The workout's headline already shows this card's only pace. */
+  heroHasPace?: boolean;
 }) {
   const styles = useStyles();
   const palette = usePalette();
@@ -1238,7 +1269,7 @@ function ExerciseCard({
               />
               {/* Outside the row, so swiping a set away doesn't drag its
                   splits along half-hidden. */}
-              {timed && (ground || set.tracked) && <CardioDetail set={set} ground={ground} />}
+              {timed && (ground || set.tracked) && <CardioDetail set={set} ground={ground} showPace={!heroHasPace} />}
             </Fragment>
           ))}
 
@@ -1635,6 +1666,12 @@ function SetRow({
 }
 
 
+/** "8:28 /mi" → the number and its unit, set at two sizes. */
+function splitRate(rate: string): { value: string; unit: string } {
+  const space = rate.indexOf(" ");
+  return space < 0 ? { value: rate, unit: "" } : { value: rate.slice(0, space), unit: rate.slice(space + 1) };
+}
+
 /**
  * Beneath a cardio set: how fast it was, and — when a watch recorded it — the
  * heart rate, calories and splits that came with it from Apple Health.
@@ -1644,13 +1681,22 @@ function SetRow({
  * is the part of the workout the watch measured and the lifter didn't, and
  * it's the reason a run is worth looking at again.
  */
-function CardioDetail({ set, ground }: { set: WorkoutSet; ground: DistanceKind | null }) {
+function CardioDetail({
+  set,
+  ground,
+  showPace,
+}: {
+  set: WorkoutSet;
+  ground: DistanceKind | null;
+  /** Off when the workout's headline already says it. */
+  showPace: boolean;
+}) {
   const styles = useStyles();
   const palette = usePalette();
   const theme = useTheme();
   const { unit } = useWeightUnit();
   const setNumColWidth = useSetNumColWidth();
-  const rate = ground ? formatRate(set.distance, set.duration, ground, unit) : null;
+  const rate = ground && showPace ? formatRate(set.distance, set.duration, ground, unit) : null;
   const tracked = set.tracked;
   const indent = { marginLeft: setNumColWidth + Spacing.two };
 
@@ -1663,91 +1709,58 @@ function CardioDetail({ set, ground }: { set: WorkoutSet; ground: DistanceKind |
     );
   }
 
-  const tiles = [
-    rate ? { key: "rate", value: rate, label: ground === "ride" ? "avg speed" : "avg pace" } : null,
-    tracked.avgHeartRate
-      ? {
-          key: "hr",
-          value: String(tracked.avgHeartRate),
-          label: tracked.maxHeartRate ? `avg bpm · max ${tracked.maxHeartRate}` : "avg bpm",
-        }
-      : null,
-    tracked.activeCalories ? { key: "cal", value: String(tracked.activeCalories), label: "active cal" } : null,
-  ].filter((tile): tile is { key: string; value: string; label: string } => tile != null);
+  const figures: Figure[] = [];
+  if (rate) {
+    const { value, unit: per } = splitRate(rate);
+    figures.push({
+      key: "rate",
+      value,
+      unit: per,
+      label: ground === "ride" ? "Avg speed" : "Avg pace",
+      icon: "speedometer-outline",
+      tint: theme.accent,
+    });
+  }
+  if (tracked.avgHeartRate) {
+    figures.push({
+      key: "hr",
+      value: String(tracked.avgHeartRate),
+      unit: "bpm",
+      label: tracked.maxHeartRate ? `Avg · max ${tracked.maxHeartRate}` : "Avg heart rate",
+      icon: "heart",
+      tint: palette.danger,
+    });
+  }
+  if (tracked.activeCalories) {
+    figures.push({
+      key: "cal",
+      value: String(tracked.activeCalories),
+      unit: "cal",
+      label: "Active",
+      icon: "flame",
+      tint: palette.amber,
+    });
+  }
 
   // Splits in the unit the rest of the app is reading in. Bikes get them too:
   // a mile at a time is how a ride is compared with the last one.
   const groundUnit = ground ? distanceUnit(ground, unit) : null;
-  const whole =
-    groundUnit === "mi" ? tracked.splitsMi : groundUnit === "km" ? tracked.splitsKm : undefined;
-  const rows: { label: string; seconds: number; perUnit: number }[] = (whole ?? []).map((seconds, i) => ({
-    label: String(i + 1),
-    seconds,
-    perUnit: seconds,
-  }));
+  const whole = groundUnit === "mi" ? tracked.splitsMi : groundUnit === "km" ? tracked.splitsKm : undefined;
+  const rows: SplitRow[] = (whole ?? []).map((seconds, i) => ({ label: String(i + 1), seconds, units: 1 }));
   // The bit past the last whole mile, so the splits add up to the run. Only
   // when it's enough to mean something: a few metres over reads as noise.
   if (whole && groundUnit && set.distance && set.duration) {
     const leftUnits = fromMetres(set.distance, groundUnit) - whole.length;
-    const leftSeconds = set.duration - whole.reduce((sum, s) => sum + s, 0);
+    const leftSeconds = set.duration - whole.reduce((sum, sec) => sum + sec, 0);
     if (leftUnits >= 0.05 && leftSeconds > 0) {
-      rows.push({ label: leftUnits.toFixed(2), seconds: leftSeconds, perUnit: leftSeconds / leftUnits });
+      rows.push({ label: leftUnits.toFixed(2), seconds: leftSeconds, units: leftUnits });
     }
   }
-  const fastest = rows.reduce((min, r) => Math.min(min, r.perUnit), Infinity);
 
   return (
     <View style={[styles.cardioPanel, indent]}>
-      {tiles.length > 0 && (
-        <View style={styles.cardioTiles}>
-          {tiles.map((tile) => (
-            <View key={tile.key} style={styles.cardioTile}>
-              <Text style={styles.cardioTileValue} maxFontSizeMultiplier={FontScaleCap.grid}>
-                {tile.value}
-              </Text>
-              <Text style={styles.cardioTileLabel} maxFontSizeMultiplier={FontScaleCap.grid}>
-                {tile.label}
-              </Text>
-            </View>
-          ))}
-        </View>
-      )}
-      {rows.length > 1 && groundUnit && (
-        <View style={styles.splits}>
-          <Text style={styles.splitsHeading} maxFontSizeMultiplier={FontScaleCap.grid}>
-            Splits · per {groundUnit === "mi" ? "mile" : "km"}
-          </Text>
-          {rows.map((row) => {
-            const isFastest = row.perUnit === fastest;
-            return (
-              <View
-                key={row.label}
-                style={styles.splitRow}
-                accessible
-                accessibilityLabel={`${row.label.includes(".") ? `Last ${row.label} ${groundUnit}` : `${groundUnit === "mi" ? "Mile" : "Kilometer"} ${row.label}`}, ${formatClock(Math.round(row.seconds))}`}>
-                <Text style={styles.splitLabel} maxFontSizeMultiplier={FontScaleCap.grid}>
-                  {row.label}
-                </Text>
-                <Text
-                  style={[styles.splitTime, isFastest && { color: palette.text, fontWeight: "800" }]}
-                  maxFontSizeMultiplier={FontScaleCap.grid}>
-                  {formatClock(Math.round(row.seconds))}
-                </Text>
-                {/* Length is speed against the fastest split, so the longest
-                    bar is the quickest stretch — further reads as faster. */}
-                <View style={styles.splitTrack}>
-                  <View
-                    style={[
-                      styles.splitBar,
-                      { width: `${(fastest / row.perUnit) * 100}%`, backgroundColor: theme.accent },
-                    ]}
-                  />
-                </View>
-              </View>
-            );
-          })}
-        </View>
-      )}
+      {figures.length > 0 && <FigureRow figures={figures} />}
+      {rows.length > 1 && groundUnit && <SplitsChart rows={rows} unitWord={groundUnit === "mi" ? "mile" : "km"} />}
     </View>
   );
 }
@@ -1952,6 +1965,28 @@ const useStyles = makeStyles((c) => ({
     alignItems: "center",
     justifyContent: "center",
   },
+  cardioHero: {
+    gap: Spacing.one,
+    marginTop: -Spacing.two,
+  },
+  cardioHeroValue: {
+    fontSize: 48,
+    fontWeight: "800",
+    letterSpacing: -1.5,
+    color: c.text,
+    fontVariant: ["tabular-nums"],
+  },
+  // The summary row tucks up under the title; under the big number it sits
+  // at its own height instead.
+  cardioHeroMeta: {
+    marginTop: 0,
+  },
+  cardioHeroUnit: {
+    fontSize: 20,
+    fontWeight: "700",
+    letterSpacing: 0,
+    color: c.textTertiary,
+  },
   cardioRate: {
     fontSize: 12,
     fontWeight: "600",
@@ -1961,68 +1996,9 @@ const useStyles = makeStyles((c) => ({
     marginBottom: 2,
   },
   cardioPanel: {
-    gap: Spacing.three,
-    paddingTop: Spacing.one,
-    paddingBottom: Spacing.one,
-  },
-  cardioTiles: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    columnGap: Spacing.four,
-    rowGap: Spacing.two,
-  },
-  cardioTile: {
-    gap: 1,
-  },
-  cardioTileValue: {
-    fontSize: 17,
-    fontWeight: "800",
-    color: c.text,
-    fontVariant: ["tabular-nums"],
-  },
-  cardioTileLabel: {
-    fontSize: 11,
-    color: c.textTertiary,
-  },
-  splits: {
-    gap: 6,
-  },
-  splitsHeading: {
-    fontSize: 10,
-    fontWeight: "700",
-    letterSpacing: 1,
-    textTransform: "uppercase",
-    color: c.textTertiary,
-  },
-  splitRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: Spacing.two,
-  },
-  splitLabel: {
-    width: 34,
-    fontSize: 12,
-    fontWeight: "600",
-    color: c.textTertiary,
-    fontVariant: ["tabular-nums"],
-  },
-  splitTime: {
-    width: 52,
-    fontSize: 13,
-    fontWeight: "600",
-    color: c.textSecondary,
-    fontVariant: ["tabular-nums"],
-  },
-  splitTrack: {
-    flex: 1,
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: c.surfaceRaised,
-    overflow: "hidden",
-  },
-  splitBar: {
-    height: 6,
-    borderRadius: 3,
+    gap: Spacing.four,
+    paddingTop: Spacing.two,
+    paddingBottom: Spacing.two,
   },
   addSetButton: {
     alignItems: "center",

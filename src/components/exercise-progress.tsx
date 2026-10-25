@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import { PanResponder, Pressable, Text, View } from "react-native";
 import Svg, { Circle, Defs, Line, LinearGradient, Path, Stop } from "react-native-svg";
 
+import { SessionTrend } from "@/components/cardio-figures";
 import { useTheme } from "@/context/ThemeContext";
 import { FontScaleCap, Radius, Spacing } from "@/constants/theme";
 import { makeStyles, usePalette } from "@/context/AppearanceContext";
@@ -132,6 +133,14 @@ function TimedProgress({ exercise }: { exercise: Exercise }) {
       null
     );
   const totalSeconds = sessions.reduce((sum, s) => sum + s.seconds, 0);
+  // How far each time on cardio that covers ground, how long on everything
+  // else — oldest first, the last dozen, like the lifting chart.
+  const byDistance = !!ground && longestDistance > 0;
+  const trend = sessions
+    .slice(0, MAX_SESSIONS)
+    .reverse()
+    .map((s) => (byDistance ? s.metres : s.seconds))
+    .filter((v) => v > 0);
 
   const stats =
     ground && groundUnit && longestDistance > 0
@@ -153,8 +162,14 @@ function TimedProgress({ exercise }: { exercise: Exercise }) {
         {stats.map((stat) => (
           <View key={stat.label} style={styles.statRowItem}>
             <View style={styles.stat}>
+              {/* The unit set small beside the number, as "lbs" is on the
+                  lifting card: at full size "6.20 mi" breaks over two lines
+                  in a third of the card. */}
               <Text style={styles.statValue} maxFontSizeMultiplier={FontScaleCap.grid}>
-                {stat.value}
+                {stat.value.split(" ")[0]}
+                {stat.value.includes(" ") && (
+                  <Text style={styles.statUnit}> {stat.value.slice(stat.value.indexOf(" ") + 1)}</Text>
+                )}
               </Text>
               <Text style={styles.statLabel}>{stat.label}</Text>
             </View>
@@ -168,6 +183,15 @@ function TimedProgress({ exercise }: { exercise: Exercise }) {
           <Text style={styles.statLabel}>Session{sessions.length === 1 ? "" : "s"}</Text>
         </View>
       </View>
+
+      {trend.length > 1 && (
+        <View>
+          <Text style={styles.trendHeading} maxFontSizeMultiplier={FontScaleCap.grid}>
+            {byDistance ? "Distance" : "Time"} · last {trend.length} sessions
+          </Text>
+          <SessionTrend values={trend} />
+        </View>
+      )}
 
       <View style={styles.recent}>
         {sessions.slice(0, RECENT_SESSIONS).map((s) => {
@@ -586,6 +610,14 @@ const useStyles = makeStyles((c) => ({
   statRowItem: {
     flex: 1,
     flexDirection: "row",
+  },
+  trendHeading: {
+    fontSize: 10,
+    fontWeight: "700",
+    letterSpacing: 1,
+    textTransform: "uppercase",
+    color: c.textTertiary,
+    marginBottom: Spacing.one,
   },
   recent: {
     gap: Spacing.two,

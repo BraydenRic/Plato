@@ -1,10 +1,11 @@
+import Ionicons from "@expo/vector-icons/Ionicons";
 import { useMemo, useState } from "react";
-import { Pressable, Text, View } from "react-native";
+import { Text, View } from "react-native";
 
+import { WeekColumns } from "@/components/cardio-figures";
 import { Card, Chip, SectionLabel } from "@/components/ui";
-import { FontScaleCap, Spacing } from "@/constants/theme";
-import { makeStyles } from "@/context/AppearanceContext";
-import { useTheme } from "@/context/ThemeContext";
+import { FontScaleCap, Radius, Spacing } from "@/constants/theme";
+import { makeStyles, usePalette } from "@/context/AppearanceContext";
 import { useWeightUnit } from "@/context/UnitContext";
 import {
   ACTIVITY_KIND,
@@ -15,6 +16,7 @@ import {
   cardioSessions,
   distanceUnit,
   formatDistance,
+  formatDistanceValue,
   weeklyDistance,
   type CardioActivity,
 } from "@/lib/cardio";
@@ -32,6 +34,8 @@ const RECORD_KEYS: Record<"lbs" | "kg", BestEffortKey[]> = {
   kg: ["1k", "5k", "10k", "half", "marathon"],
 };
 
+const shortDate = (date: Date) => date.toLocaleDateString(undefined, { month: "short", day: "numeric" });
+
 /**
  * Cardio on the Stats tab: how far this week, the last eight weeks, and your
  * records. Nothing at all for someone who doesn't do cardio that covers
@@ -42,7 +46,7 @@ const RECORD_KEYS: Record<"lbs" | "kg", BestEffortKey[]> = {
  */
 export function CardioStats({ completed }: { completed: Workout[] }) {
   const styles = useStyles();
-  const theme = useTheme();
+  const palette = usePalette();
   const { unit } = useWeightUnit();
   const sessions = useMemo(() => cardioSessions(completed), [completed]);
   const activities = useMemo(() => activitiesIn(sessions), [sessions]);
@@ -60,17 +64,20 @@ export function CardioStats({ completed }: { completed: Workout[] }) {
   const label = ACTIVITY_LABEL[activity];
   const lengthUnit = distanceUnit(ACTIVITY_KIND[activity], unit);
   const show = (metres: number) => formatDistance(metres, lengthUnit);
-  const peak = Math.max(...weeks.map((w) => w.metres), 1);
   // The week the big number is about: the bar tapped, or this one. One number
   // that follows your finger, rather than a headline and a readout beneath it
   // saying the same thing twice.
   const readIndex = selectedWeek ?? weeks.length - 1;
   const read = weeks[readIndex];
+  const before = readIndex > 0 ? weeks[readIndex - 1] : null;
   const isThisWeek = readIndex === weeks.length - 1;
   const inWeek = mine.filter((s) => s.date >= read.weekStart && s.date < addDays(read.weekStart, 7));
   const weekSeconds = inWeek.reduce((sum, s) => sum + s.seconds, 0);
+  // Against the week before, in the reader's unit, rounded the way it's shown
+  // — so "+0.00" never appears for a change too small to see.
+  const change = before ? Number(formatDistanceValue(read.metres - before.metres, lengthUnit)) : 0;
 
-  const recordRows = [
+  const recordTiles = [
     ...(activity === "run"
       ? RECORD_KEYS[unit]
           .filter((key) => records.best[key] != null)
@@ -78,10 +85,18 @@ export function CardioStats({ completed }: { completed: Workout[] }) {
             key,
             label: BEST_EFFORTS.find((e) => e.key === key)!.label,
             value: formatClock(records.best[key]!),
+            date: records.bestOn[key],
           }))
       : []),
     ...(records.longest
-      ? [{ key: "longest", label: `Longest ${label.one.toLowerCase()}`, value: show(records.longest.metres) }]
+      ? [
+          {
+            key: "longest",
+            label: `Longest ${label.one.toLowerCase()}`,
+            value: show(records.longest.metres),
+            date: records.longest.date,
+          },
+        ]
       : []),
   ];
 
@@ -106,13 +121,31 @@ export function CardioStats({ completed }: { completed: Workout[] }) {
       <Card style={styles.card}>
         {/* Above the chart, so a thumb on a bar never covers its reading. */}
         <View style={styles.hero}>
-          <Text style={styles.heroValue} maxFontSizeMultiplier={FontScaleCap.title}>
-            {show(read.metres)}
-          </Text>
+          <View style={styles.heroTop}>
+            <Text style={styles.heroValue} maxFontSizeMultiplier={FontScaleCap.title}>
+              {show(read.metres).split(" ")[0]}
+              <Text style={styles.heroUnit}> {lengthUnit}</Text>
+            </Text>
+            {change !== 0 && (
+              <View
+                style={styles.change}
+                accessible
+                accessibilityLabel={`${change > 0 ? "Up" : "Down"} ${Math.abs(change)} ${lengthUnit} on the week before`}>
+                <Ionicons
+                  name={change > 0 ? "arrow-up" : "arrow-down"}
+                  size={12}
+                  // Up is good news and says so; down is just a fact, not a
+                  // telling-off, so it stays in ink.
+                  color={change > 0 ? palette.success : palette.textTertiary}
+                />
+                <Text style={styles.changeText} maxFontSizeMultiplier={FontScaleCap.grid}>
+                  {Math.abs(change)} {lengthUnit}
+                </Text>
+              </View>
+            )}
+          </View>
           <Text style={styles.heroLabel}>
-            {isThisWeek
-              ? "this week"
-              : `week of ${read.weekStart.toLocaleDateString(undefined, { month: "short", day: "numeric" })}`}
+            {isThisWeek ? "this week" : `week of ${shortDate(read.weekStart)}`}
             {inWeek.length > 0
               ? ` · ${inWeek.length} ${inWeek.length === 1 ? label.one.toLowerCase() : label.many}` +
                 (weekSeconds > 0 ? ` · ${formatClock(weekSeconds)}` : "")
@@ -120,58 +153,36 @@ export function CardioStats({ completed }: { completed: Workout[] }) {
           </Text>
         </View>
 
-        <View>
-          <View style={styles.chart}>
-            {weeks.map((week, i) => (
-              <Pressable
-                key={week.weekStart.getTime()}
-                style={styles.chartCol}
-                onPress={() => setSelectedWeek(i)}
-                hitSlop={{ top: 8, bottom: 8 }}
-                accessibilityRole="button"
-                accessibilityLabel={`Week of ${week.weekStart.toLocaleDateString(undefined, { month: "long", day: "numeric" })}, ${show(week.metres)}`}
-                accessibilityState={{ selected: i === readIndex }}>
-                <View style={styles.barTrack}>
-                  <View
-                    style={[
-                      styles.bar,
-                      {
-                        backgroundColor: theme.accent,
-                        // The week being read at full strength, the rest held
-                        // back, so which bar the number above belongs to is
-                        // never a guess.
-                        opacity: i === readIndex ? 1 : 0.45,
-                        height: `${week.metres > 0 ? Math.max(4, (week.metres / peak) * 100) : 0}%`,
-                      },
-                    ]}
-                  />
-                </View>
-              </Pressable>
-            ))}
-          </View>
-          <View style={styles.axis}>
-            <Text style={styles.axisLabel} maxFontSizeMultiplier={FontScaleCap.grid}>
-              {weeks[0].weekStart.toLocaleDateString(undefined, { month: "short", day: "numeric" })}
-            </Text>
-            <Text style={styles.axisLabel} maxFontSizeMultiplier={FontScaleCap.grid}>
-              This week
-            </Text>
-          </View>
-        </View>
+        <WeekColumns
+          weeks={weeks}
+          selected={readIndex}
+          onSelect={setSelectedWeek}
+          format={(metres) => formatDistanceValue(metres, lengthUnit)}
+          describe={(w) => `Week of ${w.weekStart.toLocaleDateString(undefined, { month: "long", day: "numeric" })}, ${show(w.metres)}`}
+          firstLabel={shortDate(weeks[0].weekStart)}
+        />
 
-        {recordRows.length > 0 && (
+        {recordTiles.length > 0 && (
           <View style={styles.records}>
             <Text style={styles.recordsHeading} maxFontSizeMultiplier={FontScaleCap.grid}>
               Records
             </Text>
-            {recordRows.map((row) => (
-              <View key={row.key} style={styles.recordRow}>
-                <Text style={styles.recordLabel}>{row.label}</Text>
-                <Text style={styles.recordValue} maxFontSizeMultiplier={FontScaleCap.title}>
-                  {row.value}
-                </Text>
-              </View>
-            ))}
+            <View style={styles.recordGrid}>
+              {recordTiles.map((tile) => (
+                <View key={tile.key} style={styles.recordTile}>
+                  <View style={styles.recordLabelRow}>
+                    <Ionicons name="trophy" size={11} color={palette.amber} />
+                    <Text style={styles.recordLabel} numberOfLines={1}>
+                      {tile.label}
+                    </Text>
+                  </View>
+                  <Text style={styles.recordValue} maxFontSizeMultiplier={FontScaleCap.title}>
+                    {tile.value}
+                  </Text>
+                  {tile.date && <Text style={styles.recordDate}>{shortDate(tile.date)}</Text>}
+                </View>
+              ))}
+            </View>
           </View>
         )}
       </Card>
@@ -192,49 +203,43 @@ const useStyles = makeStyles((c) => ({
   hero: {
     gap: 2,
   },
+  heroTop: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: Spacing.two,
+  },
   heroValue: {
-    fontSize: 32,
+    fontSize: 44,
     fontWeight: "800",
+    letterSpacing: -1.4,
     color: c.text,
-    letterSpacing: -0.5,
     fontVariant: ["tabular-nums"],
+  },
+  heroUnit: {
+    fontSize: 18,
+    fontWeight: "700",
+    letterSpacing: 0,
+    color: c.textTertiary,
   },
   heroLabel: {
     fontSize: 13,
     color: c.textTertiary,
   },
-  chart: {
+  change: {
     flexDirection: "row",
-    alignItems: "flex-end",
-    gap: 4,
-    height: 96,
-    borderBottomWidth: 1,
-    borderBottomColor: c.border,
-  },
-  chartCol: {
-    flex: 1,
-    height: "100%",
     alignItems: "center",
+    gap: 3,
+    paddingHorizontal: Spacing.two,
+    paddingVertical: 4,
+    borderRadius: Radius.full,
+    backgroundColor: c.surfaceRaised,
   },
-  barTrack: {
-    flex: 1,
-    width: "100%",
-    maxWidth: 24,
-    justifyContent: "flex-end",
-  },
-  bar: {
-    width: "100%",
-    borderTopLeftRadius: 4,
-    borderTopRightRadius: 4,
-  },
-  axis: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    marginTop: 6,
-  },
-  axisLabel: {
-    fontSize: 10,
-    color: c.textTertiary,
+  changeText: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: c.textSecondary,
+    fontVariant: ["tabular-nums"],
   },
   records: {
     gap: Spacing.two,
@@ -249,20 +254,43 @@ const useStyles = makeStyles((c) => ({
     textTransform: "uppercase",
     color: c.textTertiary,
   },
-  recordRow: {
+  recordGrid: {
     flexDirection: "row",
-    alignItems: "baseline",
-    justifyContent: "space-between",
-    gap: Spacing.three,
+    flexWrap: "wrap",
+    gap: Spacing.two,
+  },
+  // Two to a row: a record is a number worth seeing big, and a list of label
+  // and value lines read like a receipt.
+  recordTile: {
+    flexBasis: "48%",
+    flexGrow: 1,
+    gap: 2,
+    padding: Spacing.three,
+    borderRadius: Radius.md,
+    backgroundColor: c.surfaceRaised,
+  },
+  recordLabelRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
   },
   recordLabel: {
-    fontSize: 14,
-    color: c.textSecondary,
+    flexShrink: 1,
+    fontSize: 11,
+    fontWeight: "700",
+    letterSpacing: 0.6,
+    textTransform: "uppercase",
+    color: c.textTertiary,
   },
   recordValue: {
-    fontSize: 15,
-    fontWeight: "700",
+    fontSize: 22,
+    fontWeight: "800",
+    letterSpacing: -0.5,
     color: c.text,
     fontVariant: ["tabular-nums"],
+  },
+  recordDate: {
+    fontSize: 11,
+    color: c.textTertiary,
   },
 }));

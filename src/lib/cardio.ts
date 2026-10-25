@@ -158,6 +158,29 @@ export function workoutDistanceLabel(workout: Workout, weightUnit: "lbs" | "kg")
   return best ? formatDistance(best[1], best[0]) : null;
 }
 
+/**
+ * The workout's overall pace or speed, from the sets that have both a time
+ * and a distance. Null when there's none, or when its cardio is of kinds that
+ * don't share a way of reading speed — a run's pace and a row's split.
+ */
+export function workoutRate(workout: Workout, weightUnit: "lbs" | "kg"): string | null {
+  let kind: DistanceKind | null = null;
+  let metres = 0;
+  let seconds = 0;
+  for (const ex of workout.exercises) {
+    const k = distanceKind(ex.exercise);
+    if (!k) continue;
+    for (const set of ex.sets) {
+      if (!set.isCompleted || !set.distance || !set.duration) continue;
+      if (kind && kind !== k) return null;
+      kind = k;
+      metres += set.distance;
+      seconds += set.duration;
+    }
+  }
+  return kind ? formatRate(metres, seconds, kind, weightUnit) : null;
+}
+
 /** Seconds of completed cardio in a workout, for a run's headline time. */
 export function workoutCardioSeconds(workout: Workout): number {
   return workout.exercises.reduce(
@@ -296,13 +319,20 @@ export function activitiesIn(sessions: CardioSession[]): CardioActivity[] {
 export interface CardioRecords {
   longest?: CardioSession;
   best: Partial<Record<BestEffortKey, number>>;
+  /** When each record was set. */
+  bestOn: Partial<Record<BestEffortKey, Date>>;
 }
 
 export function cardioRecords(sessions: CardioSession[]): CardioRecords {
-  const records: CardioRecords = { best: {} };
+  const records: CardioRecords = { best: {}, bestOn: {} };
   for (const s of sessions) {
     if (!records.longest || s.metres > records.longest.metres) records.longest = s;
-    keepFaster(records.best, s.best);
+    for (const [key, seconds] of Object.entries(s.best) as [BestEffortKey, number][]) {
+      if (seconds > 0 && (records.best[key] == null || seconds < records.best[key]!)) {
+        records.best[key] = seconds;
+        records.bestOn[key] = s.date;
+      }
+    }
   }
   return records;
 }

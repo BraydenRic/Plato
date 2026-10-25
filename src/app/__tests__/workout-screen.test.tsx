@@ -673,9 +673,21 @@ describe("cardio", () => {
     expect(mockStartRest).toHaveBeenCalledWith("w1");
   });
 
-  it("shows the pace under a set with both", async () => {
-    await loadWorkout(runWorkout([{ id: "s1", weightUnit: "lbs", isCompleted: true, duration: 1500, distance: 5000 }]));
+  it("shows the pace under each set when there's more than one", async () => {
+    await loadWorkout(
+      runWorkout([
+        { id: "s1", weightUnit: "lbs", isCompleted: true, duration: 1500, distance: 5000 },
+        { id: "s2", weightUnit: "lbs", isCompleted: true, duration: 600, distance: 1609.344 },
+      ])
+    );
     expect(screen.getByText("8:03 /mi")).toBeTruthy();
+    expect(screen.getByText("10:00 /mi")).toBeTruthy();
+  });
+
+  // One run, one pace: it's in the headline, and only there.
+  it("doesn't repeat the headline's pace under a single set", async () => {
+    await loadWorkout(runWorkout([{ id: "s1", weightUnit: "lbs", isCompleted: true, duration: 1500, distance: 5000 }]));
+    expect(screen.getAllByText("8:03 /mi")).toHaveLength(1);
   });
 
   it("reads as distance and time at the top, not pounds and sets", async () => {
@@ -702,10 +714,11 @@ describe("cardio", () => {
       )
     );
     expect(screen.getByText(/from Apple Health/)).toBeTruthy();
-    expect(screen.getByText("152")).toBeTruthy();
-    expect(screen.getByText("avg bpm · max 171")).toBeTruthy();
-    expect(screen.getByText("312")).toBeTruthy();
+    expect(screen.getByLabelText("Avg · max 171: 152 bpm")).toBeTruthy();
+    expect(screen.getByLabelText("Active: 312 cal")).toBeTruthy();
     expect(screen.getByText("Splits · per mile")).toBeTruthy();
+    // The splits' average, against which each bar is read.
+    expect(screen.getByText("avg 7:58 /mi")).toBeTruthy();
     // Three whole miles, then the 0.20 past them: 1530 - 1440 = 90 s.
     expect(screen.getByLabelText("Mile 2, 7:50")).toBeTruthy();
     expect(screen.getByLabelText("Last 0.20 mi, 1:30")).toBeTruthy();
