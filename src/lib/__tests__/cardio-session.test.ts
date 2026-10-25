@@ -9,6 +9,7 @@ import {
   recentOfKind,
   resumed,
   sessionHasDistance,
+  sessionIcon,
   sessionSpan,
   sessionTarget,
 } from "../cardio-session";
@@ -192,5 +193,20 @@ describe("the last few of a kind", () => {
 
   it("has no trend for the first of a kind", () => {
     expect(recentOfKind([finished("walk", 1, { duration: 900 })], finished("run", 0, {}))).toBeNull();
+  });
+});
+
+describe("a session's glyph", () => {
+  it("is its kind's", () => {
+    expect(sessionIcon(finished("swim", 0, {}))).toBe("water");
+  });
+
+  it("goes by the exercise for an import with no kind stored", () => {
+    const imported = { ...finished("run", 0, { tracked: { healthId: "H" } }), cardio: undefined };
+    expect(sessionIcon(imported)).toBe("footsteps");
+  });
+
+  it("is none for a workout", () => {
+    expect(sessionIcon(makeWorkout({ exercises: [makeWorkoutExercise("bench-press", [makeSet()])] }))).toBeNull();
   });
 });

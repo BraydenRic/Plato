@@ -26,6 +26,7 @@ import {
 import { recordCardioDiscard } from "@/lib/cardio-discards";
 import { useWeightUnit } from "@/context/UnitContext";
 import { isCardioWorkout, workoutDistanceLabel } from "@/lib/cardio";
+import { isCardioSession, sessionIcon } from "@/lib/cardio-session";
 import { useTheme } from "@/context/ThemeContext";
 import {
   addDays,
@@ -433,11 +434,15 @@ export default function WorkoutsScreen() {
                     {day.getDate()}
                   </Text>
                   <View style={styles.dotRow}>
+                    {/* Colour says done, going or planned; shape says what:
+                        a dot for a workout, a dash for a run or a ride. */}
                     {dayItems.slice(0, 3).map((w) => (
                       <View
                         key={w.id}
+                        testID={isCardioSession(w) ? "week-dash" : "week-dot"}
                         style={[
                           styles.dot,
+                          isCardioSession(w) && styles.dash,
                           w.completedAt
                             ? styles.dotDone
                             : w.startedAt
@@ -722,6 +727,7 @@ function WorkoutRow({
   const distance = workoutDistanceLabel(workout, unit);
   // A cardio session says nothing about exercises or sets, finished or not.
   const finishedCardio = (!!workout.completedAt && isCardioWorkout(workout)) || !!workout.cardio;
+  const icon = sessionIcon(workout);
   // Past the largest standard text size the volume on the right took the row's
   // width and squeezed the name to a letter per line. Stack it underneath
   // instead, so the name gets the whole row.
@@ -740,18 +746,21 @@ function WorkoutRow({
           ]}>
           <View style={stacked ? styles.rowTextStacked : { flex: 1, gap: 3 }}>
             <Text style={styles.rowTitle} maxFontSizeMultiplier={FontScaleCap.heading}>{workout.name}</Text>
-            <Text style={styles.rowMeta}>
-              {relativeDay(workoutDay(workout))}
-              {finishedCardio ? (
-                workout.durationMinutes ? ` · ${workout.durationMinutes}m` : ""
-              ) : (
-                <>
-                  {workout.exercises.length > 0 && ` · ${workout.exercises.length} exercise${workout.exercises.length === 1 ? "" : "s"}`}
-                  {total > 0 && !isPlanned && ` · ${done}/${total} sets`}
-                  {total > 0 && isPlanned && ` · ${total} sets planned`}
-                </>
-              )}
-            </Text>
+            <View style={styles.rowMetaLine}>
+              {icon && <Ionicons name={icon} size={12} color={theme.accentText} testID="session-icon" />}
+              <Text style={styles.rowMeta}>
+                {relativeDay(workoutDay(workout))}
+                {finishedCardio ? (
+                  workout.durationMinutes ? ` · ${workout.durationMinutes}m` : ""
+                ) : (
+                  <>
+                    {workout.exercises.length > 0 && ` · ${workout.exercises.length} exercise${workout.exercises.length === 1 ? "" : "s"}`}
+                    {total > 0 && !isPlanned && ` · ${done}/${total} sets`}
+                    {total > 0 && isPlanned && ` · ${total} sets planned`}
+                  </>
+                )}
+              </Text>
+            </View>
           </View>
           {/* A plan gets the plain chevron rather than a PLANNED pill: the line
               beside it already says "sets planned", and the calendar marks the
@@ -887,6 +896,9 @@ const useStyles = makeStyles((c) => ({
     width: 5,
     height: 5,
     borderRadius: 3,
+  },
+  dash: {
+    width: 10,
   },
   dotDone: {
     backgroundColor: c.success,
@@ -1046,7 +1058,13 @@ const useStyles = makeStyles((c) => ({
     fontWeight: "600",
     color: c.text,
   },
+  rowMetaLine: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+  },
   rowMeta: {
+    flexShrink: 1,
     fontSize: 13,
     color: c.textTertiary,
   },

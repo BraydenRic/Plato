@@ -166,6 +166,19 @@ export function isCardioSession(workout: Workout): boolean {
   );
 }
 
+/**
+ * The glyph a session goes by in lists — a shoe, a bike — so a run reads as
+ * a run next to a lifting day without a label saying so. Workouts get none:
+ * the glyph's being there is what tells them apart. A build-65 import, with
+ * no kind stored, goes by its exercise.
+ */
+export function sessionIcon(workout: Workout): IconName | null {
+  if (!isCardioSession(workout)) return null;
+  if (workout.cardio) return kindInfo(workout.cardio.kind).icon;
+  const id = workout.exercises[0]?.exerciseId;
+  return SESSION_KINDS.find((k) => Object.values(k.as).some((target) => target?.exerciseId === id))?.icon ?? "pulse";
+}
+
 /** The session's one set: where its time and distance live. */
 export function sessionSet(workout: Workout): WorkoutSet | undefined {
   return workout.exercises[0]?.sets[0];

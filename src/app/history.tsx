@@ -13,6 +13,7 @@ import { deleteWorkout } from "@/lib/data";
 import { useWeightUnit } from "@/context/UnitContext";
 import { useTheme } from "@/context/ThemeContext";
 import { isCardioWorkout, workoutDistanceLabel } from "@/lib/cardio";
+import { sessionIcon } from "@/lib/cardio-session";
 import { completedSetCount, displayVolume, workoutVolumeLbs } from "@/lib/workout-utils";
 import type { Workout } from "@/types";
 
@@ -109,6 +110,7 @@ function HistoryRow({
   // A run's headline is how far it went, where a lift's is how much it moved.
   const distance = workoutDistanceLabel(workout, unit);
   const cardio = isCardioWorkout(workout);
+  const icon = sessionIcon(workout);
   // Past the largest standard text size the volume on the right took the row's
   // width and squeezed the name to a letter per line. Stack it underneath
   // instead, so the name gets the whole row.
@@ -120,11 +122,15 @@ function HistoryRow({
         <Card style={[styles.row, stacked && styles.rowStacked, pressed && { opacity: 0.8 }]}>
           <View style={stacked ? styles.rowTextStacked : { flex: 1, gap: 3 }}>
             <Text style={styles.rowTitle} maxFontSizeMultiplier={FontScaleCap.heading}>{workout.name}</Text>
-            <Text style={styles.rowMeta}>
-              {workout.completedAt!.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" })}
-              {cardio ? "" : ` · ${completedSetCount(workout)} sets`}
-              {workout.durationMinutes ? ` · ${workout.durationMinutes}m` : ""}
-            </Text>
+            {/* The glyph marks a run or a ride among the lifting days, as on Home. */}
+            <View style={styles.rowMetaLine}>
+              {icon && <Ionicons name={icon} size={12} color={theme.accentText} testID="session-icon" />}
+              <Text style={styles.rowMeta}>
+                {workout.completedAt!.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" })}
+                {cardio ? "" : ` · ${completedSetCount(workout)} sets`}
+                {workout.durationMinutes ? ` · ${workout.durationMinutes}m` : ""}
+              </Text>
+            </View>
           </View>
           {volume > 0 ? (
             <Text style={[styles.volume, { color: theme.accentText }]} maxFontSizeMultiplier={FontScaleCap.title}>{displayVolume(volume, unit)}</Text>
@@ -204,7 +210,13 @@ const useStyles = makeStyles((c) => ({
     fontWeight: "600",
     color: c.text,
   },
+  rowMetaLine: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+  },
   rowMeta: {
+    flexShrink: 1,
     fontSize: 13,
     color: c.textTertiary,
   },

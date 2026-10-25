@@ -181,3 +181,30 @@ describe("reordering a day", () => {
     expect(names).toEqual(["Legs", "Push"]);
   });
 });
+
+// Build 67: a finished run looked just like a lifting day. A glyph on its
+// row and a dash on the week strip tell them apart, keeping the colours —
+// green for done — that both share.
+describe("a cardio session among workouts", () => {
+  beforeEach(() => {
+    mockCompleted = [
+      workout("run", "Outdoor Run", { cardio: { kind: "run" }, startedAt: new Date(2026, 7, 4, 7), completedAt: new Date(2026, 7, 4, 7, 30) }),
+      workout("push", "Push", { startedAt: new Date(2026, 7, 4, 9), completedAt: new Date(2026, 7, 4, 10) }),
+    ];
+  });
+
+  it("wears its kind's glyph on its row; a workout wears none", async () => {
+    await renderHome();
+    expect(screen.getByText("Outdoor Run")).toBeTruthy();
+    expect(screen.getByText("Push")).toBeTruthy();
+    const icons = screen.getAllByTestId("session-icon");
+    expect(icons).toHaveLength(1);
+    expect(icons[0].props.name).toBe("footsteps");
+  });
+
+  it("is a dash on the week strip where a workout is a dot", async () => {
+    await renderHome();
+    expect(screen.getAllByTestId("week-dash")).toHaveLength(1);
+    expect(screen.getAllByTestId("week-dot")).toHaveLength(1);
+  });
+});
