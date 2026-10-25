@@ -4,7 +4,6 @@ import {
   getDoc,
   getDocs,
   setDoc,
-  addDoc,
   updateDoc,
   deleteDoc,
   deleteField,
@@ -13,7 +12,6 @@ import {
   orderBy,
   limit,
   onSnapshot,
-  serverTimestamp,
   Timestamp,
   disableNetwork,
   enableNetwork,
@@ -150,23 +148,6 @@ export async function countActiveWorkouts(userId: string): Promise<number> {
   return snap.docs
     .map((d) => workoutFromDoc(d.id, d.data() as Record<string, unknown>))
     .filter(isActiveWorkout).length;
-}
-
-/**
- * `preserveCreatedAt` keeps the date already on the workout instead of stamping
- * it server-side. Only migration passes it: guest workouts were created days or
- * weeks ago, and re-stamping them would drop the whole backlog onto today.
- * Everything else prefers the server clock over a possibly-wrong device clock.
- */
-export async function createWorkout(
-  workout: Omit<Workout, "id">,
-  preserveCreatedAt = false
-): Promise<string> {
-  const ref = await addDoc(collection(db, "workouts"), {
-    ...workout,
-    createdAt: preserveCreatedAt && workout.createdAt ? workout.createdAt : serverTimestamp(),
-  });
-  return ref.id;
 }
 
 /**

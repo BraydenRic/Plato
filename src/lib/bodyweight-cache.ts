@@ -60,3 +60,21 @@ export async function forgetCachedBodyweight(userId: string): Promise<void> {
     // Nothing to do — the key is scoped to a uid that no longer exists.
   }
 }
+
+/**
+ * A log written from outside the weigh-in screens — the guest's weigh-ins
+ * merged into the account — for any screen holding an older copy in memory.
+ * Here rather than in the screens' hook because the merge runs from the auth
+ * context, which that hook itself depends on.
+ */
+type BodyweightListener = (userId: string, log: BodyweightEntry[]) => void;
+const listeners = new Set<BodyweightListener>();
+
+export function onBodyweightAdopted(listener: BodyweightListener): () => void {
+  listeners.add(listener);
+  return () => listeners.delete(listener);
+}
+
+export function announceBodyweight(userId: string, log: BodyweightEntry[]): void {
+  listeners.forEach((listener) => listener(userId, log));
+}

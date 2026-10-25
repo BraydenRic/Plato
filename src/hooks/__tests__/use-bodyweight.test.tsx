@@ -2,6 +2,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { act, renderHook, waitFor } from "@testing-library/react-native";
 
 import { useBodyweight } from "../use-bodyweight";
+import { announceBodyweight } from "@/lib/bodyweight-cache";
 import type { BodyweightEntry, Workout } from "@/types";
 
 /**
@@ -248,6 +249,20 @@ describe("opening a second screen that needs the log", () => {
     });
 
     expect(mockSetLog.mock.calls.length).toBe(writes);
+  });
+
+  // A guest's weigh-ins merged into the account after Profile had read it:
+  // Profile's next weigh-in has to build on the merged log, not its own copy.
+  it("takes up a log merged in from outside, and builds the next weigh-in on it", async () => {
+    const profile = await loaded();
+    const merged = [...mockStored, { date: new Date(2026, 7, 6), lbs: 192 }];
+    act(() => announceBodyweight(mockUserId!, merged));
+    expect(profile.result.current.latest?.lbs).toBe(192);
+    await act(async () => {
+      await profile.result.current.record(189, new Date(2026, 7, 9));
+    });
+    const [, written] = mockSetLog.mock.calls.at(-1) as unknown as [string, BodyweightEntry[]];
+    expect(written.map((e) => e.lbs)).toEqual([250, 191, 192, 189]);
   });
 
   it("never hands one account's log to another", async () => {

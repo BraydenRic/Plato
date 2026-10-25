@@ -4,7 +4,7 @@ import { AppState } from "react-native";
 import { useAuth } from "@/context/AuthContext";
 import { useWorkouts } from "@/hooks/use-workouts";
 import { applyVolumeCorrections } from "@/lib/apply-volume-corrections";
-import { readCachedBodyweight, writeCachedBodyweight } from "@/lib/bodyweight-cache";
+import { onBodyweightAdopted, readCachedBodyweight, writeCachedBodyweight } from "@/lib/bodyweight-cache";
 import { getBodyweightLog, setBodyweightLog } from "@/lib/data";
 import { isGuestUserId } from "@/lib/local-store";
 import { staleVolumesOnDay } from "@/lib/repair-bodyweight-volumes";
@@ -72,6 +72,20 @@ let editSeq = 0;
  */
 const knownLogs = new Set<string>();
 const heldEdits = new Map<string, ((log: BodyweightEntry[]) => BodyweightEntry[])[]>();
+
+/**
+ * A log written from outside the screens — the guest's weigh-ins merged into
+ * the account — made the one every screen shows. Without it, a screen that
+ * read the account before the merge kept that copy for the rest of the
+ * launch, and its next weigh-in wrote it back over the merged log. Counts as
+ * an edit, so a read already on its way can't land after and undo it.
+ */
+function adoptBodyweightLog(userId: string, log: BodyweightEntry[]): void {
+  editSeq += 1;
+  knownLogs.add(userId);
+  publish(userId, log);
+}
+onBodyweightAdopted(adoptBodyweightLog);
 
 /**
  * The weigh-in log, oldest first.

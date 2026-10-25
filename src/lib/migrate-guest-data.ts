@@ -18,7 +18,7 @@ import {
   type ExerciseLibrary,
   type WeeklyPlan,
 } from "./firestore";
-import { writeCachedBodyweight } from "./bodyweight-cache";
+import { announceBodyweight, writeCachedBodyweight } from "./bodyweight-cache";
 import {
   MAX_CUSTOM_EXERCISES,
   MAX_MERGED_ACTIVE_WORKOUTS,
@@ -111,9 +111,11 @@ async function migrateBodyweight(userId: string, guest: GuestData): Promise<void
   for (const entry of entries) merged = withBodyweightEntry(merged, entry);
   await setBodyweightLog(userId, merged);
   // The weigh-in screens may already have cached the account's log from
-  // before this merge, and they paint that copy on an offline start. Left
-  // stale, the next weigh-in there would write it back over the merged log.
+  // before this merge — on the device for an offline start, and in memory for
+  // the rest of this launch. Left stale, the next weigh-in there would write
+  // it back over the merged log.
   await writeCachedBodyweight(userId, merged);
+  announceBodyweight(userId, merged);
 }
 
 /**
