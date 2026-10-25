@@ -191,16 +191,36 @@ enum CardioFormat {
   /// Nil until there's enough of both to say.
   static func rate(metres: Double, seconds: Double, kind: CardioKind, weightUnit: String) -> String? {
     guard metres > 10, seconds > 0 else { return nil }
+    let unit = rateUnit(kind: kind, weightUnit: weightUnit)
     switch kind {
     case .bike:
       let perHour = (metres / unitMetres(kind: kind, weightUnit: weightUnit)) / (seconds / 3600)
-      return String(format: "%.1f %@", perHour, weightUnit == "kg" ? "KM/H" : "MPH")
+      return String(format: "%.1f %@", perHour, unit)
     case .swim:
       let per100 = seconds / (metres / unitMetres(kind: kind, weightUnit: weightUnit) / 100)
-      return "\(Logbook.clock(Int(per100.rounded()))) /100\(unitLabel(kind: kind, weightUnit: weightUnit))"
+      return "\(Logbook.clock(Int(per100.rounded()))) \(unit)"
     default:
       let perUnit = seconds / (metres / unitMetres(kind: kind, weightUnit: weightUnit))
-      return "\(Logbook.clock(Int(perUnit.rounded()))) /\(unitLabel(kind: kind, weightUnit: weightUnit))"
+      return "\(Logbook.clock(Int(perUnit.rounded()))) \(unit)"
     }
+  }
+
+  /// What a pace or speed is per: "/MI", "MPH", "/100YD".
+  static func rateUnit(kind: CardioKind, weightUnit: String) -> String {
+    switch kind {
+    case .bike: return weightUnit == "kg" ? "KM/H" : "MPH"
+    case .swim: return "/100\(unitLabel(kind: kind, weightUnit: weightUnit))"
+    default: return "/\(unitLabel(kind: kind, weightUnit: weightUnit))"
+    }
+  }
+
+  /// A rate as a number and its unit, for two sizes of type — or, before
+  /// there's enough to say, dashes in the number's place, so the figure is
+  /// on the screen from the first second rather than appearing later.
+  static func rateParts(_ rate: String?, kind: CardioKind, weightUnit: String) -> (value: String, unit: String) {
+    if let rate, let space = rate.firstIndex(of: " ") {
+      return (String(rate[..<space]), String(rate[rate.index(after: space)...]))
+    }
+    return (kind == .bike ? "--.-" : "--:--", rateUnit(kind: kind, weightUnit: weightUnit))
   }
 }

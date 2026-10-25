@@ -403,7 +403,38 @@ describe("with the iPhone's step counter", () => {
       mockMotion.listener!({ distance: 250, at: T0 + 60_000 });
     });
     expect(screen.getByLabelText("Distance: 0.16 mi")).toBeTruthy();
-    expect(screen.getByText("Counting steps on your iPhone")).toBeTruthy();
+    expect(screen.getByLabelText(/^Avg pace: /)).toBeTruthy();
+    // The figure says the phone's measuring it; no line repeating that.
+    expect(screen.queryByText(/Counting steps/)).toBeNull();
+  });
+
+  // Worked out every second from a distance that moves in jumps and a clock
+  // that moves every second, the average pace twitched. It moves every 5 s.
+  it("moves the average pace every few seconds, not every second", async () => {
+    jest.useFakeTimers({ now: T0 + 65_000 });
+    try {
+      show(session("run"));
+      await act(async () => {});
+      await act(async () => {
+        mockMotion.listener!({ distance: 400, at: T0 + 65_000 });
+      });
+      // 65 s for 400 m.
+      expect(screen.getByLabelText("Avg pace: 4:22 /mi")).toBeTruthy();
+      await act(async () => {
+        jest.advanceTimersByTime(3_000);
+      });
+      // The clock's moved on; the pace waits.
+      expect(screen.getByLabelText("Avg pace: 4:22 /mi")).toBeTruthy();
+      await act(async () => {
+        jest.advanceTimersByTime(2_000);
+      });
+      // Caught up with the clock: 68–70 s for 400 m. (act holds renders until
+      // it ends, so the tick can see the clock as of a render or two back.)
+      expect(screen.queryByLabelText("Avg pace: 4:22 /mi")).toBeNull();
+      expect(screen.getByLabelText(/^Avg pace: 4:(3[4-9]|4[0-2]) \/mi$/)).toBeTruthy();
+    } finally {
+      jest.useRealTimers();
+    }
   });
 
   it("adds what it counted before a pause to what it's counting since", async () => {
@@ -458,7 +489,7 @@ describe("with the iPhone's step counter", () => {
     show(session("run"));
     await act(async () => {});
     expect(mockMotion.startUpdates).not.toHaveBeenCalled();
-    expect(screen.queryByText("Counting steps on your iPhone")).toBeNull();
+    expect(screen.queryByLabelText(/^Distance: /)).toBeNull();
     await act(async () => {
       fireEvent.press(screen.getByLabelText("End"));
     });
@@ -495,7 +526,7 @@ describe("with the iPhone's step counter", () => {
     await act(async () => {
       mockMotion.listener!({ error: 105 });
     });
-    expect(screen.queryByText("Counting steps on your iPhone")).toBeNull();
+    expect(screen.queryByLabelText(/^Distance: /)).toBeNull();
     expect(mockMotion.stopUpdates).toHaveBeenCalled();
   });
 
@@ -509,7 +540,7 @@ describe("with the iPhone's step counter", () => {
       await act(async () => {
         mockMotion.listener!({ error: 103 });
       });
-      expect(screen.getByText("Counting steps on your iPhone")).toBeTruthy();
+      expect(screen.getByLabelText(/^Distance: /)).toBeTruthy();
       mockMotion.startUpdates.mockClear();
       await act(async () => {
         jest.advanceTimersByTime(5_000);

@@ -182,6 +182,14 @@ check(CardioFormat.rate(metres: 5000, seconds: 1500, kind: .run, weightUnit: "lb
 check(CardioFormat.rate(metres: 10 * CardioFormat.mile, seconds: 3600, kind: .bike, weightUnit: "lbs") == "10.0 MPH", "speed on a bike")
 check(CardioFormat.rate(metres: 1000, seconds: 1200, kind: .swim, weightUnit: "kg") == "2:00 /100M", "pace per 100 in the pool")
 check(CardioFormat.rate(metres: 5, seconds: 60, kind: .run, weightUnit: "kg") == nil, "no pace from a few metres")
+let paceParts = CardioFormat.rateParts("8:03 /MI", kind: .run, weightUnit: "lbs")
+check(paceParts.value == "8:03" && paceParts.unit == "/MI", "pace split into number and unit")
+let waitingPace = CardioFormat.rateParts(nil, kind: .run, weightUnit: "lbs")
+check(waitingPace.value == "--:--" && waitingPace.unit == "/MI", "dashes until there's a pace")
+let waitingSpeed = CardioFormat.rateParts(nil, kind: .bike, weightUnit: "kg")
+check(waitingSpeed.value == "--.-" && waitingSpeed.unit == "KM/H", "dashes until there's a speed")
+let swimParts = CardioFormat.rateParts("2:00 /100M", kind: .swim, weightUnit: "kg")
+check(swimParts.value == "2:00" && swimParts.unit == "/100M", "swim pace split")
 
 // ── Encode ops for the TypeScript side to parse ─────────────────────────────
 var ext = WatchOp(kind: .extendRest, at: 1792780210000, workoutId: workout.id); ext.seconds = 15

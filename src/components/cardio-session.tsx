@@ -1,5 +1,5 @@
 import Ionicons from "@expo/vector-icons/Ionicons";
-import { useEffect, useState, type ComponentProps, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ComponentProps, type ReactNode } from "react";
 import { Alert, KeyboardAvoidingView, Platform, Pressable, ScrollView, Text, TextInput, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
@@ -270,10 +270,9 @@ export function CardioSession({
                 />
               ) : (
                 <>
+                  {/* No line saying the phone measures it: the distance appearing says so. */}
                   {phoneMetres != null && (
-                    <LiveFigures workout={workout} distance={phoneMetres} seconds={seconds} heartRate={null}>
-                      <StatusLine icon="phone-portrait-outline" text="Counting steps on your iPhone" />
-                    </LiveFigures>
+                    <LiveFigures workout={workout} distance={phoneMetres} seconds={seconds} heartRate={null} />
                   )}
                   <WatchStartLine sessionId={workout.id} nowMs={nowMs} />
                 </>
@@ -358,7 +357,32 @@ function WatchFigures({
   );
 }
 
-/** How far, how fast on average, and the heart rate if anything's reading it — then what's measuring. */
+/** How often the average pace moves while a session runs. */
+const PACE_EVERY_MS = 5_000;
+
+/**
+ * `value` as of the last tick every `ms`, rather than every render. For a
+ * figure worked out from two that move at different times — distance in
+ * jumps, the clock every second — which would otherwise twitch each second.
+ * The first value shows at once; after that it waits for the tick.
+ */
+function useEvery<T>(value: T | null, ms: number): T | null {
+  const [shown, setShown] = useState<T | null>(value);
+  const latest = useRef(value);
+  useEffect(() => {
+    latest.current = value;
+  });
+  useEffect(() => {
+    if (shown == null && value != null) setShown(value);
+  }, [shown, value]);
+  useEffect(() => {
+    const tick = setInterval(() => setShown(latest.current), ms);
+    return () => clearInterval(tick);
+  }, [ms]);
+  return shown;
+}
+
+/** How far, how fast on average, and the heart rate if anything's reading it — then what's measuring, if anything needs saying. */
 function LiveFigures({
   workout,
   distance,
@@ -370,7 +394,7 @@ function LiveFigures({
   distance: number | null;
   seconds: number;
   heartRate: number | null;
-  children: ReactNode;
+  children?: ReactNode;
 }) {
   const styles = useStyles();
   const palette = usePalette();
@@ -379,6 +403,9 @@ function LiveFigures({
   const exercise = workout.exercises[0]?.exercise;
   const ground = exercise ? distanceKind(exercise) : null;
   const groundUnit = ground ? distanceUnit(ground, unit) : null;
+
+  // Average pace every few seconds: worked out every second, it twitched.
+  const rate = useEvery(ground && distance != null ? formatRate(distance, seconds, ground, unit) : null, PACE_EVERY_MS);
 
   const figures: Figure[] = [];
   if (ground && groundUnit && distance != null) {
@@ -391,7 +418,6 @@ function LiveFigures({
       icon: "navigate",
       tint: theme.accent,
     });
-    const rate = formatRate(distance, seconds, ground, unit);
     if (rate) {
       const { value, unit: per } = splitRate(rate);
       figures.push({ key: "rate", value, unit: per, label: ground === "ride" ? "Avg speed" : "Avg pace", icon: "speedometer-outline", tint: theme.accent });

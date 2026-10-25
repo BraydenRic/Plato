@@ -83,6 +83,10 @@ struct CardioLiveView: View {
 }
 
 /// Time, distance, pace and heart rate — big enough to read mid-stride.
+///
+/// Pace is a figure in its own right, as big as distance and on the page from
+/// the first second: a small grey line under the distance, there only once
+/// it had enough to go on, read as no pace at all.
 struct CardioMetricsPage: View {
   @EnvironmentObject private var store: WatchStore
   @EnvironmentObject private var tracker: CardioTracker
@@ -90,9 +94,9 @@ struct CardioMetricsPage: View {
   var body: some View {
     TimelineView(.periodic(from: .now, by: 1)) { context in
       let elapsed = tracker.elapsed(at: context.date)
-      VStack(alignment: .leading, spacing: 1) {
+      VStack(alignment: .leading, spacing: 0) {
         Text(Logbook.clock(Int(elapsed)))
-          .font(.plateNumber(40))
+          .font(.plateNumber(34))
           .foregroundStyle(tracker.state == .paused ? Color.secondary : store.accent)
           .lineLimit(1)
           .minimumScaleFactor(0.6)
@@ -102,24 +106,17 @@ struct CardioMetricsPage: View {
             .foregroundStyle(.secondary)
         }
         if tracker.kind.tracksDistance {
-          HStack(alignment: .firstTextBaseline, spacing: 3) {
-            Text(CardioFormat.distance(tracker.distance, kind: tracker.kind, weightUnit: store.unit))
-              .font(.plateNumber(30))
-            Text(CardioFormat.unitLabel(kind: tracker.kind, weightUnit: store.unit))
-              .font(.caption.weight(.semibold))
-              .foregroundStyle(.secondary)
-          }
-          if let rate = CardioFormat.rate(metres: tracker.distance, seconds: elapsed, kind: tracker.kind, weightUnit: store.unit) {
-            Text(rate)
-              .font(.plateNumber(20))
-              .foregroundStyle(.secondary)
-          }
+          CardioFigure(
+            value: CardioFormat.distance(tracker.distance, kind: tracker.kind, weightUnit: store.unit),
+            unit: CardioFormat.unitLabel(kind: tracker.kind, weightUnit: store.unit)
+          )
+          CardioPaceFigure()
         }
         HStack(spacing: 4) {
           Image(systemName: "heart.fill")
             .foregroundStyle(.red)
           Text(tracker.heartRate.map { String(Int($0.rounded())) } ?? "--")
-            .font(.plateNumber(20))
+            .font(.plateNumber(22))
           Spacer(minLength: 0)
           // Here as well as on the controls page, so double tap pauses from
           // the page you're looking at mid-run.
@@ -135,6 +132,50 @@ struct CardioMetricsPage: View {
       }
       .frame(maxWidth: .infinity, alignment: .leading)
     }
+  }
+}
+
+/// A figure on the run page: the number, and its unit small beside it.
+private struct CardioFigure: View {
+  let value: String
+  let unit: String
+
+  var body: some View {
+    HStack(alignment: .firstTextBaseline, spacing: 3) {
+      Text(value)
+        .font(.plateNumber(26))
+        .lineLimit(1)
+        .minimumScaleFactor(0.6)
+      Text(unit)
+        .font(.caption.weight(.semibold))
+        .foregroundStyle(.secondary)
+    }
+  }
+}
+
+/// Average pace (speed, on a bike), moved every few seconds. Worked out every
+/// second from a distance that arrives in jumps and a clock that ticks, it
+/// twitched — the same as on the phone, which moves it at the same pace.
+private struct CardioPaceFigure: View {
+  @EnvironmentObject private var store: WatchStore
+  @EnvironmentObject private var tracker: CardioTracker
+  @State private var shown: String?
+
+  var body: some View {
+    TimelineView(.periodic(from: .now, by: 5)) { context in
+      let parts = CardioFormat.rateParts(shown, kind: tracker.kind, weightUnit: store.unit)
+      CardioFigure(value: parts.value, unit: parts.unit)
+        .onChange(of: context.date) { _, date in shown = current(at: date) }
+    }
+    .onAppear { shown = current(at: Date()) }
+    // The first pace shows as soon as there's one, not up to five seconds on.
+    .onChange(of: tracker.distance) {
+      if shown == nil { shown = current(at: Date()) }
+    }
+  }
+
+  private func current(at date: Date) -> String? {
+    CardioFormat.rate(metres: tracker.distance, seconds: tracker.elapsed(at: date), kind: tracker.kind, weightUnit: store.unit)
   }
 }
 
