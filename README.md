@@ -151,7 +151,9 @@ With no watch tracking it, a session **on foot** (run, walk, hike) is measured b
 
 - **While it runs**, the screen shows distance and average pace ([use-phone-distance.ts](src/hooks/use-phone-distance.ts)): the stretches before the last resume asked about once, the one under way counted live.
 - **At End**, the moving time — start to end less each pause, kept in `cardio.pauses` — is cut into minutes and the step counter asked about each ([phone-distance.ts](src/lib/phone-distance.ts)). The total is the distance; the minute-by-minute curve gives splits and best efforts through the same code as the watch's. It's saved with `tracked.source: "iPhone"`, and End doesn't ask how far.
-- With Motion & Fitness refused, no step counter, or next to nothing counted, End asks how far, as it always did. iOS asks for Motion & Fitness the first time a session on foot starts.
+- With Motion & Fitness refused, no step counter, or next to nothing counted, End asks how far, as it always did.
+
+iOS's first-time questions — Health access with a watch, Motion & Fitness on foot — are asked on the picker ([start-cardio.tsx](src/app/start-cardio.tsx)) before the session exists. Asked after moving to the session screen, the Health sheet was requested while the picker was being dismissed and never showed (build 67); the watch then woke without access and asked on the wrist.
 
 The first build with HealthKit needs the capability on both App IDs: run `eas credentials` → iOS → production → Build Credentials → *All*, which signs in to Apple, enables HealthKit on the phone and watch apps and makes new profiles. The GitHub build can't do that step itself.
 

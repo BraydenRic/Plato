@@ -14,8 +14,10 @@ import { useWeightUnit } from "@/context/UnitContext";
 import { useWorkouts } from "@/hooks/use-workouts";
 import { SESSION_KINDS, kindInfo, newCardioSession, placeLabel, sessionTarget, type Place } from "@/lib/cardio-session";
 import PlatoHealth from "../../modules/plato-health";
+import PlatoMotion from "../../modules/plato-motion";
 import PlatoWatch from "../../modules/plato-watch";
 import { createWorkoutLocalFirst, stripUndefined } from "@/lib/data";
+import { stepCounted } from "@/lib/phone-distance";
 import { setWatchStart, traceWatch } from "@/lib/watch-trace";
 import { MAX_ACTIVE_WORKOUTS } from "@/lib/workout-utils";
 import type { CardioSessionKind, Workout } from "@/types";
@@ -31,6 +33,29 @@ const POOL_YARDS_IN_METRES = 25 * 0.9144;
 function errorText(e: unknown): string {
   return e instanceof Error ? e.message : String(e);
 }
+
+/**
+ * How long Start waits on a permission sheet before starting anyway. iOS
+ * always answers, but a Start that never starts would be the worst way to
+ * find out it didn't.
+ */
+export const PERMISSION_PATIENCE_MS = 90_000;
+
+/** Whether `promise` settled in time. Rejections pass through. */
+async function settledWithin(promise: Promise<unknown>, ms: number): Promise<boolean> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const late = new Promise<false>((resolve) => {
+    timer = setTimeout(() => resolve(false), ms);
+  });
+  try {
+    return await Promise.race([promise.then(() => true as const), late]);
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+/** Whether a watch will be woken for the session, or why it can't be. */
+type WatchAccess = "none" | "granted" | { refused: string };
 
 /** The last kind and place started on this phone, so a runner's next tap is Start. */
 export const LAST_CARDIO_KEY = "plato.cardio.last.v1";
@@ -74,7 +99,7 @@ export default function StartCardioScreen() {
     if (!nextInfo.places.includes(place)) setPlace(nextInfo.places[0]);
   }
 
-  function start() {
+  async function start() {
     if (!dataUserId || starting) return;
     if (active.length >= MAX_ACTIVE_WORKOUTS) {
       Alert.alert(
@@ -85,45 +110,81 @@ export default function StartCardioScreen() {
     }
     setStarting(true);
     AsyncStorage.setItem(LAST_CARDIO_KEY, JSON.stringify({ kind, place })).catch(() => {});
+    // Whatever iOS asks the first time, it asks here, over the picker, before
+    // the clock starts. Build 67 asked from the session screen — the sheet
+    // went up while this screen was being dismissed and never showed, so the
+    // watch woke without Health access and asked on its own wrist instead,
+    // where nobody mid-run was looking.
+    const watch = await askForWatch();
+    await askForSteps();
     const session = newCardioSession(kind, place === "indoor", { userId: dataUserId, weightUnit: unit, now: new Date() });
     const { id, saved } = createWorkoutLocalFirst(stripUndefined(session));
     // Straight onto the clock, with this picker gone from the stack behind it.
     router.replace(`/workout/${id}`);
     saved.catch(() => Alert.alert("Couldn't start", "Check your connection and try again."));
-    void trackOnWatch(id, session.cardio!);
+    void wakeWatch(id, session.cardio!, watch);
   }
 
   /**
-   * Wakes the watch into the same session, so its sensors track it. The first
-   * time, iOS asks for Health access — once, as the session starts, not in the
-   * middle of anything. With no watch, or the watch off a wrist, the session
-   * just runs on the phone's clock.
+   * Health access for the watch to track the session: iOS's sheet the first
+   * time, an instant answer after. Only asked with a watch that has Plato on
+   * it — with none, the session runs on the phone and Health isn't used.
    */
-  async function trackOnWatch(id: string, cardio: NonNullable<Workout["cardio"]>) {
+  async function askForWatch(): Promise<WatchAccess> {
     if (!PlatoHealth || !PlatoWatch) {
       traceWatch("start: no Health or watch module (not an iPhone build)");
-      return;
+      return "none";
     }
     let installed = false;
     try {
       installed = PlatoWatch.isWatchAppInstalled();
     } catch (e) {
-      traceWatch(`start: couldn't ask about the watch (${String(e)})`);
+      traceWatch(`start: couldn't ask about the watch (${errorText(e)})`);
     }
     if (!installed) {
       // No watch with Plato on it: nothing to wake, and nothing to say about it.
       traceWatch("start: no watch with Plato on it — phone clock");
+      return "none";
+    }
+    try {
+      const answered = await settledWithin(PlatoHealth.requestAccess(), PERMISSION_PATIENCE_MS);
+      traceWatch(answered ? "start: Health access asked" : "start: no answer from the Health sheet; starting anyway");
+      return "granted";
+    } catch (e) {
+      traceWatch(`start: Health access failed (${errorText(e)})`);
+      return { refused: "Plato couldn't get Apple Health access, so your watch can't track this." };
+    }
+  }
+
+  /**
+   * Motion & Fitness for the step counter, on a session on foot — asked by
+   * asking it something, the first time only. Refused, the session asks how
+   * far at the end instead; nothing to do about that here.
+   */
+  async function askForSteps() {
+    if (!PlatoMotion || !stepCounted(kind)) return;
+    try {
+      if (!PlatoMotion.isAvailable() || PlatoMotion.authorization() !== "notDetermined") return;
+      const now = Date.now();
+      await settledWithin(PlatoMotion.distances([now - 60_000, now]), PERMISSION_PATIENCE_MS);
+      traceWatch("start: Motion & Fitness asked");
+    } catch (e) {
+      traceWatch(`start: Motion & Fitness refused (${errorText(e)})`);
+    }
+  }
+
+  /**
+   * Wakes the watch into the session, so its sensors track it. With no watch,
+   * or the watch off a wrist, the session just runs on the phone.
+   */
+  async function wakeWatch(id: string, cardio: NonNullable<Workout["cardio"]>, access: WatchAccess) {
+    if (access === "none" || !PlatoHealth) return;
+    if (access !== "granted") {
+      setWatchStart(id, { state: "failed", reason: access.refused });
       return;
     }
     setWatchStart(id, { state: "waking", at: Date.now() });
     traceWatch(`start: waking the watch for ${cardio.kind}`);
-    try {
-      await PlatoHealth.requestAccess();
-    } catch (e) {
-      traceWatch(`start: Health access failed (${errorText(e)})`);
-      setWatchStart(id, { state: "failed", reason: "Plato couldn't get Apple Health access, so your watch can't track this." });
-      return;
-    }
     try {
       // Waking the app proves nothing: the session is marked as tracked on the
       // watch when the watch says it's tracking (its startCardio, in

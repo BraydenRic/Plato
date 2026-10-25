@@ -1,7 +1,7 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { act, fireEvent, render, renderHook, screen } from "@testing-library/react-native";
 
-import StartCardioScreen, { LAST_CARDIO_KEY } from "../start-cardio";
+import StartCardioScreen, { LAST_CARDIO_KEY, PERMISSION_PATIENCE_MS } from "../start-cardio";
 import { readWatchTrace, resetWatchTrace, useWatchStart } from "@/lib/watch-trace";
 import type { Workout } from "@/types";
 
@@ -30,6 +30,19 @@ jest.mock("../../../modules/plato-watch", () => ({
   default: { isWatchAppInstalled: () => mockWatchInstalled },
 }));
 const mockHealth = { requestAccess: jest.fn(async () => {}), startWatchWorkout: jest.fn(async (_k: string, _i: boolean) => true) };
+const mockMotion = {
+  status: "notDetermined",
+  isAvailable: () => true,
+  authorization: () => mockMotion.status,
+  distances: jest.fn(async (_windows: number[]) => [0]),
+};
+let mockMotionModule: typeof mockMotion | null = null;
+jest.mock("../../../modules/plato-motion", () => ({
+  __esModule: true,
+  get default() {
+    return mockMotionModule;
+  },
+}));
 jest.mock("../../../modules/plato-health", () => ({
   __esModule: true,
   get default() {
@@ -42,6 +55,8 @@ beforeEach(async () => {
   mockActive = [];
   mockWatchInstalled = false;
   mockHealth.requestAccess.mockImplementation(async () => {});
+  mockMotionModule = null;
+  mockMotion.status = "notDetermined";
   mockHealth.startWatchWorkout.mockImplementation(async () => true);
   resetWatchTrace();
   await AsyncStorage.clear();
@@ -179,5 +194,82 @@ describe("with a watch", () => {
     await startRun();
     expect(mockHealth.startWatchWorkout).not.toHaveBeenCalled();
     expect(watchStart()).toEqual({ state: "failed", reason: expect.stringMatching(/Apple Health access/) });
+  });
+});
+
+// Build 67 asked for Health access from the session screen, while this one
+// was being dismissed: the sheet never showed, and the watch asked on its own
+// wrist instead. Now every first-time question is asked here, before the clock.
+describe("asking before the clock starts", () => {
+  it("waits for the Health sheet on the picker, then starts", async () => {
+    mockWatchInstalled = true;
+    let answer!: () => void;
+    mockHealth.requestAccess.mockImplementation(() => new Promise<void>((resolve) => (answer = resolve)));
+    await mount();
+    await act(async () => {
+      fireEvent.press(screen.getByText("Start outdoor run"));
+    });
+    // The sheet is up: no session yet, still on the picker.
+    expect(mockCreate).not.toHaveBeenCalled();
+    expect(mockReplace).not.toHaveBeenCalled();
+    await act(async () => answer());
+    expect(mockReplace).toHaveBeenCalledWith("/workout/new-session");
+    expect(mockHealth.startWatchWorkout).toHaveBeenCalled();
+    expect(mockHealth.requestAccess.mock.invocationCallOrder[0]).toBeLessThan(mockReplace.mock.invocationCallOrder[0]);
+  });
+
+  it("starts anyway if the sheet never answers", async () => {
+    jest.useFakeTimers();
+    try {
+      mockWatchInstalled = true;
+      mockHealth.requestAccess.mockImplementation(() => new Promise<void>(() => {}));
+      await mount();
+      await act(async () => {
+        fireEvent.press(screen.getByText("Start outdoor run"));
+      });
+      expect(mockReplace).not.toHaveBeenCalled();
+      await act(async () => {
+        jest.advanceTimersByTime(PERMISSION_PATIENCE_MS);
+      });
+      expect(mockReplace).toHaveBeenCalledWith("/workout/new-session");
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
+  it("asks for Motion & Fitness for a run, the first time, before starting", async () => {
+    mockMotionModule = mockMotion;
+    await startRun();
+    expect(mockMotion.distances).toHaveBeenCalledTimes(1);
+    expect(mockMotion.distances.mock.invocationCallOrder[0]).toBeLessThan(mockReplace.mock.invocationCallOrder[0]);
+  });
+
+  it("doesn't ask again once answered", async () => {
+    mockMotionModule = mockMotion;
+    mockMotion.status = "authorized";
+    await startRun();
+    expect(mockMotion.distances).not.toHaveBeenCalled();
+  });
+
+  it("starts even when Motion & Fitness is refused", async () => {
+    mockMotionModule = mockMotion;
+    mockMotion.distances.mockImplementationOnce(async () => {
+      throw new Error("not authorized");
+    });
+    await startRun();
+    expect(mockReplace).toHaveBeenCalledWith("/workout/new-session");
+  });
+
+  it("doesn't ask about steps for a ride", async () => {
+    mockMotionModule = mockMotion;
+    await mount();
+    await act(async () => {
+      fireEvent.press(screen.getByLabelText("Bike"));
+    });
+    await act(async () => {
+      fireEvent.press(screen.getByText("Start outdoor cycle"));
+    });
+    expect(mockMotion.distances).not.toHaveBeenCalled();
+    expect(mockReplace).toHaveBeenCalled();
   });
 });
