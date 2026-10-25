@@ -457,19 +457,31 @@ export function withoutBodyweightEntry(log: BodyweightEntry[], day: Date): Bodyw
 }
 
 /**
- * The weigh-in closest in time to `when`, or null if there are none.
+ * The weigh-in for `when`'s calendar day, or the one from the nearest day to
+ * it, or null if there are none.
  *
  * Nearest rather than most-recent-before, so a workout logged before someone
  * started tracking still gets a sensible weight instead of nothing. This is
  * what a future bodyweight-aware volume would call: valuing last March's
  * pull-ups at last March's weight rather than at today's.
+ *
+ * By day, not by timestamp. Weigh-ins keep their time of day and callers pass
+ * a workout's day as midnight, so measuring raw time handed a 6:30pm weigh-in
+ * the *next* day's workouts — 5.5h from midnight beats that day's own 6:30pm
+ * at 18.5h. And it priced a different day's workouts than a fixed weigh-in
+ * re-prices, which only looks at its own day, so a typo's inflated volume
+ * could never be corrected. Whole days, rounded so DST's 23- and 25-hour days
+ * count as one, with a tie going to the earlier weigh-in: the weight you were
+ * carrying going in, and the same answer whatever order the log is in.
  */
 export function bodyweightOn(log: BodyweightEntry[], when: Date): BodyweightEntry | null {
   if (log.length === 0) return null;
-  return log.reduce((best, entry) =>
-    Math.abs(entry.date.getTime() - when.getTime()) <
-    Math.abs(best.date.getTime() - when.getTime())
-      ? entry
-      : best
-  );
+  const day = startOfDay(when).getTime();
+  const daysAway = (entry: BodyweightEntry) =>
+    Math.abs(Math.round((startOfDay(entry.date).getTime() - day) / 86_400_000));
+  return log.reduce((best, entry) => {
+    const gap = daysAway(entry) - daysAway(best);
+    if (gap !== 0) return gap < 0 ? entry : best;
+    return entry.date < best.date ? entry : best;
+  });
 }

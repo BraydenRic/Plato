@@ -54,9 +54,10 @@ import type { BodyweightEntry, ExerciseLibrary, UserStatistics, WeeklyPlan, Work
 
 // ── Encoding ────────────────────────────────────────────────────────────────
 // JSON turns Dates into strings, and nothing downstream expects a string. Dates
-// are tagged on the way to disk and revived on the way back. Firestore
-// Timestamps nested in sets (workoutFromDoc only converts top-level fields) are
-// saved as Dates too; Firestore stores either kind the same way.
+// are tagged on the way to disk and revived on the way back. Any Firestore
+// Timestamp that gets this far (workoutFromDoc converts the ones Plato writes,
+// sets included, but a doc edited elsewhere could carry more) is saved as a
+// Date too; Firestore stores either kind the same way.
 
 const DATE_TAG = "$date";
 
@@ -332,6 +333,12 @@ class Session {
   private fsWorkouts = new Map<string, Workout>();
   private workoutsHeard = false;
   private workoutsServerSynced = false;
+  /**
+   * The latest workouts answer came from the server, not the cache. Unlike
+   * workoutsServerSynced, which stays true for the rest of the launch, this
+   * goes false again when the connection drops. See upsertUserStats.
+   */
+  private workoutsFresh = false;
   private libraryHeard = false;
   private libraryServerSynced = false;
   private planHeard = false;
@@ -403,9 +410,10 @@ class Session {
           }
         } catch (e) {
           // One unreadable entry costs that entry, not the whole copy. The
-          // server's next answer puts it back.
+          // server's next answer puts it back. Named without the uid at the
+          // front of every key, since this reaches the system log in release.
           report.unreadable++;
-          console.warn(`Skipped an unreadable offline entry (${key})`, e);
+          console.warn(`Skipped an unreadable offline entry (${key.slice(`${PREFIX}:${this.uid}:`.length)})`, e);
         }
       }
     } catch (e) {
@@ -439,6 +447,7 @@ class Session {
         this.unsubscribers.workouts = undefined;
         this.fsWorkouts = new Map();
         this.workoutsServerSynced = false;
+        this.workoutsFresh = false;
         console.warn(`Workout sync stopped: ${(e as { code?: string }).code ?? e.message}`, e);
         this.workoutErrors.forEach((onError) => onError(e));
       }
@@ -487,11 +496,14 @@ class Session {
     this.workoutsHeard = true;
     const firstServerAnswer = !fromCache && !this.workoutsServerSynced;
     if (!fromCache) this.workoutsServerSynced = true;
+    this.workoutsFresh = !fromCache;
 
     // Metadata only: an ack landing, or the connection dropping. Nothing a
-    // screen shows has changed.
+    // screen shows has changed. Back in touch with the server, though, the
+    // copy is complete again, so stats deferred while it wasn't can be done.
     if (changes.length === 0 && !firstServerAnswer) {
       if (!this.workoutsServerSynced) this.notify();
+      if (!fromCache && this.meta.statsDirty) this.recomputeStats();
       return;
     }
 
@@ -529,6 +541,9 @@ class Session {
         this.touched.add(id);
       }
       for (const write of this.pendingFor("workouts")) this.markTouched(applyWrite(this.state, write));
+      // Back online with what another device logged meanwhile: the stats
+      // this one deferred while offline can be computed from all of it now.
+      if (!fromCache && this.meta.statsDirty) this.recomputeStats();
     }
     this.changed();
   }
@@ -592,7 +607,16 @@ class Session {
         // would be refused forever, so drop it. Firestore has already rolled
         // it back out of what it reports, so the copy follows on the next
         // snapshot.
-        console.warn(`The server refused a change and it was dropped (${(e as { code?: string }).code ?? e})`, write);
+        //
+        // Which kind of write, not the write itself. React Native sends
+        // console output to the iOS system log even in release builds, and
+        // the whole write is a uid plus a workout's sets, or every weigh-in
+        // someone has logged.
+        console.warn(
+          `The server refused a change and it was dropped (${(e as { code?: string }).code ?? e})`,
+          write.collection,
+          write.kind
+        );
         this.settle(id);
       }
     );
@@ -639,14 +663,16 @@ class Session {
   /**
    * Saves the stored lifetime totals, or defers them.
    *
-   * They're computed from the workouts the caller can see. Until the server
-   * has answered once this launch, that list can be missing whatever was
-   * logged on another device. Totals from it would overwrite good ones, and
-   * plato-web reads these. So the request is noted instead, and redone from
-   * the full history once it arrives.
+   * They're computed from the workouts the caller can see. Whenever the latest
+   * answer came from the cache, that list can be missing whatever was logged
+   * on another device: before the server has answered this launch, and just
+   * as much after the signal drops. Totals from it would overwrite good ones,
+   * since they're a whole-value write that lands whenever the signal returns,
+   * and plato-web reads these. So the request is noted instead, and redone
+   * from the full history at the next answer from the server.
    */
   upsertUserStats(stats: UserStatistics): Promise<void> {
-    if (!this.workoutsServerSynced) {
+    if (!this.workoutsFresh) {
       this.meta.statsDirty = true;
       this.schedulePersist();
       return Promise.resolve();

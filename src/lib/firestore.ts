@@ -55,7 +55,15 @@ export function workoutFromDoc(id: string, data: Record<string, unknown>): Worko
     userId: data.userId as string,
     name: data.name as string,
     isTemplate: Boolean(data.isTemplate),
-    exercises: sanitizeExercises(data.exercises, data.name),
+    // A set's completedAt comes back as a Timestamp like every other date, and
+    // nothing after this point converts it: the offline copy is built from
+    // these objects, and the watch's edit to a set already done called
+    // getTime() on one, threw, and was dropped after its retries. Same
+    // conversion local-store's reviveWorkout does for guests.
+    exercises: sanitizeExercises(data.exercises, data.name).map((ex) => ({
+      ...ex,
+      sets: ex.sets.map((set) => (set.completedAt == null ? set : { ...set, completedAt: toDate(set.completedAt) })),
+    })),
     createdAt: toDate(data.createdAt) ?? new Date(),
     scheduledFor: toDate(data.scheduledFor),
     startedAt: toDate(data.startedAt),
@@ -395,8 +403,16 @@ export function computeStats(workouts: Workout[]): Omit<UserStatistics, "userId"
   const today = new Date();
   today.setHours(0, 0, 0, 0);
 
+  // A plan for a later day can be logged ahead, and is stamped on that day.
+  // It counts toward the totals, but it hasn't happened: at the head of the
+  // streak, the gap back to today broke the run that actually reaches today,
+  // and it would have been the "last workout" plato-web shows until then.
+  const tomorrow = new Date(today);
+  tomorrow.setDate(tomorrow.getDate() + 1);
+  const pastDates = sortedDates.filter((d) => d.getTime() < tomorrow.getTime());
+
   const uniqueDays = [
-    ...new Set(sortedDates.map((d) => {
+    ...new Set(pastDates.map((d) => {
       const day = new Date(d);
       day.setHours(0, 0, 0, 0);
       return day.getTime();
@@ -444,6 +460,6 @@ export function computeStats(workouts: Workout[]): Omit<UserStatistics, "userId"
     totalSetsCompleted,
     currentStreak,
     longestStreak,
-    lastWorkoutDate: sortedDates[0],
+    lastWorkoutDate: pastDates[0],
   };
 }

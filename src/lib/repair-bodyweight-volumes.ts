@@ -12,10 +12,13 @@ import type { BodyweightEntry, Workout } from "@/types";
  * this morning's weigh-in. Sessions logged that way are still carrying the
  * wrong number, and because the stored value wins, nothing re-derives it.
  *
- * A correction, not a re-valuation — which is why it runs once rather than on
- * every launch. Re-running it forever would mean correcting a missed weigh-in
- * next month quietly rewrote last month's history, and that is exactly what
- * freezing the number exists to prevent.
+ * A correction, not a re-valuation. Re-pricing everything against the log as
+ * it stands would mean correcting a missed weigh-in next month quietly rewrote
+ * last month's history, and that is exactly what freezing the number exists to
+ * prevent. So it only rewrites a volume that still carries that one mistake
+ * (see staleBodyweightVolumes), which also makes running it again harmless —
+ * and it does run again: its done marker lives on the device, so a reinstall,
+ * a new phone or a second device goes over the whole cloud history afresh.
  */
 
 export interface VolumeCorrection {
@@ -38,16 +41,34 @@ function dependsOnBodyweight(workout: Workout): boolean {
   );
 }
 
+/** Midnight on the day of the first weigh-in. Callers have checked the log isn't empty. */
+function firstWeighInDay(log: BodyweightEntry[]): number {
+  return startOfDay(log.reduce((a, b) => (a.date < b.date ? a : b)).date).getTime();
+}
+
 /**
- * The corrections to apply, or an empty list if there is nothing to fix.
- *
- * @param completed Finished workouts.
- * @param log The weigh-in log.
+ * The weigh-in nearest in raw time, the way bodyweightOn picked one before it
+ * went by calendar day. Only for recognising what that older lookup froze.
  */
-export function staleBodyweightVolumes(
+function nearestInTime(log: BodyweightEntry[], when: Date): BodyweightEntry {
+  return log.reduce((best, entry) =>
+    Math.abs(entry.date.getTime() - when.getTime()) < Math.abs(best.date.getTime() - when.getTime())
+      ? entry
+      : best
+  );
+}
+
+/**
+ * Every bodyweight workout whose stored volume isn't what the weigh-in for the
+ * day it is filed under comes to, with that figure.
+ *
+ * Both re-pricings below start here. They differ only in which of these they
+ * trust themselves to rewrite.
+ */
+function offFromTheirDay(
   completed: Workout[],
   log: BodyweightEntry[]
-): VolumeCorrection[] {
+): { workout: Workout; totalVolume: number }[] {
   // An empty log can't value a bodyweight set, so it can't improve on anything
   // already stored. It is also indistinguishable from a log that failed to
   // load — and repairing against one of those would re-price every bodyweight
@@ -62,7 +83,7 @@ export function staleBodyweightVolumes(
   // fail.
   if (log.length === 0) return [];
 
-  const corrections: VolumeCorrection[] = [];
+  const off: { workout: Workout; totalVolume: number }[] = [];
   for (const workout of completed) {
     if (!dependsOnBodyweight(workout)) continue;
 
@@ -72,47 +93,90 @@ export function staleBodyweightVolumes(
     const correct = workoutVolumeLbs(workout, lbs);
     const stored = workout.totalVolume;
 
-    // Missing entirely means an older build finished it without storing one, so
-    // readers fall back to deriving it with no weight at all and every
-    // bodyweight set counts zero. Filling it in is the same fix.
-    if (stored == null) {
-      corrections.push({ id: workout.id, totalVolume: correct });
-      continue;
-    }
-
     // Under half a pound across a whole session is arithmetic, not a different
-    // weigh-in. Rewriting on that would churn the history for nothing.
-    if (Math.abs(correct - stored) < 0.5) continue;
+    // weigh-in. Rewriting on that would churn the history for nothing. Missing
+    // entirely always counts: see staleBodyweightVolumes.
+    if (stored != null && Math.abs(correct - stored) < 0.5) continue;
 
-    corrections.push({ id: workout.id, totalVolume: correct });
+    off.push({ workout, totalVolume: correct });
   }
-  return corrections;
+  return off;
 }
 
 /**
- * The same correction, narrowed to the workouts filed under one day.
+ * The corrections the one-time repair may make, or an empty list if there is
+ * nothing to fix.
+ *
+ * Only a volume that is exactly what the old path froze — the weigh-in nearest
+ * to when the workout was finished, rather than to the day it is filed under —
+ * and only on or after the first weigh-in. Anything else that disagrees with
+ * the log was priced against the log as it stood then, and was right: a
+ * session priced at the 1st's weigh-in before the 6th's existed, or one from
+ * before any weigh-in, frozen at zero because nothing was recorded. Re-pricing
+ * those is the re-valuation this must never become, and on a new phone it
+ * would happen to the whole history. Once corrected, a workout no longer
+ * matches the old path's figure, so this never touches the same one twice.
+ *
+ * @param completed Finished workouts.
+ * @param log The weigh-in log.
+ */
+export function staleBodyweightVolumes(
+  completed: Workout[],
+  log: BodyweightEntry[]
+): VolumeCorrection[] {
+  if (log.length === 0) return [];
+  const firstWeighIn = firstWeighInDay(log);
+
+  return offFromTheirDay(completed, log)
+    .filter(({ workout }) => {
+      // Zero was the honest number before anything was recorded, as
+      // zeroedBodyweightVolumes holds too. That includes a volume never stored:
+      // readers derive it with no weight, which is the same zero.
+      if (workoutDay(workout).getTime() < firstWeighIn) return false;
+
+      // Missing entirely means an older build finished it without storing one,
+      // so readers fall back to deriving it with no weight at all and every
+      // bodyweight set counts zero. Filling it in is the same fix, and once
+      // filled it is never missing again.
+      const stored = workout.totalVolume;
+      if (stored == null) return true;
+
+      const finished = workout.completedAt ?? workout.startedAt ?? workout.createdAt;
+      const frozen = workoutVolumeLbs(workout, nearestInTime(log, finished).lbs);
+      return Math.abs(frozen - stored) < 0.5;
+    })
+    .map(({ workout, totalVolume }) => ({ id: workout.id, totalVolume }));
+}
+
+/**
+ * Re-prices the workouts filed under one day, for a weigh-in just fixed.
  *
  * What a *fixed* weigh-in needs. Typing 250 where you meant 190 inflates the
  * volume of everything you lifted that day, and correcting the number is
  * pointless if the workout it mispriced keeps the inflated figure. That is not
  * the same as re-valuing history on a new weigh-in — the entry being corrected
- * was wrong, and this only touches the day it was wrong on.
+ * was wrong, and this only touches the day it was wrong on. bodyweightOn goes
+ * by calendar day, so those are exactly the workouts that day's weigh-in
+ * prices: an evening weigh-in no longer prices tomorrow's session, where this
+ * would never have found it.
+ *
+ * Unlike the one-time repair it doesn't ask whether a stored number carries
+ * the old path's mistake. The user just said the number behind it was wrong.
  *
  * Deleting a weigh-in comes through here too: with it gone, bodyweightOn falls
  * to the nearest one that is left, which is what the rest of the app would have
- * used all along. If nothing is left, staleBodyweightVolumes refuses to price
- * anything and the stored numbers stand — better a stale volume than a zeroed
- * one.
+ * used all along. If nothing is left, nothing is priced and the stored numbers
+ * stand — better a stale volume than a zeroed one.
  */
 export function staleVolumesOnDay(
   completed: Workout[],
   log: BodyweightEntry[],
   day: Date
 ): VolumeCorrection[] {
-  return staleBodyweightVolumes(
+  return offFromTheirDay(
     completed.filter((workout) => sameDay(workoutDay(workout), day)),
     log
-  );
+  ).map(({ workout, totalVolume }) => ({ id: workout.id, totalVolume }));
 }
 
 /**
@@ -146,7 +210,7 @@ export function zeroedBodyweightVolumes(
   // Same lock as staleBodyweightVolumes: an empty log is also what a failed
   // read looks like, and it has no weight to price anything with.
   if (log.length === 0) return [];
-  const firstWeighIn = startOfDay(log.reduce((a, b) => (a.date < b.date ? a : b)).date).getTime();
+  const firstWeighIn = firstWeighInDay(log);
 
   const corrections: VolumeCorrection[] = [];
   for (const workout of completed) {

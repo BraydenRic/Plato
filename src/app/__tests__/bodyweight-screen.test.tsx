@@ -150,6 +150,25 @@ it("deletes a weigh-in", async () => {
   await waitFor(() => expect(mockRemove).toHaveBeenCalledWith(AUG_4));
 });
 
+// The decimal pad's point is a comma in de, fr, nl and every other region that
+// writes one. Number("190,5") is NaN, so the weigh-in was dropped silently.
+it("reads a comma as the decimal point", async () => {
+  const { buttons } = openAug4();
+
+  press(buttons, "Save", "190,5");
+
+  await waitFor(() => expect(mockRecord).toHaveBeenCalledWith(190.5, AUG_4));
+});
+
+it("reads a comma in today's weigh-in too", () => {
+  render(<BodyweightScreen />);
+
+  fireEvent.press(screen.getByText("Log today's weigh-in"));
+  press(promptFor("Bodyweight").buttons, "Save", "182,5");
+
+  expect(mockRecord).toHaveBeenCalledWith(182.5, expect.any(Date));
+});
+
 it("ignores a value that isn't a weight", async () => {
   const { buttons } = openAug4();
 

@@ -578,6 +578,40 @@ describe("bodyweightOn", () => {
   it("uses the latest for a workout after the last weigh-in", () => {
     expect(bodyweightOn(log, new Date("2027-01-01"))?.lbs).toBe(184);
   });
+
+  // Weigh-ins keep their time of day, and every caller passes a workout's day
+  // as midnight. Measured in raw time, an evening weigh-in sat closer to the
+  // next midnight than that day's own evening weigh-in did.
+  it("gives a day's workouts that day's weigh-in, whatever time it was logged", () => {
+    const evenings = [
+      { date: new Date(2026, 9, 20, 18, 30), lbs: 250 },
+      { date: new Date(2026, 9, 21, 18, 30), lbs: 191 },
+    ];
+
+    expect(bodyweightOn(evenings, new Date(2026, 9, 21))?.lbs).toBe(191);
+    expect(bodyweightOn(evenings, new Date(2026, 9, 20))?.lbs).toBe(250);
+  });
+
+  it("counts whole days to the nearest weigh-in, not hours", () => {
+    // From midnight on the 22nd, the 20th's 11pm weigh-in is 25 hours back and
+    // the 23rd's 11pm one 47 hours on. By the hour the 20th won, though it is
+    // two days away and the 23rd only one.
+    const sparse = [
+      { date: new Date(2026, 9, 20, 23, 0), lbs: 190 },
+      { date: new Date(2026, 9, 23, 23, 0), lbs: 185 },
+    ];
+
+    expect(bodyweightOn(sparse, new Date(2026, 9, 22))?.lbs).toBe(185);
+    expect(bodyweightOn(sparse, new Date(2026, 9, 21))?.lbs).toBe(190);
+  });
+
+  it("breaks a tie toward the earlier weigh-in, whatever order the log is in", () => {
+    const before = { date: new Date(2026, 9, 20, 7, 0), lbs: 190 };
+    const after = { date: new Date(2026, 9, 22, 21, 0), lbs: 185 };
+
+    expect(bodyweightOn([before, after], new Date(2026, 9, 21))?.lbs).toBe(190);
+    expect(bodyweightOn([after, before], new Date(2026, 9, 21))?.lbs).toBe(190);
+  });
 });
 
 describe("bodyweight sets", () => {

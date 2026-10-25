@@ -334,6 +334,37 @@ describe("the app being killed with changes unsent", () => {
 
     expect(fake.sendWrite).not.toHaveBeenCalled();
   });
+
+  // React Native sends console output to the iOS system log in release
+  // builds, readable from any Mac the phone trusts and in every sysdiagnose.
+  it("logs which kind of change was refused, not the uid or what was in it", async () => {
+    const { cc } = launch();
+    await openWithList(cc);
+    confirmAuth();
+    await cc.setBodyweightLog(UID, [{ date: new Date(2026, 7, 4), lbs: 198.4 }]);
+    const warn = jest.spyOn(console, "warn").mockImplementation(() => {});
+
+    fake.pending.at(-1)!.reject({ code: "permission-denied" });
+    await settle();
+
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining("permission-denied"), "bodyweight", "set");
+    const logged = JSON.stringify(warn.mock.calls);
+    expect(logged).not.toContain(UID);
+    expect(logged).not.toContain("198.4");
+    warn.mockRestore();
+  });
+
+  it("names an unreadable saved entry without the uid", async () => {
+    await AsyncStorage.setItem(`plato.cloud.v1:${UID}:w:w1`, "{not json");
+    const warn = jest.spyOn(console, "warn").mockImplementation(() => {});
+    const { cc } = launch();
+
+    await openWithList(cc);
+
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining("(w:w1)"), expect.anything());
+    expect(JSON.stringify(warn.mock.calls.map(([message]) => message))).not.toContain(UID);
+    warn.mockRestore();
+  });
 });
 
 describe("an hour of sets with no signal", () => {
@@ -467,6 +498,51 @@ describe("lifetime stats", () => {
     expect(fake.sendWrite).toHaveBeenCalledWith(
       expect.objectContaining({ collection: "userStats", data: expect.objectContaining({ totalCompletedWorkouts: 7 }) })
     );
+  });
+
+  // Two devices on one account. This one synced this morning, then lost its
+  // signal; the other finished a workout at noon. Totals computed here leave
+  // that workout out, and the whole-value write lands over the good ones the
+  // moment the signal is back.
+  const statsWrites = () =>
+    fake.sendWrite.mock.calls.map(([w]) => w).filter((w) => w.collection === "userStats");
+
+  it("defers them again once the signal drops, and does them from the full history when it's back", async () => {
+    const { cc } = launch();
+    await openWithList(cc);
+    confirmAuth();
+    serverSends([makeWorkout({ id: "a", userId: UID, completedAt: new Date() })]);
+    await settle();
+    // Losing the connection: a cache answer with nothing changed.
+    fake.workouts!.onChange([], true);
+
+    await cc.upsertUserStats({ userId: UID, totalCompletedWorkouts: 1 } as never);
+    expect(statsWrites()).toEqual([]);
+
+    // Back, with the other device's workout.
+    serverSends([makeWorkout({ id: "noon", userId: UID, completedAt: new Date() })]);
+    await settle();
+
+    expect(statsWrites()).toHaveLength(1);
+    expect(statsWrites()[0].data.totalCompletedWorkouts).toBe(2);
+  });
+
+  it("does them when the server answers that nothing changed, too", async () => {
+    const { cc } = launch();
+    await openWithList(cc);
+    confirmAuth();
+    serverSends([makeWorkout({ id: "a", userId: UID, completedAt: new Date() })]);
+    await settle();
+    fake.workouts!.onChange([], true);
+    // Totals from a stale copy: whatever they say, they aren't sent.
+    await cc.upsertUserStats({ userId: UID, totalCompletedWorkouts: 99 } as never);
+    expect(statsWrites()).toEqual([]);
+
+    fake.workouts!.onChange([], false);
+    await settle();
+
+    expect(statsWrites()).toHaveLength(1);
+    expect(statsWrites()[0].data.totalCompletedWorkouts).toBe(1);
   });
 });
 

@@ -9,8 +9,14 @@ import { makeStyles, usePalette } from "@/context/AppearanceContext";
 import { useWeightUnit } from "@/context/UnitContext";
 import { useWorkouts } from "@/hooks/use-workouts";
 import { distanceKind, distanceUnit, formatDistance, formatRate, toMetres, type DistanceKind } from "@/lib/cardio";
-import { isTimedExercise } from "@/lib/exercises";
-import { convertWeight, estimatedOneRepMax, formatClock, formatWeight } from "@/lib/workout-utils";
+import { isBodyweightExercise, isTimedExercise } from "@/lib/exercises";
+import {
+  convertWeight,
+  estimatedOneRepMax,
+  formatBodyweightLoad,
+  formatClock,
+  formatWeight,
+} from "@/lib/workout-utils";
 import type { Exercise } from "@/types";
 
 const CHART_HEIGHT = 150;
@@ -56,14 +62,12 @@ const METRICS: { key: Metric; label: string }[] = [
  *
  * Timed exercises get their own card: a plank or a run has no weight, so the
  * lifting card found nothing in them and said "No sets logged yet" however many
- * had been.
+ * had been. Bodyweight exercises get one for the same reason.
  */
 export function ExerciseProgress({ exerciseId, exercise }: { exerciseId: string; exercise?: Exercise }) {
-  return exercise && isTimedExercise(exercise) ? (
-    <TimedProgress exercise={exercise} />
-  ) : (
-    <LiftProgress exerciseId={exerciseId} />
-  );
+  if (exercise && isTimedExercise(exercise)) return <TimedProgress exercise={exercise} />;
+  if (exercise && isBodyweightExercise(exercise)) return <BodyweightProgress exerciseId={exerciseId} />;
+  return <LiftProgress exerciseId={exerciseId} />;
 }
 
 /** Below this, a session's average pace is a sprint, not a record worth keeping. */
@@ -213,6 +217,128 @@ function TimedProgress({ exercise }: { exercise: Exercise }) {
             </View>
           );
         })}
+      </View>
+    </View>
+  );
+}
+
+/** A set's reps, and what was added to or taken off the lifter, in lbs. */
+interface RepSet {
+  reps: number;
+  added?: number;
+}
+
+/** More reps wins; at the same reps, the heavier load. */
+function beats(a: RepSet, b: RepSet): boolean {
+  return a.reps > b.reps || (a.reps === b.reps && (a.added ?? 0) > (b.added ?? 0));
+}
+
+/**
+ * Progress for a move where you are the weight: pull-ups, push-ups, dips.
+ *
+ * Their sets are stored as "bodyweight", with only what was added or taken off
+ * in the weight field, so the lifting card, which reads lbs and kg, skipped
+ * every one and said "No sets logged yet" over thirty sessions of pull-ups.
+ * Reps are what these are trained by, so they lead. Pricing each set at the
+ * day's weigh-in instead would chart the scale as much as the lifting, and
+ * draw nothing for someone who has never weighed in.
+ */
+function BodyweightProgress({ exerciseId }: { exerciseId: string }) {
+  const styles = useStyles();
+  const { completed } = useWorkouts();
+  const { unit } = useWeightUnit();
+
+  // One per workout, newest first. Any completed set with reps counts, not
+  // only "bodyweight" ones: a push-up logged before the exercise was marked
+  // bodyweight was still a push-up. Its weight just isn't an added load.
+  const sessions = useMemo(() => {
+    const out: { id: string; date: Date; sets: number; reps: number; best: RepSet }[] = [];
+    for (const w of completed) {
+      let sets = 0;
+      let reps = 0;
+      let best: RepSet | null = null;
+      for (const ex of w.exercises) {
+        if (ex.exerciseId !== exerciseId) continue;
+        for (const s of ex.sets) {
+          if (!s.isCompleted || !s.reps) continue;
+          const set: RepSet = { reps: s.reps, added: s.weightUnit === "bodyweight" ? s.weight : undefined };
+          sets += 1;
+          reps += s.reps;
+          if (!best || beats(set, best)) best = set;
+        }
+      }
+      if (best) out.push({ id: w.id, date: w.completedAt!, sets, reps, best });
+    }
+    return out;
+  }, [completed, exerciseId]);
+
+  if (sessions.length === 0) {
+    return (
+      <View style={styles.card}>
+        <Text style={styles.emptyText}>
+          No sets logged yet. Your best set and chart appear after your first workout with it.
+        </Text>
+      </View>
+    );
+  }
+
+  const record = sessions.reduce((top, s) => (beats(s.best, top) ? s.best : top), sessions[0].best);
+  const totalReps = sessions.reduce((sum, s) => sum + s.reps, 0);
+  // Oldest first, the last dozen, like the lifting chart.
+  const trend = sessions
+    .slice(0, MAX_SESSIONS)
+    .reverse()
+    .map((s) => s.best.reps);
+  const bestOf = (set: RepSet) => `${formatBodyweightLoad(set.added, unit)} × ${set.reps}`;
+
+  return (
+    <View style={styles.card}>
+      <View style={styles.statsRow}>
+        <View style={styles.stat}>
+          <Text style={styles.statValue} maxFontSizeMultiplier={FontScaleCap.grid}>
+            {record.reps}
+            <Text style={styles.statUnit}> reps</Text>
+          </Text>
+          <Text style={styles.statLabel}>
+            Best set{record.added ? ` · ${formatBodyweightLoad(record.added, unit)}` : ""}
+          </Text>
+        </View>
+        <View style={styles.statDivider} />
+        <View style={styles.stat}>
+          <Text style={styles.statValue} maxFontSizeMultiplier={FontScaleCap.grid}>
+            {totalReps}
+          </Text>
+          <Text style={styles.statLabel}>Total reps</Text>
+        </View>
+        <View style={styles.statDivider} />
+        <View style={styles.stat}>
+          <Text style={styles.statValue} maxFontSizeMultiplier={FontScaleCap.grid}>
+            {sessions.length}
+          </Text>
+          <Text style={styles.statLabel}>Session{sessions.length === 1 ? "" : "s"}</Text>
+        </View>
+      </View>
+
+      {trend.length > 1 && (
+        <View>
+          <Text style={styles.trendHeading} maxFontSizeMultiplier={FontScaleCap.grid}>
+            Most reps · last {trend.length} sessions
+          </Text>
+          <SessionTrend values={trend} />
+        </View>
+      )}
+
+      <View style={styles.recent}>
+        {sessions.slice(0, RECENT_SESSIONS).map((s) => (
+          <View key={s.id} style={styles.recentRow}>
+            <Text style={styles.recentDate} maxFontSizeMultiplier={FontScaleCap.grid}>
+              {s.date.toLocaleDateString(undefined, { month: "short", day: "numeric" })}
+            </Text>
+            <Text style={styles.recentValue} maxFontSizeMultiplier={FontScaleCap.grid}>
+              {[`${s.sets} set${s.sets === 1 ? "" : "s"}`, `${s.reps} reps`, `best ${bestOf(s.best)}`].join("  ·  ")}
+            </Text>
+          </View>
+        ))}
       </View>
     </View>
   );

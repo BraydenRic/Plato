@@ -63,7 +63,10 @@ export default function BodyweightScreen() {
   }
 
   function saveWeight(value: string | undefined, day: Date) {
-    const entered = Number((value ?? "").trim());
+    // The decimal pad's point is a comma wherever the phone's region writes
+    // one, and Number("80,5") is NaN — so the weigh-in was dropped without a
+    // word. Same fix as the set row's weight field.
+    const entered = Number((value ?? "").trim().replace(",", "."));
     if (!Number.isFinite(entered) || entered <= 0) return;
     const lbs = convertWeight(entered, unit, "lbs");
     record(lbs, day)

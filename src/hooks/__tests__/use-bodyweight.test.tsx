@@ -197,6 +197,59 @@ describe("opening a second screen that needs the log", () => {
     expect(next.result.current.log.find((e) => e.date.getTime() === AUG_4.getTime())?.lbs).toBe(190);
   });
 
+  // Profile is a tab, so it stays mounted under Bodyweight. Its own copy of
+  // the log missed a fix made there, and its + button wrote that whole old
+  // copy back — the deleted typo with it.
+  it("doesn't let a screen that stayed open write back an entry deleted on another", async () => {
+    const profile = await loaded();
+    const bodyweight = renderHook(() => useBodyweight());
+
+    await act(async () => {
+      await bodyweight.result.current.remove(AUG_4);
+    });
+    // Profile shows the fix without remounting.
+    expect(profile.result.current.log.map((e) => e.lbs)).toEqual([191]);
+
+    await act(async () => {
+      await profile.result.current.record(189, new Date(2026, 7, 9));
+    });
+
+    const [, written] = mockSetLog.mock.calls.at(-1) as unknown as [string, BodyweightEntry[]];
+    expect(written.map((e) => e.lbs)).toEqual([191, 189]);
+  });
+
+  it("keeps a correction made on one screen when another records a weigh-in", async () => {
+    const profile = await loaded();
+    const bodyweight = renderHook(() => useBodyweight());
+
+    await act(async () => {
+      await bodyweight.result.current.record(190, AUG_4);
+    });
+    await act(async () => {
+      await profile.result.current.record(189, new Date(2026, 7, 9));
+    });
+
+    const [, written] = mockSetLog.mock.calls.at(-1) as unknown as [string, BodyweightEntry[]];
+    expect(written.map((e) => e.lbs)).toEqual([190, 191, 189]);
+    expect(profile.result.current.latest?.lbs).toBe(189);
+    expect(bodyweight.result.current.latest?.lbs).toBe(189);
+  });
+
+  it("treats a delete on a stale screen as a no-op once another screen already made it", async () => {
+    const profile = await loaded();
+    const bodyweight = renderHook(() => useBodyweight());
+    await act(async () => {
+      await bodyweight.result.current.remove(AUG_4);
+    });
+    const writes = mockSetLog.mock.calls.length;
+
+    await act(async () => {
+      await profile.result.current.remove(AUG_4);
+    });
+
+    expect(mockSetLog.mock.calls.length).toBe(writes);
+  });
+
   it("never hands one account's log to another", async () => {
     await loaded();
 

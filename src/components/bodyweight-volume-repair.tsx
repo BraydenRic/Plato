@@ -15,6 +15,11 @@ const DONE_KEY = "bodyweight_volume_repair_v1";
  * frozen against the wrong day's weigh-in. See repair-bodyweight-volumes for
  * what went wrong and why the fix runs once rather than continuously.
  *
+ * The marker below is per device, so a reinstall or a new phone runs the
+ * repair over the whole history again. That has to be harmless, and is:
+ * staleBodyweightVolumes only matches the old mistake, which a corrected
+ * workout no longer carries. The marker just saves doing the sums twice.
+ *
  * Silent by design. There is nothing for the user to decide here — the numbers
  * were wrong and now they aren't — and a workout is exactly the wrong moment to
  * be asked about one.

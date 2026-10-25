@@ -39,14 +39,15 @@ export function Sparkline({
 
   const max = Math.max(...values);
   const min = Math.min(...values);
-  // A flat run has no span to divide by, and would otherwise be drawn at the
-  // very top of the box. Give it one and it lands through the middle.
-  const span = max - min || 1;
+  const span = max - min;
   const pad = 2;
   const usable = height - pad * 2;
 
   const x = (i: number) => (i / (values.length - 1)) * width;
-  const y = (v: number) => pad + (1 - (v - min) / span) * usable;
+  // A flat run has no span to divide by. It goes through the middle, where a
+  // single weigh-in sits: the bottom edge, where a stand-in span of 1 put it,
+  // reads as a drop when the weight hasn't moved.
+  const y = (v: number) => (span === 0 ? height / 2 : pad + (1 - (v - min) / span) * usable);
 
   const d = values.map((v, i) => `${i === 0 ? "M" : "L"}${x(i).toFixed(1)},${y(v).toFixed(1)}`).join(" ");
 

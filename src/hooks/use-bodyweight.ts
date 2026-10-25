@@ -26,6 +26,23 @@ import type { BodyweightEntry } from "@/types";
 const lastRead = new Map<string, BodyweightEntry[]>();
 
 /**
+ * Every mounted hook, per user, so a change made on one screen reaches them all.
+ *
+ * Each hook keeps its own state, and seeding it from lastRead only helps a
+ * screen that mounts after the change. Profile is a tab and stays mounted
+ * under Bodyweight, so it went on showing the log from before an entry was
+ * fixed or deleted there, and its + button then wrote that whole old log back
+ * over the fix. The root volume repair held the same stale copy.
+ */
+const subscribers = new Map<string, Set<(log: BodyweightEntry[]) => void>>();
+
+/** Makes `log` the account's log, here and on every screen showing it. */
+function publish(userId: string, log: BodyweightEntry[]) {
+  lastRead.set(userId, log);
+  subscribers.get(userId)?.forEach((show) => show(log));
+}
+
+/**
  * How long to wait before each retry of a failed read. The last one repeats
  * for as long as the screen is open — offline, a read fails fast, so this costs
  * next to nothing while the signal is gone and picks the log up soon after it
@@ -101,15 +118,22 @@ export function useBodyweight() {
     if (seed) setLog(seed);
     setLoading(!seed);
 
+    // Whichever screen reads or edits the log next, this one shows the result.
+    const show = (entries: BodyweightEntry[]) => {
+      setLog(entries);
+      setLoading(false);
+    };
+    const screens = subscribers.get(userId) ?? new Set();
+    subscribers.set(userId, screens);
+    screens.add(show);
+
     // Cold start: nothing read yet this launch, so paint the copy the last
     // launch left behind rather than an empty log while the cloud read is out.
     if (!seed && cacheable) {
       readCachedBodyweight(userId).then((cached) => {
         if (cancelled || fresh || !cached || lastRead.has(userId)) return;
         knownLogs.add(userId);
-        lastRead.set(userId, cached);
-        setLog(cached);
-        setLoading(false);
+        publish(userId, cached);
       });
     }
 
@@ -128,23 +152,19 @@ export function useBodyweight() {
             heldEdits.delete(userId);
             entries = held.reduce((log, edit) => edit(log), fetched);
             setBodyweightLog(userId, entries).catch((e) => console.warn("Couldn't save held weigh-ins", e));
-            lastRead.set(userId, entries);
+            publish(userId, entries);
             if (cancelled) return;
             if (cacheable) writeCachedBodyweight(userId, entries);
-            setLog(entries);
-            setLoading(false);
             return;
           }
           // An edit made while this was in flight is newer than what it read.
           if (editSeq !== seqAtStart) return;
-          lastRead.set(userId, entries);
+          publish(userId, entries);
           // Not after the screen has let go. A read that lands after sign-out
           // would otherwise put the weigh-ins back on the phone just after
           // signing out deleted them.
           if (cancelled) return;
           if (cacheable) writeCachedBodyweight(userId, entries);
-          setLog(entries);
-          setLoading(false);
         })
         .catch((e) => {
           // A failed read shows an empty card, which invites logging a weigh-in
@@ -175,6 +195,8 @@ export function useBodyweight() {
       cancelled = true;
       clearTimeout(retryTimer);
       foreground.remove();
+      screens.delete(show);
+      if (screens.size === 0) subscribers.delete(userId);
     };
   }, [dataUserId]);
 
@@ -202,15 +224,18 @@ export function useBodyweight() {
   );
 
   /**
-   * Shows an edit to the log at once, then saves it, or holds it back while
-   * the log has never been seen (see knownLogs).
+   * Shows an edit to the log at once, on every screen, then saves it, or holds
+   * it back while the log has never been seen (see knownLogs).
+   *
+   * Built on the account's log rather than this screen's copy of it. The whole
+   * log is written back, so building on a copy that missed a change made on
+   * another screen would undo that change.
    */
   const applyEdit = useCallback(
     async (userId: string, edit: (log: BodyweightEntry[]) => BodyweightEntry[], day: Date) => {
-      const next = edit(log);
+      const next = edit(lastRead.get(userId) ?? log);
       editSeq += 1;
-      setLog(next);
-      lastRead.set(userId, next);
+      publish(userId, next);
       if (!isGuestUserId(userId) && !knownLogs.has(userId)) {
         heldEdits.set(userId, [...(heldEdits.get(userId) ?? []), edit]);
         return;
@@ -241,7 +266,8 @@ export function useBodyweight() {
   const remove = useCallback(
     async (day: Date) => {
       if (!dataUserId) return;
-      if (withoutBodyweightEntry(log, day).length === log.length) return;
+      const current = lastRead.get(dataUserId) ?? log;
+      if (withoutBodyweightEntry(current, day).length === current.length) return;
       await applyEdit(dataUserId, (base) => withoutBodyweightEntry(base, day), day);
     },
     [dataUserId, log, applyEdit]

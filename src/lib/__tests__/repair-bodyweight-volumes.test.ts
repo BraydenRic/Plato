@@ -109,8 +109,9 @@ it("ignores drift too small to be a different weigh-in", () => {
 });
 
 it("counts added and assisted load against the corrected weight", () => {
-  // A dip belt (+25) and the assisted machine (−30), both on the 4th.
-  const stale = workout({ sets: [bwSet(5, 25), bwSet(5, -30)], totalVolume: 1750 });
+  // A dip belt (+25) and the assisted machine (−30), both on the 4th, frozen
+  // at the 5th's 190: 5 × 215 + 5 × 160.
+  const stale = workout({ sets: [bwSet(5, 25), bwSet(5, -30)], totalVolume: 1875 });
 
   // 5 × (195+25) + 5 × (195−30) = 1100 + 825
   expect(staleBodyweightVolumes([stale], log)).toEqual([{ id: "w1", totalVolume: 1925 }]);
@@ -126,13 +127,69 @@ it("skips sets that were never completed, exactly as the live valuation does", (
 });
 
 it("values each workout against its own day, not one shared weight", () => {
-  const onThe4th = workout({ id: "a", sets: [bwSet(10)], scheduledFor: AUG_4, totalVolume: 0 });
-  const onThe5th = workout({ id: "b", sets: [bwSet(10)], scheduledFor: AUG_5, totalVolume: 0 });
+  const AUG_6 = new Date(2026, 7, 6);
+  const threeDays: BodyweightEntry[] = [...log, { date: AUG_6, lbs: 185 }];
+  // Each typed up the day after it happened, and frozen at that day's weight.
+  const onThe4th = workout({ id: "a", sets: [bwSet(10)], scheduledFor: AUG_4, completedAt: AUG_5, totalVolume: 1900 });
+  const onThe5th = workout({ id: "b", sets: [bwSet(10)], scheduledFor: AUG_5, completedAt: AUG_6, totalVolume: 1850 });
 
-  expect(staleBodyweightVolumes([onThe4th, onThe5th], log)).toEqual([
+  expect(staleBodyweightVolumes([onThe4th, onThe5th], threeDays)).toEqual([
     { id: "a", totalVolume: 1950 },
     { id: "b", totalVolume: 1900 },
   ]);
+});
+
+/**
+ * The repair's done marker is kept on the device, so a reinstall, a new phone
+ * or a second device runs it over the whole cloud history again. It may only
+ * ever find the old path's one mistake, or a new phone re-values everything.
+ */
+describe("running again on a new phone", () => {
+  it("leaves a session from before the first weigh-in at zero", () => {
+    // Nothing was recorded then, so zero was the honest number.
+    const early = workout({
+      sets: [bwSet(10)],
+      totalVolume: 0,
+      scheduledFor: new Date(2026, 7, 1),
+      completedAt: new Date(2026, 7, 1),
+    });
+
+    expect(staleBodyweightVolumes([early], log)).toEqual([]);
+  });
+
+  it("doesn't invent a volume for a session from before the first weigh-in", () => {
+    const { totalVolume, ...early } = workout({
+      sets: [bwSet(10)],
+      scheduledFor: new Date(2026, 7, 1),
+      completedAt: new Date(2026, 7, 1),
+    });
+    expect(totalVolume).toBeUndefined();
+
+    expect(staleBodyweightVolumes([early as Workout], log)).toEqual([]);
+  });
+
+  it("leaves a session priced at the weigh-in it had, though a nearer one was logged later", () => {
+    // Pull-ups on the 5th, priced at the 1st's 200 because that was all there
+    // was. The 6th's 190 came the next day.
+    const OCT_1 = new Date(2026, 9, 1);
+    const OCT_5 = new Date(2026, 9, 5);
+    const later: BodyweightEntry[] = [
+      { date: OCT_1, lbs: 200 },
+      { date: new Date(2026, 9, 6), lbs: 190 },
+    ];
+    const priced = workout({ sets: [bwSet(10)], scheduledFor: OCT_5, completedAt: OCT_5, totalVolume: 2000 });
+
+    expect(staleBodyweightVolumes([priced], later)).toEqual([]);
+  });
+
+  it("corrects a session once, and leaves the corrected number alone after", () => {
+    const stale = workout({ sets: [bwSet(10)], totalVolume: 1900 });
+    const [correction] = staleBodyweightVolumes([stale], log);
+    expect(correction).toEqual({ id: "w1", totalVolume: 1950 });
+
+    const corrected = { ...stale, totalVolume: correction.totalVolume };
+    expect(staleBodyweightVolumes([corrected], log)).toEqual([]);
+  });
 });
 
 describe("re-pricing a single day after its weigh-in is fixed", () => {
@@ -163,6 +220,32 @@ describe("re-pricing a single day after its weigh-in is fixed", () => {
     expect(staleVolumesOnDay([onThe5th], [{ date: AUG_4, lbs: 195 }], AUG_5)).toEqual([
       { id: "w1", totalVolume: 1950 },
     ]);
+  });
+
+  // Weigh-ins keep their time of day. Matched by raw time against midnight,
+  // the 20th's evening typo priced the 21st's session, and editing the 21st's
+  // own weigh-in found nothing to re-price — though the prompt promised it.
+  it("re-prices a day's session when that day's evening weigh-in is edited", () => {
+    const evenings: BodyweightEntry[] = [
+      { date: new Date(2026, 9, 20, 18, 30), lbs: 250 },
+      { date: new Date(2026, 9, 21, 18, 30), lbs: 192 },
+    ];
+    const OCT_21 = new Date(2026, 9, 21);
+    // Frozen at the 20th's typo by the old lookup.
+    const inflated = workout({ sets: [bwSet(10)], scheduledFor: OCT_21, completedAt: OCT_21, totalVolume: 2500 });
+
+    expect(staleVolumesOnDay([inflated], evenings, evenings[1].date)).toEqual([
+      { id: "w1", totalVolume: 1920 },
+    ]);
+  });
+
+  it("re-prices a session the one-time repair would leave alone", () => {
+    // Priced at a weigh-in that was then corrected: nothing like the old
+    // path's figure, but the user just said the number behind it was wrong.
+    const inflated = workout({ sets: [bwSet(10)], scheduledFor: AUG_4, completedAt: AUG_4, totalVolume: 2500 });
+
+    expect(staleBodyweightVolumes([inflated], log)).toEqual([]);
+    expect(staleVolumesOnDay([inflated], log, AUG_4)).toEqual([{ id: "w1", totalVolume: 1950 }]);
   });
 
   it("leaves stored volumes standing when the last weigh-in is deleted", () => {

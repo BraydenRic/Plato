@@ -170,6 +170,28 @@ it("marks itself done without writing when there is nothing stale", async () => 
   expect(mockUpsertUserStats).not.toHaveBeenCalled();
 });
 
+it("leaves already-right history alone on a new phone, where its marker is missing", async () => {
+  // Corrected on the old phone, so it holds the 4th's price; and a session
+  // from before the first weigh-in, honestly frozen at zero.
+  const corrected = { ...staleWorkout(), totalVolume: 1950 };
+  const early = {
+    ...staleWorkout(),
+    id: "w0",
+    scheduledFor: new Date(2026, 7, 1),
+    completedAt: new Date(2026, 7, 1),
+    totalVolume: 0,
+  };
+  mockCompleted = [corrected, early];
+
+  render(<BodyweightVolumeRepair />);
+
+  await waitFor(async () =>
+    expect(await AsyncStorage.getItem("bodyweight_volume_repair_v1:u1")).not.toBeNull()
+  );
+  expect(mockUpdateWorkout).not.toHaveBeenCalled();
+  expect(mockUpsertUserStats).not.toHaveBeenCalled();
+});
+
 it("does nothing for a signed-out app", async () => {
   mockUserId = null;
 
