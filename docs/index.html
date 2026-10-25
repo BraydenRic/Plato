@@ -51,7 +51,7 @@
 <body>
 <main>
   <div class="brand"><h1>Plato</h1><span>Privacy Policy</span></div>
-  <p class="updated">Last updated October 23, 2026</p>
+  <p class="updated">Last updated October 24, 2026</p>
 
   <p>Plato is a workout tracker. This policy explains what information the app
   collects, why, and what control you have over it. The short version: your
@@ -80,10 +80,40 @@
     to record them. These are optional, entered by hand, and used to chart your
     weight over time and to value bodyweight exercises (pull ups, dips) at what
     you actually weighed on the day you trained.</li>
+    <li><strong>Cardio workouts from Apple Health</strong> — only if you turn
+    this on. See <a href="#apple-health">Apple Health</a> below.</li>
   </ul>
-  <p>Plato does not collect your location, contacts, photos, health data from
-  Apple Health or other apps, or any advertising identifiers. The only body
-  measurement it holds is the weight you type in yourself.</p>
+  <p>Plato does not collect your location, contacts, photos or any advertising
+  identifiers. It reads nothing from Apple Health unless you turn that on, and
+  never your route or where you were. Apart from what Apple Health supplies
+  when you allow it, the only body measurement it holds is the weight you type
+  in yourself.</p>
+
+  <h2 id="apple-health">Apple Health</h2>
+  <p>Plato can bring in the cardio workouts your Apple Watch or other apps save
+  to Apple Health: runs, walks, hikes, rides, rowing, elliptical, stair and
+  swimming workouts, and jump rope. It is off until you turn it on in Profile,
+  and iOS then asks which data you're willing to share. Plato only ever reads;
+  it never writes to or changes anything in Apple Health.</p>
+  <p>When it's on, Plato reads each of those workouts' type, start and end
+  time, duration, distance, active calories, average and maximum heart rate,
+  whether it was indoors, the name of the app or device that recorded it, and
+  the distance readings taken during it. From the readings it works out your
+  splits and your fastest times over standard distances, on your phone.</p>
+  <p>Each workout is then saved as a Plato workout — like one you logged
+  yourself — with its time, distance, splits, fastest times, active calories
+  and average and maximum heart rate. With an account, that is stored with
+  your account (see <a href="#where-its-stored">Where it's stored</a>) so it
+  appears on your other devices and on Plato's website; as a guest, it stays
+  on your device. The individual readings are not kept or sent anywhere, and
+  Plato never reads your route.</p>
+  <p>Data from Apple Health is used only to show you your own workouts and
+  progress. It is never used for advertising or marketing, never sold, never
+  shared with anyone else, and never stored in iCloud. You can turn the import
+  off in Profile at any time, or withdraw Plato's access in the Health app or
+  in Settings → Health → Data Access &amp; Devices. Workouts already brought in
+  stay until you delete them, and are removed with the rest of your data if
+  you delete your account.</p>
 
   <h2>How it's used</h2>
   <p>Your data is used only to provide the app's features: syncing your
@@ -92,7 +122,7 @@
   profiles, and no sale or sharing of personal data with third parties for
   their own purposes.</p>
 
-  <h2>Where it's stored</h2>
+  <h2 id="where-its-stored">Where it's stored</h2>
   <p>Plato stores your account and fitness data with
   <strong>Google Firebase</strong> (Authentication and Cloud Firestore), acting
   as our data processor. Data is transmitted over encrypted connections and
@@ -115,8 +145,8 @@
 
   <h2>Stored on your device</h2>
   <p>Small settings such as your preferred weight unit, rest-timer duration,
-  light or dark appearance and accent colour are stored locally on your device
-  and never leave it (apart from going to your own Apple Watch, below), as is
+  light or dark appearance and accent colour, and whether Apple Health import
+  is on, are stored locally on your device and never leave it (apart from going to your own Apple Watch, below), as is
   the start time of any set timer or rest countdown you have running, so it
   keeps counting if the app is closed.</p>
   <p>If you use Plato on Apple Watch, your iPhone sends your paired watch the

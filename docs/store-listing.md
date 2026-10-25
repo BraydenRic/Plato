@@ -103,3 +103,20 @@ own weight and to value bodyweight exercises. No HealthKit access.
   (App Functionality · linked to identity · not used for tracking)
 - Export compliance: answered automatically by `ITSAppUsesNonExemptEncryption: false`
 - Release: **automatic** on approval
+
+## When a build with Apple Health ships
+
+The 1.2.0 text above predates the Apple Health import. Before submitting a
+build that has it:
+
+- **Description** — Apple requires HealthKit apps to say so in the listing.
+  Add under TRACK YOUR PROGRESS:
+  `• Runs, walks and rides from your Apple Watch come in from Apple Health, with splits, heart rate and calories`
+  and change the timed-exercise bullet to:
+  `• Cardio logs time and distance, with your pace worked out for you`
+- **Notes for App Review** — replace "No HealthKit access." with:
+  `Apple Health is optional and read-only: Profile → Apple Health → On imports cardio workouts (runs, walks, rides and similar) so they appear in the user's history with their splits, heart rate and calories. Plato never writes to Health. To see it work, record a workout in the Workout app (or add one in the Health app) and open Plato.`
+- **App Privacy → Data Types** — under Health & Fitness, add **Fitness** as
+  well as Health (App Functionality · linked to identity · not used for
+  tracking). Imported workouts are saved to the account like typed ones.
+- **Privacy Policy** — already updated (Apple Health section).

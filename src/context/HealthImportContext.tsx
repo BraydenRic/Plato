@@ -204,14 +204,20 @@ function HealthImportRunner({ children }: { children: React.ReactNode }) {
     }
   }
 
+  // Reached through a ref so the effect below runs on what it's about — the
+  // setting, the workouts being loaded, the app coming forward — and not on
+  // every render's new copy of the function. It reads the rest through `latest`.
+  const runImportRef = useRef(runImport);
+  useEffect(() => {
+    runImportRef.current = runImport;
+  });
+
   const ready = !!dataUserId && stored?.enabled === true && unitLoaded && !loading && !awaitingSync;
   // Not before the workouts have loaded and synced: what's already been
   // imported is read off them, and reading it off a half-loaded list would
   // bring the missing ones in a second time.
   useEffect(() => {
-    if (ready) void runImport();
-    // runImport reads everything it needs through `latest`.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    if (ready) void runImportRef.current();
   }, [ready, foregrounds]);
 
   async function setEnabled(on: boolean) {

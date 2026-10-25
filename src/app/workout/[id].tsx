@@ -1704,7 +1704,7 @@ function CardioDetail({ set, ground }: { set: WorkoutSet; ground: DistanceKind |
                 key={row.label}
                 style={styles.splitRow}
                 accessible
-                accessibilityLabel={`${row.label.includes(".") ? `Last ${row.label} ${groundUnit}` : `${groundUnit === "mi" ? "Mile" : "Kilometre"} ${row.label}`}, ${formatClock(Math.round(row.seconds))}`}>
+                accessibilityLabel={`${row.label.includes(".") ? `Last ${row.label} ${groundUnit}` : `${groundUnit === "mi" ? "Mile" : "Kilometer"} ${row.label}`}, ${formatClock(Math.round(row.seconds))}`}>
                 <Text style={styles.splitLabel} maxFontSizeMultiplier={FontScaleCap.grid}>
                   {row.label}
                 </Text>
