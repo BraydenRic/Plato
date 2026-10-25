@@ -1,7 +1,7 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
 import { recordCardioDiscard, cardioDiscards, resetCardioDiscards } from "../cardio-discards";
-import { readWatchTrace, resetWatchTrace, setWatchStart, traceWatch } from "../watch-trace";
+import { clearWatchTrace, readWatchTrace, resetWatchTrace, setWatchStart, traceWatch } from "../watch-trace";
 import type { Workout } from "@/types";
 
 /**
@@ -34,6 +34,25 @@ describe("the trace", () => {
     await readWatchTrace();
     traceWatch("two", new Date(2026, 9, 25, 7, 0, 1));
     expect(await readWatchTrace()).toEqual(["07:00:00 one", "07:00:01 two"]);
+  });
+
+  // The lines hold the time, length and distance of someone's sessions, so
+  // they go when that person leaves the phone.
+  it("is gone from memory and disk once cleared, even with a read in flight", async () => {
+    await AsyncStorage.setItem(KEY, JSON.stringify(["07:00:00 watch finish: 1830 s, 5012 m"]));
+    traceWatch("steps: 4980 m by the minute", new Date(2026, 9, 25, 7, 1, 0));
+
+    await clearWatchTrace();
+
+    expect(await readWatchTrace()).toEqual([]);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(await AsyncStorage.getItem(KEY)).toBeNull();
+  });
+
+  it("starts a fresh trace after a clear", async () => {
+    await clearWatchTrace();
+    traceWatch("start: watch woken", new Date(2026, 9, 25, 8, 0, 0));
+    expect(await readWatchTrace()).toEqual(["08:00:00 start: watch woken"]);
   });
 });
 

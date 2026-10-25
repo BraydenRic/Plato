@@ -18,6 +18,8 @@ const LIMIT = 60;
 
 let lines: string[] = [];
 let loaded: Promise<void> | null = null;
+/** Bumped by a clear, so a read already in flight can't merge the old trace back. */
+let generation = 0;
 
 /**
  * Merges what earlier launches stored in ahead of this launch's lines, once.
@@ -25,8 +27,10 @@ let loaded: Promise<void> | null = null;
  * replace the trace from the launch before — the one being looked into.
  */
 function load(): Promise<void> {
+  const gen = generation;
   loaded ??= AsyncStorage.getItem(KEY)
     .then((raw) => {
+      if (gen !== generation) return;
       const stored = raw ? (JSON.parse(raw) as unknown) : [];
       if (Array.isArray(stored)) lines = [...(stored as string[]), ...lines].slice(-LIMIT);
     })
@@ -39,8 +43,9 @@ function load(): Promise<void> {
 export function traceWatch(step: string, now = new Date()): void {
   const stamp = now.toTimeString().slice(0, 8);
   lines = [...lines, `${stamp} ${step}`].slice(-LIMIT);
+  const gen = generation;
   load()
-    .then(() => AsyncStorage.setItem(KEY, JSON.stringify(lines)))
+    .then(() => (gen === generation ? AsyncStorage.setItem(KEY, JSON.stringify(lines)) : undefined))
     .catch(() => {});
 }
 
@@ -48,6 +53,24 @@ export function traceWatch(step: string, now = new Date()): void {
 export async function readWatchTrace(): Promise<string[]> {
   await load();
   return lines;
+}
+
+/**
+ * Drops the trace, here and on disk, when the person it describes leaves the
+ * phone: sign-out, account deletion, deleting guest data. Its lines carry the
+ * time, length and distance of their sessions, and the next person to use the
+ * phone can open the diagnostics.
+ */
+export async function clearWatchTrace(): Promise<void> {
+  generation += 1;
+  lines = [];
+  // Nothing left on disk to merge, so later writes needn't wait for a read.
+  loaded = Promise.resolve();
+  try {
+    await AsyncStorage.removeItem(KEY);
+  } catch {
+    // Nothing worth failing a sign-out over.
+  }
 }
 
 /** How waking the watch went for a session started on the phone. */

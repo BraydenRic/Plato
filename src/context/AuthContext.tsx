@@ -16,6 +16,7 @@ import {
 import {
   appleSignInSupported,
   reauthenticateWithApple,
+  revokeAppleAuthorization,
   signInWithApple as appleSignIn,
 } from "@/lib/apple-signin";
 import { forgetCachedBodyweight } from "@/lib/bodyweight-cache";
@@ -39,9 +40,12 @@ import {
 } from "@/lib/local-store";
 import { migrateGuestDataTo } from "@/lib/migrate-guest-data";
 import {
+  clearUnfinishedSignOut,
   forgetRememberedUser,
   isProvisional,
   readRememberedUser,
+  readUnfinishedSignOut,
+  recordUnfinishedSignOut,
   rememberUser,
 } from "@/lib/remembered-account";
 import {
@@ -49,6 +53,7 @@ import {
   reauthenticateWithGoogle,
   signInWithGoogle as googleSignIn,
 } from "@/lib/google-signin";
+import { clearWatchTrace } from "@/lib/watch-trace";
 
 interface AuthContextType {
   user: User | null;
@@ -86,8 +91,11 @@ interface AuthContextType {
   resetPassword: (email: string) => Promise<void>;
   /** Re-sends the verification email for the signed-in account. */
   resendVerificationEmail: () => Promise<void>;
-  /** Re-checks the account with the server (e.g. to pick up email verification). */
-  refreshUser: () => Promise<void>;
+  /**
+   * Re-checks the account with the server (e.g. to pick up email
+   * verification). Resolves whether its email is verified.
+   */
+  refreshUser: () => Promise<boolean>;
   /** Updates the profile display name and refreshes it in the UI immediately. */
   updateDisplayName: (name: string) => Promise<void>;
   /**
@@ -117,13 +125,26 @@ const AuthContext = createContext<AuthContextType>({
   offlineDiagnostics: async () => "",
   resetPassword: async () => {},
   resendVerificationEmail: async () => {},
-  refreshUser: async () => {},
+  refreshUser: async () => false,
   updateDisplayName: async () => {},
   deleteAccount: async () => false,
 });
 
-/** How long "Moving your workouts" waits for the server before letting the app be used. */
+/** How long "Moving your workouts" waits on a silent server before letting the app be used. */
 const MIGRATION_PATIENCE_MS = 5_000;
+
+/**
+ * Hands a sign-out to Firebase and waits for it to land, then lifts the guard
+ * that was ignoring that account meanwhile. Lifted here as well as when
+ * Firebase reports no user, because Firebase reports only changes: signing
+ * out of a session it had already dropped says nothing, and the guard would
+ * otherwise turn away the next sign-in to that account.
+ */
+async function finishSignOut(signedOutUid: { current: string | null }, uid: string): Promise<void> {
+  await firebaseSignOut(auth);
+  if (signedOutUid.current === uid) signedOutUid.current = null;
+  await clearUnfinishedSignOut();
+}
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
@@ -156,6 +177,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     let cancelled = false;
     /** Firebase has reported in. What it says outranks the remembered account. */
     let confirmed = false;
+    // A sign-out the last launch closed before Firebase could finish (see
+    // remembered-account). Firebase may be restoring that very session, so
+    // its sign-out is queued now, before this launch can queue anything
+    // else, and every report below waits for this so none slips in first.
+    const unfinishedSignOut = readUnfinishedSignOut().then((uid) => {
+      if (!uid || cancelled) return;
+      signedOutUid.current ??= uid;
+      void finishSignOut(signedOutUid, uid);
+    });
     readRememberedUser().then((remembered) => {
       if (cancelled || confirmed || !remembered) return;
       // Before setUser: screens subscribe the moment the account appears,
@@ -176,18 +206,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       });
     const unsubscribe = onAuthStateChanged(auth, (u) => {
       confirmed = true;
-      if (u && u.uid === signedOutUid.current) return;
-      if (!u) {
-        signedOutUid.current = null;
-        // Firebase has no session, whether from a sign-out or one that expired
-        // or was revoked. Either way, don't open on this account next launch.
-        // Its offline copy stays, so unsent changes go up if they sign back in.
-        forgetRememberedUser();
-      } else {
-        openCloudSession(u.uid);
-      }
-      setUser(u);
-      setAuthLoading(false);
+      void unfinishedSignOut.then(() => {
+        if (cancelled) return;
+        if (u && u.uid === signedOutUid.current) return;
+        if (!u) {
+          signedOutUid.current = null;
+          // Firebase has no session, whether from a sign-out or one that expired
+          // or was revoked. Either way, don't open on this account next launch.
+          // Its offline copy stays, so unsent changes go up if they sign back in.
+          forgetRememberedUser();
+          void clearUnfinishedSignOut();
+        } else {
+          openCloudSession(u.uid);
+        }
+        setUser(u);
+        setAuthLoading(false);
+      });
     });
     return () => {
       cancelled = true;
@@ -199,10 +233,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   // This runs on every sign-in *and* every launch, so a migration interrupted
   // by a dead connection simply finishes the next time the app opens.
   //
-  // Keyed on the uid, not the user object: refreshUser() hands React a new
-  // object every few seconds while the verify-email screen polls, and re-running
-  // on those would start a second upload of the same workouts. The ref closes
-  // the same door for any other path that remounts mid-migration.
+  // Keyed on the uid (and whether it still needs verifying), not the user
+  // object: refreshUser() hands React a new object every few seconds while the
+  // verify-email screen polls, and re-running on those would start a second
+  // upload of the same workouts. The ref closes the same door for any other
+  // path that remounts mid-migration.
   const uid = user?.uid ?? null;
 
   // One offline copy per account, open while that account is. Opened where
@@ -219,11 +254,26 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (user && !isProvisional(user)) void rememberUser(user);
   }, [user]);
 
+  // The same rule as the verify-email gate in the root layout.
+  const needsVerification =
+    !!user &&
+    user.providerData.some((p) => p.providerId === "password") &&
+    !user.emailVerified;
+
   const migrationRunning = useRef(false);
   useEffect(() => {
-    if (!uid || migrationRunning.current) return;
+    // An address nobody has proven yet could be a typo, or someone else's.
+    // Moving the guest's history in now would strand it there, or hand it to
+    // whoever owns that inbox. So it stays on the phone, guest flag and all,
+    // until the link is tapped, and "Wrong email? Sign out" leaves them in
+    // guest mode with everything where it was. Verifying flips this and runs
+    // the move.
+    if (!uid || needsVerification || migrationRunning.current) return;
     let cancelled = false;
     migrationRunning.current = true;
+    /** "Moving your workouts" is up. Once it steps aside it stays down. */
+    let blocking = false;
+    let patience: ReturnType<typeof setTimeout> | undefined;
     (async () => {
       try {
         const guest = await readGuestData();
@@ -234,33 +284,43 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
         // Moving data needs the server. With no signal every upload would
         // hang, and with it the full-screen "Moving your workouts" that
-        // blocks the app. So it waits for the server to answer once. The
-        // screen goes up at once as it always has, since that's the usual
-        // case right after signing in, which needs a connection anyway. If
-        // the server hasn't answered after a few seconds, the screen steps
-        // aside and the app stays usable until it does. The guest data is
-        // safe on the phone meanwhile.
+        // blocks the app. The screen goes up at once as it always has, since
+        // that's the usual case right after signing in, which needs a
+        // connection anyway. It stays up only while the server keeps
+        // answering: if it goes quiet for a few seconds, first waiting for
+        // it to answer at all or later between uploads, the screen steps
+        // aside and the move carries on behind the app. It never comes back:
+        // by then they may be mid-workout, and putting it back would throw
+        // them out of the workout screen. The guest data is safe on the
+        // phone meanwhile: each workout leaves it only once the server has it.
+        blocking = true;
         if (!cancelled) setMigrating(true);
-        const synced = whenCloudSynced(uid);
-        const answered = await Promise.race([
-          synced.then(() => true),
-          new Promise<boolean>((resolve) => setTimeout(() => resolve(false), MIGRATION_PATIENCE_MS)),
-        ]);
-        if (!answered) {
-          if (!cancelled) setMigrating(false);
-          await synced;
-          if (cancelled) return;
-          setMigrating(true);
-        }
-        if (cancelled) return;
-        const result = await migrateGuestDataTo(uid);
+        const stepAsideIfQuiet = () => {
+          clearTimeout(patience);
+          if (!blocking) return;
+          patience = setTimeout(() => {
+            blocking = false;
+            if (!cancelled) setMigrating(false);
+          }, MIGRATION_PATIENCE_MS);
+        };
+        stepAsideIfQuiet();
+        await whenCloudSynced(uid);
+        // Signing out releases this wait before it lets go of the account,
+        // so `cancelled` alone can't be trusted yet. Moving into an account
+        // on its way out would fail, or half succeed.
+        if (cancelled || signedOutUid.current === uid) return;
+        stepAsideIfQuiet();
+        const result = await migrateGuestDataTo(uid, stepAsideIfQuiet);
         if (!cancelled) setGuestActive(false);
         // Two things have ceilings a merge can run into: the exercise library is
         // a single document with a hard size limit, and templates are capped so
         // repeated guest sessions can't climb past the per-screen limit. Logged
         // workouts are never affected, which is what the closing line promises.
-        // Say so either way — the alternative is someone noticing weeks later.
-        if (result) {
+        // Say so — the alternative is someone noticing weeks later. But only
+        // to someone still watching the moving screen, who just signed in.
+        // Once it has stepped aside they're using the app, perhaps mid-set,
+        // and nothing may interrupt a workout; there the drop goes unsaid.
+        if (result && blocking && !cancelled) {
           const missing: string[] = [];
           if (result.customExercisesDropped > 0) {
             const n = result.customExercisesDropped;
@@ -283,19 +343,28 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
       } catch (e) {
         console.warn("Couldn't move guest data into the account", e);
-        Alert.alert(
-          "Some workouts are still on this device",
-          "We couldn't finish moving them into your account. They're safe here and we'll try again next time you open Plato."
-        );
+        // Same rule as above. Behind the app, the next launch simply tries
+        // again; nothing needs saying.
+        if (blocking && !cancelled) {
+          Alert.alert(
+            "Some workouts are still on this device",
+            "We couldn't finish moving them into your account. They're safe here and we'll try again next time you open Plato."
+          );
+        }
       } finally {
+        clearTimeout(patience);
         migrationRunning.current = false;
-        if (!cancelled) setMigrating(false);
+        setMigrating(false);
       }
     })();
     return () => {
       cancelled = true;
+      // The account it was moving into is gone. Take the screen down now,
+      // not when the upload gives up: one stuck on a refused write would
+      // otherwise hold "Moving your workouts" up over the sign-in screen.
+      setMigrating(false);
     };
-  }, [uid]);
+  }, [uid, needsVerification]);
 
   async function continueAsGuest() {
     await writeGuestActive(true);
@@ -304,8 +373,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   async function discardGuestData() {
     await clearGuestData();
+    // The cardio diagnostics describe the same sessions, so they go too.
+    await clearWatchTrace();
     await writeGuestActive(false);
     setGuestActive(false);
+  }
+
+  /**
+   * Whether `current` is still the one signed in, after an await that a
+   * sign-out may have overtaken. Firebase still finishes a reload or profile
+   * update for a user it has let go of, and handing that user to React would
+   * put the account back on screen.
+   */
+  function stillSignedIn(current: User): boolean {
+    return auth.currentUser === current && signedOutUid.current !== current.uid;
   }
 
   async function signIn(email: string, password: string) {
@@ -320,7 +401,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (name.trim()) {
       await updateProfile(cred.user, { displayName: name.trim() });
       // updateProfile doesn't re-emit onAuthStateChanged; refresh local state
-      setUser({ ...cred.user, displayName: name.trim() } as User);
+      if (stillSignedIn(cred.user)) setUser({ ...cred.user, displayName: name.trim() } as User);
     }
   }
 
@@ -347,12 +428,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       //
       // The offline copy goes first, before the UI lets go of the account.
       // Closing it any later could save it to disk again after the delete.
+      //
+      // Ahead of all of it, the sign-out itself is noted on disk, so closing
+      // the app anywhere from here on still ends signed out (see
+      // remembered-account). The diagnostics trace goes too: its lines are
+      // the times and distances of this person's sessions.
       signedOutUid.current = signedInUid;
+      await recordUnfinishedSignOut(signedInUid);
       await forgetCloudData(signedInUid);
       await forgetCachedBodyweight(signedInUid);
+      await clearWatchTrace();
       await forgetRememberedUser();
       setUser(null);
-      await firebaseSignOut(auth);
+      await finishSignOut(signedOutUid, signedInUid);
       return;
     }
     // A guest has no session to end. Leaving guest mode returns them to the
@@ -374,11 +462,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   async function refreshUser() {
     const current = auth.currentUser;
-    if (!current) return;
+    if (!current) return false;
     await current.reload();
     // reload() mutates currentUser in place without re-emitting
     // onAuthStateChanged; hand React a fresh object so the UI updates.
-    setUser({ ...current } as User);
+    if (stillSignedIn(current)) setUser({ ...current } as User);
+    return current.emailVerified;
   }
 
   async function updateDisplayName(name: string) {
@@ -388,7 +477,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     await updateProfile(current, { displayName: trimmed });
     // updateProfile mutates currentUser but doesn't re-emit onAuthStateChanged,
     // so hand React a fresh object to trigger a re-render (same as signUp).
-    setUser({ ...current, displayName: trimmed } as User);
+    if (stillSignedIn(current)) setUser({ ...current, displayName: trimmed } as User);
   }
 
   async function deleteAccount(password?: string) {
@@ -399,6 +488,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // re-verify depends on how they signed in — Apple/Google accounts have no
     // password, so they confirm through their native sign-in sheet instead.
     const providers = current.providerData.map((p) => p.providerId);
+    let appleAuthorizationCode: string | null = null;
     if (providers.includes("password")) {
       if (!current.email) throw new Error("No email on this account.");
       await reauthenticateWithCredential(
@@ -406,7 +496,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         EmailAuthProvider.credential(current.email, password ?? "")
       );
     } else if (providers.includes("apple.com")) {
-      if (!(await reauthenticateWithApple(current))) return false;
+      const apple = await reauthenticateWithApple(current);
+      if (!apple) return false;
+      appleAuthorizationCode = apple.authorizationCode;
     } else if (providers.includes("google.com")) {
       if (!(await reauthenticateWithGoogle(current))) return false;
     }
@@ -416,7 +508,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // they go on sign-out.
     await forgetCloudData(current.uid);
     await forgetCachedBodyweight(current.uid);
+    await clearWatchTrace();
     await forgetRememberedUser();
+    // Apple asks apps to revoke Sign in with Apple when the account goes. It
+    // needs the account to still exist, so it comes before deleteUser. Best
+    // effort: they asked for the account to be deleted, and a revoke that
+    // fails (no signal, the provider not set up for it) mustn't stop that.
+    if (appleAuthorizationCode) {
+      try {
+        await revokeAppleAuthorization(current, appleAuthorizationCode);
+      } catch (e) {
+        console.warn("Couldn't revoke Sign in with Apple", e);
+      }
+    }
     await deleteUser(current);
     return true;
   }

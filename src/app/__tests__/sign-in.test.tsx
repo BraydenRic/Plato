@@ -1,4 +1,5 @@
-import { fireEvent, render, screen } from "@testing-library/react-native";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react-native";
+import { Alert } from "react-native";
 
 import SignInScreen from "../sign-in";
 
@@ -15,11 +16,14 @@ import SignInScreen from "../sign-in";
 const mockContinueAsGuest = jest.fn(async () => {});
 const mockReplace = jest.fn();
 const mockBack = jest.fn();
+let mockCanGoBack = false;
 let mockParams: { upgrade?: string } = {};
 let mockIsGuest = false;
+let mockCanUseGoogle = false;
+const mockSignInWithGoogle = jest.fn(async () => true);
 
 jest.mock("expo-router", () => ({
-  useRouter: () => ({ replace: mockReplace, back: mockBack, push: jest.fn() }),
+  useRouter: () => ({ replace: mockReplace, back: mockBack, push: jest.fn(), canGoBack: () => mockCanGoBack }),
   useLocalSearchParams: () => mockParams,
 }));
 
@@ -27,8 +31,8 @@ jest.mock("@/context/AuthContext", () => ({
   useAuth: () => ({
     signIn: jest.fn(),
     signUp: jest.fn(),
-    signInWithGoogle: jest.fn(),
-    canUseGoogle: false,
+    signInWithGoogle: mockSignInWithGoogle,
+    canUseGoogle: mockCanUseGoogle,
     signInWithApple: jest.fn(),
     canUseApple: false,
     resetPassword: jest.fn(),
@@ -65,6 +69,8 @@ beforeEach(() => {
   jest.clearAllMocks();
   mockParams = {};
   mockIsGuest = false;
+  mockCanGoBack = false;
+  mockCanUseGoogle = false;
 });
 
 describe("the guest exit on a first run", () => {
@@ -94,6 +100,8 @@ describe("a guest arriving from Profile to claim their data", () => {
   beforeEach(() => {
     mockParams = { upgrade: "1" };
     mockIsGuest = true;
+    // Pushed over Profile, so the app is right underneath.
+    mockCanGoBack = true;
   });
 
   it("offers a way back to the app they are already using", () => {
@@ -102,6 +110,13 @@ describe("a guest arriving from Profile to claim their data", () => {
     expect(mockBack).not.toHaveBeenCalled();
     fireEvent.press(screen.getByText("Not now"));
     expect(mockBack).toHaveBeenCalledTimes(1);
+  });
+
+  it("still gets them into the app when nothing is underneath", () => {
+    mockCanGoBack = false;
+    render(<SignInScreen />);
+    fireEvent.press(screen.getByText("Not now"));
+    expect(mockReplace).toHaveBeenCalledWith("/");
   });
 
   it("does not offer guest mode again to someone already in it", () => {
@@ -126,5 +141,65 @@ describe("a guest who lands here without meaning to", () => {
     mockParams = {};
     render(<SignInScreen />);
     expect(mockReplace).toHaveBeenCalledWith("/");
+  });
+
+  // A plato://sign-in link pushes this over the app a guest is already in.
+  // Replacing it would leave a second copy of the tabs on top of the first.
+  it("goes back to the app underneath when there is one, rather than stacking another", () => {
+    mockIsGuest = true;
+    mockCanGoBack = true;
+    render(<SignInScreen />);
+    expect(mockBack).toHaveBeenCalledTimes(1);
+    expect(mockReplace).not.toHaveBeenCalled();
+  });
+});
+
+describe("the upgrade link opened by someone who isn't a guest", () => {
+  beforeEach(() => {
+    mockParams = { upgrade: "1" };
+  });
+
+  // "Not now" would back out to nothing, and the way into guest mode would be
+  // gone until the app restarted.
+  it("still offers guest mode, not a way back to nowhere", () => {
+    render(<SignInScreen />);
+    expect(screen.getByText("Continue as guest")).toBeTruthy();
+    expect(screen.queryByText("Not now")).toBeNull();
+  });
+
+  it("steps into the app once they continue as a guest", () => {
+    const view = render(<SignInScreen />);
+    mockIsGuest = true;
+    view.rerender(<SignInScreen />);
+    expect(mockReplace).toHaveBeenCalledWith("/");
+  });
+});
+
+describe("a failed Google sign-in", () => {
+  it("explains a Firebase failure in plain words, not its error code", async () => {
+    const { FirebaseError } = jest.requireMock("firebase/app");
+    mockCanUseGoogle = true;
+    mockSignInWithGoogle.mockRejectedValueOnce(
+      new FirebaseError("auth/network-request-failed", "Firebase: Error (auth/network-request-failed).")
+    );
+    const alert = jest.spyOn(Alert, "alert").mockImplementation(() => {});
+    render(<SignInScreen />);
+
+    fireEvent.press(screen.getByText("Continue with Google"));
+
+    await waitFor(() =>
+      expect(alert).toHaveBeenCalledWith("Google sign-in failed", "Network error — check your connection.")
+    );
+  });
+
+  it("keeps the message of an error that isn't Firebase's", async () => {
+    mockCanUseGoogle = true;
+    mockSignInWithGoogle.mockRejectedValueOnce(new Error("Google returned no ID token."));
+    const alert = jest.spyOn(Alert, "alert").mockImplementation(() => {});
+    render(<SignInScreen />);
+
+    fireEvent.press(screen.getByText("Continue with Google"));
+
+    await waitFor(() => expect(alert).toHaveBeenCalledWith("Google sign-in failed", "Google returned no ID token."));
   });
 });

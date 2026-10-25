@@ -210,6 +210,7 @@ describe("hasContent", () => {
     ["a removed built-in", { library: { custom: [], removedIds: ["bench-press"], overrides: [] } }],
     ["an edited built-in", { library: { custom: [], removedIds: [], overrides: [{ id: "bench-press" }] } }],
     ["a weekly split day", { weeklyPlan: ["t1", null, null, null, null, null, null] }],
+    ["a weigh-in", { bodyweight: [{ date: "2026-02-01T08:00:00.000Z", lbs: 180 }] }],
   ])("is true when the store holds %s", async (_label, seed) => {
     const store = await freshStore(seed);
     expect(store.hasContent(await store.readGuestData())).toBe(true);

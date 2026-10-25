@@ -21,6 +21,17 @@ import type { User } from "firebase/auth";
 
 const KEY = "plato.account.v1";
 
+/**
+ * The uid of a sign-out Firebase hasn't finished yet.
+ *
+ * Signing out while Firebase is still restoring the session queues Firebase's
+ * own sign-out behind that restore, which can take a minute on a dead signal.
+ * Until it runs, Firebase's saved session is still on disk. Closed in that
+ * window, the app would open on that account next launch, so the sign-out is
+ * written down here first and finished then.
+ */
+const SIGNED_OUT_KEY = "plato.signedOut.v1";
+
 interface RememberedAccount {
   uid: string;
   email: string | null;
@@ -87,14 +98,42 @@ function parse(raw: string | null): RememberedAccount | null {
  */
 export async function readRememberedUser(): Promise<User | null> {
   try {
+    const signedOut = await readUnfinishedSignOut();
     const own = parse(await AsyncStorage.getItem(KEY));
-    if (own) return provisionalUser(own);
+    if (own) return own.uid === signedOut ? null : provisionalUser(own);
     const apiKey = process.env.EXPO_PUBLIC_FIREBASE_API_KEY;
     if (!apiKey) return null;
     const firebases = parse(await AsyncStorage.getItem(`firebase:authUser:${apiKey}:[DEFAULT]`));
-    return firebases ? provisionalUser(firebases) : null;
+    // Firebase's saved session outlives a sign-out it hadn't got to yet.
+    return firebases && firebases.uid !== signedOut ? provisionalUser(firebases) : null;
   } catch {
     return null;
+  }
+}
+
+/** Notes a sign-out before the UI lets go of the account (see SIGNED_OUT_KEY). */
+export async function recordUnfinishedSignOut(uid: string): Promise<void> {
+  try {
+    await AsyncStorage.setItem(SIGNED_OUT_KEY, uid);
+  } catch (e) {
+    console.warn("Couldn't note the sign-out", e);
+  }
+}
+
+export async function readUnfinishedSignOut(): Promise<string | null> {
+  try {
+    return await AsyncStorage.getItem(SIGNED_OUT_KEY);
+  } catch {
+    return null;
+  }
+}
+
+/** Firebase has signed out for real, so there's nothing left to finish. */
+export async function clearUnfinishedSignOut(): Promise<void> {
+  try {
+    await AsyncStorage.removeItem(SIGNED_OUT_KEY);
+  } catch (e) {
+    console.warn("Couldn't clear the finished sign-out", e);
   }
 }
 

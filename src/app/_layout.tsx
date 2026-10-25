@@ -138,6 +138,8 @@ const styles = StyleSheet.create({
 // would otherwise be mounted against a cloud account that is still filling up —
 // so a guest signing in would watch their whole history appear to vanish and
 // trickle back. Holding the app here for the duration says what's happening.
+// Only while the server keeps answering, though: AuthContext takes it down for
+// good once the server goes quiet, and finishes the move behind the app.
 function MigratingScreen() {
   const styles = useStyles();
   const theme = useTheme();

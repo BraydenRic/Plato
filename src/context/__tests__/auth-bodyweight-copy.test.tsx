@@ -17,6 +17,7 @@ const mockUser = {
   email: "a@b.co",
   providerData: [{ providerId: "password" }],
 };
+let mockRevokeFails = false;
 
 // A getter, because jest hoists this factory above mockUser's declaration: a
 // plain property would capture it before it exists.
@@ -65,9 +66,18 @@ jest.mock("@/lib/firestore", () => ({
   },
 }));
 jest.mock("@/lib/migrate-guest-data", () => ({ migrateGuestDataTo: async () => null }));
+jest.mock("@/lib/watch-trace", () => ({
+  clearWatchTrace: async () => {
+    calls.push("clearTrace");
+  },
+}));
 jest.mock("@/lib/apple-signin", () => ({
   appleSignInSupported: false,
-  reauthenticateWithApple: async () => true,
+  reauthenticateWithApple: async () => ({ authorizationCode: "apple-code" }),
+  revokeAppleAuthorization: async (_user: unknown, code: string) => {
+    calls.push(`revoke:${code}`);
+    if (mockRevokeFails) throw new Error("invalid_client");
+  },
   signInWithApple: async () => null,
 }));
 jest.mock("@/lib/google-signin", () => ({
@@ -84,6 +94,12 @@ function Capture() {
 
 beforeEach(() => {
   calls.length = 0;
+  mockUser.providerData = [{ providerId: "password" }];
+  mockRevokeFails = false;
+});
+
+afterEach(() => {
+  jest.restoreAllMocks();
 });
 
 async function mounted() {
@@ -103,7 +119,9 @@ it("drops the device's copies on sign-out, before signing out", async () => {
     await auth.signOut();
   });
 
-  expect(calls).toEqual(["forgetCloud:u1", "forget:u1", "signOut"]);
+  // The cardio diagnostics trace too: its lines are the times and distances
+  // of this person's sessions, readable by whoever uses the phone next.
+  expect(calls).toEqual(["forgetCloud:u1", "forget:u1", "clearTrace", "signOut"]);
 });
 
 it("drops it on account deletion too", async () => {
@@ -113,5 +131,47 @@ it("drops it on account deletion too", async () => {
     await auth.deleteAccount("pw");
   });
 
-  expect(calls).toEqual(["deleteData", "forgetCloud:u1", "forget:u1", "deleteUser"]);
+  expect(calls).toEqual(["deleteData", "forgetCloud:u1", "forget:u1", "clearTrace", "deleteUser"]);
+});
+
+it("drops the diagnostics trace when a guest deletes their data", async () => {
+  await mounted();
+
+  await act(async () => {
+    await auth.discardGuestData();
+  });
+
+  expect(calls).toContain("clearTrace");
+});
+
+describe("deleting a Sign in with Apple account", () => {
+  beforeEach(() => {
+    mockUser.providerData = [{ providerId: "apple.com" }];
+  });
+
+  // Apple's account-deletion rules: revoke the app's authorization. It needs
+  // the account to still exist, so it has to come before deleteUser.
+  it("revokes Plato's Apple authorization before the account goes", async () => {
+    await mounted();
+
+    await act(async () => {
+      await auth.deleteAccount();
+    });
+
+    expect(calls).toEqual(["deleteData", "forgetCloud:u1", "forget:u1", "clearTrace", "revoke:apple-code", "deleteUser"]);
+  });
+
+  it("still deletes the account when the revoke fails", async () => {
+    mockRevokeFails = true;
+    jest.spyOn(console, "warn").mockImplementation(() => {});
+    await mounted();
+
+    let deleted = false;
+    await act(async () => {
+      deleted = await auth.deleteAccount();
+    });
+
+    expect(deleted).toBe(true);
+    expect(calls).toContain("deleteUser");
+  });
 });

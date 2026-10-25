@@ -30,13 +30,15 @@ export default function VerifyEmailScreen() {
   async function checkNow() {
     setChecking(true);
     try {
-      await refreshUser();
-      // Still mounted means the guard didn't flip — the link hasn't been
-      // clicked yet (or the click didn't register server-side).
-      Alert.alert(
-        "Not verified yet",
-        "Tap the link in the email first, then try again. Check spam if it isn't there."
-      );
+      // A verified account swaps this screen out by itself, but this
+      // function carries on regardless, so it asks rather than assumes.
+      const verified = await refreshUser();
+      if (!verified) {
+        Alert.alert(
+          "Not verified yet",
+          "Tap the link in the email first, then try again. Check spam if it isn't there."
+        );
+      }
     } catch {
       Alert.alert("Couldn't check", "Check your connection and try again.");
     } finally {

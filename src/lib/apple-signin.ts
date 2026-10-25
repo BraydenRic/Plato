@@ -27,6 +27,8 @@ export const appleSignInSupported = Platform.OS === "ios" && !isExpoGo;
 async function getAppleFirebaseCredential(): Promise<{
   firebaseCredential: OAuthCredential;
   fullName: AppleAuthentication.AppleAuthenticationFullName | null;
+  /** Short-lived and single-use; what revoking the app's authorization takes. */
+  authorizationCode: string | null;
 } | null> {
   // Firebase requires a nonce round-trip to prove the token was minted for
   // this sign-in attempt: Apple gets the SHA-256 hash, Firebase gets the raw
@@ -63,6 +65,7 @@ async function getAppleFirebaseCredential(): Promise<{
       rawNonce,
     }),
     fullName: credential.fullName,
+    authorizationCode: credential.authorizationCode,
   };
 }
 
@@ -90,11 +93,43 @@ export async function signInWithApple(): Promise<UserCredential | null> {
 /**
  * Re-verifies an Apple-signed-in user before a sensitive operation (account
  * deletion) by running the Apple sheet again — these users have no password
- * to type. Resolves false if they dismissed the sheet.
+ * to type. Resolves null if they dismissed the sheet. Otherwise hands back
+ * the sheet's authorization code, which deletion uses to revoke Plato's
+ * access to their Apple ID.
  */
-export async function reauthenticateWithApple(user: User): Promise<boolean> {
+export async function reauthenticateWithApple(
+  user: User
+): Promise<{ authorizationCode: string | null } | null> {
   const fresh = await getAppleFirebaseCredential();
-  if (!fresh) return false;
+  if (!fresh) return null;
   await reauthenticateWithCredential(user, fresh.firebaseCredential);
-  return true;
+  return { authorizationCode: fresh.authorizationCode };
+}
+
+/**
+ * Revokes Plato's Sign in with Apple authorization, as Apple requires when an
+ * account is deleted. Without it Plato stays listed under the user's Apple ID
+ * and a later sign-up never gets their name again.
+ *
+ * Firebase's JS SDK can only revoke an Apple access token, which the native
+ * sheet never produces, so this makes the same Identity Toolkit call Firebase's
+ * iOS SDK makes with an authorization code (revokeToken(withAuthorizationCode:)).
+ * Firebase exchanges the code with Apple and revokes the result, using the
+ * Apple key set up for the provider in the Firebase console. Must run while
+ * the account still exists: it needs the user's ID token.
+ */
+export async function revokeAppleAuthorization(user: User, authorizationCode: string): Promise<void> {
+  const idToken = await user.getIdToken();
+  const { apiScheme, apiHost, apiKey } = auth.config;
+  const response = await fetch(
+    `${apiScheme}://${apiHost}/v2/accounts:revokeToken?key=${encodeURIComponent(apiKey)}`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ providerId: "apple.com", tokenType: "CODE", token: authorizationCode, idToken }),
+    }
+  );
+  if (!response.ok) {
+    throw new Error(`Apple revoke failed (${response.status}): ${await response.text()}`);
+  }
 }

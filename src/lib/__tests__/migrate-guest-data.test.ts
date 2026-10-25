@@ -1,5 +1,6 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
+import { readCachedBodyweight } from "../bodyweight-cache";
 import { makeSet, makeWorkout, makeWorkoutExercise } from "./factories";
 
 const DATA_KEY = "plato.guest.data.v1";
@@ -17,7 +18,7 @@ const UID = "aB3xY7zQ1mN5pR8sT2vW4yZ6cD0e";
 // the factories below, and anything they close over must outlive that so the
 // per-test implementations set in beforeEach survive into the reloaded module.
 const cloud = ((globalThis as Record<string, unknown>).__cloudMock ??= {
-  createWorkout: jest.fn(),
+  sendWrite: jest.fn(),
   getCompletedWorkouts: jest.fn(),
   upsertUserStats: jest.fn(),
   getExerciseLibrary: jest.fn(),
@@ -26,10 +27,12 @@ const cloud = ((globalThis as Record<string, unknown>).__cloudMock ??= {
   setWeeklyPlan: jest.fn(),
   getWorkouts: jest.fn(),
   countActiveWorkouts: jest.fn(),
+  getBodyweightLog: jest.fn(),
+  setBodyweightLog: jest.fn(),
 }) as Record<string, jest.Mock>;
 
 jest.mock("../firestore", () => ({
-  createWorkout: (...args: unknown[]) => (globalThis as any).__cloudMock.createWorkout(...args),
+  sendWrite: (...args: unknown[]) => (globalThis as any).__cloudMock.sendWrite(...args),
   getCompletedWorkouts: (...args: unknown[]) => (globalThis as any).__cloudMock.getCompletedWorkouts(...args),
   upsertUserStats: (...args: unknown[]) => (globalThis as any).__cloudMock.upsertUserStats(...args),
   computeStats: () => ({ totalCompletedWorkouts: 0 }),
@@ -44,7 +47,17 @@ jest.mock("../firestore", () => ({
   getWorkouts: (...args: unknown[]) => (globalThis as any).__cloudMock.getWorkouts(...args),
   countActiveWorkouts: (...args: unknown[]) =>
     (globalThis as any).__cloudMock.countActiveWorkouts(...args),
+  getBodyweightLog: (...args: unknown[]) => (globalThis as any).__cloudMock.getBodyweightLog(...args),
+  setBodyweightLog: (...args: unknown[]) => (globalThis as any).__cloudMock.setBodyweightLog(...args),
 }));
+
+/** The workouts that went up, in order, as the documents they were written as. */
+function uploadedWorkouts(): Record<string, any>[] {
+  return cloud.sendWrite.mock.calls
+    .map(([write]) => write)
+    .filter((write) => write.collection === "workouts")
+    .map((write) => write.data);
+}
 
 type LocalStore = typeof import("../local-store");
 type Migrator = typeof import("../migrate-guest-data");
@@ -64,8 +77,7 @@ const emptyLibrary = { custom: [], removedIds: [], overrides: [] };
 
 beforeEach(() => {
   jest.clearAllMocks();
-  let n = 0;
-  cloud.createWorkout.mockImplementation(async () => `cloud-${++n}`);
+  cloud.sendWrite.mockResolvedValue(undefined);
   cloud.getCompletedWorkouts.mockResolvedValue([]);
   cloud.upsertUserStats.mockResolvedValue(undefined);
   cloud.getExerciseLibrary.mockResolvedValue(emptyLibrary);
@@ -76,6 +88,8 @@ beforeEach(() => {
   // unless a test deliberately fills it.
   cloud.getWorkouts.mockResolvedValue([]);
   cloud.countActiveWorkouts.mockResolvedValue(0);
+  cloud.getBodyweightLog.mockResolvedValue([]);
+  cloud.setBodyweightLog.mockResolvedValue(undefined);
 });
 
 describe("nothing to migrate", () => {
@@ -83,7 +97,7 @@ describe("nothing to migrate", () => {
     const { migrate } = await seed({});
 
     expect(await migrate.migrateGuestDataTo(UID)).toBeNull();
-    expect(cloud.createWorkout).not.toHaveBeenCalled();
+    expect(cloud.sendWrite).not.toHaveBeenCalled();
     expect(await AsyncStorage.getItem(ACTIVE_KEY)).toBeNull();
   });
 });
@@ -105,13 +119,27 @@ describe("happy path", () => {
       templatesDropped: 0,
       activeWorkoutsDropped: 0,
     });
-    expect(cloud.createWorkout).toHaveBeenCalledTimes(2);
-    for (const [payload, preserveCreatedAt] of cloud.createWorkout.mock.calls) {
-      expect(payload.userId).toBe(UID);
-      // Guest ids must not travel to the cloud — Firestore assigns its own.
-      expect(payload.id).toBeUndefined();
-      expect(preserveCreatedAt).toBe(true);
+    expect(cloud.sendWrite).toHaveBeenCalledTimes(2);
+    for (const [write] of cloud.sendWrite.mock.calls) {
+      expect(write).toMatchObject({ collection: "workouts", kind: "set" });
+      expect(write.data.userId).toBe(UID);
+      // The guest id names the document but isn't stored as a field.
+      expect(write.data.id).toBeUndefined();
+      // The guest's dates come with it, rather than the upload time. (The
+      // stripUndefined stand-in above round-trips through JSON, hence a string.)
+      expect(write.data.createdAt).toBe("2026-01-01T10:00:00.000Z");
     }
+    expect(cloud.sendWrite.mock.calls.map(([w]) => w.docId)).toEqual([`${UID}_local-1`, `${UID}_local-2`]);
+  });
+
+  it("tells the caller each time the server answers, so it can tell slow from stalled", async () => {
+    const { migrate } = await seed({ workouts: guestWorkouts });
+    const onProgress = jest.fn();
+
+    await migrate.migrateGuestDataTo(UID, onProgress);
+
+    // The room reads, each workout, then weigh-ins, library and split.
+    expect(onProgress).toHaveBeenCalledTimes(6);
   });
 
   it("wipes the device copy and leaves guest mode once everything lands", async () => {
@@ -142,8 +170,8 @@ describe("partial failure", () => {
 
   it("keeps un-uploaded workouts on the device and does not wipe guest data", async () => {
     const { store, migrate } = await seed({ workouts: three });
-    cloud.createWorkout
-      .mockResolvedValueOnce("cloud-1")
+    cloud.sendWrite
+      .mockResolvedValueOnce(undefined)
       .mockRejectedValueOnce(new Error("offline"));
 
     await expect(migrate.migrateGuestDataTo(UID)).rejects.toThrow("offline");
@@ -156,31 +184,84 @@ describe("partial failure", () => {
 
   it("a retry uploads only what is still on the device, never a duplicate", async () => {
     const { store, migrate } = await seed({ workouts: three });
-    cloud.createWorkout.mockResolvedValueOnce("cloud-1").mockRejectedValueOnce(new Error("offline"));
+    cloud.sendWrite.mockResolvedValueOnce(undefined).mockRejectedValueOnce(new Error("offline"));
     await expect(migrate.migrateGuestDataTo(UID)).rejects.toThrow();
 
-    cloud.createWorkout.mockReset();
-    let n = 10;
-    cloud.createWorkout.mockImplementation(async () => `cloud-${++n}`);
+    cloud.sendWrite.mockClear();
     await migrate.migrateGuestDataTo(UID);
 
-    expect(cloud.createWorkout).toHaveBeenCalledTimes(2);
-    expect(cloud.createWorkout.mock.calls.map(([w]) => w.name)).toEqual(["two", "three"]);
+    expect(cloud.sendWrite).toHaveBeenCalledTimes(2);
+    expect(uploadedWorkouts().map((w) => w.name)).toEqual(["two", "three"]);
     expect(store.hasContent(await store.readGuestData())).toBe(false);
+  });
+
+  // The server committed the write but its answer never arrived, and the app
+  // was closed. The workout is still on the device, so the next launch sends
+  // it again. It has to land on the same document, not beside it.
+  it("writes a workout whose answer was lost to the same document again", async () => {
+    const { migrate } = await seed({ workouts: three });
+    cloud.sendWrite.mockRejectedValueOnce(new Error("killed before the ack"));
+    await expect(migrate.migrateGuestDataTo(UID)).rejects.toThrow();
+    const firstTry = cloud.sendWrite.mock.calls[0][0].docId;
+
+    cloud.sendWrite.mockClear();
+    await migrate.migrateGuestDataTo(UID);
+
+    expect(cloud.sendWrite.mock.calls[0][0].docId).toBe(firstTry);
+  });
+});
+
+describe("weigh-ins", () => {
+  const weighIns = [
+    { date: "2026-02-01T08:00:00.000Z", lbs: 181 },
+    { date: "2026-02-03T08:00:00.000Z", lbs: 180 },
+  ];
+
+  it("moves them when they are all the guest logged", async () => {
+    const { store, migrate } = await seed({ bodyweight: weighIns });
+
+    expect(await migrate.migrateGuestDataTo(UID)).not.toBeNull();
+
+    const [[userId, log]] = cloud.setBodyweightLog.mock.calls;
+    expect(userId).toBe(UID);
+    expect(log.map((e: { lbs: number }) => e.lbs)).toEqual([181, 180]);
+    expect(store.hasContent(await store.readGuestData())).toBe(false);
+  });
+
+  it("still moves them on a retry after every workout already went up", async () => {
+    const { migrate } = await seed({ workouts: [makeWorkout({ id: "local-1" })], bodyweight: weighIns });
+    cloud.getBodyweightLog.mockRejectedValueOnce(new Error("client is offline"));
+    await expect(migrate.migrateGuestDataTo(UID)).rejects.toThrow("offline");
+    expect(cloud.setBodyweightLog).not.toHaveBeenCalled();
+
+    await migrate.migrateGuestDataTo(UID);
+
+    expect(cloud.setBodyweightLog).toHaveBeenCalledTimes(1);
+  });
+
+  // The weigh-in screens may have cached the account's log before the merge,
+  // and paint that copy on an offline start. It has to be the merged log.
+  it("leaves the device's copy of the log matching the merged one", async () => {
+    const { migrate } = await seed({ bodyweight: weighIns });
+    cloud.getBodyweightLog.mockResolvedValue([{ date: new Date("2026-01-20T08:00:00.000Z"), lbs: 185 }]);
+
+    await migrate.migrateGuestDataTo(UID);
+
+    expect((await readCachedBodyweight(UID))?.map((e) => e.lbs)).toEqual([185, 181, 180]);
   });
 });
 
 describe("weekly split", () => {
   const template = makeWorkout({ id: "local-t1", name: "Leg Day", isTemplate: true });
+  const CLOUD_T1 = `${UID}_local-t1`;
   const planPointingAtTemplate = ["local-t1", null, null, null, null, null, null];
 
   it("remaps guest template ids onto their new cloud ids", async () => {
     const { migrate } = await seed({ workouts: [template], weeklyPlan: planPointingAtTemplate });
-    cloud.createWorkout.mockResolvedValueOnce("cloud-t1");
 
     await migrate.migrateGuestDataTo(UID);
 
-    expect(cloud.setWeeklyPlan).toHaveBeenCalledWith(UID, ["cloud-t1", null, null, null, null, null, null]);
+    expect(cloud.setWeeklyPlan).toHaveBeenCalledWith(UID, [CLOUD_T1, null, null, null, null, null, null]);
   });
 
   // The regression: templates leave the device the moment they upload, so a run
@@ -188,7 +269,6 @@ describe("weekly split", () => {
   // silently drop the split before wiping the guest data for good.
   it("survives a retry after the run failed past the workout loop", async () => {
     const { store, migrate } = await seed({ workouts: [template], weeklyPlan: planPointingAtTemplate });
-    cloud.createWorkout.mockResolvedValueOnce("cloud-t1");
     cloud.getWeeklyPlan.mockRejectedValueOnce(new Error("offline"));
 
     await expect(migrate.migrateGuestDataTo(UID)).rejects.toThrow("offline");
@@ -199,8 +279,8 @@ describe("weekly split", () => {
 
     await migrate.migrateGuestDataTo(UID);
 
-    expect(cloud.setWeeklyPlan).toHaveBeenCalledWith(UID, ["cloud-t1", null, null, null, null, null, null]);
-    expect(cloud.createWorkout).toHaveBeenCalledTimes(1); // no duplicate upload
+    expect(cloud.setWeeklyPlan).toHaveBeenCalledWith(UID, [CLOUD_T1, null, null, null, null, null, null]);
+    expect(cloud.sendWrite).toHaveBeenCalledTimes(1); // no duplicate upload
   });
 
   it("never overwrites a day the account already filled", async () => {
@@ -208,13 +288,12 @@ describe("weekly split", () => {
       workouts: [template],
       weeklyPlan: ["local-t1", "local-t1", null, null, null, null, null],
     });
-    cloud.createWorkout.mockResolvedValueOnce("cloud-t1");
     cloud.getWeeklyPlan.mockResolvedValue(["account-existing", null, null, null, null, null, null]);
 
     await migrate.migrateGuestDataTo(UID);
 
     expect(cloud.setWeeklyPlan).toHaveBeenCalledWith(UID, [
-      "account-existing", "cloud-t1", null, null, null, null, null,
+      "account-existing", CLOUD_T1, null, null, null, null, null,
     ]);
   });
 
@@ -229,7 +308,6 @@ describe("weekly split", () => {
       workouts: [template],
       weeklyPlan: ["local-t1", null, null, null, null, null, null],
     });
-    cloud.createWorkout.mockResolvedValueOnce("cloud-t1");
     cloud.getWeeklyPlan.mockResolvedValue(["account-existing", null, null, null, null, null, null]);
 
     await migrate.migrateGuestDataTo(UID);
@@ -372,7 +450,7 @@ describe("the merged template ceiling", () => {
     const result = await migrate.migrateGuestDataTo(UID);
 
     expect(result?.templatesDropped).toBe(0);
-    expect(cloud.createWorkout).toHaveBeenCalledTimes(MAX_TEMPLATES);
+    expect(cloud.sendWrite).toHaveBeenCalledTimes(MAX_TEMPLATES);
   });
 
   it("stops the cycle being repeated to climb past the ceiling", async () => {
@@ -384,7 +462,7 @@ describe("the merged template ceiling", () => {
     const result = await migrate.migrateGuestDataTo(UID);
 
     expect(result?.templatesDropped).toBe(MAX_TEMPLATES);
-    expect(cloud.createWorkout).not.toHaveBeenCalled();
+    expect(cloud.sendWrite).not.toHaveBeenCalled();
   });
 
   it("fills the remaining room and reports only the excess", async () => {
@@ -393,7 +471,7 @@ describe("the merged template ceiling", () => {
 
     const result = await migrate.migrateGuestDataTo(UID);
 
-    expect(cloud.createWorkout).toHaveBeenCalledTimes(4);
+    expect(cloud.sendWrite).toHaveBeenCalledTimes(4);
     expect(result?.templatesDropped).toBe(6);
   });
 
@@ -418,7 +496,7 @@ describe("the merged template ceiling", () => {
 
     expect(result?.templatesDropped).toBe(3);
     expect(result?.workouts).toBe(1);
-    const [[uploaded]] = cloud.createWorkout.mock.calls;
+    const [uploaded] = uploadedWorkouts();
     expect(uploaded.name).toBe("Leg day");
   });
 
@@ -430,7 +508,7 @@ describe("the merged template ceiling", () => {
     await migrate.migrateGuestDataTo(UID);
 
     expect(cloud.getWorkouts).toHaveBeenCalledWith(UID, true);
-    expect(cloud.createWorkout).toHaveBeenCalledTimes(2);
+    expect(cloud.sendWrite).toHaveBeenCalledTimes(2);
   });
 });
 
@@ -459,7 +537,7 @@ describe("the merged in-progress ceiling", () => {
     const result = await migrate.migrateGuestDataTo(UID);
 
     expect(result?.activeWorkoutsDropped).toBe(0);
-    expect(cloud.createWorkout).toHaveBeenCalledTimes(MAX_ACTIVE_WORKOUTS);
+    expect(cloud.sendWrite).toHaveBeenCalledTimes(MAX_ACTIVE_WORKOUTS);
   });
 
   it("stops the cycle being repeated to climb past the ceiling", async () => {
@@ -469,7 +547,7 @@ describe("the merged in-progress ceiling", () => {
     const result = await migrate.migrateGuestDataTo(UID);
 
     expect(result?.activeWorkoutsDropped).toBe(MAX_ACTIVE_WORKOUTS);
-    expect(cloud.createWorkout).not.toHaveBeenCalled();
+    expect(cloud.sendWrite).not.toHaveBeenCalled();
   });
 
   it("uploads an unfinished workout still unfinished", async () => {
@@ -482,7 +560,7 @@ describe("the merged in-progress ceiling", () => {
 
     await migrate.migrateGuestDataTo(UID);
 
-    const [[uploaded]] = cloud.createWorkout.mock.calls;
+    const [uploaded] = uploadedWorkouts();
     expect(uploaded.startedAt).toBeTruthy();
     expect(uploaded.completedAt ?? null).toBeNull();
   });
@@ -507,7 +585,7 @@ describe("the merged in-progress ceiling", () => {
 
     expect(result?.activeWorkoutsDropped).toBe(3);
     expect(result?.workouts).toBe(1);
-    const [[uploaded]] = cloud.createWorkout.mock.calls;
+    const [uploaded] = uploadedWorkouts();
     expect(uploaded.name).toBe("Leg day");
   });
 
@@ -522,7 +600,7 @@ describe("the merged in-progress ceiling", () => {
     const result = await migrate.migrateGuestDataTo(UID);
 
     expect(result?.activeWorkoutsDropped).toBe(0);
-    expect(cloud.createWorkout).toHaveBeenCalledTimes(1);
+    expect(cloud.sendWrite).toHaveBeenCalledTimes(1);
   });
 
   it("measures room against the account, not the guest session", async () => {
@@ -532,6 +610,6 @@ describe("the merged in-progress ceiling", () => {
     await migrate.migrateGuestDataTo(UID);
 
     expect(cloud.countActiveWorkouts).toHaveBeenCalledWith(UID);
-    expect(cloud.createWorkout).toHaveBeenCalledTimes(1);
+    expect(cloud.sendWrite).toHaveBeenCalledTimes(1);
   });
 });

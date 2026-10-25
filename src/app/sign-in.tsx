@@ -39,9 +39,24 @@ function friendlyAuthError(e: unknown): string {
         return "That email address doesn't look right.";
       case "auth/network-request-failed":
         return "Network error — check your connection.";
+      case "auth/user-disabled":
+        return "This account has been disabled.";
+      case "auth/account-exists-with-different-credential":
+        return "This email already has a Plato account. Sign in the way you did before.";
     }
   }
   return "Something went wrong. Please try again.";
+}
+
+/**
+ * For the Apple and Google buttons. Firebase's errors are Errors too, with
+ * messages like "Firebase: Error (auth/network-request-failed).", so they get
+ * the friendly text. Anything else is ours or the native sheet's, and its own
+ * message already says what went wrong.
+ */
+function providerAuthError(e: unknown): string {
+  if (e instanceof FirebaseError) return friendlyAuthError(e);
+  return e instanceof Error ? e.message : friendlyAuthError(e);
 }
 
 export default function SignInScreen() {
@@ -61,8 +76,15 @@ export default function SignInScreen() {
   const theme = useTheme();
   // Set when a guest opens this screen from Profile to claim their data, which
   // separates "upgrading" from a first run — the two need opposite behaviour.
+  //
+  // Only for someone who was a guest when the screen opened, though. A link
+  // can carry the param too, and offered to someone signed out it would swap
+  // "Continue as guest" for a "Not now" with nothing behind it. Read once:
+  // tapping "Continue as guest" here makes them a guest, which must step them
+  // into the app, not turn this into the upgrade screen.
   const { upgrade } = useLocalSearchParams<{ upgrade?: string }>();
-  const isUpgrading = upgrade === "1";
+  const [openedAsGuest] = useState(isGuest);
+  const isUpgrading = openedAsGuest && upgrade === "1";
   const [mode, setMode] = useState<"signIn" | "signUp">("signIn");
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
@@ -76,8 +98,12 @@ export default function SignInScreen() {
   // Entering guest mode mounts the app screens but doesn't move us there — this
   // screen stays available so guests can come back to upgrade. Step through
   // ourselves, except when a guest deliberately opened this screen to sign up.
+  // Back when the app is already underneath (a guest reached this by a link):
+  // replacing would stack a second copy of the tabs on the first.
   useEffect(() => {
-    if (isGuest && !isUpgrading) router.replace("/");
+    if (!isGuest || isUpgrading) return;
+    if (router.canGoBack()) router.back();
+    else router.replace("/");
   }, [isGuest, isUpgrading, router]);
 
   // Sign in with Apple needs iOS 13+; the check is async so it can't gate render directly.
@@ -95,7 +121,7 @@ export default function SignInScreen() {
       // nothing to report in that case.
       await signInWithGoogle();
     } catch (e) {
-      Alert.alert("Google sign-in failed", e instanceof Error ? e.message : friendlyAuthError(e));
+      Alert.alert("Google sign-in failed", providerAuthError(e));
     } finally {
       setGoogleBusy(false);
     }
@@ -107,7 +133,7 @@ export default function SignInScreen() {
       // Same contract as Google: false means the user closed the Apple sheet.
       await signInWithApple();
     } catch (e) {
-      Alert.alert("Apple sign-in failed", e instanceof Error ? e.message : friendlyAuthError(e));
+      Alert.alert("Apple sign-in failed", providerAuthError(e));
     } finally {
       setAppleBusy(false);
     }
@@ -295,7 +321,10 @@ export default function SignInScreen() {
           {/* Guests arrive here from Profile, so they need a way back into the
               app they're already using. Everyone else gets the door in. */}
           {isUpgrading ? (
-            <Pressable onPress={() => router.back()} style={styles.switchRow} hitSlop={8}>
+            <Pressable
+              onPress={() => (router.canGoBack() ? router.back() : router.replace("/"))}
+              style={styles.switchRow}
+              hitSlop={8}>
               <Text style={styles.dismissText}>Not now</Text>
             </Pressable>
           ) : (

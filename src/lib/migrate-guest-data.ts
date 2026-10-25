@@ -3,8 +3,8 @@
 // as soon as its write resolves. It has to know the server has it first.
 import {
   computeStats,
-  createWorkout,
   getCompletedWorkouts,
+  sendWrite,
   stripUndefined,
   upsertUserStats,
   countActiveWorkouts,
@@ -18,6 +18,7 @@ import {
   type ExerciseLibrary,
   type WeeklyPlan,
 } from "./firestore";
+import { writeCachedBodyweight } from "./bodyweight-cache";
 import {
   MAX_CUSTOM_EXERCISES,
   MAX_MERGED_ACTIVE_WORKOUTS,
@@ -109,6 +110,24 @@ async function migrateBodyweight(userId: string, guest: GuestData): Promise<void
   let merged = await getBodyweightLog(userId);
   for (const entry of entries) merged = withBodyweightEntry(merged, entry);
   await setBodyweightLog(userId, merged);
+  // The weigh-in screens may already have cached the account's log from
+  // before this merge, and they paint that copy on an offline start. Left
+  // stale, the next weigh-in there would write it back over the merged log.
+  await writeCachedBodyweight(userId, merged);
+}
+
+/**
+ * Where a guest workout lands in the account: the same document every time.
+ *
+ * A workout leaves the device only once the server acks it. If the server
+ * commits the write but the ack never arrives (signal gone, app killed), the
+ * workout is still here on the next launch and goes up again. A fresh id from
+ * addDoc would then show it twice in the history; a fixed one just writes the
+ * same document again. The uid is part of it so the same guest data can never
+ * land on a document another account already owns.
+ */
+function cloudWorkoutId(userId: string, localId: string): string {
+  return `${userId}_${localId.replace(/\//g, "_")}`;
 }
 
 /** Returns how many custom exercises the cap forced out. */
@@ -124,8 +143,14 @@ async function migrateLibrary(userId: string, guest: GuestData): Promise<number>
 /**
  * Uploads guest data to `userId`, then clears the device copy.
  * Returns null when there was nothing to move.
+ *
+ * `onProgress` is called each time the server answers a step, so the caller
+ * can tell a long history that is still moving from a connection that died.
  */
-export async function migrateGuestDataTo(userId: string): Promise<MigrationResult | null> {
+export async function migrateGuestDataTo(
+  userId: string,
+  onProgress?: () => void
+): Promise<MigrationResult | null> {
   const guest = await readGuestData();
   if (!hasContent(guest)) {
     await writeGuestActive(false);
@@ -155,6 +180,7 @@ export async function migrateGuestDataTo(userId: string): Promise<MigrationResul
   const templateIdMap = new Map<string, string>(Object.entries(guest.migratedTemplateIds));
   let templateRoom = MAX_MERGED_TEMPLATES - (await getWorkouts(userId, true)).length;
   let activeRoom = MAX_MERGED_ACTIVE_WORKOUTS - (await countActiveWorkouts(userId));
+  onProgress?.();
   let templatesDropped = 0;
   let activeWorkoutsDropped = 0;
   let migrated = 0;
@@ -175,7 +201,14 @@ export async function migrateGuestDataTo(userId: string): Promise<MigrationResul
       activeRoom--;
     }
     const { id, ...fields } = workout;
-    const cloudId = await createWorkout(stripUndefined({ ...fields, userId }), true);
+    const cloudId = cloudWorkoutId(userId, id);
+    // The guest's own createdAt goes up with it, so the history keeps its dates.
+    await sendWrite({
+      collection: "workouts",
+      docId: cloudId,
+      kind: "set",
+      data: stripUndefined({ ...fields, userId }),
+    });
     // Record before removing: between these two writes the mapping is the only
     // thing tying the split to the uploaded template.
     if (workout.isTemplate) {
@@ -184,11 +217,15 @@ export async function migrateGuestDataTo(userId: string): Promise<MigrationResul
     }
     await removeMigratedWorkout(id);
     migrated++;
+    onProgress?.();
   }
 
   await migrateBodyweight(userId, guest);
+  onProgress?.();
   const customExercisesDropped = await migrateLibrary(userId, guest);
+  onProgress?.();
   await migrateWeeklyPlanWithIds(userId, guest.weeklyPlan, templateIdMap);
+  onProgress?.();
 
   // Totals and streaks are derived, so recompute from what actually landed.
   await upsertUserStats({ userId, ...computeStats(await getCompletedWorkouts(userId)) });

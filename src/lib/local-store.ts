@@ -364,13 +364,17 @@ export async function readGuestData(): Promise<GuestData> {
   return load();
 }
 
+// Weigh-ins count on their own. A guest may have logged nothing else, and a
+// migration that failed after the workouts moved can leave them as the only
+// thing still to go. Either way, skipping them here would strand them.
 export function hasContent(data: GuestData): boolean {
   return (
     data.workouts.length > 0 ||
     data.library.custom.length > 0 ||
     data.library.removedIds.length > 0 ||
     data.library.overrides.length > 0 ||
-    data.weeklyPlan.some((day) => day !== null)
+    data.weeklyPlan.some((day) => day !== null) ||
+    (data.bodyweight?.length ?? 0) > 0
   );
 }
 
