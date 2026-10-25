@@ -1,7 +1,12 @@
 import SwiftUI
 
 /// No workout running: pick a template to start one.
+///
+/// The first screen the watch opens to, so it carries the theme picked on the
+/// phone: a wash of the accent behind the list, the accent on Cardio's icon.
+/// It had none, and a new theme looked as if it hadn't reached the watch.
 struct TemplatesView: View {
+  @EnvironmentObject private var store: WatchStore
   let templates: [WatchTemplate]
 
   var body: some View {
@@ -9,8 +14,13 @@ struct TemplatesView: View {
       List {
         // First, so a run is one tap in from opening the app.
         NavigationLink(value: CardioRoute.picker) {
-          Label("Cardio", systemImage: "figure.run")
-            .font(.headline)
+          Label {
+            Text("Cardio")
+          } icon: {
+            Image(systemName: "figure.run")
+              .foregroundStyle(store.accent)
+          }
+          .font(.headline)
         }
         if templates.isEmpty {
           Text("Save a template in Plato on your iPhone and it will show up here.")
@@ -40,6 +50,9 @@ struct TemplatesView: View {
           .listRowBackground(Color.clear)
       }
       .navigationTitle("Start")
+      // Faint, so white text stays readable on every accent — graphite's
+      // near-white included.
+      .containerBackground(store.accent.opacity(0.3).gradient, for: .navigation)
       .navigationDestination(for: WatchTemplate.self) { template in
         TemplateDetailView(template: template)
       }

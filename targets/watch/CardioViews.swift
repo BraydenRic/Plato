@@ -9,14 +9,22 @@ enum CardioRoute: Hashable {
 /// What kind of session: one row each, then a screen to start it on — so a
 /// brush against the list can't set a session going.
 struct CardioPickerView: View {
+  @EnvironmentObject private var store: WatchStore
+
   var body: some View {
     List(CardioKind.allCases) { kind in
       NavigationLink(value: CardioRoute.kind(kind)) {
-        Label(kind.label, systemImage: kind.symbol(indoor: kind.places[0]))
-          .font(.headline)
+        Label {
+          Text(kind.label)
+        } icon: {
+          Image(systemName: kind.symbol(indoor: kind.places[0]))
+            .foregroundStyle(store.accent)
+        }
+        .font(.headline)
       }
     }
     .navigationTitle("Cardio")
+    .containerBackground(store.accent.opacity(0.3).gradient, for: .navigation)
   }
 }
 

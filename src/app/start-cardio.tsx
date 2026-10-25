@@ -237,6 +237,8 @@ export default function StartCardioScreen() {
                 <Ionicons name={k.icon} size={26} color={selected ? theme.accentText : palette.textSecondary} />
                 <Text
                   style={[styles.tileLabel, { color: selected ? theme.accentText : palette.textSecondary }]}
+                  numberOfLines={1}
+                  adjustsFontSizeToFit
                   maxFontSizeMultiplier={FontScaleCap.grid}>
                   {k.label}
                 </Text>
@@ -307,8 +309,11 @@ const useStyles = makeStyles((c) => ({
     gap: Spacing.two,
   },
   // Four to a row: the whole choice fits above the thumb on the smallest phone.
+  // 22%, not 23%: four at 23% plus the gaps came to a point more than a
+  // 320-point iPhone SE's row, which wrapped them 3 + 3 + 2 with the last two
+  // wider than the rest. flexGrow takes up what 22% leaves.
   tile: {
-    flexBasis: "23%",
+    flexBasis: "22%",
     flexGrow: 1,
     aspectRatio: 1,
     borderRadius: Radius.lg,
@@ -316,10 +321,14 @@ const useStyles = makeStyles((c) => ({
     alignItems: "center",
     justifyContent: "center",
     gap: 6,
+    // A margin the label shrinks to fit inside: "Elliptical" is nearly as
+    // wide as a tile on the smallest phone.
+    paddingHorizontal: 6,
   },
   tileLabel: {
     fontSize: 13,
     fontWeight: "700",
+    textAlign: "center",
   },
   segment: {
     flexDirection: "row",

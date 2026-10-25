@@ -88,7 +88,8 @@ jest.mock("@/context/RestTimerContext", () => ({
 }));
 
 jest.mock("@/context/SetTimerContext", () => ({ useSetTimer: () => ({ timer: null, clearTimer: jest.fn() }) }));
-jest.mock("@/context/ThemeContext", () => ({ useThemePicker: () => ({ themeId: "violet" }) }));
+let mockThemeId = "violet";
+jest.mock("@/context/ThemeContext", () => ({ useThemePicker: () => ({ themeId: mockThemeId }) }));
 jest.mock("@/lib/bodyweight-cache", () => ({ readCachedBodyweight: async () => [] }));
 
 const mockStore = new Map<string, Workout>();
@@ -181,6 +182,7 @@ function lastSnapshot() {
 }
 
 beforeEach(async () => {
+  mockThemeId = "violet";
   jest.useFakeTimers();
   await AsyncStorage.clear();
   mockBridge.inbox = [];
@@ -237,6 +239,18 @@ describe("the snapshot", () => {
     view.rerender(<WatchSync />);
     await settle();
     expect(mockBridge.updateContext).toHaveBeenCalledTimes(1);
+  });
+
+  // The watch is always dark, so it gets each theme's dark-mode accent.
+  it("sends the new accent when the theme changes on the phone", async () => {
+    const view = render(<WatchSync />);
+    await settle();
+    expect(lastSnapshot()).toMatchObject({ accent: "#8b5cf6" });
+    mockThemeId = "amber";
+    view.rerender(<WatchSync />);
+    await settle();
+    expect(mockBridge.updateContext).toHaveBeenCalledTimes(2);
+    expect(lastSnapshot()).toMatchObject({ accent: "#f97316" });
   });
 
   it("clears the watch on sign-out", async () => {

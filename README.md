@@ -73,7 +73,7 @@ src/
 │   ├── history.tsx, bodyweight.tsx, reorder-templates.tsx
 │   └── sign-in.tsx, verify-email.tsx
 ├── components/                  # UI kit, resume bar, charts, muscle map, Live Activity + watch sync
-├── context/                     # Auth, appearance/theme, units, rest + set timers, default sets, Health import
+├── context/                     # Auth, appearance/theme, units, rest + set timers, default sets
 ├── hooks/                       # Workouts, active workout, bodyweight, library, weekly plan
 ├── lib/
 │   ├── data.ts                  # The single data entry point — routes cloud vs device
@@ -125,7 +125,7 @@ Guest-to-account migration still writes straight to Firestore, because it delete
 
 The watch app logs the workout in progress and starts templates; it is not the whole app, and it never talks to Firestore. The phone is the only source of truth:
 
-- **Phone → watch: one snapshot.** [watch-sync.tsx](src/components/watch-sync.tsx) sends the workout the resume bar leads with, the templates, the unit, the rest setting and countdown, and the theme accent, through WatchConnectivity's application context, whenever any of it changes. Signed out sends an empty one, so the watch never keeps the last account's data.
+- **Phone → watch: one snapshot.** [watch-sync.tsx](src/components/watch-sync.tsx) sends the workout the resume bar leads with, the templates, the unit, the rest setting and countdown, and the theme accent, through WatchConnectivity's application context, whenever any of it changes. The watch shows the accent from its first screen — a faint wash behind the Start list and the cardio picker, and their icons — as well as in a workout. Its app icon and the complication can't follow: watchOS has no alternate icons, and a watch face tints its complications itself. Signed out sends an empty one, so the watch never keeps the last account's data.
 - **Watch → phone: ops.** "Log this set", "add a set", "finish", "start this template", each with an id. The phone's native side ([modules/plato-watch](modules/plato-watch)) writes them to disk *before* answering the watch, because a set sent from the watch usually wakes the phone app in the background, before React is running. JavaScript applies them through data.ts once an account is loaded, so they get the offline copy and the outbox like any edit, and the screen, resume bar and Live Activity simply see a set being logged.
 - **Each op lands once.** Applied ids are remembered (resends are skipped) and echoed back in the next snapshot; until then the watch lays its own unapplied changes over the snapshot, so Done shows instantly even out of range. Ops sent out of range go through the system's delivery queue. Starting a workout is the exception: it needs the phone now, because a workout appearing an hour later is worse than none.
 - **Versions.** Xcode won't embed a watch app whose version or build number differs from the phone's. EAS stamps both into the watch's own Info.plist, and [with-watch-plist-only.js](plugins/with-watch-plist-only.js) makes that file the only source (for the complication too).
