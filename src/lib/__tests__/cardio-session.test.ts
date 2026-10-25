@@ -6,10 +6,13 @@ import {
   newCardioSession,
   paused,
   placeLabel,
+  recentOfKind,
   resumed,
   sessionHasDistance,
+  sessionSpan,
   sessionTarget,
 } from "../cardio-session";
+import type { CardioSessionKind, Workout, WorkoutSet } from "@/types";
 import { makeSet, makeWorkout, makeWorkoutExercise } from "./factories";
 
 const T0 = Date.UTC(2026, 9, 25, 7, 0, 0);
@@ -120,5 +123,74 @@ describe("ending a session", () => {
     const set = finishedSession(w, { nowMs: T0 + 600_000 }).exercises[0].sets[0];
     expect(set.distance).toBeUndefined();
     expect(set.isCompleted).toBe(true);
+  });
+});
+
+/** A finished session of `kind`, `minutes` long, ending `day` days before T0. */
+function finished(kind: CardioSessionKind, day: number, set: Partial<WorkoutSet>, cardio: Partial<Workout["cardio"]> = {}): Workout {
+  const start = T0 - day * 86_400_000;
+  return makeWorkout({
+    id: `${kind}-${day}`,
+    startedAt: new Date(start),
+    completedAt: new Date(start + 1800_000),
+    cardio: { kind, ...cardio },
+    exercises: [makeWorkoutExercise("running", [makeSet({ weight: undefined, reps: undefined, duration: 1500, ...set })])],
+  });
+}
+
+describe("a session from start to end", () => {
+  it("uses the pauses the phone kept", () => {
+    expect(sessionSpan(finished("run", 0, {}, { pausedSeconds: 240 }))).toMatchObject({ moving: 1500, paused: 240 });
+  });
+
+  // The watch keeps its own pauses; the phone only sees the two times.
+  it("takes a watch-timed session's pause from the elapsed time", () => {
+    expect(sessionSpan(finished("run", 0, {}))).toMatchObject({ moving: 1500, paused: 300 });
+  });
+
+  it("reads a few seconds between the clocks as no pause", () => {
+    expect(sessionSpan(finished("run", 0, { duration: 1797 }))?.paused).toBe(0);
+    expect(sessionSpan(finished("run", 0, { duration: 1850 }))?.paused).toBe(0);
+  });
+
+  it("has nothing to show without both ends", () => {
+    expect(sessionSpan({ ...finished("run", 0, {}), startedAt: undefined })).toBeNull();
+  });
+});
+
+describe("the last few of a kind", () => {
+  it("measures by distance when this one has one, skipping those that don't, oldest first", () => {
+    const now = finished("run", 0, { distance: 5000 });
+    const before = [finished("run", 2, { distance: 4000 }), finished("run", 3, {}), finished("run", 5, { distance: 3000 })];
+    expect(recentOfKind(before, now)).toEqual({ measure: "distance", values: [3000, 4000, 5000] });
+  });
+
+  it("measures by moving time when this one has no distance", () => {
+    const now = finished("run", 0, { duration: 1500 });
+    expect(recentOfKind([finished("run", 2, { duration: 1200, distance: 4000 })], now)).toEqual({ measure: "time", values: [1200, 1500] });
+  });
+
+  // Seen from History, a run from last week is set against the ones before
+  // it, not the ones since.
+  it("leaves out other kinds and anything after this one", () => {
+    const now = finished("run", 3, { duration: 1500 });
+    const others = [finished("walk", 4, { duration: 900 }), finished("run", 1, { duration: 2000 }), finished("run", 5, { duration: 1000 })];
+    expect(recentOfKind(others, now)?.values).toEqual([1000, 1500]);
+  });
+
+  it("counts this one once, even when the store already has it", () => {
+    const now = finished("run", 0, { duration: 1500 });
+    expect(recentOfKind([now, finished("run", 1, { duration: 1000 })], now)?.values).toEqual([1000, 1500]);
+  });
+
+  it("keeps the most recent few", () => {
+    const now = finished("run", 0, { duration: 2000 });
+    const before = Array.from({ length: 10 }, (_, i) => finished("run", i + 1, { duration: 1000 + i }));
+    const values = recentOfKind(before, now, 4)!.values;
+    expect(values).toEqual([1002, 1001, 1000, 2000]);
+  });
+
+  it("has no trend for the first of a kind", () => {
+    expect(recentOfKind([finished("walk", 1, { duration: 900 })], finished("run", 0, {}))).toBeNull();
   });
 });

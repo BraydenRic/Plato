@@ -279,6 +279,65 @@ export function WeekColumns({
   );
 }
 
+/**
+ * A session from start to end as one bar: the moving part in the accent, the
+ * paused part beside it in grey, each as long as its share. The pauses are
+ * summed, not placed — the bar says how much, the clock times at its ends
+ * say when.
+ */
+export function SessionSpan({ start, end, moving, paused }: { start: Date; end: Date; moving: number; paused: number }) {
+  const styles = useStyles();
+  const palette = usePalette();
+  const theme = useTheme();
+  const clock = (d: Date) => d.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
+  const total = moving + paused;
+  return (
+    <View
+      style={styles.span}
+      accessible
+      accessibilityLabel={`Started ${clock(start)}, finished ${clock(end)}. ${formatClock(moving)} moving${
+        paused ? `, ${formatClock(paused)} paused` : ", no pauses"
+      }.`}>
+      <View style={styles.spanEnds}>
+        <Text style={styles.spanTime} maxFontSizeMultiplier={FontScaleCap.grid}>
+          {clock(start)}
+        </Text>
+        <Text style={styles.spanTime} maxFontSizeMultiplier={FontScaleCap.grid}>
+          {clock(end)}
+        </Text>
+      </View>
+      <View style={styles.spanBar}>
+        <View style={[styles.spanPart, { flex: total ? moving / total : 1, backgroundColor: theme.accent }]} />
+        {paused > 0 && (
+          <View style={[styles.spanPart, { flex: paused / total, backgroundColor: palette.textTertiary, opacity: 0.4 }]} />
+        )}
+      </View>
+      <View style={styles.spanLegend}>
+        <View style={styles.legend}>
+          <View style={[styles.spanKey, { backgroundColor: theme.accent }]} />
+          <Text style={styles.spanValue} maxFontSizeMultiplier={FontScaleCap.grid}>
+            {formatClock(moving)}
+            <Text style={styles.spanWord}> moving</Text>
+          </Text>
+        </View>
+        {paused > 0 ? (
+          <View style={styles.legend}>
+            <View style={[styles.spanKey, { backgroundColor: palette.textTertiary, opacity: 0.4 }]} />
+            <Text style={styles.spanValue} maxFontSizeMultiplier={FontScaleCap.grid}>
+              {formatClock(paused)}
+              <Text style={styles.spanWord}> paused</Text>
+            </Text>
+          </View>
+        ) : (
+          <Text style={styles.spanWord} maxFontSizeMultiplier={FontScaleCap.grid}>
+            No pauses
+          </Text>
+        )}
+      </View>
+    </View>
+  );
+}
+
 const TREND_HEIGHT = 112;
 
 /**
@@ -392,6 +451,50 @@ const useStyles = makeStyles((c) => ({
     flexDirection: "row",
     alignItems: "center",
     gap: 6,
+  },
+  span: {
+    gap: Spacing.two,
+  },
+  spanEnds: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+  },
+  spanTime: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: c.textTertiary,
+    fontVariant: ["tabular-nums"],
+  },
+  // Two parts with a sliver of card between them, so the grey reads as its
+  // own share rather than the bar fading out.
+  spanBar: {
+    flexDirection: "row",
+    height: 10,
+    gap: 2,
+  },
+  spanPart: {
+    borderRadius: 4,
+  },
+  spanLegend: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  spanKey: {
+    width: 8,
+    height: 8,
+    borderRadius: 2,
+  },
+  spanValue: {
+    fontSize: 15,
+    fontWeight: "700",
+    color: c.text,
+    fontVariant: ["tabular-nums"],
+  },
+  spanWord: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: c.textTertiary,
   },
   legendLine: {
     width: 1,

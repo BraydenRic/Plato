@@ -22,6 +22,8 @@ export type Place = "outdoor" | "indoor";
 interface KindInfo {
   kind: CardioSessionKind;
   label: string;
+  /** What one of them is called in a sentence: "your last run", "your last 5 rides". */
+  noun: { one: string; many: string };
   icon: IconName;
   /** Where it can happen, the usual one first. */
   places: Place[];
@@ -37,6 +39,7 @@ export const SESSION_KINDS: KindInfo[] = [
   {
     kind: "run",
     label: "Run",
+    noun: { one: "run", many: "runs" },
     icon: "footsteps",
     places: ["outdoor", "indoor"],
     as: { outdoor: { exerciseId: "running", name: "Outdoor Run" }, indoor: { exerciseId: "treadmill", name: "Indoor Run" } },
@@ -44,6 +47,7 @@ export const SESSION_KINDS: KindInfo[] = [
   {
     kind: "walk",
     label: "Walk",
+    noun: { one: "walk", many: "walks" },
     icon: "walk",
     places: ["outdoor", "indoor"],
     as: { outdoor: { exerciseId: "walking", name: "Outdoor Walk" }, indoor: { exerciseId: "walking", name: "Indoor Walk" } },
@@ -51,6 +55,7 @@ export const SESSION_KINDS: KindInfo[] = [
   {
     kind: "hike",
     label: "Hike",
+    noun: { one: "hike", many: "hikes" },
     icon: "trail-sign",
     places: ["outdoor"],
     as: { outdoor: { exerciseId: "hiking", name: "Hike" } },
@@ -58,6 +63,7 @@ export const SESSION_KINDS: KindInfo[] = [
   {
     kind: "bike",
     label: "Bike",
+    noun: { one: "ride", many: "rides" },
     icon: "bicycle",
     places: ["outdoor", "indoor"],
     as: { outdoor: { exerciseId: "cycling", name: "Outdoor Cycle" }, indoor: { exerciseId: "cycling", name: "Indoor Cycle" } },
@@ -65,6 +71,7 @@ export const SESSION_KINDS: KindInfo[] = [
   {
     kind: "swim",
     label: "Swim",
+    noun: { one: "swim", many: "swims" },
     icon: "water",
     // A pool far more often than open water.
     places: ["indoor", "outdoor"],
@@ -73,6 +80,7 @@ export const SESSION_KINDS: KindInfo[] = [
   {
     kind: "row",
     label: "Row",
+    noun: { one: "row", many: "rows" },
     icon: "boat",
     places: ["indoor"],
     as: { indoor: { exerciseId: "rowing", name: "Indoor Row" } },
@@ -80,6 +88,7 @@ export const SESSION_KINDS: KindInfo[] = [
   {
     kind: "elliptical",
     label: "Elliptical",
+    noun: { one: "elliptical session", many: "elliptical sessions" },
     icon: "infinite",
     places: ["indoor"],
     as: { indoor: { exerciseId: "elliptical", name: "Elliptical" } },
@@ -87,6 +96,7 @@ export const SESSION_KINDS: KindInfo[] = [
   {
     kind: "stairs",
     label: "Stairs",
+    noun: { one: "stair session", many: "stair sessions" },
     icon: "trending-up",
     places: ["indoor"],
     as: { indoor: { exerciseId: "stairmaster", name: "Stair Stepper" } },
@@ -229,4 +239,57 @@ export function finishedSession(
     totalVolume: 0,
     cardio,
   };
+}
+
+/**
+ * A finished session from start to end: when, and how much of it was
+ * paused. The phone keeps its own pauses; for one the watch timed, the pause
+ * is whatever the elapsed time has over the moving time. A few seconds of
+ * difference is the two clocks, not a pause.
+ */
+export function sessionSpan(workout: Workout): { start: Date; end: Date; moving: number; paused: number } | null {
+  const start = workout.startedAt;
+  const end = workout.completedAt;
+  if (!start || !end || end.getTime() <= start.getTime()) return null;
+  const moving = sessionSet(workout)?.duration ?? 0;
+  const elapsed = (end.getTime() - start.getTime()) / 1000;
+  const paused = workout.cardio?.pausedSeconds ?? Math.max(0, elapsed - moving);
+  return { start, end, moving, paused: paused < 5 ? 0 : Math.round(paused) };
+}
+
+/** How the finished screen's trend measures sessions. */
+export type SessionMeasure = "distance" | "time";
+
+/**
+ * This session and the ones of its kind before it, oldest first, for the
+ * finished screen's trend: the last few, each measured the way this one can
+ * be. A run with a distance is set against the runs that have one, in
+ * metres; a stair session, or a run nobody gave a distance, against the
+ * moving times, in seconds. Fewer than two and there's no trend to draw.
+ *
+ * `completed` may not hold this session yet — it's just been finished, ahead
+ * of the store — so it's added here, as it is on screen.
+ */
+export function recentOfKind(
+  completed: Workout[],
+  workout: Workout,
+  limit = 8
+): { measure: SessionMeasure; values: number[] } | null {
+  const kind = workout.cardio?.kind;
+  const end = workout.completedAt?.getTime();
+  if (!kind || end == null) return null;
+  const measure: SessionMeasure = sessionSet(workout)?.distance ? "distance" : "time";
+  const value = (w: Workout) => {
+    const set = sessionSet(w);
+    return measure === "distance" ? set?.distance : set?.duration;
+  };
+  if (!value(workout)) return null;
+  const before = completed
+    .filter((w) => w.id !== workout.id && w.cardio?.kind === kind && w.completedAt && w.completedAt.getTime() <= end)
+    .sort((a, b) => a.completedAt!.getTime() - b.completedAt!.getTime());
+  const values = [...before, workout]
+    .map(value)
+    .filter((v): v is number => v != null && v > 0)
+    .slice(-limit);
+  return values.length >= 2 ? { measure, values } : null;
 }

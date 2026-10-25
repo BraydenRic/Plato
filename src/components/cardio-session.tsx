@@ -4,12 +4,13 @@ import { Alert, KeyboardAvoidingView, Platform, Pressable, ScrollView, Text, Tex
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 
-import { FigureRow, SplitsChart, type Figure, type SplitRow } from "@/components/cardio-figures";
+import { FigureRow, SessionSpan, SessionTrend, SplitsChart, type Figure, type SplitRow } from "@/components/cardio-figures";
 import { Button } from "@/components/ui";
 import { FontScaleCap, Radius, Spacing } from "@/constants/theme";
 import { makeStyles, usePalette } from "@/context/AppearanceContext";
 import { useTheme } from "@/context/ThemeContext";
 import { useWeightUnit } from "@/context/UnitContext";
+import { useWorkouts } from "@/hooks/use-workouts";
 import {
   distanceKind,
   distanceUnit,
@@ -18,14 +19,19 @@ import {
   formatRate,
   fromMetres,
   parseDistanceText,
+  type DistanceUnit,
 } from "@/lib/cardio";
 import {
   finishedSession,
   isPaused,
+  kindInfo,
   movingSeconds,
   paused,
+  recentOfKind,
   resumed,
   sessionSet,
+  sessionSpan,
+  type SessionMeasure,
 } from "@/lib/cardio-session";
 import { recordCardioDiscard } from "@/lib/cardio-discards";
 import { computeStats, deleteWorkout, getCompletedWorkouts, stripUndefined, updateWorkout, upsertUserStats } from "@/lib/data";
@@ -148,21 +154,17 @@ export function CardioSession({
     setAskDistance("end");
   }
 
+  function editDistance() {
+    if (!groundUnit) return;
+    setDistanceText(set?.distance ? formatDistanceValue(set.distance, groundUnit) : "");
+    setAskDistance("edit");
+  }
+
   function openMenu() {
     const noun = workout.name.toLowerCase();
     Alert.alert(workout.name, undefined, [
       { text: "Cancel", style: "cancel" },
-      ...(done && groundUnit
-        ? [
-            {
-              text: set?.distance ? "Edit distance" : "Add distance",
-              onPress: () => {
-                setDistanceText(set?.distance ? formatDistanceValue(set.distance, groundUnit) : "");
-                setAskDistance("edit");
-              },
-            },
-          ]
-        : []),
+      ...(done && groundUnit ? [{ text: set?.distance ? "Edit distance" : "Add distance", onPress: editDistance }] : []),
       {
         text: done ? `Delete ${noun}` : `Discard ${noun}`,
         style: "destructive" as const,
@@ -219,7 +221,7 @@ export function CardioSession({
             onSecondary={() => (askDistance === "end" ? finish() : setAskDistance(null))}
           />
         ) : done ? (
-          <FinishedSession workout={workout} />
+          <FinishedSession workout={workout} onAddDistance={editDistance} />
         ) : (
           <View style={styles.live}>
             <View style={styles.clockWrap}>
@@ -441,14 +443,20 @@ function splitRate(rate: string): { value: string; unit: string } {
 }
 
 /**
- * A finished session: the distance as the headline, time and pace beneath
- * it, then — if a watch recorded it — heart rate, calories and splits.
+ * A finished session. The distance is the headline, with the time and pace
+ * beneath it — or with no distance, the time is. Then the session from start
+ * to end, what the watch measured if it was there, the splits, and how this
+ * one sits among the last few of its kind.
+ *
+ * Built so that the least a session can have — a time and nothing else —
+ * still reads as a whole page rather than a number in a corner.
  */
-function FinishedSession({ workout }: { workout: Workout }) {
+function FinishedSession({ workout, onAddDistance }: { workout: Workout; onAddDistance: () => void }) {
   const styles = useStyles();
   const palette = usePalette();
   const theme = useTheme();
   const { unit } = useWeightUnit();
+  const { completed } = useWorkouts();
   const set = sessionSet(workout);
   const exercise = workout.exercises[0]?.exercise;
   const ground = exercise ? distanceKind(exercise) : null;
@@ -458,6 +466,9 @@ function FinishedSession({ workout }: { workout: Workout }) {
   const rate = ground ? formatRate(set?.distance, seconds, ground, unit) : null;
   const distance = set?.distance && groundUnit ? formatDistance(set.distance, groundUnit) : null;
   const when = workout.startedAt ?? workout.completedAt!;
+  const span = sessionSpan(workout);
+  const recent = recentOfKind(completed, workout);
+  const noun = kindInfo(workout.cardio?.kind ?? "run").noun;
 
   const figures: Figure[] = [];
   if (tracked?.avgHeartRate) {
@@ -480,8 +491,6 @@ function FinishedSession({ workout }: { workout: Workout }) {
       tint: palette.amber,
     });
   }
-  // With no distance there's no pace to put under the headline, so the pace
-  // figure has nowhere to repeat — nothing to add here.
 
   const whole = groundUnit === "mi" ? tracked?.splitsMi : groundUnit === "km" ? tracked?.splitsKm : undefined;
   const rows: SplitRow[] = (whole ?? []).map((s, i) => ({ label: String(i + 1), seconds: s, units: 1 }));
@@ -499,8 +508,9 @@ function FinishedSession({ workout }: { workout: Workout }) {
           {workout.name}
         </Text>
         <Text style={styles.when}>
-          {when.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" })} ·{" "}
-          {when.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })}
+          {when.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" })}
+          {/* The span below gives the times when it can. */}
+          {span ? "" : ` · ${when.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })}`}
           {tracked?.source ? ` · ${tracked.source}` : ""}
         </Text>
       </View>
@@ -515,7 +525,7 @@ function FinishedSession({ workout }: { workout: Workout }) {
             </Text>
           ) : null}
         </Text>
-        {distance && (
+        {distance ? (
           <View style={styles.heroMeta}>
             <Ionicons name="stopwatch-outline" size={14} color={palette.textTertiary} />
             <Text style={styles.heroMetaText} maxFontSizeMultiplier={FontScaleCap.title}>
@@ -531,17 +541,81 @@ function FinishedSession({ workout }: { workout: Workout }) {
               </>
             )}
           </View>
+        ) : (
+          <Text style={styles.clockLabel} maxFontSizeMultiplier={FontScaleCap.grid}>
+            Moving time
+          </Text>
+        )}
+        {/* Right where the distance would be, not behind the menu: the one
+            thing missing, and the one that makes pace and splits possible. */}
+        {!distance && groundUnit && (
+          <Pressable
+            onPress={onAddDistance}
+            accessibilityRole="button"
+            style={({ pressed }) => [styles.addDistance, pressed && { opacity: 0.7 }]}>
+            <Ionicons name="add" size={16} color={theme.accentText} />
+            <Text style={[styles.addDistanceText, { color: theme.accentText }]} maxFontSizeMultiplier={FontScaleCap.grid}>
+              Add distance
+            </Text>
+          </Pressable>
         )}
       </View>
 
-      {(figures.length > 0 || rows.length > 1) && (
+      {(span || figures.length > 0) && (
         <View style={styles.detailCard}>
+          {span && <SessionSpan {...span} />}
           {figures.length > 0 && <FigureRow figures={figures} />}
-          {rows.length > 1 && groundUnit && <SplitsChart rows={rows} unitWord={groundUnit === "mi" ? "mile" : "km"} />}
+        </View>
+      )}
+
+      {rows.length > 1 && groundUnit && (
+        <View style={styles.detailCard}>
+          <SplitsChart rows={rows} unitWord={groundUnit === "mi" ? "mile" : "km"} />
+        </View>
+      )}
+
+      {recent && (
+        <View
+          style={styles.detailCard}
+          accessible
+          accessibilityLabel={`Your last ${recent.values.length} ${noun.many}. ${comparison(recent.values, recent.measure, groundUnit, noun.one)}`}>
+          <View style={styles.cardHeader}>
+            <Text style={styles.cardHeading} maxFontSizeMultiplier={FontScaleCap.grid}>
+              Your last {recent.values.length} {noun.many}
+            </Text>
+            <Text style={styles.cardHeading} maxFontSizeMultiplier={FontScaleCap.grid}>
+              {recent.measure === "distance" ? "Distance" : "Moving time"}
+            </Text>
+          </View>
+          <SessionTrend values={recent.values} />
+          <Text style={styles.trendNote} maxFontSizeMultiplier={FontScaleCap.grid}>
+            {comparison(recent.values, recent.measure, groundUnit, noun.one)}
+          </Text>
         </View>
       )}
     </ScrollView>
   );
+}
+
+/**
+ * The trend in words: this session against the one before it, or — when it
+ * beats all the others drawn — that. Under the line rather than as labels on
+ * it, so the chart stays a shape.
+ */
+export function comparison(values: number[], measure: SessionMeasure, unit: DistanceUnit | null, one: string): string {
+  const last = values[values.length - 1];
+  const before = values[values.length - 2];
+  if (values.length >= 3 && last >= Math.max(...values)) {
+    return measure === "distance" ? `Your furthest of the last ${values.length}` : `Your longest of the last ${values.length}`;
+  }
+  const diff = last - before;
+  if (measure === "distance" && unit) {
+    const shown = formatDistance(Math.abs(diff), unit);
+    if (parseFloat(shown) === 0) return `The same distance as your last ${one}`;
+    return `${shown} ${diff > 0 ? "further than" : "short of"} your last ${one}`;
+  }
+  if (Math.abs(diff) < 30) return `About as long as your last ${one}`;
+  return `${formatClock(Math.round(Math.abs(diff)))} ${diff > 0 ? "longer than" : "shorter than"} your last ${one}`;
 }
 
 const useStyles = makeStyles((c) => ({
@@ -745,6 +819,40 @@ const useStyles = makeStyles((c) => ({
     fontSize: 13,
     fontWeight: "600",
     color: c.textTertiary,
+  },
+  addDistance: {
+    flexDirection: "row",
+    alignItems: "center",
+    alignSelf: "flex-start",
+    gap: 4,
+    marginTop: Spacing.two,
+    paddingVertical: Spacing.two,
+    paddingHorizontal: Spacing.three,
+    borderRadius: Radius.md,
+    borderWidth: 1,
+    borderStyle: "dashed",
+    borderColor: c.border,
+  },
+  addDistanceText: {
+    fontSize: 14,
+    fontWeight: "700",
+  },
+  cardHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  cardHeading: {
+    fontSize: 10,
+    fontWeight: "700",
+    letterSpacing: 1,
+    textTransform: "uppercase",
+    color: c.textTertiary,
+  },
+  trendNote: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: c.textSecondary,
   },
   detailCard: {
     gap: Spacing.four,

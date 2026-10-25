@@ -32,6 +32,9 @@ jest.mock("@/lib/data", () => ({
   stripUndefined: (v: unknown) => v,
 }));
 
+let mockCompleted: Workout[] = [];
+jest.mock("@/hooks/use-workouts", () => ({ useWorkouts: () => ({ completed: mockCompleted }) }));
+
 let mockLive: unknown = null;
 jest.mock("@/lib/watch-live", () => {
   const actual = jest.requireActual("@/lib/watch-live");
@@ -68,6 +71,7 @@ const lastPatch = () => mockUpdate.mock.calls.at(-1)![1];
 
 beforeEach(() => {
   mockLive = null;
+  mockCompleted = [];
   resetWatchTrace();
   jest.clearAllMocks();
   jest.spyOn(Date, "now").mockReturnValue(T0 + 65_000);
@@ -165,6 +169,79 @@ it("shows a finished run's distance, pace, and what the watch measured", () => {
   expect(screen.getByLabelText("Avg · max 171: 152 bpm")).toBeTruthy();
   expect(screen.getByText("Splits · per mile")).toBeTruthy();
   expect(screen.getByLabelText("Mile 2, 7:50")).toBeTruthy();
+});
+
+// Build 67's finished run was a time in the corner and nothing else.
+describe("a finished session with only a time", () => {
+  const timeOnly = (overrides: Partial<Workout> = {}) =>
+    session("run", { completedAt: new Date(T0 + 1800_000), ...overrides }, { isCompleted: true, duration: 1500 });
+
+  it("shows the time as the headline, and the session from start to end", () => {
+    show(timeOnly({ cardio: { kind: "run", indoor: false, pausedSeconds: 300 } }));
+    expect(screen.getByText("25:00")).toBeTruthy();
+    expect(screen.getByText("Moving time")).toBeTruthy();
+    expect(screen.getByLabelText(/25:00 moving, 5:00 paused\.$/)).toBeTruthy();
+  });
+
+  it("says so when there were no pauses", () => {
+    show(session("run", { completedAt: new Date(T0 + 1500_000) }, { isCompleted: true, duration: 1500 }));
+    expect(screen.getByText("No pauses")).toBeTruthy();
+  });
+
+  it("offers to add the distance right there, and saves it", async () => {
+    show(timeOnly());
+    await act(async () => {
+      fireEvent.press(screen.getByText("Add distance"));
+    });
+    expect(screen.getByText("How far was it?")).toBeTruthy();
+    await act(async () => {
+      fireEvent.changeText(screen.getByLabelText("Distance in miles"), "3");
+    });
+    await act(async () => {
+      fireEvent.press(screen.getByText("Save"));
+    });
+    expect(lastPatch().exercises![0].sets[0].distance).toBeCloseTo(3 * MILE);
+  });
+
+  it("doesn't offer a distance a stair stepper can't have", () => {
+    show(session("stairs", { completedAt: new Date(T0 + 1800_000) }, { isCompleted: true, duration: 1500 }));
+    expect(screen.queryByText("Add distance")).toBeNull();
+  });
+});
+
+describe("against the last few of its kind", () => {
+  const earlier = (id: string, day: number, set: Partial<WorkoutSet>, kind: "run" | "stairs" = "run") =>
+    session(kind, { id, startedAt: new Date(T0 - day * 86_400_000), completedAt: new Date(T0 - day * 86_400_000 + 1800_000) }, {
+      isCompleted: true,
+      ...set,
+    });
+
+  it("draws the trend by distance and says how this run compares with the last", () => {
+    mockCompleted = [earlier("a", 3, { duration: 1500, distance: 3 * MILE }), earlier("b", 1, { duration: 1700, distance: 3.5 * MILE })];
+    show(session("run", { completedAt: new Date(T0 + 1500_000) }, { isCompleted: true, duration: 1500, distance: 3.25 * MILE }));
+    expect(screen.getByText("Your last 3 runs")).toBeTruthy();
+    expect(screen.getByText("Distance")).toBeTruthy();
+    expect(screen.getByText("0.25 mi short of your last run")).toBeTruthy();
+  });
+
+  it("calls out the furthest of them", () => {
+    mockCompleted = [earlier("a", 3, { duration: 1500, distance: 3 * MILE }), earlier("b", 1, { duration: 1700, distance: 3.5 * MILE })];
+    show(session("run", { completedAt: new Date(T0 + 2000_000) }, { isCompleted: true, duration: 2000, distance: 4 * MILE }));
+    expect(screen.getByText("Your furthest of the last 3")).toBeTruthy();
+  });
+
+  it("compares by time when there's no distance", () => {
+    mockCompleted = [earlier("a", 2, { duration: 1200 }, "stairs")];
+    show(session("stairs", { completedAt: new Date(T0 + 1500_000) }, { isCompleted: true, duration: 1500 }));
+    expect(screen.getByText("Your last 2 stair sessions")).toBeTruthy();
+    expect(screen.getByText("5:00 longer than your last stair session")).toBeTruthy();
+  });
+
+  it("draws nothing for the first of its kind", () => {
+    mockCompleted = [earlier("a", 2, { duration: 1200 }, "stairs")];
+    show(session("run", { completedAt: new Date(T0 + 1500_000) }, { isCompleted: true, duration: 1500, distance: 5000 }));
+    expect(screen.queryByText(/Your last/)).toBeNull();
+  });
 });
 
 it("deletes a finished run from the menu, after a confirmation", async () => {
