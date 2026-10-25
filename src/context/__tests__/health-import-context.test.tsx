@@ -219,11 +219,26 @@ it("waits for the workouts to load and sync before importing", async () => {
 });
 
 it("keeps the setting to the account that turned it on", async () => {
-  await AsyncStorage.setItem(HEALTH_KEY_PREFIX + "u1", JSON.stringify({ enabled: true, seen: [] }));
+  const view = await mount();
+  await act(async () => {
+    await api.setEnabled(true);
+  });
+  await flush();
+  expect(mockHealth.getWorkouts).toHaveBeenCalledTimes(1);
+
+  // Someone else signs in on the same phone: Health still holds the owner's runs.
   mockUserId = "u2";
-  await mount();
+  view.rerender(
+    <HealthImportProvider>
+      <Probe />
+    </HealthImportProvider>
+  );
+  await flush();
+  await act(async () => appStateListener?.("active"));
+  await flush();
   expect(api.enabled).toBe(false);
-  expect(mockHealth.getWorkouts).not.toHaveBeenCalled();
+  expect(mockHealth.getWorkouts).toHaveBeenCalledTimes(1);
+  expect(mockCreate.mock.calls.every(([w]) => w.userId === "u1")).toBe(true);
 });
 
 it("stays off when iOS can't be asked", async () => {
