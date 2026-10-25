@@ -261,6 +261,16 @@ describe("reopenTiming", () => {
     });
   });
 
+  it("keeps a planned workout on its planned day, even if it was finished after midnight", () => {
+    // Planned for Monday, finished at 00:30 on Tuesday: the calendar files it
+    // under Monday, and reopening it must not move it to Tuesday.
+    const plannedFor = startOfDay(daysAgo(4));
+    const completedAt = new Date(addDays(plannedFor, 1).getTime() + 30 * 60_000);
+    const timing = reopenTiming(makeWorkout({ scheduledFor: plannedFor, startedAt: daysAgo(4), completedAt }));
+
+    expect(timing).toEqual({ kind: "backlog", scheduledFor: plannedFor });
+  });
+
   it("resumes the clock for a workout finished today, discounting the pause", () => {
     const startedAt = new Date(Date.now() - 60 * 60_000);
     const completedAt = new Date(Date.now() - 10 * 60_000);
@@ -407,6 +417,30 @@ describe("previousSetsByExercise", () => {
     ];
 
     expect(previousSetsByExercise(history).get("plank")?.[0]?.duration).toBe(90);
+  });
+
+  it("remembers a plain bodyweight set, which is logged on reps alone", () => {
+    // What the set row actually stores for BW × 10 with the weight left blank:
+    // no weight key at all, since stripUndefined drops it on the way out.
+    const bw = (reps: number) =>
+      makeSet({ weightUnit: "bodyweight", weight: undefined, reps, isCompleted: true });
+    const history = [
+      makeWorkout({
+        id: "this-week",
+        completedAt: daysAgo(2),
+        exercises: [makeWorkoutExercise("pull-up", [bw(10), bw(9), bw(8)])],
+      }),
+      // An older weighted session must not be ghosted in its place.
+      makeWorkout({
+        id: "last-month",
+        completedAt: daysAgo(30),
+        exercises: [
+          makeWorkoutExercise("pull-up", [makeSet({ weightUnit: "bodyweight", weight: 25, reps: 5 })]),
+        ],
+      }),
+    ];
+
+    expect(previousSetsByExercise(history).get("pull-up")?.map((s) => s?.reps)).toEqual([10, 9, 8]);
   });
 
   it("treats a zero weight as a real number, not a missing one", () => {
@@ -713,8 +747,13 @@ describe("estimated one-rep max", () => {
   });
 
   it("returns the weight itself for a single", () => {
-    // The one case where the estimate is not an estimate.
-    expect(estimatedOneRepMax(315, 1)).toBeCloseTo(315 * (1 + 1 / 30));
+    // The one case where the estimate is not an estimate. Epley alone says
+    // 325.5 here — more than was lifted.
+    expect(estimatedOneRepMax(315, 1)).toBe(315);
+  });
+
+  it("still estimates from two reps up", () => {
+    expect(estimatedOneRepMax(300, 2)).toBeCloseTo(300 * (1 + 2 / 30));
   });
 
   it("rates a lighter set for more reps above a heavier set for few", () => {

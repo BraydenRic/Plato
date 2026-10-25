@@ -606,6 +606,28 @@ describe("reopening a workout", () => {
     expect(reopened.completedAt).toBeUndefined();
     expect(reopened.totalVolume).toBeUndefined();
   });
+
+  it("keeps the duration of one finished on an earlier day, which re-logging can't measure again", async () => {
+    const { cc } = launch();
+    const { shown } = await openWithList(cc);
+    const monday = new Date(Date.now() - 2 * 86_400_000);
+    const finished = makeWorkout({
+      id: "w1",
+      userId: UID,
+      startedAt: monday,
+      completedAt: monday,
+      durationMinutes: 62,
+      totalVolume: 1000,
+    });
+    serverSends([finished]);
+
+    await cc.reopenWorkout(finished);
+
+    const reopened = shown.at(-1)!.find((w) => w.id === "w1")!;
+    expect(reopened.completedAt).toBeUndefined();
+    expect(reopened.startedAt).toBeUndefined();
+    expect(reopened.durationMinutes).toBe(62);
+  });
 });
 
 describe("the weigh-in log", () => {

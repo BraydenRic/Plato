@@ -162,3 +162,78 @@ describe("on the Apple Watch", () => {
     );
   });
 });
+
+/**
+ * A run is stored as one exercise holding one set that stays incomplete until
+ * End, so the lifting state read "0/1 sets" on every run — and its clock
+ * counted straight through pauses, running ahead of the session screen.
+ */
+describe("a cardio session", () => {
+  const run = {
+    ...workout,
+    name: "Outdoor Run",
+    cardio: { kind: "run" },
+    exercises: [{ id: "e1", exerciseId: "running", sets: [{ id: "s1", isCompleted: false }] }],
+  } as unknown as Workout;
+
+  it("has no set count", () => {
+    activity.startWorkoutActivity(run, 0, 1, THEMES.violet, null);
+    const state = mockStartActivity.mock.calls[0][0];
+    expect(state).not.toHaveProperty("subtitle");
+    expect(JSON.stringify(state)).not.toMatch(/sets/);
+  });
+
+  it("counts moving time, leaving out the pauses that are over", () => {
+    const afterAPause = { ...run, cardio: { kind: "run", pausedSeconds: 300 } } as unknown as Workout;
+    activity.updateWorkoutActivity("activity-1", afterAPause, 0, 1, THEMES.violet, null);
+    const [, state] = mockUpdateActivity.mock.calls[0];
+    expect(state.progressBar).toEqual({ elapsedTimer: { startDate: STARTED.getTime() + 300_000 } });
+  });
+
+  it("stops counting while paused, and says where it stopped", () => {
+    // 20 minutes in, with 5 of them already spent paused at a light.
+    const pausedAtMs = STARTED.getTime() + 20 * 60_000;
+    const paused = {
+      ...run,
+      cardio: { kind: "run", pausedSeconds: 300, pausedAtMs },
+    } as unknown as Workout;
+    activity.updateWorkoutActivity("activity-1", paused, 0, 1, THEMES.violet, null);
+    const [, state] = mockUpdateActivity.mock.calls[0];
+    // A native timer can't be frozen, so there is none to keep ticking.
+    expect(state).not.toHaveProperty("progressBar");
+    expect(state.subtitle).toBe("Paused · 15:00");
+  });
+});
+
+/**
+ * ActivityKit caps an activity at about 4 KB, and the name is the part a user
+ * controls. Over it, a start is refused and — worse — an update is dropped
+ * while JS is told it worked, freezing the pill.
+ */
+describe("a very long workout name", () => {
+  const essay = "Leg day ".repeat(600);
+  const titleOf = (state: unknown) => (state as { title: string }).title;
+
+  it("is cut to one line's worth with an ellipsis", () => {
+    activity.startWorkoutActivity({ ...workout, name: essay }, 3, 12, THEMES.violet, null);
+    const title = titleOf(mockStartActivity.mock.calls[0][0]);
+    expect(Array.from(title)).toHaveLength(100);
+    expect(title.endsWith("…")).toBe(true);
+    expect(essay.startsWith(title.slice(0, -1))).toBe(true);
+  });
+
+  it("is cut on updates too", () => {
+    activity.updateWorkoutActivity("activity-1", { ...workout, name: essay }, 3, 12, THEMES.violet, null);
+    expect(titleOf(mockUpdateActivity.mock.calls[0][1]).length).toBeLessThanOrEqual(100);
+  });
+
+  it("never splits an emoji in half", () => {
+    const title = activity.activityTitle("💪".repeat(150));
+    // Every character left is a whole emoji or the ellipsis, not half a pair.
+    expect(Array.from(title).every((char) => char === "💪" || char === "…")).toBe(true);
+  });
+
+  it("leaves an ordinary name alone", () => {
+    expect(activity.activityTitle("Push Day")).toBe("Push Day");
+  });
+});

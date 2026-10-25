@@ -335,23 +335,27 @@ describe("reopenWorkout", () => {
 
     const after = await store.getWorkout(id);
     expect(after?.completedAt).toBeUndefined();
-    expect(after?.durationMinutes).toBeUndefined();
     expect(after?.totalVolume).toBeUndefined();
     expect(after?.scheduledFor?.getTime()).toBe(completedAt.getTime());
     expect(after?.startedAt).toBeUndefined();
+    // Kept: logging it again as an off-day plan has no clock to measure a
+    // duration from, so clearing this lost the 45 minutes for good.
+    expect(after?.durationMinutes).toBe(45);
   });
 
   it("resumes the clock for a workout finished today", async () => {
     const store = await freshStore();
     const startedAt = new Date(Date.now() - 60 * 60_000);
     const completedAt = new Date(Date.now() - 10 * 60_000);
-    const id = await store.createWorkout(makeWorkout({ startedAt, completedAt }) as never);
+    const id = await store.createWorkout(makeWorkout({ startedAt, completedAt, durationMinutes: 50 }) as never);
 
     await store.reopenWorkout((await store.getWorkout(id))!);
 
     const after = await store.getWorkout(id);
     expect(after?.completedAt).toBeUndefined();
     expect(after?.startedAt!.getTime()).toBeGreaterThan(startedAt.getTime());
+    // Live again, so finishing measures it afresh.
+    expect(after?.durationMinutes).toBeUndefined();
   });
 });
 

@@ -15,7 +15,7 @@ import type { Workout, WorkoutSet } from "@/types";
  * would count down someone else's rest.
  */
 
-const mockPush = jest.fn();
+const mockNavigate = jest.fn();
 let mockRest: { workoutId: string; endsAt: number } | null = null;
 let mockWorkout: Workout | null = null;
 let mockOthers: Workout[] = [];
@@ -29,8 +29,12 @@ jest.mock("react-native-safe-area-context", () => ({
   useSafeAreaInsets: () => ({ top: 59, bottom: 34, left: 0, right: 0 }),
 }));
 
+// No push on purpose. push always adds a screen, so a double tap while the
+// session screen was mounting stacked two copies of it; navigate reuses the
+// top screen when it's already this workout (proven against the real router
+// in app/__tests__/deep-links).
 jest.mock("expo-router", () => ({
-  useRouter: () => ({ push: mockPush }),
+  useRouter: () => ({ navigate: mockNavigate }),
 }));
 
 jest.mock("@/context/RestTimerContext", () => ({
@@ -159,7 +163,7 @@ it("opens the workout it's advertising", () => {
 
   fireEvent.press(screen.getByTestId("active-workout-bar"));
 
-  expect(mockPush).toHaveBeenCalledWith("/workout/w7");
+  expect(mockNavigate).toHaveBeenCalledWith("/workout/w7");
 });
 
 it("is nothing but the status-bar inset when no workout is running", () => {
@@ -260,7 +264,7 @@ describe("with more than one workout running", () => {
 
     fireEvent.press(screen.getByTestId("active-workout-row"));
 
-    expect(mockPush).toHaveBeenCalledWith("/workout/w2");
+    expect(mockNavigate).toHaveBeenCalledWith("/workout/w2");
     expect(screen.queryByText("Legs")).toBeNull();
   });
 
@@ -270,7 +274,7 @@ describe("with more than one workout running", () => {
 
     fireEvent.press(screen.getByTestId("active-workout-bar"));
 
-    expect(mockPush).toHaveBeenCalledWith("/workout/w1");
+    expect(mockNavigate).toHaveBeenCalledWith("/workout/w1");
   });
 
   it("puts a rest on the row of the workout it belongs to", () => {

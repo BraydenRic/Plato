@@ -180,6 +180,9 @@ export function workoutVolumeLbs(workout: Workout, bodyweightLbs?: number): numb
  */
 export function estimatedOneRepMax(lbs: number, reps: number | undefined): number {
   if (!reps || reps < 1) return 0;
+  // Epley alone puts a single at weight × 1.033, so a true 315×1 read 325.5:
+  // more than the lifter has ever moved.
+  if (reps === 1) return lbs;
   return lbs * (1 + reps / 30);
 }
 
@@ -330,9 +333,19 @@ export function newId(): string {
 
 // ── "What did I lift last time?" ─────────────────────────────────────────────
 
-/** A set counts as remembered only if it was finished with a real number in it. */
+/**
+ * A set counts as remembered only if it was finished with a real number in it.
+ *
+ * Reps count on their own because a plain bodyweight set has nothing else: it
+ * is done on reps alone and stores no weight at all, so pull-ups logged as
+ * BW × 10 were never remembered and the next session ghosted a dash. A loaded
+ * set can't be completed without a weight, so this changes nothing for those.
+ */
 function isLogged(set: WorkoutSet): boolean {
-  return set.isCompleted && (set.weight != null || set.duration != null || set.distance != null);
+  return (
+    set.isCompleted &&
+    (set.weight != null || set.reps != null || set.duration != null || set.distance != null)
+  );
 }
 
 /**
@@ -377,7 +390,11 @@ export function previousSetsByExercise(
  * form (Firestore needs deleteField(), the local store deletes the key).
  */
 export type ReopenTiming =
-  /** Finished on an earlier day: becomes a backlog edit pinned to that day. */
+  /**
+   * Finished on an earlier day: becomes a backlog edit pinned to that day. The
+   * stores keep its duration, since re-logging an off-day plan has no clock to
+   * measure one from and would otherwise erase it for good.
+   */
   | { kind: "backlog"; scheduledFor: Date }
   /** Finished today: resume the clock where it stopped, ignoring the pause. */
   | { kind: "resume"; startedAt: Date }
@@ -386,7 +403,10 @@ export type ReopenTiming =
 export function reopenTiming(workout: Workout): ReopenTiming {
   if (!workout.completedAt) return { kind: "none" };
   if (!sameDay(workout.completedAt, new Date())) {
-    return { kind: "backlog", scheduledFor: workout.completedAt };
+    // The day it's filed under, not the day it finished: a plan for Monday
+    // finished after midnight was completed on Tuesday, and pinning it there
+    // would move it off the day the calendar shows it on.
+    return { kind: "backlog", scheduledFor: workout.scheduledFor ?? workout.completedAt };
   }
   if (workout.startedAt) {
     const pausedMs = Date.now() - workout.completedAt.getTime();

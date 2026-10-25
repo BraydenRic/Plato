@@ -57,12 +57,16 @@ export function LiveActivitySync() {
     if (loading) return; // don't dismiss anything before the first snapshot
 
     const workout = current;
-    chain.current = chain.current.then(async () => {
+    const step = async () => {
       // One-time restore of the activity started by a previous app launch.
       if (!hydrated.current) {
-        hydrated.current = AsyncStorage.getItem(STORAGE_KEY).then((raw) => {
-          if (raw && !tracked.current) tracked.current = JSON.parse(raw) as Tracked;
-        });
+        hydrated.current = AsyncStorage.getItem(STORAGE_KEY)
+          .then((raw) => {
+            if (raw && !tracked.current) tracked.current = JSON.parse(raw) as Tracked;
+          })
+          // Resolved either way, or every later step would rethrow it. All an
+          // unreadable record costs is an old launch's activity going unfound.
+          .catch(() => {});
       }
       await hydrated.current;
 
@@ -75,7 +79,7 @@ export function LiveActivitySync() {
         if (t) {
           stopWorkoutActivity(t.activityId, "Workout finished", theme);
           tracked.current = null;
-          await AsyncStorage.removeItem(STORAGE_KEY);
+          await AsyncStorage.removeItem(STORAGE_KEY).catch(() => {});
         }
         return;
       }
@@ -94,9 +98,17 @@ export function LiveActivitySync() {
       const activityId = startWorkoutActivity(workout, doneSets, totalSets, theme, restEndsAt);
       if (activityId) {
         tracked.current = { activityId, workoutId: workout.id };
-        await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(tracked.current));
+        await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(tracked.current)).catch(() => {});
       }
-    });
+    };
+    // No step may ever reject. Each is chained onto the last, and a rejected
+    // link skips every callback after it — one failed AsyncStorage write (a
+    // full disk) stopped all syncing until relaunch, so a finished workout's
+    // activity was never ended and sat on the lock screen counting for hours.
+    // The storage calls above catch their own failures for the same reason:
+    // tracked.current is the copy that matters, and the record on disk only
+    // helps a later launch find an activity this one started.
+    chain.current = chain.current.then(step).catch((e) => console.warn("Live Activity sync failed", e));
     // theme is deliberately not a dependency. The progress tint only applies to
     // a newly started activity, so re-running this on a theme change would tear
     // down and recreate a perfectly good pill mid-workout; the logo picks up the

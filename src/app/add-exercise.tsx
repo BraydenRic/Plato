@@ -25,7 +25,12 @@ import type { Exercise, Workout, WorkoutExercise, WorkoutSet } from "@/types";
 
 export default function AddExerciseModal() {
   const styles = useStyles();
-  const { workoutId } = useLocalSearchParams<{ workoutId: string }>();
+  const params = useLocalSearchParams<{ workoutId?: string | string[] }>();
+  // A link that repeats the key (…?workoutId=a&workoutId=b) arrives as an
+  // array, and the store's id.startsWith threw on it inside an effect — which
+  // took the whole app down to the crash screen, again on every retry. Such a
+  // link names no one workout, so it's treated as naming none.
+  const workoutId = typeof params.workoutId === "string" ? params.workoutId : undefined;
   const router = useRouter();
   const { exercises } = useExerciseLibrary();
   const [search, setSearch] = useState("");

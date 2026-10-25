@@ -1,8 +1,8 @@
-import { act, fireEvent, render, screen, waitFor } from "@testing-library/react-native";
-import { StyleSheet } from "react-native";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react-native";
+import { ScrollView, StyleSheet } from "react-native";
 
 import { ErrorBoundary, ThemedStatusBar } from "../_layout";
-import { PALETTES } from "@/constants/theme";
+import { FontScaleCap, PALETTES } from "@/constants/theme";
 import { AppearanceProvider, useAppearance } from "@/context/AppearanceContext";
 
 /**
@@ -108,6 +108,33 @@ it("offers a way back", () => {
   fireEvent.press(screen.getByText("Try again"));
 
   expect(retry).toHaveBeenCalledTimes(1);
+});
+
+/**
+ * At AX4–AX5 the reassurance alone runs to half a dozen lines, and a long
+ * release-mode message on top made the content taller than the window. Centred
+ * in a plain view, the overflow fell off both edges and took "Try again" — the
+ * only way out — below the screen.
+ */
+describe("at the largest text sizes", () => {
+  it("scrolls, so 'Try again' can always be reached", () => {
+    render(<ErrorBoundary error={new Error("x".repeat(400))} retry={jest.fn()} />);
+
+    const scroller = screen.UNSAFE_getByType(ScrollView);
+    expect(within(scroller).getByText("Try again")).toBeTruthy();
+    // Centred while it fits, without pinning the height to the window.
+    const content = StyleSheet.flatten(scroller.props.contentContainerStyle);
+    expect(content).toEqual(expect.objectContaining({ flexGrow: 1, justifyContent: "center" }));
+    expect(content).not.toHaveProperty("flex");
+  });
+
+  it("caps the display type, as every other screen does", () => {
+    render(<ErrorBoundary error={new Error("boom")} retry={jest.fn()} />);
+
+    expect(screen.getByText("Plato hit a snag").props.maxFontSizeMultiplier).toBe(FontScaleCap.title);
+    expect(screen.getByText(/Your workouts are safe/).props.maxFontSizeMultiplier).toBe(FontScaleCap.heading);
+    expect(screen.getByText("Try again").props.maxFontSizeMultiplier).toBe(FontScaleCap.button);
+  });
 });
 
 /**

@@ -78,7 +78,12 @@ function ResumeBar({ workouts, topInset }: { workouts: Workout[]; topInset: numb
 
   function open(workout: Workout) {
     setExpanded(false);
-    router.push(`/workout/${workout.id}`);
+    // navigate, not push: push always adds a screen, so a double tap while the
+    // session screen was still mounting opened two copies of it — and two
+    // cardio screens share the one step counter, so going back from the top
+    // one stopped the live distance on the one underneath. navigate reuses
+    // the top screen when it's already this workout.
+    router.navigate(`/workout/${workout.id}`);
   }
 
   const [lead, ...rest] = workouts;

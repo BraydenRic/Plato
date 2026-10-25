@@ -4,6 +4,8 @@ import Constants, { ExecutionEnvironment } from "expo-constants";
 import type { LiveActivityState } from "expo-live-activity";
 
 import type { Theme } from "@/constants/theme";
+import { movingSeconds } from "@/lib/cardio-session";
+import { formatClock } from "@/lib/workout-utils";
 import type { Workout } from "@/types";
 
 /**
@@ -72,6 +74,52 @@ export function watchImage(theme: ActivityTheme): string {
   return `${activityImage(theme)}-small`;
 }
 
+/**
+ * Longest title sent, in characters. ActivityKit caps an activity's attributes
+ * and state at about 4 KB together, and the name is the one part of that a
+ * user controls: a pasted essay of a name made the start fail, and worse, made
+ * a mid-workout update vanish while JS was told it had worked — freezing the
+ * set count and the rest countdown until the name was shortened. The widget
+ * shows one line of it anyway.
+ */
+const MAX_TITLE_LENGTH = 100;
+
+export function activityTitle(name: string): string {
+  // By code point, so a cut can't split an emoji's surrogate pair into
+  // something the widget can't draw.
+  const chars = Array.from(name);
+  if (chars.length <= MAX_TITLE_LENGTH) return name;
+  return `${chars.slice(0, MAX_TITLE_LENGTH - 1).join("").trimEnd()}…`;
+}
+
+/**
+ * A cardio session's slice of the state: its moving time, and no set count.
+ *
+ * It is stored as one exercise with one set that stays incomplete until End,
+ * so the lifting state read "0/1 sets" for the whole of every run, and its
+ * clock counted from the start straight through every pause — five minutes
+ * at a light and the lock screen ran five minutes ahead of the session screen.
+ */
+function cardioState(workout: Workout) {
+  const cardio = workout.cardio!;
+  const startedAtMs = (workout.startedAt ?? workout.createdAt).getTime();
+  if (cardio.pausedAtMs != null) {
+    // A native timer can't be stopped, only left out — and nothing of ours
+    // runs on a locked phone to tick a frozen one. Paused, the time stands
+    // still anyway, so it goes in the subtitle as plain text.
+    return { subtitle: `Paused · ${formatClock(movingSeconds(workout, cardio.pausedAtMs))}` };
+  }
+  return {
+    // No subtitle while moving: the name already says what it is, and the
+    // ticking clock says it's going.
+    progressBar: {
+      // Started later by every pause that's over, so it counts moving time —
+      // the same number the session screen and the resume bar show.
+      elapsedTimer: { startDate: startedAtMs + (cardio.pausedSeconds ?? 0) * 1000 },
+    } as unknown as LiveActivityState["progressBar"],
+  };
+}
+
 function workoutState(
   workout: Workout,
   doneSets: number,
@@ -79,8 +127,15 @@ function workoutState(
   theme: ActivityTheme,
   restEndsAt: number | null
 ) {
+  const images = {
+    imageName: activityImage(theme),
+    dynamicIslandImageName: activityImage(theme),
+    smallImageName: watchImage(theme),
+  };
+  if (workout.cardio) return { title: activityTitle(workout.name), ...cardioState(workout), ...images };
+
   return {
-    title: workout.name,
+    title: activityTitle(workout.name),
     // Both bars look alike, so the subtitle is what says which one is on show.
     // It stays put for the whole rest: swapping it to something like "Ready" at
     // the deadline would need a push at that exact moment, and on a locked
@@ -102,9 +157,7 @@ function workoutState(
       elapsedTimer: { startDate: (workout.startedAt ?? workout.createdAt).getTime() },
       ...(restEndsAt != null ? { date: restEndsAt } : {}),
     } as unknown as LiveActivityState["progressBar"],
-    imageName: activityImage(theme),
-    dynamicIslandImageName: activityImage(theme),
-    smallImageName: watchImage(theme),
+    ...images,
   };
 }
 
@@ -168,7 +221,7 @@ export function stopWorkoutActivity(activityId: string, title: string, theme: Ac
   if (!mod) return;
   try {
     mod.stopActivity(activityId, {
-      title,
+      title: activityTitle(title),
       subtitle: "Workout complete",
       progressBar: { progress: 1 },
       imageName: activityImage(theme),

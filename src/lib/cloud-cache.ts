@@ -1196,8 +1196,10 @@ export async function deleteWorkout(workout: Workout): Promise<void> {
 /** Same fields as local-store.reopenWorkout; reopenTiming decides resume-live vs reopen-on-its-day. */
 export function reopenWorkout(workout: Workout): Promise<void> {
   const data: Record<string, unknown> = {};
-  const deleteFields = ["completedAt", "durationMinutes", "totalVolume"];
+  const deleteFields = ["completedAt", "totalVolume"];
   const timing = reopenTiming(workout);
+  // A backlog edit keeps its duration — see local-store.reopenWorkout.
+  if (timing.kind !== "backlog") deleteFields.push("durationMinutes");
   if (timing.kind === "backlog") {
     deleteFields.push("startedAt");
     data.scheduledFor = timing.scheduledFor;

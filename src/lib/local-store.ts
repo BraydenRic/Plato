@@ -280,7 +280,9 @@ export async function reopenWorkout(workout: Workout): Promise<void> {
   const timing = reopenTiming(workout);
   const next: Workout = { ...data.workouts[index] };
   delete next.completedAt;
-  delete next.durationMinutes;
+  // A backlog edit keeps its duration: it's re-logged as an off-day plan, which
+  // has no clock to measure one from, so this is the only copy there is.
+  if (timing.kind !== "backlog") delete next.durationMinutes;
   delete next.totalVolume;
   if (timing.kind === "backlog") {
     delete next.startedAt;

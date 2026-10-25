@@ -30,6 +30,9 @@ const { withXcodeProject } = require("expo/config-plugins");
  * Only the medium view is touched. `.small` is the Apple Watch Smart Stack and
  * the Dynamic Island has a 60pt slot that two timers would not fit, so both
  * keep the upstream behaviour of showing the workout timer.
+ *
+ * It also makes a tap on the activity open the workout — see "Tapping through
+ * to the workout" below.
  */
 
 const TARGET = "LiveActivityMediumView.swift";
@@ -149,64 +152,115 @@ const ISLAND_MINIMAL_PATCHED = `        // Rest wins the island while it is runn
           .applyWidgetURL(from: context.attributes.deepLinkUrl)
         } else if let progress = context.state.progress {`;
 
+// ── Tapping through to the workout ───────────────────────────────────────────
+// The widget builds its tap URL as scheme + "://" + deepLinkUrl, and upstream
+// looks the scheme up in Bundle.main's CFBundleURLTypes. In a widget extension
+// Bundle.main is the extension itself, whose Info.plist declares no URL types
+// (expo-live-activity adds the scheme to the app's plist only). So the lookup
+// came back nil, .widgetURL was never attached, and a tap on the lock-screen
+// card or the island just brought the app forward on whatever screen it was
+// last on. The app's own scheme is written in instead, at prebuild.
+
+const SCHEME_ANCHOR = `private let cachedScheme: String? = {
+  guard
+    let urlTypes = Bundle.main.infoDictionary?["CFBundleURLTypes"] as? [[String: Any]],
+    let schemes = urlTypes.first?["CFBundleURLSchemes"] as? [String],
+    let firstScheme = schemes.first
+  else {
+    return nil
+  }
+
+  return firstScheme
+}()`;
+
+const schemePatched = (scheme) => `// The app's URL scheme, written in by plugins/with-live-activity-rest-timer:
+// Bundle.main here is the widget extension, which declares no URL types.
+private let cachedScheme: String? = ${JSON.stringify(scheme)}`;
+
 /** Every file this plugin rewrites, with the marker that says it already has. */
-const PATCHES = [
-  {
-    file: "LiveActivityMediumView.swift",
-    applied: "restEndDate",
-    what: "the side-by-side timers on the lock screen",
-    replacements: [[ANCHOR, PATCHED]],
-  },
-  {
-    file: "LiveActivityWidget.swift",
-    applied: "Rest wins the island",
-    what: "the Dynamic Island timer priority",
-    replacements: [
-      [ISLAND_TRAILING_ANCHOR, ISLAND_TRAILING_PATCHED],
-      [ISLAND_MINIMAL_ANCHOR, ISLAND_MINIMAL_PATCHED],
-    ],
-  },
-];
+function patchesFor(scheme) {
+  return [
+    {
+      file: "LiveActivityMediumView.swift",
+      applied: "restEndDate",
+      what: "the side-by-side timers on the lock screen",
+      replacements: [[ANCHOR, PATCHED]],
+    },
+    {
+      file: "LiveActivityWidget.swift",
+      applied: "Rest wins the island",
+      what: "the Dynamic Island timer priority",
+      replacements: [
+        [ISLAND_TRAILING_ANCHOR, ISLAND_TRAILING_PATCHED],
+        [ISLAND_MINIMAL_ANCHOR, ISLAND_MINIMAL_PATCHED],
+      ],
+    },
+    {
+      file: "View+applyWidgetURL.swift",
+      applied: "written in by plugins/with-live-activity-rest-timer",
+      what: "the tap through to the workout",
+      replacements: [[SCHEME_ANCHOR, schemePatched(scheme)]],
+    },
+  ];
+}
+
+/**
+ * Rewrites the widget sources in `widgetDir` (ios/LiveActivity). Separate from
+ * the mod so a test can run it over the upstream files and catch an
+ * expo-live-activity change before a build does.
+ */
+function patchWidgetSources(widgetDir, scheme) {
+  if (typeof scheme !== "string" || !scheme) {
+    throw new Error(
+      `[with-live-activity-rest-timer] app.json has no "scheme", so tapping the ` +
+        `Live Activity has nowhere to link to.`
+    );
+  }
+  for (const patch of patchesFor(scheme)) {
+    const file = path.join(widgetDir, patch.file);
+
+    // Loud rather than silent. If any of this stops matching — an
+    // expo-live-activity upgrade is the likely cause, since the version is
+    // pinned exactly — the build must fail here. The alternative is an app
+    // that ships looking fine and quietly drops a timer.
+    if (!fs.existsSync(file)) {
+      throw new Error(
+        `[with-live-activity-rest-timer] ${patch.file} not found at ${file}. ` +
+          `This plugin has to run after expo-live-activity copies its widget ` +
+          `sources — check the plugin order in app.json.`
+      );
+    }
+
+    let source = fs.readFileSync(file, "utf8");
+
+    // Prebuild is re-runnable, so a second pass over an already-patched file
+    // is expected rather than a problem.
+    if (source.includes(patch.applied)) continue;
+
+    for (const [anchor, patched] of patch.replacements) {
+      if (!source.includes(anchor)) {
+        throw new Error(
+          `[with-live-activity-rest-timer] ${patch.file} no longer matches what ` +
+            `this patch expects, so ${patch.what} cannot be applied. ` +
+            `expo-live-activity has probably changed; re-read that file and ` +
+            `update the anchors.`
+        );
+      }
+      source = source.replace(anchor, patched);
+    }
+
+    fs.writeFileSync(file, source);
+  }
+}
 
 module.exports = function withLiveActivityRestTimer(config) {
   // withXcodeProject, not withDangerousMod: dangerous mods run first in the iOS
   // chain, before expo-live-activity has copied its widget sources in.
   return withXcodeProject(config, (cfg) => {
-    for (const patch of PATCHES) {
-      const file = path.join(cfg.modRequest.platformProjectRoot, "LiveActivity", patch.file);
-
-      // Loud rather than silent. If any of this stops matching — an
-      // expo-live-activity upgrade is the likely cause, since the version is
-      // pinned exactly — the build must fail here. The alternative is an app
-      // that ships looking fine and quietly drops a timer.
-      if (!fs.existsSync(file)) {
-        throw new Error(
-          `[with-live-activity-rest-timer] ${patch.file} not found at ${file}. ` +
-            `This plugin has to run after expo-live-activity copies its widget ` +
-            `sources — check the plugin order in app.json.`
-        );
-      }
-
-      let source = fs.readFileSync(file, "utf8");
-
-      // Prebuild is re-runnable, so a second pass over an already-patched file
-      // is expected rather than a problem.
-      if (source.includes(patch.applied)) continue;
-
-      for (const [anchor, patched] of patch.replacements) {
-        if (!source.includes(anchor)) {
-          throw new Error(
-            `[with-live-activity-rest-timer] ${patch.file} no longer matches what ` +
-              `this patch expects, so ${patch.what} cannot be applied. ` +
-              `expo-live-activity has probably changed; re-read that file and ` +
-              `update the anchors.`
-          );
-        }
-        source = source.replace(anchor, patched);
-      }
-
-      fs.writeFileSync(file, source);
-    }
+    const scheme = Array.isArray(cfg.scheme) ? cfg.scheme[0] : cfg.scheme;
+    patchWidgetSources(path.join(cfg.modRequest.platformProjectRoot, "LiveActivity"), scheme);
     return cfg;
   });
 };
+
+module.exports.patchWidgetSources = patchWidgetSources;

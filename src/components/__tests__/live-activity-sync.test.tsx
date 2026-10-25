@@ -14,10 +14,11 @@ import type { Workout } from "@/types";
 
 const mockStart = jest.fn<string | undefined, unknown[]>();
 const mockUpdate = jest.fn((..._args: unknown[]) => true);
+const mockStop = jest.fn((..._args: unknown[]) => {});
 jest.mock("@/lib/live-activity", () => ({
   startWorkoutActivity: (...args: unknown[]) => mockStart(...args),
   updateWorkoutActivity: (...args: unknown[]) => mockUpdate(...args),
-  stopWorkoutActivity: jest.fn(),
+  stopWorkoutActivity: (...args: unknown[]) => mockStop(...args),
 }));
 
 const mockWorkout: Workout = {
@@ -29,7 +30,8 @@ const mockWorkout: Workout = {
   startedAt: new Date(),
   exercises: [],
 };
-jest.mock("@/hooks/use-workouts", () => ({ useWorkouts: () => ({ active: [mockWorkout], loading: false }) }));
+let mockActive: Workout[] = [mockWorkout];
+jest.mock("@/hooks/use-workouts", () => ({ useWorkouts: () => ({ active: mockActive, loading: false }) }));
 jest.mock("@/context/ThemeContext", () => ({ useTheme: () => ({ activityTint: "#8b5cf6" }) }));
 jest.mock("@/context/RestTimerContext", () => ({ useRestTimer: () => ({ rest: null }) }));
 jest.mock("@/lib/current-workout", () => ({ useCurrentWorkoutId: () => null }));
@@ -40,6 +42,8 @@ beforeEach(async () => {
   await AsyncStorage.clear();
   mockStart.mockReset();
   mockUpdate.mockClear();
+  mockStop.mockClear();
+  mockActive = [mockWorkout];
   appStateListener = null;
   jest.spyOn(AppState, "addEventListener").mockImplementation((_type, listener) => {
     appStateListener = listener as (state: AppStateStatus) => void;
@@ -87,4 +91,45 @@ it("ignores the app going to the background", async () => {
   await act(async () => appStateListener?.("background"));
   await flush();
   expect(mockStart).toHaveBeenCalledTimes(1);
+});
+
+/**
+ * Every sync is chained onto the one before, so a single rejected step used to
+ * skip all the rest for the remainder of the launch — and the finished
+ * workout's activity sat on the lock screen, still counting, for hours.
+ */
+describe("when the phone's storage fails", () => {
+  // Only the storage spies: the shared in-memory AsyncStorage outlives this file.
+  const spies: jest.SpyInstance[] = [];
+  afterEach(() => spies.splice(0).forEach((spy) => spy.mockRestore()));
+
+  it("still ends the activity when the workout finishes, after a failed save", async () => {
+    spies.push(jest.spyOn(AsyncStorage, "setItem").mockRejectedValueOnce(new Error("disk full")));
+    mockStart.mockReturnValue("activity-1");
+    const { rerender } = render(<LiveActivitySync />);
+    await flush();
+    expect(mockStart).toHaveBeenCalledTimes(1);
+
+    // Later updates still land on the activity that was started.
+    await act(async () => appStateListener?.("active"));
+    await flush();
+    expect(mockUpdate).toHaveBeenCalledWith("activity-1", mockWorkout, 0, 0, expect.anything(), null);
+
+    mockActive = [];
+    rerender(<LiveActivitySync />);
+    await flush();
+    expect(mockStop).toHaveBeenCalledWith("activity-1", "Workout finished", expect.anything());
+  });
+
+  it("still starts the activity when the saved record can't be read", async () => {
+    spies.push(jest.spyOn(AsyncStorage, "getItem").mockRejectedValue(new Error("unreadable")));
+    mockStart.mockReturnValue("activity-1");
+    render(<LiveActivitySync />);
+    await flush();
+    expect(mockStart).toHaveBeenCalledTimes(1);
+
+    await act(async () => appStateListener?.("active"));
+    await flush();
+    expect(mockUpdate).toHaveBeenCalled();
+  });
 });

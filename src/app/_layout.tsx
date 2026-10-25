@@ -2,7 +2,7 @@ import { Stack, type ErrorBoundaryProps } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import * as SplashScreen from "expo-splash-screen";
 import { useEffect } from "react";
-import { ActivityIndicator, Pressable, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 
 import { BodyweightVolumeRepair } from "@/components/bodyweight-volume-repair";
@@ -24,6 +24,18 @@ import {
 } from "@/context/AppearanceContext";
 
 SplashScreen.preventAutoHideAsync();
+
+/**
+ * The tabs sit under anything opened straight from a link.
+ *
+ * Tapping the Live Activity after iOS has ended Plato in the background — common
+ * over a long session — cold-launches plato:///workout/<id>. Without an anchor
+ * the root stack held that one screen and nothing else, so every way out of it
+ * (the chevron, Finish, Delete, "Go back") was a back with nowhere to go and
+ * did nothing: the workout saved and the only way home was to force-quit.
+ * Signed out, the tabs are guarded off as usual and the sign-in screen shows.
+ */
+export const unstable_settings = { anchor: "(tabs)" };
 
 /**
  * Catches a render error anywhere in the app that no screen caught first.
@@ -55,9 +67,21 @@ export function ErrorBoundary({ error, retry }: ErrorBoundaryProps) {
   }, []);
 
   return (
-    <View testID="crash" style={[styles.crash, { backgroundColor: c.bg }]}>
-      <Text style={[styles.crashTitle, { color: c.text }]}>Plato hit a snag</Text>
-      <Text style={[styles.crashBody, { color: c.textSecondary }]}>
+    // Scrolls, and centres only while it fits. At the largest text sizes the
+    // reassurance alone runs to half a dozen lines, and a long release-mode
+    // message on top made the content taller than the window — centred, the
+    // overflow fell off both edges and took "Try again", the only way out,
+    // below the screen. The automatic inset keeps it clear of the notch
+    // without the safe-area context this screen can't count on.
+    <ScrollView
+      testID="crash"
+      style={{ backgroundColor: c.bg }}
+      contentContainerStyle={styles.crash}
+      contentInsetAdjustmentBehavior="automatic">
+      <Text style={[styles.crashTitle, { color: c.text }]} maxFontSizeMultiplier={FontScaleCap.title}>
+        Plato hit a snag
+      </Text>
+      <Text style={[styles.crashBody, { color: c.textSecondary }]} maxFontSizeMultiplier={FontScaleCap.heading}>
         Your workouts are safe — this is the screen failing to draw, not your data.
       </Text>
       {/* Selectable so it can be pasted into a bug report; this is the only
@@ -73,9 +97,11 @@ export function ErrorBoundary({ error, retry }: ErrorBoundaryProps) {
           { backgroundColor: c.surfaceRaised, borderColor: c.border },
           pressed && { opacity: 0.75 },
         ]}>
-        <Text style={[styles.crashButtonText, { color: c.text }]}>Try again</Text>
+        <Text style={[styles.crashButtonText, { color: c.text }]} maxFontSizeMultiplier={FontScaleCap.button}>
+          Try again
+        </Text>
       </Pressable>
-    </View>
+    </ScrollView>
   );
 }
 
@@ -84,11 +110,12 @@ export function ErrorBoundary({ error, retry }: ErrorBoundaryProps) {
 // arrive inline above.
 const styles = StyleSheet.create({
   crash: {
-    flex: 1,
+    flexGrow: 1,
     alignItems: "center",
     justifyContent: "center",
     gap: Spacing.three,
     paddingHorizontal: Spacing.four,
+    paddingVertical: Spacing.four,
   },
   crashTitle: { fontSize: 20, fontWeight: "700", textAlign: "center" },
   crashBody: { fontSize: 15, lineHeight: 21, textAlign: "center" },
@@ -173,6 +200,12 @@ function RootNavigator() {
         <Stack.Screen name="reorder-templates" options={{ presentation: "modal" }} />
         <Stack.Screen name="reorder-day" options={{ presentation: "modal" }} />
         <Stack.Screen name="exercise/[id]" options={{ presentation: "modal" }} />
+        {/* A link that matches nothing, and the sitemap's address: both just
+            step back out (see +not-found). Behind the same guard as the rest,
+            so signed out they fall through to sign-in instead of stranding
+            someone on a screen whose way home is guarded off. */}
+        <Stack.Screen name="+not-found" options={{ animation: "none" }} />
+        <Stack.Screen name="_sitemap" options={{ animation: "none" }} />
       </Stack.Protected>
       <Stack.Protected guard={needsVerification}>
         <Stack.Screen name="verify-email" />
