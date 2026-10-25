@@ -207,6 +207,32 @@ struct CardioControlsPage: View {
   }
 }
 
+/// Tracking didn't start: why, and what to do — instead of silently going
+/// back to the list as if the tap had missed.
+struct CardioErrorView: View {
+  @EnvironmentObject private var store: WatchStore
+  let message: String
+
+  var body: some View {
+    ScrollView {
+      VStack(spacing: 8) {
+        Image(systemName: "exclamationmark.circle")
+          .font(.system(size: 34))
+          .foregroundStyle(.secondary)
+        Text("Couldn't start tracking")
+          .font(.headline)
+          .multilineTextAlignment(.center)
+        Text(message)
+          .font(.footnote)
+          .foregroundStyle(.secondary)
+          .multilineTextAlignment(.center)
+        Button("OK") { store.dismissCardioError() }
+      }
+      .padding(.horizontal)
+    }
+  }
+}
+
 /// A few seconds of "saved", with what it came to.
 struct CardioFinishedView: View {
   @EnvironmentObject private var store: WatchStore

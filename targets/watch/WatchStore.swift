@@ -47,6 +47,8 @@ final class WatchStore: ObservableObject {
   @Published private(set) var tick = 0
   /// The "Run saved" screen after a cardio session ends.
   @Published private(set) var cardioFinished: CardioResult?
+  /// Why tracking didn't start, shown for a moment instead of nothing.
+  @Published private(set) var cardioError: String?
 
   let tracker = CardioTracker.shared
   private let link = PhoneLink()
@@ -76,7 +78,7 @@ final class WatchStore: ObservableObject {
   private let liveInterval: TimeInterval = 5
   /// A session the phone started, and this close to when the watch began
   /// tracking, is the one it woke the watch for.
-  private let sameStartMs: Double = 5 * 60 * 1000
+  private let sameStartMs: Double = 30 * 60 * 1000
   /// An op the phone never confirms is dropped after this, so one lost on the
   /// way can't hold the watch's view of a set forever.
   private let pendingLifetimeMs: Double = 6 * 60 * 60 * 1000
@@ -265,6 +267,10 @@ final class WatchStore: ObservableObject {
     cardioFinished = nil
   }
 
+  func dismissCardioError() {
+    cardioError = nil
+  }
+
   private func handle(_ event: CardioTracker.Event) {
     switch event {
     case .started:
@@ -306,8 +312,9 @@ final class WatchStore: ObservableObject {
       enqueue(op)
       Haptics.confirm()
       cardioFinished = result
-    case .failed:
+    case .failed(let reason):
       stopLiveUpdates()
+      cardioError = reason
     }
   }
 

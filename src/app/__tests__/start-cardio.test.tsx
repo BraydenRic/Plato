@@ -1,7 +1,8 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { act, fireEvent, render, screen } from "@testing-library/react-native";
+import { act, fireEvent, render, renderHook, screen } from "@testing-library/react-native";
 
 import StartCardioScreen, { LAST_CARDIO_KEY } from "../start-cardio";
+import { readWatchTrace, resetWatchTrace, useWatchStart } from "@/lib/watch-trace";
 import type { Workout } from "@/types";
 
 /** Picking a session: what, indoors or out, and straight onto its clock. */
@@ -40,9 +41,23 @@ beforeEach(async () => {
   jest.clearAllMocks();
   mockActive = [];
   mockWatchInstalled = false;
+  mockHealth.requestAccess.mockImplementation(async () => {});
   mockHealth.startWatchWorkout.mockImplementation(async () => true);
+  resetWatchTrace();
   await AsyncStorage.clear();
 });
+
+async function startRun() {
+  await mount();
+  await act(async () => {
+    fireEvent.press(screen.getByText("Start outdoor run"));
+  });
+}
+
+/** What the session screen's line under the clock will say. */
+function watchStart() {
+  return renderHook(() => useWatchStart("new-session")).result.current;
+}
 
 async function mount() {
   render(<StartCardioScreen />);
@@ -122,10 +137,47 @@ describe("with a watch", () => {
   });
 
   it("doesn't ask for Health access with no watch to track it", async () => {
-    await mount();
-    await act(async () => {
-      fireEvent.press(screen.getByText("Start outdoor run"));
-    });
+    await startRun();
     expect(mockHealth.requestAccess).not.toHaveBeenCalled();
+    // Nothing to say on the session screen about a watch that isn't there.
+    expect(watchStart()).toBeUndefined();
+    expect((await readWatchTrace()).join("\n")).toMatch(/no watch with Plato/);
+  });
+
+  // The session screen's line under the clock reads this: build 67 woke a
+  // watch that never came back, and the phone said nothing about it.
+  it("records the watch as woken, for the session screen to wait on", async () => {
+    mockWatchInstalled = true;
+    await startRun();
+    expect(watchStart()).toMatchObject({ state: "woken" });
+    expect((await readWatchTrace()).join("\n")).toMatch(/waking the watch for run[\s\S]*watch woken/);
+  });
+
+  it("says so when the watch couldn't be woken", async () => {
+    mockWatchInstalled = true;
+    mockHealth.startWatchWorkout.mockImplementation(async () => false);
+    await startRun();
+    expect(watchStart()).toEqual({ state: "failed", reason: expect.stringMatching(/couldn't be woken/) });
+  });
+
+  it("says why when waking the watch throws", async () => {
+    mockWatchInstalled = true;
+    mockHealth.startWatchWorkout.mockImplementation(async () => {
+      throw new Error("No paired watch");
+    });
+    await startRun();
+    expect(watchStart()).toEqual({ state: "failed", reason: expect.stringMatching(/No paired watch/) });
+    // The session itself still started: it runs on the phone's clock.
+    expect(mockReplace).toHaveBeenCalledWith("/workout/new-session");
+  });
+
+  it("doesn't wake the watch without Health access, and says so", async () => {
+    mockWatchInstalled = true;
+    mockHealth.requestAccess.mockImplementation(async () => {
+      throw new Error("denied");
+    });
+    await startRun();
+    expect(mockHealth.startWatchWorkout).not.toHaveBeenCalled();
+    expect(watchStart()).toEqual({ state: "failed", reason: expect.stringMatching(/Apple Health access/) });
   });
 });

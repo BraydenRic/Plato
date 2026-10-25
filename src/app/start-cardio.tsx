@@ -16,6 +16,7 @@ import { SESSION_KINDS, kindInfo, newCardioSession, placeLabel, sessionTarget, t
 import PlatoHealth from "../../modules/plato-health";
 import PlatoWatch from "../../modules/plato-watch";
 import { createWorkoutLocalFirst, stripUndefined } from "@/lib/data";
+import { setWatchStart, traceWatch } from "@/lib/watch-trace";
 import { MAX_ACTIVE_WORKOUTS } from "@/lib/workout-utils";
 import type { CardioSessionKind, Workout } from "@/types";
 
@@ -26,6 +27,10 @@ import type { CardioSessionKind, Workout } from "@/types";
  */
 const POOL_METRES = 25;
 const POOL_YARDS_IN_METRES = 25 * 0.9144;
+
+function errorText(e: unknown): string {
+  return e instanceof Error ? e.message : String(e);
+}
 
 /** The last kind and place started on this phone, so a runner's next tap is Start. */
 export const LAST_CARDIO_KEY = "plato.cardio.last.v1";
@@ -85,7 +90,7 @@ export default function StartCardioScreen() {
     // Straight onto the clock, with this picker gone from the stack behind it.
     router.replace(`/workout/${id}`);
     saved.catch(() => Alert.alert("Couldn't start", "Check your connection and try again."));
-    void trackOnWatch(session.cardio!);
+    void trackOnWatch(id, session.cardio!);
   }
 
   /**
@@ -94,16 +99,44 @@ export default function StartCardioScreen() {
    * middle of anything. With no watch, or the watch off a wrist, the session
    * just runs on the phone's clock.
    */
-  async function trackOnWatch(cardio: NonNullable<Workout["cardio"]>) {
+  async function trackOnWatch(id: string, cardio: NonNullable<Workout["cardio"]>) {
+    if (!PlatoHealth || !PlatoWatch) {
+      traceWatch("start: no Health or watch module (not an iPhone build)");
+      return;
+    }
+    let installed = false;
     try {
-      if (!PlatoHealth || !PlatoWatch?.isWatchAppInstalled()) return;
+      installed = PlatoWatch.isWatchAppInstalled();
+    } catch (e) {
+      traceWatch(`start: couldn't ask about the watch (${String(e)})`);
+    }
+    if (!installed) {
+      // No watch with Plato on it: nothing to wake, and nothing to say about it.
+      traceWatch("start: no watch with Plato on it — phone clock");
+      return;
+    }
+    setWatchStart(id, { state: "waking", at: Date.now() });
+    traceWatch(`start: waking the watch for ${cardio.kind}`);
+    try {
       await PlatoHealth.requestAccess();
+    } catch (e) {
+      traceWatch(`start: Health access failed (${errorText(e)})`);
+      setWatchStart(id, { state: "failed", reason: "Plato couldn't get Apple Health access, so your watch can't track this." });
+      return;
+    }
+    try {
       // Waking the app proves nothing: the session is marked as tracked on the
       // watch when the watch says it's tracking (its startCardio, in
       // watch-sync), and until then runs on the phone's clock.
-      await PlatoHealth.startWatchWorkout(cardio.kind, !!cardio.indoor, unit === "kg" ? POOL_METRES : POOL_YARDS_IN_METRES);
-    } catch {
-      // No watch to track it; the phone's clock has it.
+      const woken = await PlatoHealth.startWatchWorkout(cardio.kind, !!cardio.indoor, unit === "kg" ? POOL_METRES : POOL_YARDS_IN_METRES);
+      traceWatch(`start: watch ${woken ? "woken" : "not woken"}`);
+      setWatchStart(
+        id,
+        woken ? { state: "woken", at: Date.now() } : { state: "failed", reason: "Your watch couldn't be woken. Is it on your wrist?" }
+      );
+    } catch (e) {
+      traceWatch(`start: waking the watch failed (${errorText(e)})`);
+      setWatchStart(id, { state: "failed", reason: `Your watch couldn't be woken (${errorText(e)}).` });
     }
   }
 

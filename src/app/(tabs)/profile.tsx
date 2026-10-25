@@ -16,6 +16,7 @@ import { REST_OPTIONS, nearestRestIndex, useRestTimer } from "@/context/RestTime
 import { useThemePicker } from "@/context/ThemeContext";
 import { useDefaultSets, MIN_SETS, MAX_SETS } from "@/context/DefaultSetsContext";
 import { useWeightUnit } from "@/context/UnitContext";
+import { readWatchTrace } from "@/lib/watch-trace";
 
 // Short enough to type on a phone with one hand, long enough that you can't
 // produce it by tapping through.
@@ -545,7 +546,12 @@ export default function ProfileScreen() {
             happen out of sight, on the phone, between launches. */}
         <Pressable
           onLongPress={() => {
-            offlineDiagnostics().then((report) => Alert.alert("Offline copy", report));
+            Promise.all([offlineDiagnostics(), readWatchTrace()]).then(([report, trace]) =>
+              Alert.alert(
+                "Diagnostics",
+                `${report}\n\nWatch & cardio:\n${trace.length ? trace.slice(-15).join("\n") : "Nothing yet"}`
+              )
+            );
           }}
           delayLongPress={600}>
           <Text style={styles.version}>

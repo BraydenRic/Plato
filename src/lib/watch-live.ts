@@ -30,13 +30,13 @@ export function useWatchLive(): WatchLive | null {
 /** Older than this and the watch has gone quiet; the phone's own clock takes over. */
 export const LIVE_FRESH_MS = 20_000;
 /** A session the watch didn't name, but started this close to it, is the same one. */
-const SAME_START_MS = 5 * 60 * 1000;
+const SAME_START_MS = 30 * 60 * 1000;
 
 /**
  * Whether a live reading is about this session. By id once the watch knows
  * it, by its start op for one it started, and otherwise — a session started
  * on the phone, the watch woken into it before it heard the id — by kind and
- * a start within a few minutes.
+ * a start within half an hour (the watch can sit on a Health prompt).
  */
 export function liveBelongsTo(live: WatchLive, workout: Workout): boolean {
   if (live.workoutId) return live.workoutId === workout.id;

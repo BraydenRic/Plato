@@ -41,6 +41,7 @@ import { distanceKind } from "@/lib/cardio";
 import { newCardioSession, paused, resumed, sessionTarget } from "@/lib/cardio-session";
 import { curveFromFlat, trackedFromWatch } from "@/lib/cardio-tracking";
 import { setWatchLive } from "@/lib/watch-live";
+import { traceWatch } from "@/lib/watch-trace";
 import { cardioDiscards, isDiscarded, loadCardioDiscards, useCardioDiscards } from "@/lib/cardio-discards";
 import {
   MAX_ACTIVE_WORKOUTS,
@@ -324,10 +325,19 @@ function WatchSyncBridge() {
   useEffect(() => {
     const bridge = PlatoWatch;
     if (!bridge) return;
+    let tracedLive: string | null = null;
     const subscription = bridge.addListener("onLive", ({ json }) => {
       try {
         const live = parseWatchLive(JSON.parse(json));
-        if (live) setWatchLive(live);
+        if (live) {
+          setWatchLive(live);
+          // Once per session: that readings arrive at all is the news.
+          const key = live.workoutId ?? live.startOpId ?? String(live.startedAt);
+          if (tracedLive !== key) {
+            tracedLive = key;
+            traceWatch(`live: first reading (${live.workoutId ? "linked" : "not linked yet"})`);
+          }
+        }
       } catch {
         // A garbled reading is skipped; the next one is seconds away.
       }
@@ -484,7 +494,10 @@ export async function applyWatchOp(op: WatchOp, ctx: WatchSyncContext): Promise<
     case "startCardio": {
       // Here already: a resend, or its finish arrived first and brought it in.
       if (sessionStartedBy(op.opId, ctx)) return;
-      if (isDiscarded({ workoutId: null, startOpId: op.opId, session: op.session, startedAt: op.at })) return;
+      if (isDiscarded({ workoutId: null, startOpId: op.opId, session: op.session, startedAt: op.at })) {
+        traceWatch("watch start: for a discarded session — ignored");
+        return;
+      }
       // The watch is now tracking a session the phone started and woke it
       // for: the same session, not a second one. Marked as tracked there only
       // now, when the watch says so — the phone waking the app proves nothing.
@@ -501,6 +514,7 @@ export async function applyWatchOp(op: WatchOp, ctx: WatchSyncContext): Promise<
         const cardio = { ...fresh.cardio, watch: true, watchStartOpId: op.opId };
         await updateWorkout(fresh.id, stripUndefined({ cardio }) as Partial<Workout>);
         ctx.active = ctx.active.map((w) => (w.id === fresh.id ? { ...w, cardio } : w));
+        traceWatch(`watch start: tracking the phone's ${op.session}`);
         return;
       }
       // At the limit, it waits for its finish, which brings it in regardless —
@@ -515,6 +529,7 @@ export async function applyWatchOp(op: WatchOp, ctx: WatchSyncContext): Promise<
       const { id, saved } = createWorkoutLocalFirst(stripUndefined(session));
       ctx.active = [...ctx.active, { ...session, id }];
       markCurrentWorkout(id);
+      traceWatch(`watch start: new ${op.session} session`);
       await saved;
       return;
     }
@@ -532,7 +547,10 @@ export async function applyWatchOp(op: WatchOp, ctx: WatchSyncContext): Promise<
 
     case "finishCardio": {
       // Thrown away on the phone: whatever the watch measured goes with it.
-      if (isDiscarded(op)) return;
+      if (isDiscarded(op)) {
+        traceWatch("watch finish: for a discarded session — ignored");
+        return;
+      }
       const { exercise } = sessionTarget(op.session, op.indoor);
       const ground = distanceKind(exercise);
       const tracked = trackedFromWatch({
@@ -557,7 +575,11 @@ export async function applyWatchOp(op: WatchOp, ctx: WatchSyncContext): Promise<
       if (!session) {
         // Ended before it got going — seconds, and nowhere — isn't a session
         // worth bringing in on its own.
-        if (op.duration < MIN_SESSION_SECONDS && !distance) return;
+        if (op.duration < MIN_SESSION_SECONDS && !distance) {
+          traceWatch("watch finish: a false start with no session — ignored");
+          return;
+        }
+        traceWatch(`watch finish: no session found — bringing in a new ${op.session}`);
         // Its start never landed — refused at the limit, or lost — so the
         // finish brings the whole session in, finished.
         const fresh = newCardioSession(op.session, op.indoor, {
@@ -584,6 +606,10 @@ export async function applyWatchOp(op: WatchOp, ctx: WatchSyncContext): Promise<
         return;
       }
       if (session.userId !== dataUserId || !session.cardio) return;
+      traceWatch(
+        `watch finish: ${Math.round(op.duration)} s, ${op.distance != null ? `${Math.round(op.distance)} m` : "no distance"}, ` +
+          `${op.curve ? op.curve.length / 2 : 0} points → ${session.completedAt ? "the phone-ended" : "the running"} session`
+      );
 
       // Ended on the phone already: it keeps the moment it was ended there.
       const completedAt = session.completedAt ?? new Date(opTime(op.at, now, session.startedAt?.getTime() ?? 0));
@@ -642,8 +668,13 @@ function sessionStartedBy(startOpId: string, ctx: WatchSyncContext): Workout | u
   return [...ctx.active, ...ctx.completed].find((w) => w.cardio?.watchStartOpId === startOpId);
 }
 
-/** A session started on the phone and this close to the watch's start is the one it woke the watch for. */
-const SAME_START_MS = 5 * 60 * 1000;
+/**
+ * A session started on the phone and this close to the watch's start is the
+ * one it woke the watch for. Generous, because a watch woken in the
+ * background asks for Health access on its own screen, and that can sit
+ * unanswered until someone glances at their wrist.
+ */
+const SAME_START_MS = 30 * 60 * 1000;
 /** Shorter than this, with no distance, a finish with nothing behind it is a false start. */
 const MIN_SESSION_SECONDS = 10;
 

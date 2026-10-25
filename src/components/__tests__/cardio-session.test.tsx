@@ -3,6 +3,7 @@ import { Alert } from "react-native";
 
 import { CardioSession } from "../cardio-session";
 import { EXERCISES } from "@/lib/exercises";
+import { resetWatchTrace, setWatchStart } from "@/lib/watch-trace";
 import type { Workout, WorkoutSet } from "@/types";
 
 /**
@@ -67,6 +68,7 @@ const lastPatch = () => mockUpdate.mock.calls.at(-1)![1];
 
 beforeEach(() => {
   mockLive = null;
+  resetWatchTrace();
   jest.clearAllMocks();
   jest.spyOn(Date, "now").mockReturnValue(T0 + 65_000);
 });
@@ -210,5 +212,45 @@ describe("tracked on the watch", () => {
     // The reading is 65 s old, past fresh: the phone's 1:05 stands.
     expect(screen.getByText("1:05")).toBeTruthy();
     expect(screen.getByText("Your Apple Watch is tracking this")).toBeTruthy();
+  });
+});
+
+// Build 67 woke a watch that asked for Health access and never came back, and
+// the phone said nothing: the session just ran on its clock. Now each step
+// shows under the clock until the watch takes over.
+describe("waking the watch", () => {
+  it("says it's waking the watch", () => {
+    setWatchStart("s1", { state: "waking", at: T0 });
+    show(session("run"));
+    expect(screen.getByText("Waking your watch…")).toBeTruthy();
+  });
+
+  it("waits a little for the watch to start before worrying", () => {
+    setWatchStart("s1", { state: "woken", at: T0 + 30_000 });
+    show(session("run"));
+    expect(screen.getByText("Starting on your watch…")).toBeTruthy();
+  });
+
+  it("points at the watch when it hasn't started tracking", () => {
+    setWatchStart("s1", { state: "woken", at: T0 });
+    show(session("run"));
+    expect(screen.getByText(/Your watch hasn't started tracking/)).toBeTruthy();
+  });
+
+  it("says why the watch couldn't be woken", () => {
+    setWatchStart("s1", { state: "failed", reason: "Your watch couldn't be woken. Is it on your wrist?" });
+    show(session("run"));
+    expect(screen.getByText("Your watch couldn't be woken. Is it on your wrist?")).toBeTruthy();
+  });
+
+  it("goes quiet once the watch is tracking", () => {
+    setWatchStart("s1", { state: "woken", at: T0 });
+    show(session("run", { cardio: { kind: "run", indoor: false, watch: true } }));
+    expect(screen.queryByText(/Your watch hasn't started/)).toBeNull();
+  });
+
+  it("says nothing for a session with no watch to wake", () => {
+    show(session("run"));
+    expect(screen.queryByText(/watch/i)).toBeNull();
   });
 });

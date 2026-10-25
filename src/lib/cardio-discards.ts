@@ -88,7 +88,7 @@ export function useCardioDiscards(): readonly Discard[] {
 }
 
 /** A session discarded before the watch's start reached the phone is matched this close to it. */
-const SAME_START_MS = 5 * 60 * 1000;
+const SAME_START_MS = 30 * 60 * 1000;
 
 /** Whether an op from the watch is about a session thrown away here. */
 export function isDiscarded(ref: {

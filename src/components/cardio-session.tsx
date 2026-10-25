@@ -30,6 +30,7 @@ import {
 import { recordCardioDiscard } from "@/lib/cardio-discards";
 import { computeStats, deleteWorkout, getCompletedWorkouts, stripUndefined, updateWorkout, upsertUserStats } from "@/lib/data";
 import { liveFor, useWatchLive } from "@/lib/watch-live";
+import { useWatchStart } from "@/lib/watch-trace";
 import { formatClock } from "@/lib/workout-utils";
 import type { Workout } from "@/types";
 
@@ -236,7 +237,11 @@ export function CardioSession({
                   {isPausedNow ? "Paused" : "Moving time"}
                 </Text>
               </View>
-              {onWatch && <WatchFigures workout={workout} live={live} seconds={seconds} />}
+              {onWatch ? (
+                <WatchFigures workout={workout} live={live} seconds={seconds} />
+              ) : (
+                <WatchStartLine sessionId={workout.id} nowMs={nowMs} />
+              )}
             </View>
 
             {onWatch && (
@@ -336,6 +341,39 @@ function WatchFigures({
           {live ? "Tracking on your Apple Watch" : "Your Apple Watch is tracking this"}
         </Text>
       </View>
+    </View>
+  );
+}
+
+/** How long a woken watch gets to say it's tracking before the line says it hasn't. */
+const WATCH_START_PATIENCE_MS = 45_000;
+
+/**
+ * While the phone waits for the watch to take over: what's happening, in one
+ * quiet line under the clock. A watch woken in the background asks for Health
+ * access on its own screen, which is easy to miss — so if it hasn't started
+ * tracking after a while, this says where to look rather than leaving the
+ * session to run on the phone's clock without a word.
+ */
+function WatchStartLine({ sessionId, nowMs }: { sessionId: string; nowMs: number }) {
+  const styles = useStyles();
+  const palette = usePalette();
+  const start = useWatchStart(sessionId);
+  if (!start) return null;
+  const text =
+    start.state === "failed"
+      ? start.reason
+      : start.state === "waking"
+        ? "Waking your watch…"
+        : nowMs - start.at < WATCH_START_PATIENCE_MS
+          ? "Starting on your watch…"
+          : "Your watch hasn't started tracking. Check it: it may be asking to allow Apple Health.";
+  return (
+    <View style={[styles.watchStatus, styles.watchStartLine]}>
+      <Ionicons name="watch-outline" size={14} color={palette.textTertiary} />
+      <Text style={[styles.watchStatusText, styles.watchStartText]} maxFontSizeMultiplier={FontScaleCap.grid}>
+        {text}
+      </Text>
     </View>
   );
 }
@@ -583,6 +621,14 @@ const useStyles = makeStyles((c) => ({
     fontSize: 12,
     fontWeight: "600",
     color: c.textTertiary,
+  },
+  watchStartLine: {
+    marginTop: Spacing.four,
+    paddingHorizontal: Spacing.four,
+  },
+  watchStartText: {
+    flexShrink: 1,
+    textAlign: "center",
   },
   watchHint: {
     fontSize: 12,

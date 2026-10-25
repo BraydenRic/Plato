@@ -52,6 +52,8 @@ struct RootView: View {
   private var content: some View {
     if let result = store.cardioFinished {
       CardioFinishedView(result: result)
+    } else if let message = store.cardioError {
+      CardioErrorView(message: message)
     } else if tracker.isActive {
       CardioLiveView()
     } else if let summary = store.finished {

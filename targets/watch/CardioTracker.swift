@@ -56,7 +56,7 @@ final class CardioTracker: NSObject, ObservableObject, HKWorkoutSessionDelegate,
     /// Thrown away: ended, and nothing kept.
     case discarded
     /// It never got going: Health said no, or the sensors couldn't start.
-    case failed
+    case failed(String)
   }
 
   @Published private(set) var state: State = .idle
@@ -160,18 +160,18 @@ final class CardioTracker: NSObject, ObservableObject, HKWorkoutSessionDelegate,
       // access — never reaches the phone as a run.
       startedAt = start
       session.startActivity(with: start)
-      builder.beginCollection(withStart: start) { [weak self] began, _ in
+      builder.beginCollection(withStart: start) { [weak self] began, error in
         guard !began else { return }
         DispatchQueue.main.async {
           guard let self, !self.confirmed, self.state == .starting else { return }
           session.end()
           self.reset()
-          self.onEvent?(.failed)
+          self.onEvent?(.failed(Self.reason(error)))
         }
       }
     } catch {
       reset()
-      onEvent?(.failed)
+      onEvent?(.failed(Self.reason(error)))
     }
   }
 
@@ -276,7 +276,7 @@ final class CardioTracker: NSObject, ObservableObject, HKWorkoutSessionDelegate,
         self.finish(at: Date())
       } else if self.state != .idle {
         self.reset()
-        self.onEvent?(.failed)
+        self.onEvent?(.failed(Self.reason(error)))
       }
     }
   }
@@ -389,6 +389,16 @@ final class CardioTracker: NSObject, ObservableObject, HKWorkoutSessionDelegate,
   private func loadIdentity() -> TrackerIdentity? {
     guard let data = UserDefaults.standard.data(forKey: identityKey) else { return nil }
     return try? JSONDecoder().decode(TrackerIdentity.self, from: data)
+  }
+
+  /// What to tell someone when tracking couldn't start. Almost always Health
+  /// access, which they can fix; HealthKit's own words otherwise.
+  static func reason(_ error: Error?) -> String {
+    let text = error?.localizedDescription ?? ""
+    if text.localizedCaseInsensitiveContains("authoriz") || text.localizedCaseInsensitiveContains("not determined") {
+      return "Allow Plato in the Health app on your iPhone, then try again."
+    }
+    return text.isEmpty ? "Your watch couldn't start tracking." : text
   }
 
   // MARK: HealthKit mapping
