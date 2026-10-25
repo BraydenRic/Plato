@@ -8,6 +8,6 @@ SWIFTC="${SWIFTC:-swiftc}"
 out="$(mktemp -d)"
 trap 'rm -rf "$out"' EXIT
 "$SWIFTC" -swift-version 5 -warnings-as-errors \
-  targets/watch/Models.swift targets/watch/Logbook.swift scripts/watch-logic-tests/main.swift \
+  targets/watch/Models.swift targets/watch/Logbook.swift targets/watch/CardioMath.swift scripts/watch-logic-tests/main.swift \
   -o "$out/watch-logic-tests"
 "$out/watch-logic-tests" src/lib/__tests__/fixtures "$@"

@@ -28,6 +28,14 @@ final class PhoneLink: NSObject, WCSessionDelegate {
     }, errorHandler: { _ in })
   }
 
+  /// A tracked session's live numbers, while the phone is in reach. Not an
+  /// op: nothing to store, nothing to retry — the next one is seconds away.
+  func sendLive(_ json: String) {
+    let session = WCSession.default
+    guard session.activationState == .activated, session.isReachable else { return }
+    session.sendMessage(["kind": "live", "live": json], replyHandler: nil, errorHandler: { _ in })
+  }
+
   /// Sends one op. `completion(true)` once the phone has it on disk, or once
   /// the system has queued it for delivery — which survives this app closing.
   ///

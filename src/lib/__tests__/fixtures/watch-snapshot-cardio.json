@@ -1,0 +1,48 @@
+{
+  "v": 1,
+  "sentAt": 1792780200000,
+  "account": "signedIn",
+  "unit": "lbs",
+  "restSeconds": 90,
+  "restEndsAt": null,
+  "accent": "#8b5cf6",
+  "onAccent": "#ffffff",
+  "workout": {
+    "id": "w-run",
+    "name": "Outdoor Run",
+    "startedAt": 1792779000000,
+    "exercises": [
+      {
+        "id": "we-run",
+        "name": "Running",
+        "kind": "timed",
+        "sets": [
+          {
+            "id": "r1",
+            "done": false,
+            "weight": null,
+            "reps": null,
+            "duration": null,
+            "lastWeight": null,
+            "lastReps": null,
+            "lastDuration": null
+          }
+        ]
+      }
+    ],
+    "cardio": {
+      "kind": "run",
+      "indoor": false,
+      "pausedAtMs": 1792779000000,
+      "pausedSeconds": 30,
+      "watch": true,
+      "startOpId": "start-1"
+    }
+  },
+  "templates": [],
+  "applied": [],
+  "endedCardio": [
+    "w-old",
+    "start-0"
+  ]
+}

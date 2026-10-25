@@ -7,6 +7,11 @@ struct TemplatesView: View {
   var body: some View {
     NavigationStack {
       List {
+        // First, so a run is one tap in from opening the app.
+        NavigationLink(value: CardioRoute.picker) {
+          Label("Cardio", systemImage: "figure.run")
+            .font(.headline)
+        }
         if templates.isEmpty {
           Text("Save a template in Plato on your iPhone and it will show up here.")
             .font(.footnote)
@@ -37,6 +42,12 @@ struct TemplatesView: View {
       .navigationTitle("Start")
       .navigationDestination(for: WatchTemplate.self) { template in
         TemplateDetailView(template: template)
+      }
+      .navigationDestination(for: CardioRoute.self) { route in
+        switch route {
+        case .picker: CardioPickerView()
+        case .kind(let kind): CardioStartView(kind: kind)
+        }
       }
     }
   }

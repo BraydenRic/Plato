@@ -27,7 +27,9 @@ enum Logbook {
     guard var result = workout else { return nil }
     for op in ops where op.workoutId == result.id {
       switch op.kind {
-      case .finish:
+      case .finish, .finishCardio:
+        // Ended here and not yet heard back about: already gone, as far as
+        // this watch is concerned.
         return nil
       case .logSet, .undoSet, .addSet:
         guard let exerciseId = op.exerciseId, let setId = op.setId,
@@ -51,7 +53,7 @@ enum Logbook {
           }
         }
         result.exercises[e] = exercise
-      case .startTemplate, .extendRest, .endRest:
+      case .startTemplate, .extendRest, .endRest, .startCardio, .pauseCardio, .resumeCardio:
         continue
       }
     }

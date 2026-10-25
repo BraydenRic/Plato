@@ -1,5 +1,5 @@
-// Tests for the watch app's pure logic (targets/watch/Models.swift and
-// Logbook.swift), runnable on any machine with a Swift toolchain — no Mac or
+// Tests for the watch app's pure logic (targets/watch/Models.swift,
+// Logbook.swift and CardioMath.swift), runnable on any machine with a Swift toolchain — no Mac or
 // simulator needed. See run.sh. The SwiftUI and WatchConnectivity code can't
 // be built this way; only Xcode compiles that.
 //
@@ -125,6 +125,58 @@ check(bw.isEmpty, "deleting everything clears the sign too")
 // Dates.
 check(Date(ms: 1792780200000).ms == 1792780200000, "ms round-trips")
 
+// ── A snapshot with a cardio session in it ──────────────────────────────────
+let cardioData = try! Data(contentsOf: URL(fileURLWithPath: fixtureDir + "/watch-snapshot-cardio.json"))
+if let cardioSnapshot = try? JSONDecoder().decode(WatchSnapshot.self, from: cardioData) {
+  let c = cardioSnapshot.workout?.cardio
+  check(c?.kind == "run" && c?.indoor == false && c?.watch == true && c?.startOpId == "start-1", "decodes a session's cardio")
+  check(c?.pausedAtMs == 1792779000000 && c?.pausedSeconds == 30, "decodes a session's pause")
+  check(cardioSnapshot.endedCardio == ["w-old", "start-0"], "decodes sessions ended on the phone")
+} else {
+  check(false, "decodes the cardio snapshot")
+}
+check(snapshot.workout?.cardio == nil && snapshot.endedCardio == [], "an ordinary workout has no cardio")
+
+// ── Cardio ───────────────────────────────────────────────────────────────────
+// The names are the contract with src/lib/cardio-session.ts.
+check(CardioKind.allCases.map { $0.name(indoor: false) } == [
+  "Outdoor Run", "Outdoor Walk", "Hike", "Outdoor Cycle", "Open Water Swim", "Indoor Row", "Elliptical", "Stair Stepper",
+], "outdoor names match the phone's")
+check(CardioKind.allCases.map { $0.name(indoor: true) } == [
+  "Indoor Run", "Indoor Walk", "Hike", "Indoor Cycle", "Pool Swim", "Indoor Row", "Elliptical", "Stair Stepper",
+], "indoor names match the phone's")
+check(CardioKind.row.places == [true] && CardioKind.swim.places == [true, false], "places, the usual first")
+
+var curve = CurveRecorder()
+curve.record(metres: 5, seconds: 2)
+check(curve.metres == [0], "a few metres isn't a new point")
+// One km at 4:00, then one at 5:00, read every 100 m.
+for i in 1...10 { curve.record(metres: Double(i) * 100, seconds: Double(i) * 24) }
+for i in 1...10 { curve.record(metres: 1000 + Double(i) * 100, seconds: 240 + Double(i) * 30) }
+check(curve.splits(unitMetres: 1000) == [240, 300], "live splits match the phone's")
+check(curve.splits(unitMetres: 500) == [120, 120, 150, 150], "a long stretch can cross more than one split")
+curve.record(metres: 2100, seconds: 10)
+check(curve.lastSeconds == 540, "time never runs backwards")
+curve.close(metres: 2104, seconds: 545)
+check(curve.lastMetres == 2104 && curve.lastSeconds == 545, "closing adds the true total, however close")
+curve.close(metres: 2104, seconds: 600)
+check(curve.metres.count == 23, "closing twice adds nothing")
+var long = CurveRecorder()
+for i in 1...3000 { long.record(metres: Double(i) * 10, seconds: Double(i) * 3) }
+let thinned = long.flat(limit: 1500)
+check(thinned.count / 2 <= 1500, "thinned to the limit")
+check(thinned[0] == 0 && thinned[thinned.count - 2] == 30000 && thinned[thinned.count - 1] == 9000, "first and last kept")
+check(CurveRecorder().flat() == [0, 0], "an empty record is just the start")
+
+check(CardioFormat.distance(3.1 * CardioFormat.mile, kind: .run, weightUnit: "lbs") == "3.10", "miles to two places")
+check(CardioFormat.distance(5000, kind: .run, weightUnit: "kg") == "5.00", "kilometres to two places")
+check(CardioFormat.distance(1000, kind: .swim, weightUnit: "kg") == "1000", "metres in the pool, whole")
+check(CardioFormat.rate(metres: 5000, seconds: 1500, kind: .run, weightUnit: "kg") == "5:00 /KM", "pace per km")
+check(CardioFormat.rate(metres: 5000, seconds: 1500, kind: .run, weightUnit: "lbs") == "8:03 /MI", "pace per mile, as the phone says it")
+check(CardioFormat.rate(metres: 10 * CardioFormat.mile, seconds: 3600, kind: .bike, weightUnit: "lbs") == "10.0 MPH", "speed on a bike")
+check(CardioFormat.rate(metres: 1000, seconds: 1200, kind: .swim, weightUnit: "kg") == "2:00 /100M", "pace per 100 in the pool")
+check(CardioFormat.rate(metres: 5, seconds: 60, kind: .run, weightUnit: "kg") == nil, "no pace from a few metres")
+
 // ── Encode ops for the TypeScript side to parse ─────────────────────────────
 var ext = WatchOp(kind: .extendRest, at: 1792780210000, workoutId: workout.id); ext.seconds = 15
 var start = WatchOp(kind: .startTemplate, at: 1792780210000); start.templateId = "t-push"
@@ -133,8 +185,17 @@ timed.duration = 60; timed.unit = "lbs"
 var logged = log
 logged = WatchOp(kind: .logSet, at: 1792780210000, workoutId: workout.id, exerciseId: bench.id, setId: "s2")
 logged.weight = 182.5; logged.reps = 5; logged.unit = "lbs"
+var cardioStart = WatchOp(kind: .startCardio, at: 1792780210000)
+cardioStart.session = "run"; cardioStart.indoor = false
+var cardioPause = WatchOp(kind: .pauseCardio, at: 1792780210000)
+cardioPause.startOpId = cardioStart.opId; cardioPause.session = "run"; cardioPause.startedAt = 1792779000000
+var cardioFinish = WatchOp(kind: .finishCardio, at: 1792780210000, workoutId: "w-run")
+cardioFinish.startOpId = cardioStart.opId; cardioFinish.session = "run"; cardioFinish.indoor = false
+cardioFinish.startedAt = 1792779000000; cardioFinish.duration = 1500; cardioFinish.distance = 5000
+cardioFinish.activeCalories = 320; cardioFinish.avgHeartRate = 151; cardioFinish.maxHeartRate = 171
+cardioFinish.healthId = "6F1C3C6A-2D2E-4D7B-9B1A-1E2F3A4B5C6D"; cardioFinish.curve = [0, 0, 2500, 750, 5000, 1500]
 let ops: [WatchOp] = [
-  logged, timed,
+  logged, timed, cardioStart, cardioPause, cardioFinish,
   WatchOp(kind: .undoSet, at: 1792780210000, workoutId: workout.id, exerciseId: bench.id, setId: "s1"),
   WatchOp(kind: .addSet, at: 1792780210000, workoutId: workout.id, exerciseId: bench.id, setId: "B3C1A2E4-1111-4222-8333-944455556666"),
   start,

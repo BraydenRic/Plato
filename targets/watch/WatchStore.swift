@@ -30,6 +30,11 @@ struct FinishedSummary: Equatable {
 /// lists them as applied — so a set shows as logged the moment Done is
 /// tapped, phone in range or not.
 final class WatchStore: ObservableObject {
+  /// One for the app: the phone can wake it in the background to track a
+  /// session before any screen exists, and whatever that session sends has to
+  /// go through the same queue as everything else.
+  static let shared = WatchStore()
+
   @Published private(set) var snapshot: WatchSnapshot?
   @Published private(set) var pending: [PendingOp] = []
   /// The rest deadline (ms) the watch worked out itself, which counts while
@@ -40,8 +45,15 @@ final class WatchStore: ObservableObject {
   @Published private(set) var timedRun: TimedRun?
   /// Bumped when a rest runs out, or the app comes back, so views re-read the clock.
   @Published private(set) var tick = 0
+  /// The "Run saved" screen after a cardio session ends.
+  @Published private(set) var cardioFinished: CardioResult?
 
+  let tracker = CardioTracker.shared
   private let link = PhoneLink()
+  /// The start op for a session begun from the watch's picker, sent once the
+  /// sensors are actually going — a start that fails tells the phone nothing.
+  private var pendingCardioStart: WatchOp?
+  private var liveTimer: Timer?
   private let defaults = UserDefaults.standard
   /// The op being sent right now. One at a time, oldest first, so they reach
   /// the phone in the order they happened.
@@ -63,6 +75,11 @@ final class WatchStore: ObservableObject {
   private let startPatience: TimeInterval = 60
   /// How often a start asks the phone for news while it waits.
   private let startPollInterval: TimeInterval = 2
+  /// How often a tracked session's numbers go to the phone while it's in reach.
+  private let liveInterval: TimeInterval = 5
+  /// A session the phone started, and this close to when the watch began
+  /// tracking, is the one it woke the watch for.
+  private let sameStartMs: Double = 5 * 60 * 1000
   /// An op the phone never confirms is dropped after this, so one lost on the
   /// way can't hold the watch's view of a set forever.
   private let pendingLifetimeMs: Double = 6 * 60 * 60 * 1000
@@ -70,7 +87,7 @@ final class WatchStore: ObservableObject {
   /// suspended mid-send) and tried again.
   private let sendPatience: TimeInterval = 30
 
-  init() {
+  private init() {
     if let json = defaults.string(forKey: Keys.snapshot) {
       snapshot = Self.decodeSnapshot(json)
     }
@@ -84,11 +101,18 @@ final class WatchStore: ObservableObject {
     }
     link.onSnapshot = { [weak self] json in self?.receive(json) }
     link.onReady = { [weak self] in self?.reconnect() }
+    tracker.onEvent = { [weak self] event in self?.handle(event) }
     link.activate()
     scheduleRestTick()
   }
 
   // MARK: What the views read
+
+  /// A cardio session running on the phone that this watch isn't tracking.
+  var phoneSession: WatchWorkout? {
+    guard let workout, workout.cardio != nil, !tracker.isActive else { return nil }
+    return workout
+  }
 
   /// The workout in progress, with this watch's unapplied changes on top.
   var workout: WatchWorkout? {
@@ -230,6 +254,125 @@ final class WatchStore: ObservableObject {
     finished = nil
   }
 
+  // MARK: Cardio
+
+  /// From the picker: track it here, and tell the phone once it's going.
+  func startCardio(_ kind: CardioKind, indoor: Bool) {
+    var op = WatchOp(kind: .startCardio, at: Date().ms)
+    op.session = kind.rawValue
+    op.indoor = indoor
+    pendingCardioStart = op
+    tracker.start(kind: kind, indoor: indoor, startOpId: op.opId)
+  }
+
+  /// A session already running on the phone: track the rest of it here.
+  func trackHere(_ workout: WatchWorkout) {
+    guard let cardio = workout.cardio, let kind = CardioKind(rawValue: cardio.kind) else { return }
+    tracker.start(kind: kind, indoor: cardio.indoor, startOpId: nil, linkTo: workout.id)
+  }
+
+  func dismissCardioFinished() {
+    cardioFinished = nil
+  }
+
+  private func handle(_ event: CardioTracker.Event) {
+    switch event {
+    case .started:
+      if var op = pendingCardioStart, op.opId == tracker.startOpId {
+        if let started = tracker.startedAt { op = op.withTime(started.ms) }
+        enqueue(op)
+      }
+      pendingCardioStart = nil
+      startLiveUpdates()
+    case .paused(let date):
+      enqueue(cardioOp(.pauseCardio, at: date.ms))
+      sendLive()
+    case .resumed(let date):
+      enqueue(cardioOp(.resumeCardio, at: date.ms))
+      sendLive()
+    case .finished(let result):
+      stopLiveUpdates()
+      var op = WatchOp(kind: .finishCardio, at: Date().ms, workoutId: result.workoutId)
+      op.startOpId = result.startOpId
+      op.session = result.kind.rawValue
+      op.indoor = result.indoor
+      op.startedAt = result.startedAt.ms
+      op.duration = result.duration
+      op.distance = result.distance
+      op.activeCalories = result.activeCalories
+      op.avgHeartRate = result.avgHeartRate
+      op.maxHeartRate = result.maxHeartRate
+      op.healthId = result.healthId
+      op.curve = result.curve.isEmpty ? nil : result.curve
+      enqueue(op)
+      Haptics.confirm()
+      cardioFinished = result
+    case .failed:
+      pendingCardioStart = nil
+      stopLiveUpdates()
+    }
+  }
+
+  /// A pause or resume, saying which session in every way the watch knows.
+  private func cardioOp(_ kind: WatchOp.Kind, at: Double) -> WatchOp {
+    var op = WatchOp(kind: kind, at: at, workoutId: tracker.workoutId)
+    op.startOpId = tracker.startOpId
+    op.session = tracker.kind.rawValue
+    op.startedAt = tracker.startedAt?.ms
+    return op
+  }
+
+  private func startLiveUpdates() {
+    liveTimer?.invalidate()
+    sendLive()
+    let timer = Timer(timeInterval: liveInterval, repeats: true) { [weak self] _ in self?.sendLive() }
+    RunLoop.main.add(timer, forMode: .common)
+    liveTimer = timer
+  }
+
+  private func stopLiveUpdates() {
+    liveTimer?.invalidate()
+    liveTimer = nil
+  }
+
+  private func sendLive() {
+    guard tracker.isActive, let started = tracker.startedAt else { return }
+    var live: [String: Any] = [
+      "kind": tracker.kind.rawValue,
+      "startedAt": started.ms,
+      "elapsed": tracker.elapsed(at: Date()),
+      "paused": tracker.state == .paused,
+      "at": Date().ms,
+    ]
+    if let id = tracker.workoutId { live["workoutId"] = id }
+    if let op = tracker.startOpId { live["startOpId"] = op }
+    if tracker.kind.tracksDistance { live["distance"] = tracker.distance }
+    if let bpm = tracker.heartRate { live["heartRate"] = bpm }
+    guard let data = try? JSONSerialization.data(withJSONObject: live),
+          let json = String(data: data, encoding: .utf8) else { return }
+    link.sendLive(json)
+  }
+
+  /// What a snapshot says about the session this watch is tracking: which of
+  /// the phone's sessions it is, and whether it was ended over there.
+  private func reconcileCardio(with next: WatchSnapshot) {
+    guard tracker.isActive else { return }
+    if tracker.workoutId == nil, let workout = next.workout, let cardio = workout.cardio {
+      if let mine = tracker.startOpId, cardio.startOpId == mine {
+        tracker.link(to: workout.id)
+      } else if tracker.fromPhone, cardio.kind == tracker.kind.rawValue, let started = tracker.startedAt,
+                abs(workout.startedAt - started.ms) < sameStartMs {
+        tracker.link(to: workout.id)
+      }
+    }
+    let ended = Set(next.endedCardio ?? [])
+    if let id = tracker.workoutId, ended.contains(id) {
+      tracker.end()
+    } else if let op = tracker.startOpId, ended.contains(op) {
+      tracker.end()
+    }
+  }
+
   /// The app came back to the screen: catch up on anything missed meanwhile.
   func refresh() {
     if let current = sending, Date().timeIntervalSince(current.since) > sendPatience {
@@ -306,6 +449,7 @@ final class WatchStore: ObservableObject {
       stopWaitingForStart()
       start = nil
     }
+    reconcileCardio(with: next)
     if let run = timedRun, !workoutHasSet(run.setId) {
       setTimedRun(nil)
     }

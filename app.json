@@ -14,8 +14,8 @@
       "usesAppleSignIn": true,
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
-        "NSHealthShareUsageDescription": "Plato reads the runs, walks, rides and other cardio your Apple Watch records, so they show up in your history next to your lifts.",
-        "NSHealthUpdateUsageDescription": "Plato never writes to Apple Health. It only reads the cardio workouts you choose to share."
+        "NSHealthShareUsageDescription": "Plato reads the heart rate, energy and distance your Apple Watch records during cardio you start in Plato, to show them as you go and in your history.",
+        "NSHealthUpdateUsageDescription": "Plato saves the cardio sessions your Apple Watch tracks to Apple Health, so they count toward your Activity rings."
       },
       "entitlements": {
         "com.apple.developer.healthkit": true,

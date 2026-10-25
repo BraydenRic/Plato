@@ -23,7 +23,14 @@ module.exports = () => ({
   // double tap's handGestureShortcut, so it needs no version fencing.
   deploymentTarget: "11.0",
   icon: "../../assets/watch/icon.png",
-  frameworks: ["SwiftUI", "WatchConnectivity"],
+  frameworks: ["SwiftUI", "WatchConnectivity", "HealthKit"],
+  // Tracking cardio sessions: a workout session, and saving it to Health.
+  // EAS turns this into the HealthKit capability on the watch's App ID — run
+  // `eas credentials` (iOS → production → All) once after adding it.
+  entitlements: {
+    "com.apple.developer.healthkit": true,
+    "com.apple.developer.healthkit.access": [],
+  },
   images: {
     logo: "../../assets/images/splash-icon.png",
   },

@@ -1,14 +1,35 @@
+import HealthKit
 import SwiftUI
+import WatchKit
 
 @main
 struct PlatoWatchApp: App {
-  @StateObject private var store = WatchStore()
+  @WKApplicationDelegateAdaptor(WatchAppDelegate.self) private var delegate
+  @StateObject private var store = WatchStore.shared
+  @StateObject private var tracker = CardioTracker.shared
 
   var body: some Scene {
     WindowGroup {
       RootView()
         .environmentObject(store)
+        .environmentObject(tracker)
     }
+  }
+}
+
+/// The two ways the system starts this app for a session rather than for a
+/// person tapping it: the phone starting a session and waking the watch to
+/// track it, and a relaunch while one was already running.
+final class WatchAppDelegate: NSObject, WKApplicationDelegate {
+  func handle(_ workoutConfiguration: HKWorkoutConfiguration) {
+    // Made first, so the session's ops have a queue to go into.
+    _ = WatchStore.shared
+    CardioTracker.shared.startFromPhone(workoutConfiguration)
+  }
+
+  func handleActiveWorkoutRecovery() {
+    _ = WatchStore.shared
+    CardioTracker.shared.recover()
   }
 }
 
@@ -16,6 +37,7 @@ struct PlatoWatchApp: App {
 /// starting, templates to start, or the phone still to be set up.
 struct RootView: View {
   @EnvironmentObject private var store: WatchStore
+  @EnvironmentObject private var tracker: CardioTracker
   @Environment(\.scenePhase) private var scenePhase
 
   var body: some View {
@@ -28,8 +50,14 @@ struct RootView: View {
 
   @ViewBuilder
   private var content: some View {
-    if let summary = store.finished {
+    if let result = store.cardioFinished {
+      CardioFinishedView(result: result)
+    } else if tracker.isActive {
+      CardioLiveView()
+    } else if let summary = store.finished {
       FinishedView(summary: summary)
+    } else if let session = store.phoneSession {
+      PhoneSessionView(workout: session)
     } else if let workout = store.workout {
       LoggerView(workout: workout)
     } else if let request = store.start {

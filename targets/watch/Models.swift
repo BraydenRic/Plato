@@ -43,6 +43,23 @@ struct WatchWorkout: Codable, Identifiable, Equatable {
   /// ms since epoch
   let startedAt: Double
   var exercises: [WatchExercise]
+  /// Set when it's a cardio session, which gets its own screen. Absent from
+  /// phones older than sessions, which reads as nil.
+  var cardio: WatchCardio? = nil
+}
+
+/// A cardio session, as far as the watch needs to know it.
+struct WatchCardio: Codable, Equatable {
+  /// A CardioKind's raw value.
+  let kind: String
+  let indoor: Bool
+  /// ms since epoch, while paused; nil while moving.
+  let pausedAtMs: Double?
+  let pausedSeconds: Double
+  /// A watch is tracking it.
+  let watch: Bool
+  /// The watch's start op, when the watch started it.
+  let startOpId: String?
 }
 
 struct WatchTemplate: Codable, Identifiable, Equatable, Hashable {
@@ -69,6 +86,9 @@ struct WatchSnapshot: Codable, Equatable {
   let workout: WatchWorkout?
   let templates: [WatchTemplate]
   let applied: [String]
+  /// Sessions ended on the phone that a watch may still be tracking — ids
+  /// and watch start op ids. Absent from older phones.
+  var endedCardio: [String]? = nil
 
   var isSignedIn: Bool { account == "signedIn" }
 }
@@ -77,9 +97,10 @@ struct WatchSnapshot: Codable, Equatable {
 struct WatchOp: Codable, Identifiable, Equatable {
   enum Kind: String, Codable {
     case logSet, undoSet, addSet, startTemplate, finish, extendRest, endRest
+    case startCardio, pauseCardio, resumeCardio, finishCardio
   }
 
-  let opId: String
+  private(set) var opId: String
   let kind: Kind
   /// ms since epoch
   let at: Double
@@ -89,11 +110,38 @@ struct WatchOp: Codable, Identifiable, Equatable {
   var templateId: String?
   var weight: Double?
   var reps: Int?
+  /// Seconds: a timed set's stopwatch, or a finished session's moving time.
   var duration: Int?
   var unit: String?
   var seconds: Int?
+  // Cardio sessions (see src/lib/watch-protocol.ts).
+  /// A CardioKind's raw value.
+  var session: String?
+  var indoor: Bool?
+  /// The session's start op, for one the watch started.
+  var startOpId: String?
+  /// ms since epoch
+  var startedAt: Double?
+  /// Metres.
+  var distance: Double?
+  var activeCalories: Double?
+  var avgHeartRate: Double?
+  var maxHeartRate: Double?
+  /// The workout saved to Apple Health.
+  var healthId: String?
+  /// Metres and moving seconds, alternating.
+  var curve: [Double]?
 
   var id: String { opId }
+
+  /// The same op, said to have happened at `at` instead.
+  func withTime(_ at: Double) -> WatchOp {
+    var copy = WatchOp(kind: kind, at: at, workoutId: workoutId, exerciseId: exerciseId, setId: setId)
+    copy.opId = opId
+    copy.session = session
+    copy.indoor = indoor
+    return copy
+  }
 
   init(kind: Kind, at: Double, workoutId: String? = nil, exerciseId: String? = nil, setId: String? = nil) {
     self.opId = UUID().uuidString

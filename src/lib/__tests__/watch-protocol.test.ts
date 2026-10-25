@@ -1,5 +1,6 @@
 import snapshotFixture from "./fixtures/watch-snapshot.json";
 import opsFixture from "./fixtures/watch-ops.json";
+import cardioSnapshotFixture from "./fixtures/watch-snapshot-cardio.json";
 import {
   applySetOp,
   bankRunningTimer,
@@ -126,6 +127,22 @@ function snapshot(overrides: Partial<Parameters<typeof buildWatchSnapshot>[0]> =
 describe("buildWatchSnapshot", () => {
   it("matches the fixture the watch's models are checked against", () => {
     expect(JSON.parse(JSON.stringify(snapshot()))).toEqual(snapshotFixture);
+  });
+
+  // The same check for a session, whose `cardio` the watch decodes too.
+  it("matches the cardio fixture the watch's models are checked against", () => {
+    const run: Workout = {
+      id: "w-run",
+      userId: "u1",
+      name: "Outdoor Run",
+      isTemplate: false,
+      createdAt: new Date(1792779000000),
+      startedAt: new Date(1792779000000),
+      cardio: { kind: "run", pausedAtMs: 1792779000000, pausedSeconds: 30, watch: true, watchStartOpId: "start-1" },
+      exercises: [workoutExercise("we-run", exercise("running", "Running", { category: "Cardio" }), [set("r1")])],
+    };
+    const built = snapshot({ workout: run, templates: [], completed: [], rest: null, applied: [], endedCardio: ["w-old", "start-0"] });
+    expect(JSON.parse(JSON.stringify(built))).toEqual(cardioSnapshotFixture);
   });
 
   it("carries nothing of the account once signed out", () => {

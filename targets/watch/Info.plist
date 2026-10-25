@@ -25,6 +25,14 @@
 		<string>UIInterfaceOrientationPortrait</string>
 		<string>UIInterfaceOrientationPortraitUpsideDown</string>
 	</array>
+	<key>NSHealthShareUsageDescription</key>
+	<string>Plato reads the heart rate, energy and distance your watch records during cardio you start in Plato, to show them as you go and in your history.</string>
+	<key>NSHealthUpdateUsageDescription</key>
+	<string>Plato saves the cardio sessions it tracks to Apple Health, so they count toward your Activity rings.</string>
+	<key>WKBackgroundModes</key>
+	<array>
+		<string>workout-processing</string>
+	</array>
 	<key>WKApplication</key>
 	<true/>
 	<key>WKCompanionAppBundleIdentifier</key>
