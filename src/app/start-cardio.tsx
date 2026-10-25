@@ -54,6 +54,13 @@ async function settledWithin(promise: Promise<unknown>, ms: number): Promise<boo
   }
 }
 
+/**
+ * What the session screen says when the watch didn't wake. iOS's own words —
+ * "The operation couldn't be completed. Unable to open URLs…" for a locked
+ * watch — say nothing anyone can act on; they go in the diagnostics trace.
+ */
+export const WATCH_DIDNT_WAKE = "Your watch didn't wake — it may be locked or off your wrist. Your iPhone is timing this.";
+
 /** Whether a watch will be woken for the session, or why it can't be. */
 type WatchAccess = "none" | "granted" | { refused: string };
 
@@ -191,13 +198,10 @@ export default function StartCardioScreen() {
       // watch-sync), and until then runs on the phone's clock.
       const woken = await PlatoHealth.startWatchWorkout(cardio.kind, !!cardio.indoor, unit === "kg" ? POOL_METRES : POOL_YARDS_IN_METRES);
       traceWatch(`start: watch ${woken ? "woken" : "not woken"}`);
-      setWatchStart(
-        id,
-        woken ? { state: "woken", at: Date.now() } : { state: "failed", reason: "Your watch couldn't be woken. Is it on your wrist?" }
-      );
+      setWatchStart(id, woken ? { state: "woken", at: Date.now() } : { state: "failed", reason: WATCH_DIDNT_WAKE });
     } catch (e) {
       traceWatch(`start: waking the watch failed (${errorText(e)})`);
-      setWatchStart(id, { state: "failed", reason: `Your watch couldn't be woken (${errorText(e)}).` });
+      setWatchStart(id, { state: "failed", reason: WATCH_DIDNT_WAKE });
     }
   }
 

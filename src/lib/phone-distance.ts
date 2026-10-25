@@ -84,5 +84,23 @@ export function withLead(curve: Curve, metres: number, seconds: number): Curve {
   };
 }
 
-/** Less than this and nothing was really counted: a phone left on a bench, not a walk. */
-export const MIN_PHONE_METRES = 20;
+/**
+ * The curve brought up to `total` metres. The step counter files its
+ * minute-by-minute history a little behind its live count, so at the end of
+ * a session the last minute or two can come back short. A small shortfall is
+ * put where it belongs, at the end; a big one — the history mostly missing —
+ * is spread over the whole curve, so no single minute gets a burst of speed
+ * that would turn up in the splits.
+ */
+export function matchTotal(curve: Curve, total: number): Curve {
+  const counted = curve.metres[curve.metres.length - 1] ?? 0;
+  if (counted <= 0 || total <= counted) return curve;
+  if (total - counted <= total * 0.15) {
+    return { metres: [...curve.metres.slice(0, -1), total], seconds: curve.seconds };
+  }
+  const factor = total / counted;
+  return { metres: curve.metres.map((m) => m * factor), seconds: curve.seconds };
+}
+
+/** Less than this and nothing was really counted — the phone set down, not a walk. Saved without a distance. */
+export const MIN_PHONE_METRES = 10;

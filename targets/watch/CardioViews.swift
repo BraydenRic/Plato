@@ -118,7 +118,7 @@ struct CardioMetricsPage: View {
             value: CardioFormat.distance(tracker.distance, kind: tracker.kind, weightUnit: store.unit),
             unit: CardioFormat.unitLabel(kind: tracker.kind, weightUnit: store.unit)
           )
-          CardioPaceFigure()
+          CardioPaceFigure(elapsed: elapsed)
         }
         HStack(spacing: 4) {
           Image(systemName: "heart.fill")
@@ -170,26 +170,35 @@ private struct CardioFigure: View {
 /// Average pace (speed, on a bike), moved every few seconds. Worked out every
 /// second from a distance that arrives in jumps and a clock that ticks, it
 /// twitched — the same as on the phone, which moves it at the same pace.
+///
+/// Moved when the session's moving time crosses each 5-second mark. Build 69
+/// used a 5-second TimelineView instead, but it sat inside the page's
+/// 1-second one, so its schedule began again every second and the pace
+/// still moved every second. The moving time can't be reset by a redraw,
+/// and it stands still while paused — as the average pace should.
 private struct CardioPaceFigure: View {
   @EnvironmentObject private var store: WatchStore
   @EnvironmentObject private var tracker: CardioTracker
+  /// The session's moving seconds now, from the page's clock.
+  let elapsed: Double
   @State private var shown: String?
 
   var body: some View {
-    TimelineView(.periodic(from: .now, by: 5)) { context in
-      let parts = CardioFormat.rateParts(shown, kind: tracker.kind, weightUnit: store.unit)
-      CardioFigure(value: parts.value, unit: parts.unit)
-        .onChange(of: context.date) { _, date in shown = current(at: date) }
-    }
-    .onAppear { shown = current(at: Date()) }
-    // The first pace shows as soon as there's one, not up to five seconds on.
-    .onChange(of: tracker.distance) {
-      if shown == nil { shown = current(at: Date()) }
-    }
+    let parts = CardioFormat.rateParts(shown, kind: tracker.kind, weightUnit: store.unit)
+    CardioFigure(value: parts.value, unit: parts.unit)
+      .onAppear { shown = current() }
+      .onChange(of: Self.mark(elapsed)) { shown = current() }
+      // The first pace shows as soon as there's one, not at the next mark.
+      .onChange(of: tracker.distance) {
+        if shown == nil { shown = current() }
+      }
   }
 
-  private func current(at date: Date) -> String? {
-    CardioFormat.rate(metres: tracker.distance, seconds: tracker.elapsed(at: date), kind: tracker.kind, weightUnit: store.unit)
+  /// Which 5-second stretch of moving time it is.
+  static func mark(_ seconds: Double) -> Int { Int(seconds / 5) }
+
+  private func current() -> String? {
+    CardioFormat.rate(metres: tracker.distance, seconds: elapsed, kind: tracker.kind, weightUnit: store.unit)
   }
 }
 

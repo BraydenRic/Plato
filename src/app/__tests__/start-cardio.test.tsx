@@ -1,7 +1,7 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { act, fireEvent, render, renderHook, screen } from "@testing-library/react-native";
 
-import StartCardioScreen, { LAST_CARDIO_KEY, PERMISSION_PATIENCE_MS } from "../start-cardio";
+import StartCardioScreen, { LAST_CARDIO_KEY, PERMISSION_PATIENCE_MS, WATCH_DIDNT_WAKE } from "../start-cardio";
 import { readWatchTrace, resetWatchTrace, useWatchStart } from "@/lib/watch-trace";
 import type { Workout } from "@/types";
 
@@ -172,16 +172,19 @@ describe("with a watch", () => {
     mockWatchInstalled = true;
     mockHealth.startWatchWorkout.mockImplementation(async () => false);
     await startRun();
-    expect(watchStart()).toEqual({ state: "failed", reason: expect.stringMatching(/couldn't be woken/) });
+    expect(watchStart()).toEqual({ state: "failed", reason: WATCH_DIDNT_WAKE });
   });
 
-  it("says why when waking the watch throws", async () => {
+  // A locked watch: iOS says "Unable to open URLs", which helps nobody on a
+  // run. The screen says what to check; the trace keeps iOS's words.
+  it("says the watch didn't wake in plain words, keeping iOS's for diagnostics", async () => {
     mockWatchInstalled = true;
     mockHealth.startWatchWorkout.mockImplementation(async () => {
-      throw new Error("No paired watch");
+      throw new Error("The operation couldn't be completed. Unable to open URLs");
     });
     await startRun();
-    expect(watchStart()).toEqual({ state: "failed", reason: expect.stringMatching(/No paired watch/) });
+    expect(watchStart()).toEqual({ state: "failed", reason: WATCH_DIDNT_WAKE });
+    expect((await readWatchTrace()).join("\n")).toMatch(/Unable to open URLs/);
     // The session itself still started: it runs on the phone's clock.
     expect(mockReplace).toHaveBeenCalledWith("/workout/new-session");
   });

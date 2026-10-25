@@ -141,7 +141,7 @@ A session (`workout.cardio` set) is stored as an ordinary workout holding one ex
 
 With an Apple Watch, the watch tracks it:
 
-- **Started on the watch** (Start → Cardio): an `HKWorkoutSession` runs there ([CardioTracker.swift](targets/watch/CardioTracker.swift)) and a `startCardio` op creates the phone's session. **Started on the phone**: `startWatchApp(with:)` wakes the watch, which tracks it and learns the phone's id from the next snapshot (or is matched by kind and start time, if it ends first).
+- **Started on the watch** (Start → Cardio): an `HKWorkoutSession` runs there ([CardioTracker.swift](targets/watch/CardioTracker.swift)) and a `startCardio` op creates the phone's session. It needs nothing from the phone: the Start list opens from the last snapshot (kept on the watch), tracking is all on the watch, and with the phone out of reach the ops go into WatchConnectivity's `transferUserInfo` queue, which survives the app closing and delivers when the phone is back — the run arrives whole, however much later. **Started on the phone**: `startWatchApp(with:)` wakes the watch, which tracks it and learns the phone's id from the next snapshot (or is matched by kind and start time, if it ends first).
 - **Pause and end on the watch**, which sends them as ops. Ending on the phone lists the session in the snapshot's `endedCardio`, and the watch stops and sends what it measured.
 - **`finishCardio`** carries time, distance, calories, heart rate, the Health workout's id and a record of distance against moving time; the phone works out splits and best efforts from it ([cardio-tracking.ts](src/lib/cardio-tracking.ts)), where Jest can check them. A finish with no session behind it brings the whole session in.
 - **Live numbers** go to the phone every 5 s while in reach (`onLive`, [watch-live.ts](src/lib/watch-live.ts)); never stored.
@@ -152,8 +152,8 @@ With an Apple Watch, the watch tracks it:
 With no watch tracking it, a session **on foot** (run, walk, hike) is measured by the iPhone's step counter, `CMPedometer` in [modules/plato-motion](modules/plato-motion). The motion coprocessor counts steps whether Plato is open or not, so nothing has to stay awake:
 
 - **While it runs**, the screen shows distance and average pace ([use-phone-distance.ts](src/hooks/use-phone-distance.ts)): the stretches before the last resume asked about once, the one under way counted live.
-- **At End**, the moving time — start to end less each pause, kept in `cardio.pauses` — is cut into minutes and the step counter asked about each ([phone-distance.ts](src/lib/phone-distance.ts)). The total is the distance; the minute-by-minute curve gives splits and best efforts through the same code as the watch's. It's saved with `tracked.source: "iPhone"`, and End doesn't ask how far.
-- With Motion & Fitness refused, no step counter, or next to nothing counted, End asks how far, as it always did.
+- **At End**, the moving time — start to end less each pause, kept in `cardio.pauses` — is cut into minutes and the step counter asked about each ([phone-distance.ts](src/lib/phone-distance.ts)). The minute-by-minute history trails the live count, so the distance is never less than what the screen showed (`matchTotal` brings the curve up to it); the curve gives splits and best efforts through the same code as the watch's. It's saved with `tracked.source: "iPhone"`, and End doesn't ask how far — under 10 m counted saves no distance, with Add distance on the finished screen.
+- Only with Motion & Fitness refused, or no step counter, does End ask how far.
 
 iOS's first-time questions — Health access with a watch, Motion & Fitness on foot — are asked on the picker ([start-cardio.tsx](src/app/start-cardio.tsx)) before the session exists. Asked after moving to the session screen, the Health sheet was requested while the picker was being dismissed and never showed (build 67); the watch then woke without access and asked on the wrist.
 

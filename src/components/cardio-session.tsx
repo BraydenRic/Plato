@@ -165,7 +165,7 @@ export function CardioSession({
     if (canCount(workout)) {
       const nowMs = Date.now();
       setSaving(true);
-      const measured = await measureOnPhone(workout, nowMs);
+      const measured = await measureOnPhone(workout, nowMs, phoneMetres);
       if (measured) {
         await finish(measured.distance, measured.tracked, nowMs);
         return;

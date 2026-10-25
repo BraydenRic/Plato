@@ -509,14 +509,52 @@ describe("with the iPhone's step counter", () => {
     expect(lastPatch().exercises![0].sets[0]).toMatchObject({ distance: 400, tracked: { source: "iPhone" } });
   });
 
-  it("asks how far when it counted next to nothing", async () => {
+  // Nothing counted — the phone set down — is still an answer: no distance,
+  // and Add distance on the finished screen, not a question.
+  it("saves without a distance, rather than asking, when it counted nothing", async () => {
     mockMotion.distances.mockImplementation(async (windows: number[]) => windows.filter((_, i) => i % 2 === 0).map(() => 3));
     show(session("run"));
     await act(async () => {});
     await act(async () => {
       fireEvent.press(screen.getByLabelText("End"));
     });
-    expect(screen.getByText("How far did you go?")).toBeTruthy();
+    expect(screen.queryByText("How far did you go?")).toBeNull();
+    expect(lastPatch().completedAt).toEqual(new Date(T0 + 65_000));
+    expect(lastPatch().exercises![0].sets[0].distance).toBeUndefined();
+  });
+
+  // Build 68 showed 0.02 mi on the screen, then asked "How far did you go?":
+  // the minute-by-minute history trails the live count.
+  it("never saves less than the screen showed", async () => {
+    mockMotion.distances.mockImplementation(async (windows: number[]) => windows.filter((_, i) => i % 2 === 0).map(() => 5));
+    show(session("run"));
+    await act(async () => {});
+    await act(async () => {
+      mockMotion.listener!({ distance: 32, at: T0 + 60_000 });
+    });
+    expect(screen.getByLabelText("Distance: 0.02 mi")).toBeTruthy();
+    await act(async () => {
+      fireEvent.press(screen.getByLabelText("End"));
+    });
+    expect(screen.queryByText("How far did you go?")).toBeNull();
+    expect(lastPatch().exercises![0].sets[0]).toMatchObject({ distance: 32, tracked: { source: "iPhone" } });
+  });
+
+  it("goes by the live count when the minutes can't be read", async () => {
+    mockMotion.distances.mockImplementation(async (windows: number[]) => {
+      if (windows.length > 0) throw new Error("not available yet");
+      return [];
+    });
+    show(session("run"));
+    await act(async () => {});
+    await act(async () => {
+      mockMotion.listener!({ distance: 300, at: T0 + 60_000 });
+    });
+    await act(async () => {
+      fireEvent.press(screen.getByLabelText("End"));
+    });
+    expect(screen.queryByText("How far did you go?")).toBeNull();
+    expect(lastPatch().exercises![0].sets[0]).toMatchObject({ distance: 300, tracked: { source: "iPhone" } });
   });
 
   it("stops counting when Motion & Fitness is turned off mid-run", async () => {

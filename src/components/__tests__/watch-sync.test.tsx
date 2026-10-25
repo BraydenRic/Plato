@@ -680,6 +680,21 @@ describe("cardio sessions from the watch", () => {
     expect(mockStore.get("run1")!.exercises[0].sets[0].duration).toBe(1590);
   });
 
+  // Run with only the watch — phone at home, no signal. Its start and finish
+  // waited in the watch's queue and arrive together, long after.
+  it("brings in a run done on the watch alone as one finished session", async () => {
+    mockBridge.inbox = [
+      entry({ opId: "start-solo", kind: "startCardio", at: START.getTime(), session: "run", indoor: false, fromPhone: false }),
+      finish({ opId: "fin-solo", startOpId: "start-solo" }),
+    ];
+    render(<WatchSync />);
+    await settle();
+    expect(mockCreate).toHaveBeenCalledTimes(1);
+    const saved = mockStore.get("created-1")!;
+    expect(saved).toMatchObject({ startedAt: START, completedAt: new Date(START.getTime() + 1500_000), cardio: { kind: "run", watch: true } });
+    expect(saved.exercises[0].sets[0]).toMatchObject({ duration: 1500, distance: 5000, isCompleted: true });
+  });
+
   it("brings the whole session in when its start never landed", async () => {
     mockBridge.inbox = [finish({ startOpId: "lost-start", distance: 3 * MILE })];
     render(<WatchSync />);

@@ -3,7 +3,16 @@ import { useEffect, useState } from "react";
 import PlatoMotion from "../../modules/plato-motion";
 import { resumed } from "@/lib/cardio-session";
 import { trackedFromPhone } from "@/lib/cardio-tracking";
-import { MIN_PHONE_METRES, curveFromPieces, movingStretches, stepCounted, stepPieces, type Stretch } from "@/lib/phone-distance";
+import {
+  MIN_PHONE_METRES,
+  curveFromPieces,
+  matchTotal,
+  movingStretches,
+  stepCounted,
+  stepPieces,
+  type Stretch,
+} from "@/lib/phone-distance";
+import type { Curve } from "@/lib/cardio-tracking";
 import { traceWatch } from "@/lib/watch-trace";
 import type { TrackedCardio, Workout } from "@/types";
 
@@ -120,28 +129,41 @@ export function usePhoneDistance(workout: Workout, enabled: boolean): number | n
 
 /**
  * What the step counter made of a session ending at `nowMs`: its distance,
- * and its splits from minute-by-minute counts. Null when it can't say — no
- * step counter, no permission, or next to nothing counted — and the session
- * asks how far, as it always did.
+ * and its splits from minute-by-minute counts. Null only when it can't say at
+ * all — no step counter, no permission — and the session asks how far.
+ *
+ * Never less than `liveMetres`, the figure that was on the screen: the
+ * minute-by-minute history trails the live count, and build 68 asked "How far
+ * did you go?" after a run the screen had shown as 0.02 mi. Next to nothing
+ * counted is an answer too — saved without a distance, Add distance waiting
+ * on the finished screen — not a question.
  */
 export async function measureOnPhone(
   workout: Workout,
-  nowMs: number
-): Promise<{ distance: number; tracked: TrackedCardio } | null> {
+  nowMs: number,
+  liveMetres: number | null
+): Promise<{ distance?: number; tracked?: TrackedCardio } | null> {
   if (!PlatoMotion || !canCount(workout)) return null;
   const cardio = resumed(workout, nowMs)!;
   const pieces = stepPieces(movingStretches(workout.startedAt!.getTime(), nowMs, cardio.pauses));
-  if (pieces.length === 0) return null;
+  const live = liveMetres ?? 0;
+  let curve: Curve | null = null;
   try {
-    const curve = curveFromPieces(pieces, await PlatoMotion.distances(pieces));
-    const distance = curve.metres[curve.metres.length - 1];
-    traceWatch(`steps: ${Math.round(distance)} m over ${pieces.length / 2} pieces`);
-    if (distance < MIN_PHONE_METRES) return null;
-    return { distance, tracked: trackedFromPhone({ indoor: !!cardio.indoor, curve, isRun: cardio.kind === "run" }) };
+    if (pieces.length > 0) curve = curveFromPieces(pieces, await PlatoMotion.distances(pieces));
   } catch (e) {
-    traceWatch(`steps: couldn't measure the session (${e instanceof Error ? e.message : String(e)})`);
-    return null;
+    traceWatch(`steps: couldn't read the minutes (${e instanceof Error ? e.message : String(e)})`);
+    // Turned off since the start, and nothing live either: ask.
+    if (live <= 0) return null;
   }
+  const counted = curve ? curve.metres[curve.metres.length - 1] : 0;
+  const distance = Math.max(counted, live);
+  traceWatch(`steps: ${Math.round(counted)} m by the minute, ${Math.round(live)} m live`);
+  if (distance < MIN_PHONE_METRES) return {};
+  const tracked =
+    curve && counted > 0
+      ? trackedFromPhone({ indoor: !!cardio.indoor, curve: matchTotal(curve, distance), isRun: cardio.kind === "run" })
+      : { source: "iPhone", ...(cardio.indoor ? { indoor: true } : {}) };
+  return { distance, tracked };
 }
 
 /**
