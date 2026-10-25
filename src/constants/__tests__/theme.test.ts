@@ -47,6 +47,26 @@ function contrast(a: string, b: string): number {
   return (hi + 0.05) / (lo + 0.05);
 }
 
+/**
+ * An `rgba()` wash as it lands on the screen over a solid colour, as hex.
+ * Blended per channel in sRGB, which is what the compositor does.
+ */
+function over(wash: string, under: string): string {
+  const m = /^rgba\((\d+),(\d+),(\d+),([\d.]+)\)$/.exec(wash);
+  if (!m) throw new Error(`not an rgba wash: ${wash}`);
+  const alpha = Number(m[4]);
+  const base = under.replace("#", "");
+  return (
+    "#" +
+    [1, 2, 3]
+      .map((i, n) => {
+        const below = parseInt(base.slice(n * 2, n * 2 + 2), 16);
+        return Math.round(alpha * Number(m[i]) + (1 - alpha) * below).toString(16).padStart(2, "0");
+      })
+      .join("")
+  );
+}
+
 // ── Perceptual distance ──────────────────────────────────────────────────────
 
 /**
@@ -184,6 +204,43 @@ describe.each(MODES)("every theme in %s mode", (mode) => {
     // stay translucent — a solid fill there buries the label.
     expect(theme.accentSoft).toMatch(/^rgba\(\d+,\d+,\d+,0?\.\d+\)$/);
   });
+
+  it.each(themes)("%s keeps tertiary text readable on its wash", (_label, theme) => {
+    // A live workout's row, the weekly-split suggestion and a picked sheet
+    // option all lay accentSoft over a card, and a row being dragged lays it
+    // over the page — with row meta in textTertiary on top. Dark's old zinc-500
+    // fell to 3:1 on Graphite's white wash.
+    for (const under of [P.bg, P.surface]) {
+      expect(contrast(P.textTertiary, over(theme.accentSoft, under))).toBeGreaterThanOrEqual(4.5);
+    }
+  });
+});
+
+/**
+ * The small print. textTertiary carries the row meta, dates, hints and counts
+ * all over the app at 10–14pt, so it holds the same 4.5:1 bar as body text, on
+ * every surface it actually sits on — not only the page.
+ */
+describe.each(MODES)("tertiary text in %s mode", (mode) => {
+  const P = PALETTES[mode];
+
+  it.each(["bg", "surface", "surfaceRaised"] as const)("reads at 4.5:1 on %s", (surface) => {
+    expect(contrast(P.textTertiary, P[surface])).toBeGreaterThanOrEqual(4.5);
+  });
+
+  it("reads at 4.5:1 on a finished day's green", () => {
+    // The week strip's completed days put their weekday initial, in
+    // textTertiary, on successSoft over the card.
+    expect(contrast(P.textTertiary, over(P.successSoft, P.surface))).toBeGreaterThanOrEqual(4.5);
+  });
+
+  it("stays a step behind textSecondary", () => {
+    // Lifting it for contrast must not merge the two tiers into one.
+    expect(contrast(P.textTertiary, P.textSecondary)).toBeGreaterThanOrEqual(1.2);
+    // "Behind" means nearer the page: darker in dark mode, lighter in light.
+    const [tertiary, secondary] = [luminance(P.textTertiary), luminance(P.textSecondary)];
+    expect(mode === "dark" ? tertiary < secondary : tertiary > secondary).toBe(true);
+  });
 });
 
 describe.each(MODES)("the muscle map in %s mode", (mode) => {
@@ -275,11 +332,10 @@ describe("the two palettes", () => {
   it.each(["text", "textSecondary", "textTertiary", "success", "danger", "amber"] as const)(
     "reads %s at least as clearly in light as in dark",
     (tone) => {
-      // Not an absolute bar: the shipped dark palette runs textTertiary at
-      // 3.5:1 on surfaceRaised, so a flat 4.5 here would fail the live build
-      // rather than catch anything. The real rule is that the new mode is never
-      // the worse one — capped at 4.5 so a already-passing pair doesn't have to
-      // chase dark's 11:1.
+      // Not an absolute bar: the rule here is that the new mode is never the
+      // worse one, capped at 4.5 so an already-passing pair doesn't have to
+      // chase dark's 11:1. textTertiary, the one tone that is always small
+      // text, is held to 4.5 outright in its own block above.
       for (const surface of ["bg", "surface", "surfaceRaised"] as const) {
         const light = contrast(PALETTES.light[tone], PALETTES.light[surface]);
         const dark = contrast(PALETTES.dark[tone], PALETTES.dark[surface]);

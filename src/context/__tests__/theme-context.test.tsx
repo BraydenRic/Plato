@@ -31,11 +31,46 @@ jest.mock("expo-constants", () => ({
 }));
 
 // AppearanceProvider pushes the mode at UIKit on mount, and there is none here.
+// A stand-in instead: the phone's own scheme, the override the app pushes over
+// it, and the listeners useColorScheme subscribes with — so a test can have
+// the phone flip by itself, which is how a "system" user's mode changes.
+let mockPhoneScheme: "light" | "dark" = "dark";
+let mockOverride: "light" | "dark" | null = null;
+const mockSchemeListeners = new Set<() => void>();
 jest.mock("react-native/Libraries/Utilities/Appearance", () => ({
-  getColorScheme: () => "dark",
-  setColorScheme: jest.fn(),
-  addChangeListener: () => ({ remove: () => {} }),
+  getColorScheme: () => mockOverride ?? mockPhoneScheme,
+  setColorScheme: (scheme: "light" | "dark" | null) => {
+    mockOverride = scheme;
+  },
+  addChangeListener: (listener: () => void) => {
+    mockSchemeListeners.add(listener);
+    return { remove: () => mockSchemeListeners.delete(listener) };
+  },
 }));
+// RN's jest setup pins useColorScheme to a constant 'light' that never
+// changes, so put back a real subscription — the same shape as RN's own hook,
+// reading the stand-in above.
+jest.mock("react-native/Libraries/Utilities/useColorScheme", () => {
+  const { useSyncExternalStore } = jest.requireActual("react");
+  const subscribe = (onChange: () => void) => {
+    mockSchemeListeners.add(onChange);
+    return () => {
+      mockSchemeListeners.delete(onChange);
+    };
+  };
+  function useColorScheme() {
+    return useSyncExternalStore(subscribe, () => mockOverride ?? mockPhoneScheme);
+  }
+  return { __esModule: true, default: useColorScheme };
+});
+
+/** What RCTAppearance does when the phone's appearance moves. */
+async function phoneReports(scheme: "light" | "dark") {
+  mockPhoneScheme = scheme;
+  await act(async () => {
+    mockSchemeListeners.forEach((listener) => listener());
+  });
+}
 
 jest.mock("expo-alternate-app-icons", () => ({
   get supportsAlternateIcons() {
@@ -50,6 +85,8 @@ beforeEach(async () => {
   jest.clearAllMocks();
   mockSupportsAlternateIcons = true;
   mockGetAppIconName.mockReturnValue(null);
+  mockPhoneScheme = "dark";
+  mockOverride = null;
 });
 
 
@@ -276,5 +313,77 @@ describe("the icon and the mode", () => {
     await settle();
     await settle();
     expect(mockSetAlternateAppIcon).not.toHaveBeenCalled();
+  });
+});
+
+describe("the icon and a phone that changes by itself", () => {
+  /*
+   * On System, the mode follows the phone — and the phone flips with no tap in
+   * Plato: Automatic at sunset, a Focus with an appearance filter, Control
+   * Center. Moving the icon then raises iOS's alert over whatever is on
+   * screen, which is usually the set logger. Only a choice made in the app may
+   * move the icon.
+   */
+  it("leaves the icon alone when the phone flips long after any tap", async () => {
+    const box = mountWithAppearance();
+    await settle();
+    // The tap that used to arm it for the rest of the launch.
+    await choose(box, "system");
+    mockSetAlternateAppIcon.mockClear();
+
+    // Ten minutes on, mid-set.
+    const nowSpy = jest.spyOn(Date, "now").mockReturnValue(Date.now() + 10 * 60 * 1000);
+    try {
+      await phoneReports("light");
+    } finally {
+      nowSpy.mockRestore();
+    }
+
+    // The app did follow the phone; only the icon stayed put.
+    expect(box.appearance.mode).toBe("light");
+    expect(mockSetAlternateAppIcon).not.toHaveBeenCalled();
+  });
+
+  it("leaves it alone with no tap at all this launch", async () => {
+    await AsyncStorage.setItem("appearance", "system");
+    const box = mountWithAppearance();
+    await settle();
+    await settle();
+    expect(box.appearance.pref).toBe("system");
+    expect(box.appearance.mode).toBe("dark");
+
+    await phoneReports("light");
+
+    expect(box.appearance.mode).toBe("light");
+    expect(mockSetAlternateAppIcon).not.toHaveBeenCalled();
+  });
+
+  it("still follows the phone's real mode straight after choosing System", async () => {
+    // On light, on a dark phone. Choosing System clears the override, and the
+    // phone's dark arrives a moment later as a mode change of its own — which
+    // is part of the tap, so the icon goes with it.
+    const box = mountWithAppearance();
+    await settle();
+    await choose(box, "light");
+    expect(mockSetAlternateAppIcon).toHaveBeenLastCalledWith("VioletLight");
+    mockGetAppIconName.mockReturnValue("VioletLight");
+
+    await choose(box, "system");
+    await phoneReports("dark");
+
+    expect(box.appearance.mode).toBe("dark");
+    expect(mockSetAlternateAppIcon).toHaveBeenLastCalledWith("Violet");
+  });
+
+  it("still moves for a theme tap made after a phone flip", async () => {
+    await AsyncStorage.setItem("appearance", "system");
+    const box = mountWithAppearance();
+    await settle();
+    await settle();
+    await phoneReports("light");
+    expect(box.appearance.mode).toBe("light");
+
+    await act(async () => box.theme.setThemeId("cobalt"));
+    expect(mockSetAlternateAppIcon).toHaveBeenCalledWith("CobaltLight");
   });
 });

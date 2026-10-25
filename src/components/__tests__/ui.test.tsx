@@ -61,6 +61,31 @@ describe("Button", () => {
     render(<Button title="Action" style={() => ({ margin: 4 })} />);
     expect(screen.getByText("Action")).toBeTruthy();
   });
+
+  // No caller set a role, so VoiceOver read "Start workout" as plain text.
+  it("is a button to VoiceOver, named by its title", () => {
+    render(<Button title="Start workout" />);
+    expect(screen.getByRole("button", { name: "Start workout" })).toBeTruthy();
+  });
+
+  it("keeps its name while loading, when all it shows is a spinner, and says it's busy", () => {
+    render(<Button title="Signing in" loading />);
+    const button = screen.getByRole("button", { name: "Signing in" });
+    expect(button.props.accessibilityState).toMatchObject({ busy: true, disabled: true });
+  });
+
+  it("says it's dimmed while disabled, and not busy", () => {
+    render(<Button title="Save" disabled />);
+    expect(screen.getByRole("button", { name: "Save" }).props.accessibilityState).toMatchObject({
+      busy: false,
+      disabled: true,
+    });
+  });
+
+  it("lets a caller say something more specific", () => {
+    render(<Button title="+" accessibilityLabel="Add set" />);
+    expect(screen.getByRole("button", { name: "Add set" })).toBeTruthy();
+  });
 });
 
 describe("Chip", () => {
@@ -86,6 +111,14 @@ describe("Chip", () => {
   it("is inert without an onPress", () => {
     render(<Chip label="Chest" />);
     expect(() => fireEvent.press(screen.getByText("Chest"))).not.toThrow();
+  });
+
+  // The filter that's on was shown only by its tint.
+  it("tells VoiceOver whether it's the filter that's on", () => {
+    const { rerender } = render(<Chip label="Chest" />);
+    expect(screen.getByRole("button", { name: "Chest" }).props.accessibilityState).toEqual({ selected: false });
+    rerender(<Chip label="Chest" active />);
+    expect(screen.getByRole("button", { name: "Chest" }).props.accessibilityState).toEqual({ selected: true });
   });
 });
 

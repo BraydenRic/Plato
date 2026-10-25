@@ -671,9 +671,26 @@ export function isBodyweightExercise(exercise: Exercise): boolean {
 /**
  * Split on anything that isn't a letter or digit, so a hyphen and a space are
  * the same thing: "Pull-Up" and "Pull Up" both give ["pull", "up"].
+ *
+ * Letters and digits of any script, not just a–z. A custom exercise is named
+ * in whatever the lifter types, and splitting on ASCII alone turned
+ * "Жим гантелей" into no words at all: the name could never be found, and the
+ * same text typed into the search box searched for nothing, so every exercise
+ * stayed on screen.
+ *
+ * Accents are folded off first (NFKD splits "é" into "e" and a combining
+ * mark), so "developpe" finds Développé instead of only its "d" and "velopp".
+ * Only the Latin/Greek/Cyrillic accent block is dropped; marks that are part
+ * of a letter elsewhere — Devanagari vowel signs, kana's voicing — stay inside
+ * their word rather than becoming a split.
  */
 function words(text: string): string[] {
-  return text.toLowerCase().split(/[^a-z0-9]+/).filter(Boolean);
+  return text
+    .toLowerCase()
+    .normalize("NFKD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .split(/[^\p{L}\p{M}\p{N}]+/u)
+    .filter(Boolean);
 }
 
 /**

@@ -14,6 +14,15 @@ import { useAppearance } from "@/context/AppearanceContext";
 
 const STORAGE_KEY = "theme_id";
 
+/**
+ * How long after a tap a mode change still counts as part of it.
+ *
+ * Only one change needs this: choosing System clears the override, and RN
+ * reports the phone's real mode a render or two later, as a mode change with
+ * no tap of its own. Anything past this is the phone acting by itself.
+ */
+const CHOICE_WINDOW_MS = 2000;
+
 // Alternate icons are compiled into dev/production builds by the config plugin,
 // so the module is missing in Expo Go — same lazy-require dance as
 // live-activity.ts, for the same reason: a top-level import would resolve the
@@ -67,11 +76,14 @@ const ThemeContext = createContext<{
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const [themeId, setThemeIdState] = useState<ThemeId>(DEFAULT_THEME_ID);
   const { mode, changes } = useAppearance();
-  // Nothing touches the icon until the user has actually chosen something.
-  // Both stored values arrive asynchronously after mount, so without this a
-  // cold start would move the icon — and every cold start would open with iOS's
-  // alert.
-  const chosen = useRef(false);
+  // When the user last chose something the icon answers to, or null before
+  // they have. Nothing touches the icon without a fresh choice: both stored
+  // values arrive asynchronously after mount, so a cold start would otherwise
+  // move the icon and open with iOS's alert — and with Appearance on System,
+  // the phone going dark at sunset, or a Focus or Control Center flipping it,
+  // would put that alert over the set logger mid-workout.
+  const choiceAt = useRef<number | null>(null);
+  const seenChanges = useRef(changes);
 
   useEffect(() => {
     AsyncStorage.getItem(STORAGE_KEY).then((raw) => {
@@ -99,7 +111,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
    * explain why the deferred calls failed.
    */
   const setThemeId = useCallback((id: ThemeId) => {
-    chosen.current = true;
+    choiceAt.current = Date.now();
     setThemeIdState(id);
     AsyncStorage.setItem(STORAGE_KEY, id);
   }, []);
@@ -107,9 +119,18 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   // The icon answers to both axes: which accent, and which mode it has to sit
   // on. A white glyph on near-black is unreadable on a light home screen, so
   // switching appearance moves the icon exactly as switching accent does.
+  //
+  // But only when the switch was a tap in Plato. A mode change the phone made
+  // by itself, minutes after any tap, leaves the icon where it is: an icon on
+  // the other mode until the next visit to Profile is a far smaller cost than
+  // iOS's alert landing on whatever screen is up. It used to follow the phone
+  // only in a launch where Profile had been touched, and not otherwise.
   useEffect(() => {
-    if (changes > 0) chosen.current = true;
-    if (!chosen.current) return;
+    if (changes !== seenChanges.current) {
+      seenChanges.current = changes;
+      choiceAt.current = Date.now();
+    }
+    if (choiceAt.current == null || Date.now() - choiceAt.current > CHOICE_WINDOW_MS) return;
     applyAppIcon(THEMES[themeId][mode].iconName);
   }, [themeId, mode, changes]);
 

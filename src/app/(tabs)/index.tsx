@@ -89,6 +89,12 @@ export default function WorkoutsScreen() {
     [weekStart.getTime()]
   );
   const [splitOpen, setSplitOpen] = useState(false);
+  // The weekday column grows with its text, as far as the grid cap where the
+  // text stops growing too. A fixed 88 fit "Wednesday" only near the default
+  // size; from XXL it broke as "Wednesda/y", and at accessibility sizes every
+  // day split into fragments. Same scaling the set grid's number column uses.
+  const { fontScale } = useWindowDimensions();
+  const splitDayWidth = 88 * Math.min(Math.max(fontScale, 1), FontScaleCap.grid);
   // What the folded split says: the days that have a template, in week order.
   const splitSummary =
     weekDays
@@ -387,13 +393,23 @@ export default function WorkoutsScreen() {
         {/* ── Week strip ── */}
         <View style={styles.weekCard}>
           <View style={styles.weekHeader}>
-            <Pressable onPress={() => shiftWeek(-1)} hitSlop={10} style={styles.weekArrow}>
+            <Pressable
+              onPress={() => shiftWeek(-1)}
+              hitSlop={10}
+              accessibilityRole="button"
+              accessibilityLabel="Previous week"
+              style={styles.weekArrow}>
               <Ionicons name="chevron-back" size={18} color={palette.textSecondary} />
             </Pressable>
             <Pressable onPress={resetToToday} hitSlop={8}>
               <Text style={styles.weekLabel} maxFontSizeMultiplier={FontScaleCap.title}>{weekLabel}</Text>
             </Pressable>
-            <Pressable onPress={() => shiftWeek(1)} hitSlop={10} style={styles.weekArrow}>
+            <Pressable
+              onPress={() => shiftWeek(1)}
+              hitSlop={10}
+              accessibilityRole="button"
+              accessibilityLabel="Next week"
+              style={styles.weekArrow}>
               <Ionicons name="chevron-forward" size={18} color={palette.textSecondary} />
             </Pressable>
           </View>
@@ -411,6 +427,14 @@ export default function WorkoutsScreen() {
                 <Pressable
                   key={day.getTime()}
                   onPress={() => setSelectedDay(day)}
+                  accessibilityRole="button"
+                  accessibilityLabel={dayCellLabel(
+                    day,
+                    dayItems,
+                    isToday,
+                    dayItems.length === 0 ? templateForDay(day) : undefined
+                  )}
+                  accessibilityState={{ selected: isSelected }}
                   style={[
                     styles.dayCell,
                     hasDone && !isSelected && styles.dayCellDone,
@@ -489,7 +513,9 @@ export default function WorkoutsScreen() {
                     <Ionicons name="repeat" size={15} color={theme.accentText} />
                   </View>
                   <View style={{ flex: 1, gap: 2 }}>
-                    <Text style={styles.rowTitle}>{daySuggestion.name}</Text>
+                    <Text style={styles.rowTitle} maxFontSizeMultiplier={FontScaleCap.heading}>
+                      {daySuggestion.name}
+                    </Text>
                     <Text style={styles.rowMeta}>
                       From your weekly split · {totalSetCount(daySuggestion)} sets
                     </Text>
@@ -587,7 +613,7 @@ export default function WorkoutsScreen() {
                   style={styles.templateInfo}
                   onPress={() => router.push(`/workout/${t.id}`)}
                   onLongPress={() => confirmDelete(t)}>
-                  <Text style={styles.rowTitle}>{t.name}</Text>
+                  <Text style={styles.rowTitle} maxFontSizeMultiplier={FontScaleCap.heading}>{t.name}</Text>
                   <Text style={styles.rowMeta}>
                     {t.exercises.length} exercise{t.exercises.length === 1 ? "" : "s"} · {totalSetCount(t)} sets
                   </Text>
@@ -655,7 +681,9 @@ export default function WorkoutsScreen() {
                     key={day.getDay()}
                     onPress={() => editSplitDay(day)}
                     style={[styles.splitRow, styles.splitRowBorder]}>
-                    <Text style={styles.splitDay}>
+                    <Text
+                      style={[styles.splitDay, { width: splitDayWidth }]}
+                      maxFontSizeMultiplier={FontScaleCap.grid}>
                       {day.toLocaleDateString(undefined, { weekday: "long" })}
                     </Text>
                     <Text style={[styles.splitTemplate, !t && styles.splitRest]} numberOfLines={1}>
@@ -675,7 +703,14 @@ export default function WorkoutsScreen() {
         transparent
         animationType="slide"
         onRequestClose={() => setPicker(null)}>
-        <Pressable style={styles.sheetBackdrop} onPress={() => setPicker(null)} />
+        {/* The only way out without picking, so it needs a name: VoiceOver
+            otherwise lands on an unlabelled slab above the sheet. */}
+        <Pressable
+          style={styles.sheetBackdrop}
+          onPress={() => setPicker(null)}
+          accessibilityRole="button"
+          accessibilityLabel="Close"
+        />
         <View style={styles.sheet}>
           <View style={styles.sheetHandle} />
           <Text style={styles.sheetTitle} maxFontSizeMultiplier={FontScaleCap.heading}>{picker?.title}</Text>
@@ -727,8 +762,14 @@ function WorkoutRow({
   const isPlanned = !workout.startedAt && !workout.completedAt;
   // A finished run says how far and how long, not "1 exercise · 1/1 sets".
   const distance = workoutDistanceLabel(workout, unit);
-  // A cardio session says nothing about exercises or sets, finished or not.
-  const finishedCardio = (!!workout.completedAt && isCardioWorkout(workout)) || !!workout.cardio;
+  // A cardio session says nothing about exercises or sets, finished or not,
+  // and nor does a finished workout of nothing but runs, rides and rows: it
+  // has a distance to say instead. Keyed on the session or the distance rather
+  // than the Cardio category, which also holds burpees, jump rope, sports and
+  // yoga — a circuit of those is still "3 exercises · 12/12 sets", not a bare
+  // date and a chevron.
+  const finishedCardio =
+    isCardioSession(workout) || (!!workout.completedAt && isCardioWorkout(workout) && distance != null);
   const icon = sessionIcon(workout);
   // Past the largest standard text size the volume on the right took the row's
   // width and squeezed the name to a letter per line. Stack it underneath
@@ -778,6 +819,35 @@ function WorkoutRow({
       )}
     </Pressable>
   );
+}
+
+/**
+ * What VoiceOver reads for a day on the week strip.
+ *
+ * The cell shows a narrow weekday and a date — "T", "23": Tuesday or Thursday?
+ * — and says what happened there only in colour and dots. This spells out
+ * both: "Tuesday, October 23, today, 1 workout done".
+ */
+function dayCellLabel(
+  day: Date,
+  items: Workout[],
+  isToday: boolean,
+  suggestion: Workout | undefined
+): string {
+  const done = items.filter((w) => w.completedAt).length;
+  const live = items.filter((w) => !w.completedAt && w.startedAt).length;
+  const planned = items.length - done - live;
+  const count = (n: number, state: string) => (n > 0 ? `${n} workout${n === 1 ? "" : "s"} ${state}` : null);
+  return [
+    day.toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric" }),
+    isToday ? "today" : null,
+    count(done, "done"),
+    count(live, "in progress"),
+    count(planned, "planned"),
+    suggestion ? `${suggestion.name} from your weekly split` : null,
+  ]
+    .filter(Boolean)
+    .join(", ");
 }
 
 function defaultWorkoutName(): string {
@@ -964,8 +1034,8 @@ const useStyles = makeStyles((c) => ({
     borderTopWidth: 1,
     borderTopColor: c.border,
   },
+  // No width here: it scales with the text size (see splitDayWidth).
   splitDay: {
-    width: 88,
     fontSize: 14,
     fontWeight: "600",
     color: c.textSecondary,

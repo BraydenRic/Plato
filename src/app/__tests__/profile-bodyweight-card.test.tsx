@@ -1,6 +1,8 @@
-import { render, screen } from "@testing-library/react-native";
+import { fireEvent, render, screen } from "@testing-library/react-native";
+import { Alert, StyleSheet } from "react-native";
 
 import ProfileScreen from "../(tabs)/profile";
+import { FontScaleCap } from "@/constants/theme";
 import type { BodyweightEntry } from "@/types";
 
 /**
@@ -16,12 +18,20 @@ import type { BodyweightEntry } from "@/types";
 
 const NOW = new Date(2026, 7, 7, 9, 0);
 let mockLog: BodyweightEntry[] = [];
+const mockRecord = jest.fn(async (_lbs: number) => {});
+// RN's own test default is 2, which every test here ran at before; the
+// large-text tests set their own.
+let mockFontScale = 2;
+jest.mock("react-native/Libraries/Utilities/useWindowDimensions", () => ({
+  __esModule: true,
+  default: () => ({ width: 375, height: 667, scale: 3, fontScale: mockFontScale }),
+}));
 
 jest.mock("@/hooks/use-bodyweight", () => ({
   useBodyweight: () => ({
     log: mockLog,
     loading: false,
-    record: jest.fn(),
+    record: (lbs: number) => mockRecord(lbs),
     remove: jest.fn(),
     latest: mockLog.length > 0 ? mockLog[mockLog.length - 1] : null,
   }),
@@ -69,6 +79,7 @@ jest.mock("@/components/sparkline", () => ({ Sparkline: () => null }));
 beforeEach(() => {
   jest.useFakeTimers();
   jest.setSystemTime(NOW);
+  mockFontScale = 2;
 });
 
 afterEach(() => {
@@ -123,4 +134,81 @@ it("shows a dash and no day when nothing has ever been logged", () => {
 
   expect(screen.getByText("—")).toBeTruthy();
   expect(cardLabel()).toContain("none logged yet");
+});
+
+describe("the weigh-in prompt", () => {
+  /** Opens the prompt from the + and taps Save with `typed`. */
+  function saveWeighIn(typed: string) {
+    const prompt = jest.spyOn(Alert, "prompt").mockImplementation(() => {});
+    fireEvent.press(screen.getByLabelText("Log today's weigh-in"));
+    const buttons = prompt.mock.calls[0][2] as { text: string; onPress?: (value?: string) => void }[];
+    buttons.find((b) => b.text === "Save")!.onPress!(typed);
+    prompt.mockRestore();
+  }
+
+  beforeEach(() => {
+    mockLog = [];
+    mockRecord.mockClear();
+  });
+
+  it("takes a decimal comma, which is what the decimal pad types in much of Europe", () => {
+    render(<ProfileScreen />);
+    saveWeighIn("182,5");
+    expect(mockRecord).toHaveBeenCalledWith(182.5);
+  });
+
+  it("still takes a decimal point", () => {
+    render(<ProfileScreen />);
+    saveWeighIn("182.5");
+    expect(mockRecord).toHaveBeenCalledWith(182.5);
+  });
+
+  it("still ignores something that isn't a weight", () => {
+    render(<ProfileScreen />);
+    saveWeighIn("abc");
+    expect(mockRecord).not.toHaveBeenCalled();
+  });
+});
+
+describe("read aloud", () => {
+  it("names the pencil that renames you", () => {
+    render(<ProfileScreen />);
+    expect(screen.getByRole("button", { name: "Edit name" })).toBeTruthy();
+  });
+
+  it("says which weight unit is on, not just by its fill", () => {
+    render(<ProfileScreen />);
+    expect(screen.getByRole("button", { name: "lbs" }).props.accessibilityState).toEqual({ selected: true });
+    expect(screen.getByRole("button", { name: "kg" }).props.accessibilityState).toEqual({ selected: false });
+  });
+});
+
+describe("the bodyweight row at large text sizes", () => {
+  beforeEach(() => {
+    // A weigh-in from Tuesday, so the day is on the row too: the widest case.
+    mockLog = [{ date: new Date(2026, 7, 4), lbs: 195 }];
+  });
+
+  const row = () => screen.getByText("Bodyweight").parent!.parent!;
+
+  it("lays the reading beside the label at the default size", () => {
+    mockFontScale = 1;
+    render(<ProfileScreen />);
+    expect(StyleSheet.flatten(row().props.style).flexDirection).toBe("row");
+  });
+
+  it("drops the reading under the label past a mild bump, like the Preferences cards", () => {
+    // XXXL. Side by side, "Bodyweight · 195 lbs · Tuesday" ran under the +.
+    mockFontScale = 1.353;
+    render(<ProfileScreen />);
+    expect(StyleSheet.flatten(row().props.style).flexDirection).toBe("column");
+  });
+
+  it("lets the reading wrap rather than overflow, and caps the label", () => {
+    mockFontScale = 1.235;
+    render(<ProfileScreen />);
+    const reading = StyleSheet.flatten(screen.getByText("195 lbs").parent!.parent!.props.style);
+    expect(reading).toMatchObject({ flexShrink: 1, flexWrap: "wrap" });
+    expect(screen.getByText("Bodyweight").props.maxFontSizeMultiplier).toBe(FontScaleCap.heading);
+  });
 });

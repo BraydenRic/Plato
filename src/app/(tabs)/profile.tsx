@@ -78,7 +78,10 @@ export default function ProfileScreen() {
         {
           text: "Save",
           onPress: (value?: string) => {
-            const entered = Number((value ?? "").trim());
+            // The decimal pad's separator follows the phone's region, so in
+            // much of Europe it types "82,5" — which Number() reads as NaN, and
+            // the weigh-in was dropped without a word. Same fix as the set grid.
+            const entered = Number((value ?? "").trim().replace(",", "."));
             if (!Number.isFinite(entered) || entered <= 0) return;
             recordWeight(convertWeight(entered, unit, "lbs")).catch((e) => {
               // Don't blame the network for what is usually a rejected write —
@@ -301,7 +304,12 @@ export default function ProfileScreen() {
           </View>
           {/* Guests have no Firebase profile to rename. */}
           {!isGuest && (
-            <Pressable onPress={editName} hitSlop={10} style={styles.editButton}>
+            <Pressable
+              onPress={editName}
+              hitSlop={10}
+              accessibilityRole="button"
+              accessibilityLabel="Edit name"
+              style={styles.editButton}>
               <Ionicons name="pencil" size={16} color={palette.textSecondary} />
             </Pressable>
           )}
@@ -355,8 +363,17 @@ export default function ProfileScreen() {
                   : `Bodyweight, ${shownWeight} ${unit}, logged ${relativeDay(latestWeight.date)}. Opens history.`
               }
               style={({ pressed }) => [{ flex: 1 }, pressed && { opacity: 0.8 }]}>
-              <View style={styles.bodyweightRow}>
-                <Text style={styles.prefTitle}>Bodyweight</Text>
+              {/* Same stacking as the Preferences cards below: past a mild
+                  text bump the label, the figure and a stale day ran under
+                  the + and off the card, so the reading drops beneath the
+                  label instead. Below that, the reading may still wrap its
+                  day onto a second line rather than overflow. The label is
+                  capped because it shares its width with the + whichever way
+                  the row lies, and past 2× "Bodyweight" splits mid-word. */}
+              <View style={[styles.bodyweightRow, stackPrefs && styles.bodyweightRowStacked]}>
+                <Text style={styles.prefTitle} maxFontSizeMultiplier={FontScaleCap.heading}>
+                  Bodyweight
+                </Text>
                 {/*
                   The figure only wears the accent when it is today's. Left
                   accented regardless, a weigh-in from last Tuesday read as this
@@ -364,7 +381,7 @@ export default function ProfileScreen() {
                   without its date attached. Dropping to grey and naming the day
                   says which it is without taking the number away.
                 */}
-                <View style={styles.bodyweightReading}>
+                <View style={[styles.bodyweightReading, stackPrefs && styles.bodyweightReadingStacked]}>
                   <Text
                     style={[
                       styles.bodyweightValue,
@@ -493,6 +510,8 @@ export default function ProfileScreen() {
                 <Pressable
                   key={u}
                   onPress={() => setUnit(u)}
+                  accessibilityRole="button"
+                  accessibilityState={{ selected: unit === u }}
                   style={[styles.segmentItem, unit === u && { backgroundColor: theme.accent }]}>
                   <Text style={[styles.segmentText, unit === u && { color: theme.onAccent }]}>{u}</Text>
                 </Pressable>
@@ -668,10 +687,24 @@ const useStyles = makeStyles((c) => ({
     justifyContent: "space-between",
     gap: Spacing.three,
   },
+  bodyweightRowStacked: {
+    flexDirection: "column",
+    alignItems: "flex-start",
+    gap: Spacing.one,
+  },
+  // Shrinks and wraps rather than holding its width: Yoga's default is not to
+  // shrink, which is how the day ended up under the + button. Pushed to the
+  // right so a wrapped day lines up under the figure, not under the label.
   bodyweightReading: {
     flexDirection: "row",
+    flexWrap: "wrap",
+    flexShrink: 1,
+    justifyContent: "flex-end",
     alignItems: "baseline",
-    gap: 5,
+    columnGap: 5,
+  },
+  bodyweightReadingStacked: {
+    justifyContent: "flex-start",
   },
   bodyweightWhen: {
     fontSize: 13,

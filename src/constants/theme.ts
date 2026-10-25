@@ -55,7 +55,13 @@ export const PALETTES: Record<Mode, PaletteColors> = {
     borderStrong: "rgba(255,255,255,0.14)",
     text: "#fafafa",
     textSecondary: "#a1a1aa",
-    textTertiary: "#71717a",
+    // Most of the app's small print: row meta, dates, hints, counts. It was
+    // zinc-500 (#71717a), which is 3.5:1 on surfaceRaised and down to 3:1 on
+    // the accent wash behind a live workout — below WCAG AA's 4.5:1 for text
+    // this size. Lifted only as far as the worst surface it sits on needs
+    // (Graphite's white wash over a card, 4.5:1), so it still reads a step
+    // behind textSecondary rather than merging with it.
+    textTertiary: "#909098",
     success: "#34d399",
     successSoft: "rgba(52,211,153,0.14)",
     danger: "#f87171",
@@ -77,7 +83,10 @@ export const PALETTES: Record<Mode, PaletteColors> = {
     borderStrong: "rgba(0,0,0,0.18)",
     text: "#18181b",
     textSecondary: "#4b4b53",
-    textTertiary: "#65656d",
+    // #65656d cleared the page and the card but not surfaceRaised (4.4:1) or
+    // an accent-washed row (3.8:1 on Crimson's). Darkened to the least that
+    // holds 4.5:1 on all of them.
+    textTertiary: "#5a5a62",
     success: "#046a4d",
     successSoft: "rgba(4,106,77,0.12)",
     danger: "#7f1d1d",

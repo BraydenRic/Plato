@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { Pressable, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { router } from "expo-router";
@@ -18,6 +18,13 @@ import { useTheme } from "@/context/ThemeContext";
  * live subscription underneath. That copy follows the source only when an item
  * is added or removed elsewhere; once you're dragging, the ids match and your
  * order stands.
+ *
+ * The copy is of ids, not of the items. Each row is looked up in `items` on
+ * every render, so it carries what was last saved. Holding the objects kept
+ * the orderIndex they had when the screen opened, and the screens' persist
+ * step skips any row whose orderIndex already equals its new position — so
+ * dragging a row away and back in one visit compared against the old values,
+ * found nothing to write, and left Home in the order of the first drag.
  */
 export function ReorderScreen<T extends { id: string }>({
   title,
@@ -34,12 +41,10 @@ export function ReorderScreen<T extends { id: string }>({
   const styles = useStyles();
   const palette = usePalette();
   const theme = useTheme();
-  const [order, setOrder] = useState<T[]>(items);
-
-  useEffect(() => {
-    const sameSet = order.length === items.length && order.every((t) => items.some((n) => n.id === t.id));
-    if (!sameSet) setOrder(items);
-  }, [items, order]);
+  const [orderIds, setOrderIds] = useState<string[]>(() => items.map((t) => t.id));
+  const byId = new Map(items.map((t) => [t.id, t]));
+  const sameSet = orderIds.length === items.length && orderIds.every((id) => byId.has(id));
+  const order = sameSet ? orderIds.map((id) => byId.get(id)!) : items;
 
   return (
     <SafeAreaView style={styles.safe} edges={["top"]}>
@@ -59,7 +64,7 @@ export function ReorderScreen<T extends { id: string }>({
         // drop settles, and its default takes ~1.8s to under Reanimated 4.
         animationConfig={DRAG_SPRING}
         onDragEnd={({ data }) => {
-          setOrder(data);
+          setOrderIds(data.map((t) => t.id));
           onReorder(data);
         }}
         contentContainerStyle={styles.list}

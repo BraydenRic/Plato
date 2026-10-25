@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { Alert, Pressable, ScrollView, Text, View } from "react-native";
+import { ActivityIndicator, Alert, Pressable, ScrollView, Text, View } from "react-native";
 import { router, useLocalSearchParams } from "expo-router";
 import Ionicons from "@expo/vector-icons/Ionicons";
 
@@ -9,6 +9,7 @@ import { makeStyles, usePalette } from "@/context/AppearanceContext";
 import { useTheme } from "@/context/ThemeContext";
 import { libraryErrorMessage, useExerciseLibrary, MAX_CUSTOM_EXERCISES } from "@/hooks/use-exercise-library";
 import { EXERCISES, isBodyweightExercise, isTimedExercise } from "@/lib/exercises";
+import type { Exercise } from "@/types";
 
 const CATEGORIES = [...new Set(EXERCISES.map((e) => e.category))];
 
@@ -23,12 +24,65 @@ const MUSCLE_OPTIONS = [
 export default function CreateExerciseModal() {
   const styles = useStyles();
   const palette = usePalette();
+  const theme = useTheme();
   const { exerciseId } = useLocalSearchParams<{ exerciseId?: string }>();
-  const { exercises, customCount, createExercise, updateExercise } = useExerciseLibrary();
+  const { exercises, loading, customCount, createExercise, updateExercise } = useExerciseLibrary();
   // Editing reuses this form: prefill from the existing exercise and save
   // under the same id so workout history and last-weight lookups keep working.
   const editing = exerciseId ? exercises.find((e) => e.id === exerciseId) : undefined;
+  // The library arrives a moment after mount, and until it does `exercises` is
+  // the stock list alone: a custom exercise isn't in it, and an edited built-in
+  // reads as its stock self. The form takes its starting values once, so built
+  // from that first render it opened blank (or stock), and saving wrote those
+  // over the real exercise — a timed custom turned weight × reps, an earlier
+  // edit to a built-in quietly undone. So an edit waits for the library; a new
+  // exercise has nothing to prefill and opens straight away.
+  const waiting = !!exerciseId && loading;
 
+  return (
+    <View style={styles.safe}>
+      <View style={styles.header}>
+        <Text style={styles.title} maxFontSizeMultiplier={FontScaleCap.title}>
+          {editing || waiting ? "Edit exercise" : "New exercise"}
+        </Text>
+        <Pressable
+          onPress={() => router.back()}
+          hitSlop={12}
+          accessibilityRole="button"
+          accessibilityLabel="Close"
+          style={styles.closeButton}>
+          <Ionicons name="close" size={20} color={palette.textSecondary} />
+        </Pressable>
+      </View>
+
+      {waiting ? (
+        <ActivityIndicator color={theme.accent} style={styles.waiting} />
+      ) : (
+        <ExerciseForm
+          editing={editing}
+          customCount={customCount}
+          createExercise={createExercise}
+          updateExercise={updateExercise}
+        />
+      )}
+    </View>
+  );
+}
+
+type Library = ReturnType<typeof useExerciseLibrary>;
+
+function ExerciseForm({
+  editing,
+  customCount,
+  createExercise,
+  updateExercise,
+}: {
+  editing: Exercise | undefined;
+  customCount: number;
+  createExercise: Library["createExercise"];
+  updateExercise: Library["updateExercise"];
+}) {
+  const styles = useStyles();
   const [name, setName] = useState(editing?.name ?? "");
   const [category, setCategory] = useState<string | null>(editing?.category ?? null);
   // Selection order matters: the first muscle picked is the primary target,
@@ -99,96 +153,87 @@ export default function CreateExerciseModal() {
   }
 
   return (
-    <View style={styles.safe}>
-      <View style={styles.header}>
-        <Text style={styles.title} maxFontSizeMultiplier={FontScaleCap.title}>{editing ? "Edit exercise" : "New exercise"}</Text>
-        <Pressable onPress={() => router.back()} hitSlop={12} style={styles.closeButton}>
-          <Ionicons name="close" size={20} color={palette.textSecondary} />
-        </Pressable>
+    <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
+      <View>
+        <SectionLabel>Name</SectionLabel>
+        <Field
+          placeholder="e.g. Landmine Press"
+          value={name}
+          onChangeText={setName}
+          autoCorrect={false}
+          autoFocus
+        />
       </View>
 
-      <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
-        <View>
-          <SectionLabel>Name</SectionLabel>
-          <Field
-            placeholder="e.g. Landmine Press"
-            value={name}
-            onChangeText={setName}
-            autoCorrect={false}
-            autoFocus
+      <View>
+        <SectionLabel>Category</SectionLabel>
+        <View style={styles.chipWrap}>
+          {categoryOptions.map((c) => (
+            <SelectChip key={c} label={c} active={category === c} onPress={() => setCategory(c)} />
+          ))}
+        </View>
+      </View>
+
+      <View>
+        <SectionLabel>Muscles worked</SectionLabel>
+        <Text style={styles.hint}>Pick the primary target first — it shows brightest on the diagram.</Text>
+        <View style={styles.chipWrap}>
+          {muscleOptions.map((m) => {
+            const order = muscles.indexOf(m);
+            return (
+              <SelectChip
+                key={m}
+                label={order === 0 ? `${m} · primary` : m}
+                active={order >= 0}
+                onPress={() => toggleMuscle(m)}
+              />
+            );
+          })}
+        </View>
+      </View>
+
+      <View>
+        <SectionLabel>Tracking</SectionLabel>
+        <Text style={styles.hint}>
+          Bodyweight sets log only what you add. Timed sets get a stopwatch.
+        </Text>
+        <View style={styles.chipWrap}>
+          <SelectChip
+            label="Weight × reps"
+            active={tracking === "weight"}
+            onPress={() => setTracking("weight")}
+          />
+          <SelectChip
+            label="Bodyweight"
+            active={tracking === "bodyweight"}
+            onPress={() => setTracking("bodyweight")}
+          />
+          <SelectChip
+            label="Timed"
+            active={tracking === "timed"}
+            onPress={() => setTracking("timed")}
           />
         </View>
+      </View>
 
-        <View>
-          <SectionLabel>Category</SectionLabel>
-          <View style={styles.chipWrap}>
-            {categoryOptions.map((c) => (
-              <SelectChip key={c} label={c} active={category === c} onPress={() => setCategory(c)} />
-            ))}
-          </View>
-        </View>
-
-        <View>
-          <SectionLabel>Muscles worked</SectionLabel>
-          <Text style={styles.hint}>Pick the primary target first — it shows brightest on the diagram.</Text>
-          <View style={styles.chipWrap}>
-            {muscleOptions.map((m) => {
-              const order = muscles.indexOf(m);
-              return (
-                <SelectChip
-                  key={m}
-                  label={order === 0 ? `${m} · primary` : m}
-                  active={order >= 0}
-                  onPress={() => toggleMuscle(m)}
-                />
-              );
-            })}
-          </View>
-        </View>
-
-        <View>
-          <SectionLabel>Tracking</SectionLabel>
-          <Text style={styles.hint}>
-            Bodyweight sets log only what you add. Timed sets get a stopwatch.
-          </Text>
-          <View style={styles.chipWrap}>
-            <SelectChip
-              label="Weight × reps"
-              active={tracking === "weight"}
-              onPress={() => setTracking("weight")}
-            />
-            <SelectChip
-              label="Bodyweight"
-              active={tracking === "bodyweight"}
-              onPress={() => setTracking("bodyweight")}
-            />
-            <SelectChip
-              label="Timed"
-              active={tracking === "timed"}
-              onPress={() => setTracking("timed")}
-            />
-          </View>
-        </View>
-
-        <View>
-          <SectionLabel>Description (optional)</SectionLabel>
-          <Field
-            placeholder="Setup cues, tempo, anything worth remembering"
-            value={description}
-            onChangeText={setDescription}
-            multiline
-            style={styles.descriptionField}
-          />
-        </View>
-
-        <Button
-          title={editing ? "Save changes" : "Create exercise"}
-          onPress={save}
-          loading={saving}
-          disabled={!canSave}
+      <View>
+        <SectionLabel>Description (optional)</SectionLabel>
+        <Field
+          placeholder="Setup cues, tempo, anything worth remembering"
+          value={description}
+          onChangeText={setDescription}
+          multiline
+          style={styles.descriptionField}
         />
-      </ScrollView>
-    </View>
+      </View>
+
+      <Button
+        title={editing ? "Save changes" : "Create exercise"}
+        onPress={save}
+        loading={saving}
+        disabled={!canSave}
+      />
+    </ScrollView>
   );
 }
 
@@ -198,6 +243,8 @@ function SelectChip({ label, active, onPress }: { label: string; active: boolean
   return (
     <Pressable
       onPress={onPress}
+      accessibilityRole="button"
+      accessibilityState={{ selected: active }}
       style={[
         styles.chip,
         active && { backgroundColor: theme.accentSoft, borderColor: theme.accent },
@@ -232,6 +279,9 @@ const useStyles = makeStyles((c) => ({
     backgroundColor: c.surfaceRaised,
     alignItems: "center",
     justifyContent: "center",
+  },
+  waiting: {
+    marginTop: Spacing.five,
   },
   scroll: {
     paddingHorizontal: Spacing.three,

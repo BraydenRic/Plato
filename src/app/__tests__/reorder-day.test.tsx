@@ -76,3 +76,44 @@ it("lists only that day's workouts and saves the new order after a drop", async 
   expect(mockUpdate).toHaveBeenCalledWith("legs", { orderIndex: 0 });
   expect(mockUpdate).toHaveBeenCalledWith("push", { orderIndex: 1 });
 });
+
+it("saves a second drop in the same visit against what the first one saved", async () => {
+  // Placed before, so each already has an orderIndex. The first drop writes
+  // c0 a1 b2; the second, moving c back, has to write all three again. Judged
+  // against the copies the screen opened with — a0 b1 c2, already "in place" —
+  // it wrote nothing, and Home stayed c, a, b.
+  mockActive = [started("a", 9, 0), started("b", 10, 1), started("c", 11, 2)];
+  const { rerender } = render(<ReorderDayScreen />);
+
+  const [a, b, c] = mockListProps.data as Workout[];
+  await act(async () => {
+    mockListProps.onDragEnd({ data: [c, a, b] });
+  });
+  expect(mockUpdate.mock.calls).toEqual([
+    ["c", { orderIndex: 0 }],
+    ["a", { orderIndex: 1 }],
+    ["b", { orderIndex: 2 }],
+  ]);
+
+  // The subscription hands back the saved copies.
+  mockActive = [
+    { ...mockActive[0], orderIndex: 1 },
+    { ...mockActive[1], orderIndex: 2 },
+    { ...mockActive[2], orderIndex: 0 },
+  ];
+  rerender(<ReorderDayScreen />);
+  mockUpdate.mockClear();
+
+  // The list hands back the rows it was given, in their new order.
+  const shown = mockListProps.data as Workout[];
+  expect(shown.map((w) => [w.id, w.orderIndex])).toEqual([["c", 0], ["a", 1], ["b", 2]]);
+  await act(async () => {
+    mockListProps.onDragEnd({ data: [shown[1], shown[2], shown[0]] });
+  });
+
+  expect(mockUpdate.mock.calls).toEqual([
+    ["a", { orderIndex: 0 }],
+    ["b", { orderIndex: 1 }],
+    ["c", { orderIndex: 2 }],
+  ]);
+});

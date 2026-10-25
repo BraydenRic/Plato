@@ -13,7 +13,7 @@ import { deleteWorkout } from "@/lib/data";
 import { useWeightUnit } from "@/context/UnitContext";
 import { useTheme } from "@/context/ThemeContext";
 import { isCardioWorkout, workoutDistanceLabel } from "@/lib/cardio";
-import { sessionIcon } from "@/lib/cardio-session";
+import { isCardioSession, sessionIcon } from "@/lib/cardio-session";
 import { completedSetCount, displayVolume, workoutVolumeLbs } from "@/lib/workout-utils";
 import type { Workout } from "@/types";
 
@@ -54,7 +54,12 @@ export default function HistoryScreen() {
           needs its own — and takes over the top inset the same way. */}
       <ActiveWorkoutBar />
       <View style={styles.header}>
-        <Pressable onPress={() => router.back()} hitSlop={12} style={styles.backButton}>
+        <Pressable
+          onPress={() => router.back()}
+          hitSlop={12}
+          accessibilityRole="button"
+          accessibilityLabel="Back"
+          style={styles.backButton}>
           <Ionicons name="chevron-back" size={22} color={palette.textSecondary} />
         </Pressable>
         <View style={{ flex: 1, gap: 2 }}>
@@ -109,7 +114,10 @@ function HistoryRow({
   const volume = workout.totalVolume ?? workoutVolumeLbs(workout);
   // A run's headline is how far it went, where a lift's is how much it moved.
   const distance = workoutDistanceLabel(workout, unit);
-  const cardio = isCardioWorkout(workout);
+  // A session, or a workout of only runs, rides and rows, has a distance to
+  // say instead of a set count. Not the whole Cardio category: that also holds
+  // burpees, jump rope and yoga, and a circuit of those keeps its "12 sets".
+  const cardio = isCardioSession(workout) || (isCardioWorkout(workout) && distance != null);
   const icon = sessionIcon(workout);
   // Past the largest standard text size the volume on the right took the row's
   // width and squeezed the name to a letter per line. Stack it underneath

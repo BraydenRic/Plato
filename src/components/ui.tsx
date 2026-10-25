@@ -47,6 +47,13 @@ export function Button({ title, variant = "primary", loading, compact, fit, disa
   return (
     <Pressable
       disabled={disabled || loading}
+      // Named and typed for VoiceOver here rather than at each call site, which
+      // none did: it read "Start workout" as plain text with no button trait.
+      // The label matters most while loading, when the only child is a spinner.
+      // Before {...rest}, so a caller can still say something more specific.
+      accessibilityRole="button"
+      accessibilityLabel={title}
+      accessibilityState={{ disabled: !!(disabled || loading), busy: !!loading }}
       style={({ pressed }) => [
         styles.button,
         compact && styles.buttonCompact,
@@ -182,6 +189,9 @@ export function Chip({ label, active, onPress }: { label: string; active?: boole
   return (
     <Pressable
       onPress={onPress}
+      // The active filter is otherwise only a tint, which VoiceOver can't see.
+      accessibilityRole="button"
+      accessibilityState={{ selected: !!active }}
       style={[styles.chip, active && { backgroundColor: theme.accentSoft, borderColor: theme.accent }]}>
       <Text style={[styles.chipText, active && { color: theme.accentText }]}>{label}</Text>
     </Pressable>

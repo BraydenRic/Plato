@@ -150,6 +150,42 @@ describe("searching the way people type", () => {
   });
 });
 
+/**
+ * Custom exercises are named in whatever the lifter types. Splitting on a–z
+ * alone left a Cyrillic or Japanese name with no words at all — unfindable —
+ * and the same text in the search box searched for nothing, so the whole
+ * library stayed on screen as if the box were broken.
+ */
+describe("searching names outside a–z", () => {
+  const library = [
+    ...EXERCISES,
+    makeExercise({ id: "custom-zhim", name: "Жим гантелей", category: "Chest", isCustom: true }),
+    makeExercise({ id: "custom-kensui", name: "懸垂", category: "Back", isCustom: true }),
+    makeExercise({ id: "custom-developpe", name: "Développé couché", category: "Chest", isCustom: true }),
+  ];
+  const found = (term: string) => filterExercises(library, term, "All").map((e) => e.name);
+
+  it.each([
+    ["Жим", "Жим гантелей"],
+    ["гантелей жим", "Жим гантелей"],
+    ["ЖИМ", "Жим гантелей"],
+    ["懸垂", "懸垂"],
+    ["懸", "懸垂"],
+  ])("%p finds %p", (term, expected) => {
+    expect(found(term)).toEqual([expected]);
+  });
+
+  it("folds accents both ways", () => {
+    expect(found("developpe")).toEqual(["Développé couché"]);
+    expect(found("Développé")).toEqual(["Développé couché"]);
+  });
+
+  it("narrows the list rather than ignoring the search", () => {
+    // Text with no match finds nothing — not, as it used to, everything.
+    expect(found("гриф")).toEqual([]);
+  });
+});
+
 describe("the bundled library", () => {
   // Workouts store the exercise id forever, so two entries sharing one would
   // quietly merge their histories and last-weight lookups.
