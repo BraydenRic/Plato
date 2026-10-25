@@ -104,19 +104,24 @@ own weight and to value bodyweight exercises. No HealthKit access.
 - Export compliance: answered automatically by `ITSAppUsesNonExemptEncryption: false`
 - Release: **automatic** on approval
 
-## When a build with Apple Health ships
+## When a build with cardio sessions ships
 
-The 1.2.0 text above predates the Apple Health import. Before submitting a
-build that has it:
+The 1.2.0 text above predates cardio sessions and the watch's HealthKit use.
+Before submitting a build that has them:
 
 - **Description** — Apple requires HealthKit apps to say so in the listing.
-  Add under TRACK YOUR PROGRESS:
-  `• Runs, walks and rides from your Apple Watch come in from Apple Health, with splits, heart rate and calories`
-  and change the timed-exercise bullet to:
-  `• Cardio logs time and distance, with your pace worked out for you`
+  Add a section:
+  ```
+  CARDIO
+  • Start a run, walk, ride, swim or row and track it on your Apple Watch — live distance, pace, heart rate and splits
+  • Finished sessions show your splits, heart rate and calories, and save to Apple Health so they count toward your rings
+  • Weekly distance and your fastest mile, 5K and 10K on the Stats tab
+  ```
 - **Notes for App Review** — replace "No HealthKit access." with:
-  `Apple Health is optional and read-only: Profile → Apple Health → On imports cardio workouts (runs, walks, rides and similar) so they appear in the user's history with their splits, heart rate and calories. Plato never writes to Health. To see it work, record a workout in the Workout app (or add one in the Health app) and open Plato.`
-- **App Privacy → Data Types** — under Health & Fitness, add **Fitness** as
-  well as Health (App Functionality · linked to identity · not used for
-  tracking). Imported workouts are saved to the account like typed ones.
-- **Privacy Policy** — already updated (Apple Health section).
+  `Apple Health is used only for cardio sessions started in Plato: on the Workouts tab, Start cardio → Run → Start. With an Apple Watch paired, the watch tracks the session (heart rate, energy, distance) and saves it to Health as a workout. Plato never reads workouts recorded by other apps. Without a watch, sessions run on the phone's clock and Health isn't used.`
+- **App Privacy → Data Types** — under Health & Fitness, **Health** and
+  **Fitness** (App Functionality · linked to identity · not used for
+  tracking). Sessions are saved to the account like typed workouts.
+- **Screenshots** — a watch screenshot is needed for the watch app anyway;
+  the live run screen makes a good one.
+- **Privacy Policy** — already updated (Apple Health and Apple Watch section).

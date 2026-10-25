@@ -7,7 +7,7 @@ iOS workout tracker built with Expo (React Native), live on the App Store. It sh
 - **Workout logging.** Start empty, from a template, or from the day's weekly-split slot, and reorder exercises mid-session. Enter weight × reps on a gym-friendly keypad with Back / Done / Next, copy the previous set in one tap, and time holds and cardio with a per-set stopwatch. Sets complete themselves once filled in.
 - **Rest timer.** Off by default, and set in Profile. It and a running set stopwatch survive leaving the workout screen and the app being closed: each is one saved wall-clock time, so it reopens still counting.
 - **Apple Watch.** A watch app for the workout in progress: the next set's weight × reps ready to adjust with the Digital Crown or type on a number pad, one tap (or double tap) to log it, the rest countdown, and Finish. With nothing running it lists your templates to start one. A watch face complication opens it. See [Apple Watch](#apple-watch).
-- **Cardio and Apple Health.** Runs, walks, rides, rows and swims log a distance beside their time, with pace (or speed) worked out from the two. Workouts recorded on an Apple Watch can come in from Apple Health with their splits, heart rate and calories; Stats gets a section for them. Off until turned on in Profile. See [Apple Health](#apple-health).
+- **Cardio sessions.** Start cardio (beside Start workout) picks a run, walk, hike, ride, swim, row, elliptical or stair session and opens its own screen: a moving-time clock, Pause and End. With an Apple Watch the watch tracks it — live distance, pace, heart rate and splits on the wrist — and the finished session shows its splits, heart rate and calories; it's saved to Apple Health for the rings. Stats gets a section once there's cardio with a distance. Cardio added inside a workout stays a plain timer. See [Cardio sessions](#cardio-sessions).
 - **Resume bar and Live Activity.** The bar above the tabs leads back to the workout in progress (and lists the others if more than one is running). The newest also sits on the Lock Screen and in the Dynamic Island, with a running clock and the rest countdown.
 - **Templates, weekly split and planning.** Reusable templates (up to 20), a weekday → template split, and workouts planned or backfilled on any calendar day.
 - **Exercise library.** 600 built-ins across 11 categories, including Neck, each with a form guide. Custom exercises, edits to built-ins and hidden built-ins are stored as per-user deltas.
@@ -88,14 +88,16 @@ src/
 │   ├── bodyweight-cache.ts      # Offline copy of the weigh-in log
 │   ├── watch-protocol.ts        # What the phone and the Apple Watch send each other
 │   ├── cardio.ts                # Which cardio covers ground, units, pace, records
-│   ├── health-import.ts         # Apple Health workouts → Plato workouts (splits, best efforts)
+│   ├── cardio-session.ts        # Session kinds, the moving-time clock, ending one
+│   ├── cardio-tracking.ts       # The watch's distance record → splits and best efforts
+│   ├── watch-live.ts            # The watch's live numbers, for the session screen
 │   └── live-activity.ts
 ├── constants/theme.ts           # Palettes (light/dark) and the seven accents
 └── types/index.ts               # Domain types, shared with plato-web
 targets/watch/                   # The Apple Watch app (SwiftUI), built by @bacons/apple-targets
 targets/watch-complication/      # Its watch face complication (a WidgetKit extension inside it)
 modules/plato-watch/             # WatchConnectivity bridge on the phone (local Expo module)
-modules/plato-health/            # Read-only HealthKit access (local Expo module)
+modules/plato-health/            # Health access and waking the watch for a session (local Expo module)
 plugins/                         # Config plugins: Live Activity widget patch, watch targets + Info.plist
 scripts/apple-transfer/          # One-off tool for an App Store team transfer
 docs/                            # Privacy policy (GitHub Pages) and store listing
@@ -133,19 +135,21 @@ The watch app logs the workout in progress and starts templates; it is not the w
 
 To take the watch app out: delete `targets/watch`, `targets/watch-complication`, `modules/plato-watch`, `plugins/with-watch-targets.js`, `plugins/with-watch-plist-only.js`, `assets/watch`, their two app.json plugin entries, `<WatchSync />` in the root layout, and the `@bacons/apple-targets` dependency.
 
-### Apple Health
+### Cardio sessions
 
-Cardio from Apple Health comes in as ordinary finished workouts: one exercise, one set, saved through data.ts like anything typed in, so it syncs, reaches plato-web and counts toward the streak. Nothing about it needs plato-web to know Health exists.
+A session (`workout.cardio` set) is stored as an ordinary workout holding one exercise with one set, so History, Stats, the streak and plato-web count it without knowing sessions exist; it just has its own screen ([cardio-session.tsx](src/components/cardio-session.tsx)) instead of exercises and sets. The clock is moving time, read from the stored start and pauses ([cardio-session.ts](src/lib/cardio-session.ts)), so it survives the app being closed. Cardio added *inside* a workout is the plain timer, as it always was.
 
-- **Off until Profile → Apple Health → On**, and per account, not per phone: Health holds the phone owner's data, and a second account signed in on the same phone mustn't fill up with it. [HealthImportContext.tsx](src/context/HealthImportContext.tsx) runs an import when it's turned on and whenever the app comes forward.
-- **Read-only.** [modules/plato-health](modules/plato-health) lists workouts and their distance readings and nothing else; no write access is requested.
-- **The arithmetic is in JavaScript.** [health-import.ts](src/lib/health-import.ts) turns readings into splits (moving time, pauses left out) and fastest times over standard distances (exact, not sampled), where Jest can check them; the Swift side only reads.
-- **Each workout lands once.** Health's id is kept on the set (`tracked.healthId`), and every id ever imported is remembered on the device, so deleting an imported run in Plato is final. The first import reaches back a year; later ones re-ask about the week before the last look, because workouts can reach Health late.
-- **Distance is metres** on every set, like volume in lbs, and is shown in miles or kilometres by the weight setting (metres on a rower).
+With an Apple Watch, the watch tracks it:
 
-The first build with HealthKit needs the capability on the App ID: run `eas credentials` → iOS → production → Build Credentials → *All*, which signs in to Apple, enables HealthKit and makes a new profile. The GitHub build can't do that step itself.
+- **Started on the watch** (Start → Cardio): an `HKWorkoutSession` runs there ([CardioTracker.swift](targets/watch/CardioTracker.swift)) and a `startCardio` op creates the phone's session. **Started on the phone**: `startWatchApp(toHandle:)` wakes the watch, which tracks it and learns the phone's id from the next snapshot (or is matched by kind and start time, if it ends first).
+- **Pause and end on the watch**, which sends them as ops. Ending on the phone lists the session in the snapshot's `endedCardio`, and the watch stops and sends what it measured.
+- **`finishCardio`** carries time, distance, calories, heart rate, the Health workout's id and a record of distance against moving time; the phone works out splits and best efforts from it ([cardio-tracking.ts](src/lib/cardio-tracking.ts)), where Jest can check them. A finish with no session behind it brings the whole session in.
+- **Live numbers** go to the phone every 5 s while in reach (`onLive`, [watch-live.ts](src/lib/watch-live.ts)); never stored.
+- The session is saved to Apple Health by the watch, for the rings. Plato reads nothing from Health except during its own sessions — there's no import of other apps' workouts.
 
-To take it out: delete `modules/plato-health`, `src/context/HealthImportContext.tsx` (and `<HealthImportProvider>` in the root layout and the Apple Health card in Profile), `src/lib/health-import.ts`, and the HealthKit entitlement and two `NSHealth…` strings in app.json. Imported workouts stay, as plain cardio workouts. The distance column (`src/lib/cardio.ts`) stands on its own and can stay.
+The first build with HealthKit needs the capability on both App IDs: run `eas credentials` → iOS → production → Build Credentials → *All*, which signs in to Apple, enables HealthKit on the phone and watch apps and makes new profiles. The GitHub build can't do that step itself.
+
+To take sessions out: delete `src/app/start-cardio.tsx`, `src/components/cardio-session.tsx`, `src/lib/cardio-session.ts`, `src/lib/cardio-tracking.ts`, `src/lib/watch-live.ts`, `modules/plato-health`, and on the watch `CardioTracker.swift`, `CardioViews.swift`, `CardioMath.swift` (plus their uses in WatchStore, PlatoWatchApp, TemplatesView, Models and Logbook, the cardio ops in watch-protocol.ts and watch-sync.tsx); drop the HealthKit entitlements and `NSHealth…` strings from app.json and the watch target; put Home's single start button back. Saved sessions stay, as plain cardio workouts.
 
 Finishing a workout stores `totalVolume`, priced at that day's weigh-in, and recomputes `userStats/{uid}`, which plato-web reads.
 
