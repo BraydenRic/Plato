@@ -110,6 +110,12 @@ export interface CardioSessionInfo {
   pausedAtMs?: number;
   /** Paused time already over and done with, in seconds. */
   pausedSeconds?: number;
+  /**
+   * Each pause over and done with, start to end in epoch ms: what the phone's
+   * step counter is asked around, so distance walked while paused isn't
+   * counted. Objects, not pairs — Firestore can't hold an array of arrays.
+   */
+  pauses?: { fromMs: number; toMs: number }[];
   /** An Apple Watch is tracking it: distance, heart rate and splits come from there. */
   watch?: boolean;
   /** Started on the watch: the id of its start, which the watch knows it by until it learns this one. */

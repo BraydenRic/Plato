@@ -2,12 +2,12 @@ import { BEST_EFFORTS } from "./cardio";
 import type { BestEffortKey, TrackedCardio } from "@/types";
 
 /**
- * What a tracked session was, from what the watch measured.
+ * What a tracked session was, from what the watch measured — or, with no
+ * watch, the iPhone's step counter (see phone-distance).
  *
- * The watch sends how far it had gone at points through the session — its
- * distance against moving time, pauses already left out — and everything a
- * run is judged by afterwards is worked out here: its splits, its fastest
- * mile. Pure on purpose, where Jest can check it. Nothing about the tracking
+ * Either gives how far it had gone at points through the session — distance
+ * against moving time, pauses already left out — and everything a run is
+ * judged by afterwards is worked out here: its splits, its fastest mile. Pure on purpose, where Jest can check it. Nothing about the tracking
  * itself can be tried from here without a watch on a wrist, so the arithmetic
  * had better be proven before it reaches one.
  */
@@ -132,6 +132,24 @@ function present<T extends object>(value: T): T {
   return Object.fromEntries(Object.entries(value).filter(([, v]) => v != null)) as T;
 }
 
+/** What a curve says about a session: its splits, and for a run, its fastest efforts. */
+function curveFigures(curve: Curve | null, withSplits: boolean, isRun: boolean): Pick<TrackedCardio, "splitsMi" | "splitsKm" | "best"> {
+  let best: Partial<Record<BestEffortKey, number>> | undefined;
+  if (curve && isRun) {
+    best = {};
+    for (const effort of BEST_EFFORTS) {
+      const seconds = fastest(curve, effort.metres);
+      if (seconds != null) best[effort.key] = seconds;
+    }
+  }
+  const split = !!curve && withSplits;
+  return {
+    splitsMi: split ? splits(curve!, MILE) : undefined,
+    splitsKm: split ? splits(curve!, 1000) : undefined,
+    best: best && Object.keys(best).length > 0 ? best : undefined,
+  };
+}
+
 /**
  * The `tracked` part of a session's set, from what the watch sent at the end.
  * Splits for anything ridden or run on foot; fastest times for runs only,
@@ -147,16 +165,6 @@ export function trackedFromWatch(input: {
   withSplits: boolean;
   isRun: boolean;
 }): TrackedCardio {
-  const { curve } = input;
-  let best: Partial<Record<BestEffortKey, number>> | undefined;
-  if (curve && input.isRun) {
-    best = {};
-    for (const effort of BEST_EFFORTS) {
-      const seconds = fastest(curve, effort.metres);
-      if (seconds != null) best[effort.key] = seconds;
-    }
-  }
-  const withSplits = !!curve && input.withSplits;
   return present({
     healthId: input.healthId ?? undefined,
     source: "Apple Watch",
@@ -164,8 +172,19 @@ export function trackedFromWatch(input: {
     activeCalories: input.activeCalories != null ? Math.round(input.activeCalories) : undefined,
     avgHeartRate: input.avgHeartRate != null ? Math.round(input.avgHeartRate) : undefined,
     maxHeartRate: input.maxHeartRate != null ? Math.round(input.maxHeartRate) : undefined,
-    splitsMi: withSplits ? splits(curve!, MILE) : undefined,
-    splitsKm: withSplits ? splits(curve!, 1000) : undefined,
-    best: best && Object.keys(best).length > 0 ? best : undefined,
+    ...curveFigures(input.curve, input.withSplits, input.isRun),
+  });
+}
+
+/**
+ * The `tracked` part of a session the iPhone's step counter measured: splits
+ * and fastest efforts from its minute-by-minute distance, worked out the same
+ * way as the watch's. No heart rate or calories — a phone can't tell.
+ */
+export function trackedFromPhone(input: { indoor: boolean; curve: Curve; isRun: boolean }): TrackedCardio {
+  return present({
+    source: "iPhone",
+    indoor: input.indoor || undefined,
+    ...curveFigures(input.curve, true, input.isRun),
   });
 }

@@ -4,7 +4,7 @@ import type Ionicons from "@expo/vector-icons/Ionicons";
 import { distanceKind } from "./cardio";
 import { EXERCISES } from "./exercises";
 import { newId } from "./workout-utils";
-import type { CardioSessionKind, Workout, WorkoutSet } from "@/types";
+import type { CardioSessionKind, TrackedCardio, Workout, WorkoutSet } from "@/types";
 
 /**
  * Cardio sessions: a run, a ride, a swim, started with Start cardio.
@@ -212,17 +212,23 @@ export function resumed(workout: Workout, nowMs: number): Workout["cardio"] {
   const cardio = workout.cardio;
   if (!cardio || cardio.pausedAtMs == null) return cardio;
   const { pausedAtMs, ...rest } = cardio;
-  return { ...rest, pausedSeconds: (cardio.pausedSeconds ?? 0) + Math.max(0, nowMs - pausedAtMs) / 1000 };
+  const toMs = Math.max(pausedAtMs, nowMs);
+  return {
+    ...rest,
+    pausedSeconds: (cardio.pausedSeconds ?? 0) + (toMs - pausedAtMs) / 1000,
+    pauses: [...(cardio.pauses ?? []), { fromMs: pausedAtMs, toMs }],
+  };
 }
 
 /**
  * What ending a session writes: its set filled in with the moving time and,
- * if given, how far, and the workout marked finished. A pause still on is
- * banked first, so a run ended while paused doesn't count the pause.
+ * if given, how far — and what measured it, when something did — and the
+ * workout marked finished. A pause still on is banked first, so a run ended
+ * while paused doesn't count the pause.
  */
 export function finishedSession(
   workout: Workout,
-  options: { distance?: number; nowMs: number }
+  options: { distance?: number; tracked?: TrackedCardio; nowMs: number }
 ): Pick<Workout, "exercises" | "completedAt" | "durationMinutes" | "totalVolume" | "cardio"> {
   const seconds = movingSeconds(workout, options.nowMs);
   const completedAt = new Date(options.nowMs);
@@ -239,6 +245,7 @@ export function finishedSession(
                   ...set,
                   duration: seconds > 0 ? seconds : set.duration,
                   distance: options.distance ?? set.distance,
+                  tracked: options.tracked ?? set.tracked,
                   isCompleted: true,
                   completedAt,
                 }

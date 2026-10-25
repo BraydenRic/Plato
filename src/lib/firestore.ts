@@ -70,6 +70,15 @@ export function workoutFromDoc(id: string, data: Record<string, unknown>): Worko
 const SESSION_KINDS = new Set(["run", "walk", "hike", "bike", "swim", "row", "elliptical", "stairs"]);
 
 /** A session's `cardio` field, or nothing if it isn't one a session could hold. */
+/** Pauses that aren't all well-formed are dropped whole: a step count around half of them is no better. */
+function pausesFrom(raw: unknown): NonNullable<Workout["cardio"]>["pauses"] {
+  if (!Array.isArray(raw) || raw.length === 0) return undefined;
+  const ok = raw.every(
+    (p) => p && typeof p === "object" && typeof p.fromMs === "number" && typeof p.toMs === "number" && p.toMs >= p.fromMs
+  );
+  return ok ? raw.map((p) => ({ fromMs: p.fromMs as number, toMs: p.toMs as number })) : undefined;
+}
+
 function cardioFrom(raw: unknown): Workout["cardio"] {
   if (!raw || typeof raw !== "object") return undefined;
   const value = raw as Record<string, unknown>;
@@ -79,6 +88,7 @@ function cardioFrom(raw: unknown): Workout["cardio"] {
     indoor: value.indoor === true ? true : undefined,
     pausedAtMs: typeof value.pausedAtMs === "number" ? value.pausedAtMs : undefined,
     pausedSeconds: typeof value.pausedSeconds === "number" ? value.pausedSeconds : undefined,
+    pauses: pausesFrom(value.pauses),
     watch: value.watch === true ? true : undefined,
     watchStartOpId: typeof value.watchStartOpId === "string" ? value.watchStartOpId : undefined,
   };

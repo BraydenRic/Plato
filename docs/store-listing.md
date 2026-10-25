@@ -114,14 +114,17 @@ Before submitting a build that has them:
   ```
   CARDIO
   • Start a run, walk, ride, swim or row and track it on your Apple Watch — live distance, pace, heart rate and splits
+  • No watch? Runs and walks get their distance, pace and splits from your iPhone's step counter
   • Finished sessions show your splits, heart rate and calories, and save to Apple Health so they count toward your rings
   • Weekly distance and your fastest mile, 5K and 10K on the Stats tab
   ```
 - **Notes for App Review** — replace "No HealthKit access." with:
-  `Apple Health is used only for cardio sessions started in Plato: on the Workouts tab, Start cardio → Run → Start. With an Apple Watch paired, the watch tracks the session (heart rate, energy, distance) and saves it to Health as a workout. Plato never reads workouts recorded by other apps. Without a watch, sessions run on the phone's clock and Health isn't used.`
+  `Apple Health is used only for cardio sessions started in Plato: on the Workouts tab, Start cardio → Run → Start. With an Apple Watch paired, the watch tracks the session (heart rate, energy, distance) and saves it to Health as a workout. Plato never reads workouts recorded by other apps. Without a watch, Health isn't used: a run, walk or hike gets its distance from the iPhone's step counter (Motion & Fitness), and other sessions run on the phone's clock.`
 - **App Privacy → Data Types** — under Health & Fitness, **Health** and
   **Fitness** (App Functionality · linked to identity · not used for
   tracking). Sessions are saved to the account like typed workouts.
 - **Screenshots** — a watch screenshot is needed for the watch app anyway;
   the live run screen makes a good one.
-- **Privacy Policy** — already updated (Apple Health and Apple Watch section).
+- **Privacy Policy** — already updated (Apple Health and Apple Watch, and Your iPhone's step counter).
+- **Motion & Fitness** needs nothing more in App Privacy: the distance it gives is
+  saved with the session, which is already Fitness data above.

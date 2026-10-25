@@ -1,5 +1,5 @@
 import Ionicons from "@expo/vector-icons/Ionicons";
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ComponentProps, type ReactNode } from "react";
 import { Alert, KeyboardAvoidingView, Platform, Pressable, ScrollView, Text, TextInput, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
@@ -10,6 +10,7 @@ import { FontScaleCap, Radius, Spacing } from "@/constants/theme";
 import { makeStyles, usePalette } from "@/context/AppearanceContext";
 import { useTheme } from "@/context/ThemeContext";
 import { useWeightUnit } from "@/context/UnitContext";
+import { measureOnPhone, usePhoneDistance } from "@/hooks/use-phone-distance";
 import { useWorkouts } from "@/hooks/use-workouts";
 import {
   distanceKind,
@@ -38,7 +39,7 @@ import { computeStats, deleteWorkout, getCompletedWorkouts, stripUndefined, upda
 import { liveFor, useWatchLive } from "@/lib/watch-live";
 import { useWatchStart } from "@/lib/watch-trace";
 import { formatClock } from "@/lib/workout-utils";
-import type { Workout } from "@/types";
+import type { TrackedCardio, Workout } from "@/types";
 
 /** What a unit is called above the box you type it into. */
 const UNIT_NAME = { mi: "miles", km: "kilometers", m: "meters", yd: "yards" } as const;
@@ -47,9 +48,10 @@ const UNIT_NAME = { mi: "miles", km: "kilometers", m: "meters", yd: "yards" } as
  * A cardio session's screen: a clock while it runs, and the run itself once
  * it's done — how far, how fast, and what the watch measured on the way.
  *
- * No exercises, no sets, no keypad. Ending asks how far you went, inline, if
- * nothing measured it; that's the only question it ever asks, and it can be
- * skipped.
+ * No exercises, no sets, no keypad. Distance comes from the watch when it's
+ * tracking, or on foot from the iPhone's step counter; ending asks how far
+ * you went, inline, only if neither could say. That's the only question it
+ * ever asks, and it can be skipped.
  */
 export function CardioSession({
   workout,
@@ -80,6 +82,9 @@ export function CardioSession({
   const onWatch = !!workout.cardio?.watch;
   const live = liveFor(useWatchLive(), workout, nowMs);
   const isPausedNow = live ? live.paused : isPaused(workout);
+  // With no watch tracking it, a session on foot is measured by the phone's
+  // step counter — the screen needn't be on for that, only for the figure.
+  const phoneMetres = usePhoneDistance(workout, !done && !onWatch);
 
   useEffect(() => {
     // Ticks while paused too when the watch is tracking: it's how a stale
@@ -109,10 +114,10 @@ export function CardioSession({
     );
   }
 
-  async function finish(distance?: number) {
+  async function finish(distance?: number, tracked?: TrackedCardio, nowMs = Date.now()) {
     setSaving(true);
     try {
-      await write(finishedSession(workout, { distance, nowMs: Date.now() }));
+      await write(finishedSession(workout, { distance, tracked, nowMs }));
       // As finishing any workout does: the streak and plato-web's totals.
       const all = await getCompletedWorkouts(workout.userId);
       await upsertUserStats({ userId: workout.userId, ...computeStats(all) });
@@ -142,13 +147,25 @@ export function CardioSession({
     }
   }
 
-  function end() {
+  async function end() {
     // Nothing to ask on a stair stepper: there's no distance to give. Nor when
     // the watch is tracking: it measured how far, and sends it when it hears
     // the session ended.
     if (!groundUnit || onWatch) {
       void finish();
       return;
+    }
+    // On foot, the step counter knows how far — build 67 asked anyway. Its
+    // minute-by-minute counts up to this moment give the splits too.
+    if (phoneMetres != null) {
+      const nowMs = Date.now();
+      setSaving(true);
+      const measured = await measureOnPhone(workout, nowMs);
+      if (measured) {
+        await finish(measured.distance, measured.tracked, nowMs);
+        return;
+      }
+      setSaving(false);
     }
     setDistanceText("");
     setAskDistance("end");
@@ -242,7 +259,14 @@ export function CardioSession({
               {onWatch ? (
                 <WatchFigures workout={workout} live={live} seconds={seconds} />
               ) : (
-                <WatchStartLine sessionId={workout.id} nowMs={nowMs} />
+                <>
+                  {phoneMetres != null && (
+                    <LiveFigures workout={workout} distance={phoneMetres} seconds={seconds} heartRate={null}>
+                      <StatusLine icon="phone-portrait-outline" text="Counting steps on your iPhone" />
+                    </LiveFigures>
+                  )}
+                  <WatchStartLine sessionId={workout.id} nowMs={nowMs} />
+                </>
               )}
             </View>
 
@@ -305,6 +329,27 @@ function WatchFigures({
   live: ReturnType<typeof liveFor>;
   seconds: number;
 }) {
+  return (
+    <LiveFigures workout={workout} distance={live?.distance ?? null} seconds={seconds} heartRate={live?.heartRate ?? null}>
+      <StatusLine icon="watch-outline" text={live ? "Tracking on your Apple Watch" : "Your Apple Watch is tracking this"} />
+    </LiveFigures>
+  );
+}
+
+/** How far, how fast on average, and the heart rate if anything's reading it — then what's measuring. */
+function LiveFigures({
+  workout,
+  distance,
+  seconds,
+  heartRate,
+  children,
+}: {
+  workout: Workout;
+  distance: number | null;
+  seconds: number;
+  heartRate: number | null;
+  children: ReactNode;
+}) {
   const styles = useStyles();
   const palette = usePalette();
   const theme = useTheme();
@@ -314,8 +359,8 @@ function WatchFigures({
   const groundUnit = ground ? distanceUnit(ground, unit) : null;
 
   const figures: Figure[] = [];
-  if (live && ground && groundUnit && live.distance != null) {
-    const shown = formatDistance(live.distance, groundUnit);
+  if (ground && groundUnit && distance != null) {
+    const shown = formatDistance(distance, groundUnit);
     figures.push({
       key: "distance",
       value: shown.split(" ")[0],
@@ -324,25 +369,34 @@ function WatchFigures({
       icon: "navigate",
       tint: theme.accent,
     });
-    const rate = formatRate(live.distance, seconds, ground, unit);
+    const rate = formatRate(distance, seconds, ground, unit);
     if (rate) {
       const { value, unit: per } = splitRate(rate);
       figures.push({ key: "rate", value, unit: per, label: ground === "ride" ? "Avg speed" : "Avg pace", icon: "speedometer-outline", tint: theme.accent });
     }
   }
-  if (live?.heartRate) {
-    figures.push({ key: "hr", value: String(Math.round(live.heartRate)), unit: "bpm", label: "Heart rate", icon: "heart", tint: palette.danger });
+  if (heartRate) {
+    figures.push({ key: "hr", value: String(Math.round(heartRate)), unit: "bpm", label: "Heart rate", icon: "heart", tint: palette.danger });
   }
 
   return (
     <View style={styles.watchFigures}>
       {figures.length > 0 ? <FigureRow figures={figures} /> : null}
-      <View style={styles.watchStatus}>
-        <Ionicons name="watch-outline" size={14} color={palette.textTertiary} />
-        <Text style={styles.watchStatusText} maxFontSizeMultiplier={FontScaleCap.grid}>
-          {live ? "Tracking on your Apple Watch" : "Your Apple Watch is tracking this"}
-        </Text>
-      </View>
+      {children}
+    </View>
+  );
+}
+
+/** One quiet line saying what's measuring the session. */
+function StatusLine({ icon, text }: { icon: ComponentProps<typeof Ionicons>["name"]; text: string }) {
+  const styles = useStyles();
+  const palette = usePalette();
+  return (
+    <View style={styles.watchStatus}>
+      <Ionicons name={icon} size={14} color={palette.textTertiary} />
+      <Text style={styles.watchStatusText} maxFontSizeMultiplier={FontScaleCap.grid}>
+        {text}
+      </Text>
     </View>
   );
 }

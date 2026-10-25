@@ -1,4 +1,4 @@
-import { curveFromFlat, fastest, splits, trackedFromWatch, type Curve } from "../cardio-tracking";
+import { curveFromFlat, fastest, splits, trackedFromPhone, trackedFromWatch, type Curve } from "../cardio-tracking";
 
 const MILE = 1609.344;
 
@@ -125,5 +125,19 @@ describe("trackedFromWatch", () => {
       isRun: true,
     });
     expect(tracked).toEqual({ source: "Apple Watch", indoor: true });
+  });
+});
+
+describe("a session the iPhone measured", () => {
+  it("says so, with splits and a run's fastest efforts, and nothing a phone can't tell", () => {
+    // Eight minutes a mile, steady, for two miles.
+    const curve = { metres: [0, 1609.344, 3218.688], seconds: [0, 480, 960] };
+    const tracked = trackedFromPhone({ indoor: false, curve, isRun: true });
+    expect(tracked).toEqual({ source: "iPhone", splitsMi: [480, 480], splitsKm: [298, 298, 298], best: { "1k": 298, "1mi": 480 } });
+  });
+
+  it("keeps records to runs", () => {
+    const curve = { metres: [0, 1609.344], seconds: [0, 900] };
+    expect(trackedFromPhone({ indoor: true, curve, isRun: false })).toEqual({ source: "iPhone", indoor: true, splitsMi: [900], splitsKm: [559] });
   });
 });

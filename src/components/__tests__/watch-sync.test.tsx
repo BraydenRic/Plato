@@ -546,7 +546,14 @@ describe("cardio sessions from the watch", () => {
     render(<WatchSync />);
     await settle();
     expect(mockUpdateWorkout.mock.calls[0][1].cardio).toMatchObject({ pausedAtMs: START.getTime() + 600_000 });
-    expect(mockStore.get("run1")!.cardio).toEqual({ kind: "run", indoor: false, watch: true, watchStartOpId: "start-1", pausedSeconds: 60 });
+    expect(mockStore.get("run1")!.cardio).toEqual({
+      kind: "run",
+      indoor: false,
+      watch: true,
+      watchStartOpId: "start-1",
+      pausedSeconds: 60,
+      pauses: [{ fromMs: START.getTime() + 600_000, toMs: START.getTime() + 660_000 }],
+    });
   });
 
   it("finishes it with what the watch measured, splits and records worked out here", async () => {

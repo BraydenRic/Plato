@@ -35,6 +35,29 @@ jest.mock("@/lib/data", () => ({
 let mockCompleted: Workout[] = [];
 jest.mock("@/hooks/use-workouts", () => ({ useWorkouts: () => ({ completed: mockCompleted }) }));
 
+// The iPhone's step counter. Absent unless a test puts it there, as on any
+// device without it: the session asks how far.
+const mockMotion = {
+  status: "authorized" as string,
+  listener: null as ((reading: unknown) => void) | null,
+  isAvailable: () => true,
+  authorization: () => mockMotion.status,
+  distances: jest.fn(async (windows: number[]) => windows.filter((_, i) => i % 2 === 0).map(() => 200)),
+  startUpdates: jest.fn(),
+  stopUpdates: jest.fn(),
+  addListener: jest.fn((_event: string, listener: (reading: unknown) => void) => {
+    mockMotion.listener = listener;
+    return { remove: jest.fn() };
+  }),
+};
+let mockMotionModule: typeof mockMotion | null = null;
+jest.mock("../../../modules/plato-motion", () => ({
+  __esModule: true,
+  get default() {
+    return mockMotionModule;
+  },
+}));
+
 let mockLive: unknown = null;
 jest.mock("@/lib/watch-live", () => {
   const actual = jest.requireActual("@/lib/watch-live");
@@ -70,6 +93,10 @@ function session(kind: "run" | "stairs", overrides: Partial<Workout> = {}, set: 
 const lastPatch = () => mockUpdate.mock.calls.at(-1)![1];
 
 beforeEach(() => {
+  mockMotionModule = null;
+  mockMotion.status = "authorized";
+  mockMotion.listener = null;
+  mockMotion.distances.mockImplementation(async (windows: number[]) => windows.filter((_, i) => i % 2 === 0).map(() => 200));
   mockLive = null;
   mockCompleted = [];
   resetWatchTrace();
@@ -329,5 +356,97 @@ describe("waking the watch", () => {
   it("says nothing for a session with no watch to wake", () => {
     show(session("run"));
     expect(screen.queryByText(/watch/i)).toBeNull();
+  });
+});
+
+// Build 67 asked "How far did you go?" after a run with the phone in a
+// pocket that had counted every step.
+describe("with the iPhone's step counter", () => {
+  beforeEach(() => {
+    mockMotionModule = mockMotion;
+  });
+
+  it("shows how far it's counted, and the pace", async () => {
+    show(session("run"));
+    await act(async () => {});
+    expect(mockMotion.startUpdates).toHaveBeenCalledWith(T0);
+    await act(async () => {
+      mockMotion.listener!({ distance: 250, at: T0 + 60_000 });
+    });
+    expect(screen.getByLabelText("Distance: 0.16 mi")).toBeTruthy();
+    expect(screen.getByText("Counting steps on your iPhone")).toBeTruthy();
+  });
+
+  it("adds what it counted before a pause to what it's counting since", async () => {
+    show(session("run", { cardio: { kind: "run", pausedSeconds: 10, pauses: [{ fromMs: T0 + 10_000, toMs: T0 + 20_000 }] } }));
+    await act(async () => {});
+    // Before the pause, asked about once; since it, counted live.
+    expect(mockMotion.distances).toHaveBeenCalledWith([T0, T0 + 10_000]);
+    expect(mockMotion.startUpdates).toHaveBeenCalledWith(T0 + 20_000);
+    await act(async () => {
+      mockMotion.listener!({ distance: 100, at: T0 + 60_000 });
+    });
+    // 200 m banked + 100 m live.
+    expect(screen.getByLabelText("Distance: 0.19 mi")).toBeTruthy();
+  });
+
+  it("saves what it counted on End, with splits, without asking how far", async () => {
+    show(session("run", { cardio: { kind: "run", pausedSeconds: 10, pauses: [{ fromMs: T0 + 10_000, toMs: T0 + 20_000 }] } }));
+    await act(async () => {});
+    mockMotion.distances.mockClear();
+    await act(async () => {
+      fireEvent.press(screen.getByLabelText("End"));
+    });
+    expect(screen.queryByText("How far did you go?")).toBeNull();
+    // The pause left out, the rest in minutes at most.
+    expect(mockMotion.distances).toHaveBeenCalledWith([T0, T0 + 10_000, T0 + 20_000, T0 + 65_000]);
+    const set = lastPatch().exercises![0].sets[0];
+    expect(set).toMatchObject({ duration: 55, distance: 400, isCompleted: true, tracked: { source: "iPhone" } });
+    expect(lastPatch().completedAt).toEqual(new Date(T0 + 65_000));
+  });
+
+  it("asks how far when Plato's been refused Motion & Fitness", async () => {
+    mockMotion.status = "denied";
+    show(session("run"));
+    await act(async () => {});
+    expect(mockMotion.startUpdates).not.toHaveBeenCalled();
+    expect(screen.queryByText("Counting steps on your iPhone")).toBeNull();
+    await act(async () => {
+      fireEvent.press(screen.getByLabelText("End"));
+    });
+    expect(screen.getByText("How far did you go?")).toBeTruthy();
+  });
+
+  it("asks how far when it counted next to nothing", async () => {
+    mockMotion.distances.mockImplementation(async (windows: number[]) => windows.filter((_, i) => i % 2 === 0).map(() => 3));
+    show(session("run"));
+    await act(async () => {});
+    await act(async () => {
+      fireEvent.press(screen.getByLabelText("End"));
+    });
+    expect(screen.getByText("How far did you go?")).toBeTruthy();
+  });
+
+  it("stops counting, and asks, when the live count fails", async () => {
+    show(session("run"));
+    await act(async () => {});
+    await act(async () => {
+      mockMotion.listener!({ error: 105 });
+    });
+    expect(screen.queryByText("Counting steps on your iPhone")).toBeNull();
+    expect(mockMotion.stopUpdates).toHaveBeenCalled();
+  });
+
+  it("leaves a session the watch is tracking to the watch", async () => {
+    show(session("run", { cardio: { kind: "run", watch: true } }));
+    await act(async () => {});
+    expect(mockMotion.startUpdates).not.toHaveBeenCalled();
+  });
+
+  it("doesn't count steps on a stair stepper", async () => {
+    show(session("stairs"));
+    await act(async () => {});
+    expect(mockMotion.startUpdates).not.toHaveBeenCalled();
+    expect(mockMotion.distances).not.toHaveBeenCalled();
   });
 });

@@ -15,7 +15,8 @@
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
         "NSHealthShareUsageDescription": "Plato reads the heart rate, energy and distance your Apple Watch records during cardio you start in Plato, to show them as you go and in your history.",
-        "NSHealthUpdateUsageDescription": "Plato saves the cardio sessions your Apple Watch tracks to Apple Health, so they count toward your Activity rings."
+        "NSHealthUpdateUsageDescription": "Plato saves the cardio sessions your Apple Watch tracks to Apple Health, so they count toward your Activity rings.",
+        "NSMotionUsageDescription": "Plato uses your iPhone's step counter to measure how far you run or walk in a cardio session, when no Apple Watch is tracking it."
       },
       "entitlements": {
         "com.apple.developer.healthkit": true,

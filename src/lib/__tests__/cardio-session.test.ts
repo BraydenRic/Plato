@@ -78,7 +78,7 @@ describe("the clock", () => {
     expect(movingSeconds(w, T0 + 90_000)).toBe(60);
     w = { ...w, cardio: resumed(w, T0 + 100_000) };
     expect(isPaused(w)).toBe(false);
-    expect(w.cardio).toEqual({ kind: "run", indoor: false, pausedSeconds: 40 });
+    expect(w.cardio).toEqual({ kind: "run", indoor: false, pausedSeconds: 40, pauses: [{ fromMs: T0 + 60_000, toMs: T0 + 100_000 }] });
     expect(movingSeconds(w, T0 + 160_000)).toBe(120);
   });
 
@@ -89,6 +89,11 @@ describe("the clock", () => {
     w = { ...w, cardio: paused(w, T0 + 30_000) };
     w = { ...w, cardio: resumed(w, T0 + 45_000) };
     expect(movingSeconds(w, T0 + 60_000)).toBe(35);
+    // Each kept, for the step counter to be asked around.
+    expect(w.cardio?.pauses).toEqual([
+      { fromMs: T0 + 10_000, toMs: T0 + 20_000 },
+      { fromMs: T0 + 30_000, toMs: T0 + 45_000 },
+    ]);
   });
 
   it("ignores a second pause while paused, and a resume while running", () => {
@@ -116,7 +121,7 @@ describe("ending a session", () => {
     w = { ...w, cardio: paused(w, T0 + 600_000) };
     const done = finishedSession(w, { nowMs: T0 + 900_000 });
     expect(done.exercises[0].sets[0].duration).toBe(600);
-    expect(done.cardio).toEqual({ kind: "walk", indoor: false, pausedSeconds: 300 });
+    expect(done.cardio).toEqual({ kind: "walk", indoor: false, pausedSeconds: 300, pauses: [{ fromMs: T0 + 600_000, toMs: T0 + 900_000 }] });
   });
 
   it("finishes without a distance when none is given", () => {
