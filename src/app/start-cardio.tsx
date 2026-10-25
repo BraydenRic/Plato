@@ -13,9 +13,11 @@ import { useTheme } from "@/context/ThemeContext";
 import { useWeightUnit } from "@/context/UnitContext";
 import { useWorkouts } from "@/hooks/use-workouts";
 import { SESSION_KINDS, kindInfo, newCardioSession, placeLabel, sessionTarget, type Place } from "@/lib/cardio-session";
-import { createWorkoutLocalFirst, stripUndefined } from "@/lib/data";
+import PlatoHealth from "../../modules/plato-health";
+import PlatoWatch from "../../modules/plato-watch";
+import { createWorkoutLocalFirst, stripUndefined, updateWorkout } from "@/lib/data";
 import { MAX_ACTIVE_WORKOUTS } from "@/lib/workout-utils";
-import type { CardioSessionKind } from "@/types";
+import type { CardioSessionKind, Workout } from "@/types";
 
 /** The last kind and place started on this phone, so a runner's next tap is Start. */
 export const LAST_CARDIO_KEY = "plato.cardio.last.v1";
@@ -70,12 +72,29 @@ export default function StartCardioScreen() {
     }
     setStarting(true);
     AsyncStorage.setItem(LAST_CARDIO_KEY, JSON.stringify({ kind, place })).catch(() => {});
-    const { id, saved } = createWorkoutLocalFirst(
-      stripUndefined(newCardioSession(kind, place === "indoor", { userId: dataUserId, weightUnit: unit, now: new Date() }))
-    );
+    const session = newCardioSession(kind, place === "indoor", { userId: dataUserId, weightUnit: unit, now: new Date() });
+    const { id, saved } = createWorkoutLocalFirst(stripUndefined(session));
     // Straight onto the clock, with this picker gone from the stack behind it.
     router.replace(`/workout/${id}`);
     saved.catch(() => Alert.alert("Couldn't start", "Check your connection and try again."));
+    void trackOnWatch(id, session.cardio!);
+  }
+
+  /**
+   * Wakes the watch into the same session, so its sensors track it. The first
+   * time, iOS asks for Health access — once, as the session starts, not in the
+   * middle of anything. With no watch, or the watch off a wrist, the session
+   * just runs on the phone's clock.
+   */
+  async function trackOnWatch(id: string, cardio: NonNullable<Workout["cardio"]>) {
+    try {
+      if (!PlatoHealth || !PlatoWatch?.isWatchAppInstalled()) return;
+      await PlatoHealth.requestAccess();
+      const started = await PlatoHealth.startWatchWorkout(cardio.kind, !!cardio.indoor);
+      if (started) await updateWorkout(id, { cardio: { ...cardio, watch: true } });
+    } catch {
+      // No watch to track it; the phone's clock has it.
+    }
   }
 
   return (

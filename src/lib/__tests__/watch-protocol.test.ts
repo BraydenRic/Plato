@@ -5,8 +5,10 @@ import {
   bankRunningTimer,
   buildWatchSnapshot,
   displayWeight,
+  endedCardioIds,
   finishedFields,
   opTime,
+  parseWatchLive,
   parseWatchOp,
   SNAPSHOT_APPLIED_LIMIT,
   type WatchOp,
@@ -435,5 +437,102 @@ describe("finishing from the watch", () => {
       NOW
     );
     expect(banked[2].sets[1]).toMatchObject({ duration: 50, isCompleted: true });
+  });
+});
+
+describe("cardio ops from the watch", () => {
+  const base = { opId: "op-1", at: NOW };
+
+  it("reads a start, a pause and a finish", () => {
+    expect(parseWatchOp({ ...base, kind: "startCardio", session: "run", indoor: false })).toEqual({
+      ...base,
+      kind: "startCardio",
+      session: "run",
+      indoor: false,
+    });
+    expect(parseWatchOp({ ...base, kind: "pauseCardio", workoutId: null, startOpId: "s-1", session: "run", startedAt: NOW - 1000 })).toEqual({
+      ...base,
+      kind: "pauseCardio",
+      workoutId: null,
+      startOpId: "s-1",
+      session: "run",
+      startedAt: NOW - 1000,
+    });
+    const finish = parseWatchOp({
+      ...base,
+      kind: "finishCardio",
+      workoutId: "w-1",
+      startOpId: null,
+      session: "bike",
+      indoor: true,
+      startedAt: NOW - 600_000,
+      duration: 600.4,
+      distance: 5000,
+      activeCalories: 120,
+      avgHeartRate: 140,
+      maxHeartRate: 999,
+      healthId: "HK-1",
+      curve: [0, 0, 5000, 600],
+    });
+    // A heart rate no heart has is a sensor glitch, dropped rather than losing the ride.
+    expect(finish).toMatchObject({ kind: "finishCardio", duration: 600, avgHeartRate: 140, maxHeartRate: null, curve: [0, 0, 5000, 600] });
+  });
+
+  it("refuses a cardio op that says nothing about which session", () => {
+    expect(parseWatchOp({ ...base, kind: "pauseCardio", workoutId: null, startOpId: null })).toBeNull();
+  });
+
+  it("refuses a kind of session it doesn't know", () => {
+    expect(parseWatchOp({ ...base, kind: "startCardio", session: "skydive", indoor: false })).toBeNull();
+  });
+
+  it("drops a malformed curve but keeps the run", () => {
+    const finish = parseWatchOp({
+      ...base,
+      kind: "finishCardio",
+      workoutId: "w-1",
+      startOpId: null,
+      session: "run",
+      indoor: false,
+      startedAt: NOW,
+      duration: 60,
+      distance: 200,
+      activeCalories: null,
+      avgHeartRate: null,
+      maxHeartRate: null,
+      healthId: null,
+      curve: "nope",
+    });
+    expect(finish).toMatchObject({ kind: "finishCardio", curve: null, distance: 200 });
+  });
+});
+
+describe("live readings", () => {
+  it("reads one, and refuses one that isn't", () => {
+    const reading = { workoutId: "w-1", startOpId: null, kind: "run", startedAt: NOW, elapsed: 30, distance: 90, heartRate: 140, paused: false, at: NOW };
+    expect(parseWatchLive(reading)).toEqual(reading);
+    expect(parseWatchLive({ ...reading, kind: "fly" })).toBeNull();
+    expect(parseWatchLive({ ...reading, paused: "no" })).toBeNull();
+  });
+});
+
+describe("sessions ended on the phone", () => {
+  const ended = (overrides: Partial<Workout>): Workout => ({
+    ...liveWorkout(),
+    completedAt: new Date(NOW - 60_000),
+    cardio: { kind: "run", watch: true, watchStartOpId: "s-1" },
+    ...overrides,
+  });
+
+  it("lists a watch-tracked session still waiting for what the watch measured", () => {
+    expect(endedCardioIds([ended({})], NOW)).toEqual(["w-live", "s-1"]);
+  });
+
+  it("stops once the watch's numbers are in, after a while, or for one the watch never tracked", () => {
+    const withData = ended({});
+    withData.exercises = [{ ...withData.exercises[0], sets: [{ ...withData.exercises[0].sets[0], tracked: { source: "Apple Watch" } }] }];
+    expect(endedCardioIds([withData], NOW)).toEqual([]);
+    expect(endedCardioIds([ended({ completedAt: new Date(NOW - 7 * 3600_000) })], NOW)).toEqual([]);
+    expect(endedCardioIds([ended({ cardio: { kind: "run" } })], NOW)).toEqual([]);
   });
 });

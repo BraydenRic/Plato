@@ -1,26 +1,25 @@
 import { requireOptionalNativeModule, type NativeModule } from "expo";
 
-import type { DistanceSample, HealthWorkout } from "@/lib/health-import";
+import type { CardioSessionKind } from "@/types";
 
 declare class PlatoHealthModule extends NativeModule {
   /** False on an iPad without Health, and wherever HealthKit isn't. */
   isAvailable(): boolean;
   /**
    * Shows iOS's Health permission sheet, the first time only — afterwards it
-   * resolves at once. iOS never says what was allowed: a denied read looks
-   * exactly like having nothing to read.
+   * resolves at once. What it asks for is what the watch needs to track a
+   * session and save it to Health; the watch app shares this access.
    */
   requestAccess(): Promise<void>;
-  /** Workouts of these activities that started at or after `sinceMs`, oldest first. */
-  getWorkouts(sinceMs: number, activities: string[]): Promise<HealthWorkout[]>;
-  /** The distance readings one workout was recorded as, for its splits. */
-  getDistanceSamples(id: string): Promise<DistanceSample[]>;
+  /** Wakes Plato's watch app into a session of this kind. False with no watch to wake. */
+  startWatchWorkout(kind: CardioSessionKind, indoor: boolean): Promise<boolean>;
 }
 
 /**
- * Read-only access to Apple Health (modules/plato-health/ios).
+ * Apple Health on the phone (modules/plato-health/ios), for cardio sessions
+ * the Apple Watch tracks.
  *
  * Optional because it only exists in a native iOS build: Jest, web and Expo Go
- * get null, and the Apple Health setting doesn't appear there.
+ * get null, and sessions there run on the phone's own clock.
  */
 export default requireOptionalNativeModule<PlatoHealthModule>("PlatoHealth");

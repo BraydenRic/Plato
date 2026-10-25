@@ -14,6 +14,7 @@ import { markCurrentWorkout, useCurrentWorkoutId } from "@/lib/current-workout";
 import {
   awaitingFirstSync,
   computeStats,
+  createWorkoutLocalFirst,
   getBodyweightLog,
   getCompletedWorkouts,
   getWorkout,
@@ -27,13 +28,27 @@ import {
   applySetOp,
   bankRunningTimer,
   buildWatchSnapshot,
+  endedCardioIds,
   finishedFields,
   opTime,
+  parseWatchLive,
   parseWatchOp,
   SNAPSHOT_APPLIED_LIMIT,
+  type WatchCardioOp,
   type WatchOp,
 } from "@/lib/watch-protocol";
-import { bodyweightOn, isActiveWorkout, leadWorkout, workoutDay, workoutVolumeLbs } from "@/lib/workout-utils";
+import { distanceKind } from "@/lib/cardio";
+import { newCardioSession, paused, resumed, sessionTarget } from "@/lib/cardio-session";
+import { curveFromFlat, trackedFromWatch } from "@/lib/cardio-tracking";
+import { setWatchLive } from "@/lib/watch-live";
+import {
+  MAX_ACTIVE_WORKOUTS,
+  bodyweightOn,
+  isActiveWorkout,
+  leadWorkout,
+  workoutDay,
+  workoutVolumeLbs,
+} from "@/lib/workout-utils";
 import type { BodyweightEntry, Workout } from "@/types";
 
 /** Op ids already applied, so one the watch resends is never applied twice. */
@@ -67,6 +82,8 @@ export class NotYet extends Error {}
 export type WatchSyncContext = {
   dataUserId: string | null;
   active: Workout[];
+  /** Finished workouts — where a session the phone already ended is found. */
+  completed: Workout[];
   templates: Workout[];
   unit: WeightUnit;
   restSeconds: number;
@@ -142,6 +159,7 @@ function WatchSyncBridge() {
     latest.current = {
       dataUserId,
       active,
+      completed,
       templates,
       unit,
       restSeconds,
@@ -184,6 +202,9 @@ function WatchSyncBridge() {
         accent: accentSet.accent,
         onAccent: accentSet.onAccent,
         applied: applied ?? [],
+        // Within the last six hours, give or take — exact enough for a list
+        // that only has to outlast a watch out of range for a run.
+        endedCardio: endedCardioIds(completed, Math.floor(Date.now() / 600_000) * 600_000),
         // Stamped at send time; leaving it out here keeps the key stable
         // across renders that changed nothing.
         now: 0,
@@ -287,6 +308,23 @@ function WatchSyncBridge() {
       subscription.remove();
     };
   }, [canApply]);
+
+  // ── In: a tracked session's live numbers ───────────────────────────────────
+  // Straight to the session screen. Not ops: nothing is written, and a reading
+  // that's missed is replaced a few seconds later.
+  useEffect(() => {
+    const bridge = PlatoWatch;
+    if (!bridge) return;
+    const subscription = bridge.addListener("onLive", ({ json }) => {
+      try {
+        const live = parseWatchLive(JSON.parse(json));
+        if (live) setWatchLive(live);
+      } catch {
+        // A garbled reading is skipped; the next one is seconds away.
+      }
+    });
+    return () => subscription.remove();
+  }, []);
 
   return null;
 }
@@ -434,6 +472,118 @@ export async function applyWatchOp(op: WatchOp, ctx: WatchSyncContext): Promise<
       return;
     }
 
+    case "startCardio": {
+      // Here already: a resend, or its finish arrived first and brought it in.
+      if (sessionStartedBy(op.opId, ctx)) return;
+      // At the limit, it waits for its finish, which brings it in regardless —
+      // the run is happening on the watch whether or not the phone has room.
+      if (ctx.active.length >= MAX_ACTIVE_WORKOUTS) return;
+      const session = newCardioSession(op.session, op.indoor, {
+        userId: dataUserId,
+        weightUnit: ctx.unit,
+        now: new Date(Math.min(op.at, now)),
+      });
+      session.cardio = { ...session.cardio!, watch: true, watchStartOpId: op.opId };
+      const { id, saved } = createWorkoutLocalFirst(stripUndefined(session));
+      ctx.active = [...ctx.active, { ...session, id }];
+      markCurrentWorkout(id);
+      await saved;
+      return;
+    }
+
+    case "pauseCardio":
+    case "resumeCardio": {
+      const session = await findSession(op, ctx);
+      if (!session?.cardio || session.completedAt || !session.startedAt) return;
+      const at = opTime(op.at, now, session.startedAt.getTime());
+      const cardio = op.kind === "pauseCardio" ? paused(session, at) : resumed(session, at);
+      await updateWorkout(session.id, stripUndefined({ cardio }) as Partial<Workout>);
+      return;
+    }
+
+    case "finishCardio": {
+      const { exercise } = sessionTarget(op.session, op.indoor);
+      const ground = distanceKind(exercise);
+      const tracked = trackedFromWatch({
+        healthId: op.healthId,
+        indoor: op.indoor,
+        activeCalories: op.activeCalories,
+        avgHeartRate: op.avgHeartRate,
+        maxHeartRate: op.maxHeartRate,
+        curve: curveFromFlat(op.curve),
+        withSplits: ground === "foot" || ground === "ride",
+        isRun: op.session === "run",
+      });
+      const distance = ground && op.distance && op.distance > 0 ? Math.round(op.distance * 10) / 10 : undefined;
+      const durationMinutes = Math.max(1, Math.round(op.duration / 60));
+      const session = await findSession(op, ctx);
+
+      if (!session) {
+        // Its start never landed — refused at the limit, or lost — so the
+        // finish brings the whole session in, finished.
+        const fresh = newCardioSession(op.session, op.indoor, {
+          userId: dataUserId,
+          weightUnit: ctx.unit,
+          now: new Date(Math.min(op.startedAt, now)),
+        });
+        const completedAt = new Date(Math.min(Math.max(op.at, op.startedAt), now));
+        const { saved } = createWorkoutLocalFirst(
+          stripUndefined({
+            ...fresh,
+            cardio: { ...fresh.cardio!, watch: true, ...(op.startOpId ? { watchStartOpId: op.startOpId } : {}) },
+            completedAt,
+            durationMinutes,
+            totalVolume: 0,
+            exercises: fresh.exercises.map((ex) => ({
+              ...ex,
+              sets: ex.sets.map((set) => ({ ...set, duration: op.duration, distance, tracked, isCompleted: true, completedAt })),
+            })),
+          })
+        );
+        await saved;
+        await refreshStats(dataUserId);
+        return;
+      }
+      if (session.userId !== dataUserId || !session.cardio) return;
+
+      // Ended on the phone already: it keeps the moment it was ended there.
+      const completedAt = session.completedAt ?? new Date(opTime(op.at, now, session.startedAt?.getTime() ?? 0));
+      const { pausedAtMs: _paused, ...cardio } = session.cardio;
+      const exercises = session.exercises.map((ex, i) =>
+        i !== 0
+          ? ex
+          : {
+              ...ex,
+              sets: ex.sets.map((set, j) =>
+                j !== 0
+                  ? set
+                  : {
+                      ...set,
+                      // The watch measured these; a distance typed on the
+                      // phone stays only if the watch had none.
+                      duration: op.duration > 0 ? op.duration : set.duration,
+                      distance: distance ?? set.distance,
+                      tracked,
+                      isCompleted: true,
+                      completedAt,
+                    }
+              ),
+            }
+      );
+      await updateWorkout(
+        session.id,
+        stripUndefined({
+          exercises,
+          completedAt,
+          durationMinutes,
+          totalVolume: 0,
+          cardio: { ...cardio, watch: true },
+        }) as Partial<Workout>
+      );
+      await refreshStats(dataUserId);
+      return;
+    }
+
     case "extendRest":
       if (ctx.rest?.workoutId !== op.workoutId) return;
       ctx.extendRest(op.seconds * 1000);
@@ -446,6 +596,43 @@ export async function applyWatchOp(op: WatchOp, ctx: WatchSyncContext): Promise<
       ctx.rest = null;
       return;
   }
+}
+
+/** The session a start op of this id created, if it's here yet. */
+function sessionStartedBy(startOpId: string, ctx: WatchSyncContext): Workout | undefined {
+  return [...ctx.active, ...ctx.completed].find((w) => w.cardio?.watchStartOpId === startOpId);
+}
+
+/** A session started on the phone and this close to the watch's start is the one it woke the watch for. */
+const SAME_START_MS = 5 * 60 * 1000;
+
+/**
+ * The session a cardio op is about: by the phone's id, once the watch knows
+ * it; by the watch's start op, for one the watch started; and otherwise by
+ * kind and start time — a session started on the phone wakes the watch, which
+ * may end it before ever hearing its id.
+ */
+async function findSession(op: WatchCardioOp, ctx: WatchSyncContext): Promise<Workout | null> {
+  if (op.workoutId) {
+    const byId = await getWorkout(op.workoutId);
+    if (byId) return byId;
+  }
+  const sessions = [...ctx.active, ...ctx.completed].filter((w) => w.cardio && w.userId === ctx.dataUserId);
+  const match =
+    (op.startOpId ? sessions.find((w) => w.cardio!.watchStartOpId === op.startOpId) : undefined) ??
+    (op.session != null && op.startedAt != null
+      ? sessions.find(
+          (w) =>
+            w.cardio!.kind === op.session &&
+            !w.cardio!.watchStartOpId &&
+            !w.exercises[0]?.sets[0]?.tracked &&
+            !!w.startedAt &&
+            Math.abs(w.startedAt.getTime() - op.startedAt!) < SAME_START_MS
+        )
+      : undefined);
+  if (!match) return null;
+  // The freshest copy: ctx's lists are as of the last render.
+  return (await getWorkout(match.id)) ?? match;
 }
 
 /** Lifetime stats are derived from history, as the workout screen's Finish does. */

@@ -1,7 +1,8 @@
 import { cardioSetDone } from "./cardio";
+import { MAX_CURVE_POINTS } from "./cardio-tracking";
 import { isBodyweightExercise, isTimedExercise } from "./exercises";
 import { convertWeight, liveSetSeconds, previousSetsByExercise, workoutVolumeLbs } from "./workout-utils";
-import type { Workout, WorkoutExercise, WorkoutSet } from "@/types";
+import type { CardioSessionKind, Workout, WorkoutExercise, WorkoutSet } from "@/types";
 
 /**
  * What the phone tells the Apple Watch app, and what the watch asks back.
@@ -52,6 +53,21 @@ export interface WatchWorkout {
   /** ms since epoch */
   startedAt: number;
   exercises: WatchExercise[];
+  /** Set when it's a cardio session, which the watch shows as its own screen. */
+  cardio: WatchCardio | null;
+}
+
+/** A cardio session, as far as the watch needs to know it. */
+export interface WatchCardio {
+  kind: CardioSessionKind;
+  indoor: boolean;
+  /** ms since epoch, while paused; null while moving. */
+  pausedAtMs: number | null;
+  pausedSeconds: number;
+  /** A watch is tracking it. */
+  watch: boolean;
+  /** The id of the watch's start op, when the watch started it — how the watch recognises its own. */
+  startOpId: string | null;
 }
 
 export interface WatchTemplate {
@@ -82,6 +98,32 @@ export interface WatchSnapshot {
   templates: WatchTemplate[];
   /** Recently applied op ids, so the watch knows which of its own edits have landed. */
   applied: string[];
+  /**
+   * Sessions the watch was tracking that were ended on the phone — their ids,
+   * and the start op ids of the ones the watch started — so a watch still
+   * tracking one ends it and sends what it measured.
+   */
+  endedCardio: string[];
+}
+
+const SESSION_KINDS: CardioSessionKind[] = ["run", "walk", "hike", "bike", "swim", "row", "elliptical", "stairs"];
+
+/** How long a session ended on the phone keeps asking a watch to end it too. */
+export const ENDED_CARDIO_WINDOW_MS = 6 * 60 * 60 * 1000;
+
+/**
+ * Watch-tracked sessions ended on the phone that are still waiting for what
+ * the watch measured: finished, but with nothing from the watch on their set.
+ */
+export function endedCardioIds(completed: Workout[], now: number): string[] {
+  const ids: string[] = [];
+  for (const w of completed) {
+    if (!w.cardio?.watch || !w.completedAt || now - w.completedAt.getTime() > ENDED_CARDIO_WINDOW_MS) continue;
+    if (w.exercises[0]?.sets[0]?.tracked) continue;
+    ids.push(w.id);
+    if (w.cardio.watchStartOpId) ids.push(w.cardio.watchStartOpId);
+  }
+  return ids;
 }
 
 /**
@@ -145,6 +187,16 @@ function toWatchWorkout(workout: Workout, completed: Workout[], unit: "lbs" | "k
         })),
       };
     }),
+    cardio: workout.cardio
+      ? {
+          kind: workout.cardio.kind,
+          indoor: !!workout.cardio.indoor,
+          pausedAtMs: workout.cardio.pausedAtMs ?? null,
+          pausedSeconds: workout.cardio.pausedSeconds ?? 0,
+          watch: !!workout.cardio.watch,
+          startOpId: workout.cardio.watchStartOpId ?? null,
+        }
+      : null,
   };
 }
 
@@ -172,6 +224,8 @@ export function buildWatchSnapshot(input: {
   accent: string;
   onAccent: string;
   applied: string[];
+  /** See endedCardioIds. */
+  endedCardio?: string[];
   now: number;
 }): WatchSnapshot {
   // Signed out carries nothing at all: the watch must not keep showing the last
@@ -189,6 +243,7 @@ export function buildWatchSnapshot(input: {
     workout: workout ? toWatchWorkout(workout, input.completed, input.unit) : null,
     templates: input.signedIn ? input.templates.map(toWatchTemplate) : [],
     applied: input.applied.slice(-SNAPSHOT_APPLIED_LIMIT),
+    endedCardio: input.signedIn ? (input.endedCardio ?? []) : [],
   };
 }
 
@@ -198,6 +253,16 @@ interface OpBase {
   opId: string;
   /** When it happened on the watch, ms since epoch. */
   at: number;
+}
+
+/**
+ * Which session an op is about: the phone's id once the watch has learned it,
+ * and the watch's own start op id for one it started, which is all it has
+ * until then. At least one of the two.
+ */
+interface CardioRef {
+  workoutId: string | null;
+  startOpId: string | null;
 }
 
 interface SetRef {
@@ -217,7 +282,35 @@ export type WatchOp =
   | (OpBase & { kind: "startTemplate"; templateId: string })
   | (OpBase & { kind: "finish"; workoutId: string })
   | (OpBase & { kind: "extendRest"; workoutId: string; seconds: number })
-  | (OpBase & { kind: "endRest"; workoutId: string });
+  | (OpBase & { kind: "endRest"; workoutId: string })
+  /** A session started on the watch. Its opId is how the watch knows it until the phone's id arrives. */
+  | (OpBase & { kind: "startCardio"; session: CardioSessionKind; indoor: boolean })
+  | (OpBase & CardioRef & { kind: "pauseCardio" | "resumeCardio"; session?: CardioSessionKind; startedAt?: number })
+  /**
+   * A session ended, with what the watch measured. Complete on its own: if
+   * the start never landed, this is enough to bring the whole session in.
+   */
+  | (OpBase &
+      CardioRef & {
+        kind: "finishCardio";
+        session: CardioSessionKind;
+        indoor: boolean;
+        /** ms since epoch */
+        startedAt: number;
+        /** Seconds moving. */
+        duration: number;
+        /** Metres. */
+        distance: number | null;
+        activeCalories: number | null;
+        avgHeartRate: number | null;
+        maxHeartRate: number | null;
+        /** The workout the watch saved to Apple Health. */
+        healthId: string | null;
+        /** Metres and moving seconds, alternating — see curveFromFlat. */
+        curve: number[] | null;
+      });
+
+export type WatchCardioOp = Extract<WatchOp, { kind: "pauseCardio" | "resumeCardio" | "finishCardio" }>;
 
 export type WatchSetOp = Extract<WatchOp, { kind: "logSet" | "undoSet" | "addSet" }>;
 
@@ -284,9 +377,110 @@ export function parseWatchOp(raw: unknown): WatchOp | null {
       if (seconds == null) return null;
       return { ...base, kind: "extendRest", workoutId: op.workoutId, seconds: Math.round(seconds) };
     }
+    case "startCardio":
+      if (!SESSION_KINDS.includes(op.session as CardioSessionKind) || typeof op.indoor !== "boolean") return null;
+      return { ...base, kind: "startCardio", session: op.session as CardioSessionKind, indoor: op.indoor };
+    case "pauseCardio":
+    case "resumeCardio": {
+      const ref = cardioRef(op);
+      if (!ref) return null;
+      // Kind and start help find a session the watch doesn't know the id of.
+      const session = SESSION_KINDS.includes(op.session as CardioSessionKind) ? (op.session as CardioSessionKind) : undefined;
+      const startedAt = typeof op.startedAt === "number" && Number.isFinite(op.startedAt) ? op.startedAt : undefined;
+      return {
+        ...base,
+        ...ref,
+        kind: op.kind,
+        ...(session ? { session } : {}),
+        ...(startedAt != null ? { startedAt } : {}),
+      };
+    }
+    case "finishCardio": {
+      const ref = cardioRef(op);
+      if (!ref) return null;
+      if (!SESSION_KINDS.includes(op.session as CardioSessionKind) || typeof op.indoor !== "boolean") return null;
+      if (typeof op.startedAt !== "number" || !Number.isFinite(op.startedAt)) return null;
+      const duration = finiteOrNull(op.duration, 0, 24 * 60 * 60);
+      const distance = finiteOrNull(op.distance, 0, 1_000_000);
+      const activeCalories = finiteOrNull(op.activeCalories, 0, 50_000);
+      const avgHeartRate = finiteOrNull(op.avgHeartRate, 20, 260);
+      const maxHeartRate = finiteOrNull(op.maxHeartRate, 20, 260);
+      if (duration == null || distance === undefined || activeCalories === undefined) return null;
+      // A heart rate out of range is a sensor glitch, not a reason to lose the run.
+      const healthId = op.healthId == null ? null : isId(op.healthId) ? op.healthId : undefined;
+      if (healthId === undefined) return null;
+      const curve =
+        Array.isArray(op.curve) && op.curve.length <= MAX_CURVE_POINTS * 2 && op.curve.every((n) => typeof n === "number")
+          ? (op.curve as number[])
+          : null;
+      return {
+        ...base,
+        ...ref,
+        kind: "finishCardio",
+        session: op.session as CardioSessionKind,
+        indoor: op.indoor,
+        startedAt: op.startedAt,
+        duration: Math.round(duration),
+        distance,
+        activeCalories,
+        avgHeartRate: avgHeartRate ?? null,
+        maxHeartRate: maxHeartRate ?? null,
+        healthId,
+        curve,
+      };
+    }
     default:
       return null;
   }
+}
+
+function cardioRef(op: Record<string, unknown>): CardioRef | null {
+  const workoutId = isId(op.workoutId) ? op.workoutId : null;
+  const startOpId = isId(op.startOpId) ? op.startOpId : null;
+  return workoutId || startOpId ? { workoutId, startOpId } : null;
+}
+
+/**
+ * A tracked session's numbers, sent every few seconds while the phone is in
+ * reach so its screen can show them too. Shown and thrown away; the session
+ * itself is saved by finishCardio.
+ */
+export interface WatchLive {
+  workoutId: string | null;
+  startOpId: string | null;
+  kind: CardioSessionKind;
+  /** ms since epoch */
+  startedAt: number;
+  /** Seconds moving. */
+  elapsed: number;
+  /** Metres. */
+  distance: number | null;
+  heartRate: number | null;
+  paused: boolean;
+  /** When it was measured, ms since epoch. */
+  at: number;
+}
+
+export function parseWatchLive(raw: unknown): WatchLive | null {
+  if (!raw || typeof raw !== "object") return null;
+  const live = raw as Record<string, unknown>;
+  if (!SESSION_KINDS.includes(live.kind as CardioSessionKind)) return null;
+  const elapsed = finiteOrNull(live.elapsed, 0, 24 * 60 * 60);
+  const distance = finiteOrNull(live.distance, 0, 1_000_000);
+  const heartRate = finiteOrNull(live.heartRate, 20, 260);
+  if (elapsed == null || distance === undefined || typeof live.paused !== "boolean") return null;
+  if (typeof live.at !== "number" || typeof live.startedAt !== "number") return null;
+  return {
+    workoutId: isId(live.workoutId) ? live.workoutId : null,
+    startOpId: isId(live.startOpId) ? live.startOpId : null,
+    kind: live.kind as CardioSessionKind,
+    startedAt: live.startedAt,
+    elapsed,
+    distance,
+    heartRate: heartRate ?? null,
+    paused: live.paused,
+    at: live.at,
+  };
 }
 
 /**

@@ -31,6 +31,12 @@ jest.mock("@/lib/data", () => ({
   stripUndefined: (v: unknown) => v,
 }));
 
+let mockLive: unknown = null;
+jest.mock("@/lib/watch-live", () => {
+  const actual = jest.requireActual("@/lib/watch-live");
+  return { ...actual, useWatchLive: () => mockLive };
+});
+
 const T0 = Date.UTC(2026, 9, 25, 7, 0, 0);
 const MILE = 1609.344;
 
@@ -60,6 +66,7 @@ function session(kind: "run" | "stairs", overrides: Partial<Workout> = {}, set: 
 const lastPatch = () => mockUpdate.mock.calls.at(-1)![1];
 
 beforeEach(() => {
+  mockLive = null;
   jest.clearAllMocks();
   jest.spyOn(Date, "now").mockReturnValue(T0 + 65_000);
 });
@@ -169,4 +176,39 @@ it("deletes a finished run from the menu, after a confirmation", async () => {
   expect(alert).toHaveBeenCalledTimes(2);
   expect(mockBack).toHaveBeenCalled();
   expect(mockDelete).toHaveBeenCalledWith(expect.objectContaining({ id: "s1" }));
+});
+
+describe("tracked on the watch", () => {
+  const onWatch = () => session("run", { cardio: { kind: "run", indoor: false, watch: true } });
+
+  it("shows the watch's clock, distance, pace and heart rate", () => {
+    mockLive = { workoutId: "s1", startOpId: null, kind: "run", startedAt: T0, elapsed: 600, distance: 2 * MILE, heartRate: 151, paused: false, at: T0 + 60_000 };
+    show(onWatch());
+    // Ten minutes at the reading, five seconds since.
+    expect(screen.getByText("10:05")).toBeTruthy();
+    expect(screen.getByLabelText("Distance: 2.00 mi")).toBeTruthy();
+    expect(screen.getByLabelText("Avg pace: 5:03 /mi")).toBeTruthy();
+    expect(screen.getByLabelText("Heart rate: 151 bpm")).toBeTruthy();
+    expect(screen.getByText("Tracking on your Apple Watch")).toBeTruthy();
+  });
+
+  // Pausing is done on the watch, where the sensors are.
+  it("leaves pausing to the watch and ends without asking how far", async () => {
+    show(onWatch());
+    expect(screen.queryByLabelText("Pause")).toBeNull();
+    expect(screen.getByText("Pause on your watch")).toBeTruthy();
+    await act(async () => {
+      fireEvent.press(screen.getByLabelText("End"));
+    });
+    expect(screen.queryByText("How far did you go?")).toBeNull();
+    expect(lastPatch().completedAt).toEqual(new Date(T0 + 65_000));
+  });
+
+  it("goes back to its own clock when the watch goes quiet", () => {
+    mockLive = { workoutId: "s1", startOpId: null, kind: "run", startedAt: T0, elapsed: 30, distance: 100, heartRate: 120, paused: false, at: T0 };
+    show(onWatch());
+    // The reading is 65 s old, past fresh: the phone's 1:05 stands.
+    expect(screen.getByText("1:05")).toBeTruthy();
+    expect(screen.getByText("Your Apple Watch is tracking this")).toBeTruthy();
+  });
 });

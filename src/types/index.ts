@@ -46,12 +46,12 @@ export type BestEffortKey = "1k" | "1mi" | "5k" | "10k" | "half" | "marathon";
 
 /**
  * The parts of a cardio set only a watch can measure. Never typed in: these
- * arrive with a workout imported from Apple Health, and editing the set's time
- * or distance afterwards leaves them describing what was recorded.
+ * arrive from the Apple Watch when it ends a session it tracked, and editing
+ * the set's distance afterwards leaves them describing what was recorded.
  */
 export interface TrackedCardio {
-  /** Apple Health's id for the workout, so the same one is never imported twice. */
-  healthId: string;
+  /** Apple Health's id for the workout the watch saved, when it saved one. */
+  healthId?: string;
   /** What recorded it, as Health names it: "Brayden's Apple Watch", "Strava". */
   source?: string;
   indoor?: boolean;
@@ -110,6 +110,10 @@ export interface CardioSessionInfo {
   pausedAtMs?: number;
   /** Paused time already over and done with, in seconds. */
   pausedSeconds?: number;
+  /** An Apple Watch is tracking it: distance, heart rate and splits come from there. */
+  watch?: boolean;
+  /** Started on the watch: the id of its start, which the watch knows it by until it learns this one. */
+  watchStartOpId?: string;
 }
 
 /** One weigh-in. Dated, so a set can be valued against the weight at the time. */

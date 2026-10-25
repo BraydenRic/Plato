@@ -79,6 +79,8 @@ function cardioFrom(raw: unknown): Workout["cardio"] {
     indoor: value.indoor === true ? true : undefined,
     pausedAtMs: typeof value.pausedAtMs === "number" ? value.pausedAtMs : undefined,
     pausedSeconds: typeof value.pausedSeconds === "number" ? value.pausedSeconds : undefined,
+    watch: value.watch === true ? true : undefined,
+    watchStartOpId: typeof value.watchStartOpId === "string" ? value.watchStartOpId : undefined,
   };
 }
 

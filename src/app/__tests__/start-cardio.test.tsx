@@ -17,14 +17,30 @@ jest.mock("@/context/ThemeContext", () => ({
 let mockActive: Workout[] = [];
 jest.mock("@/hooks/use-workouts", () => ({ useWorkouts: () => ({ active: mockActive }) }));
 const mockCreate = jest.fn((_w: Omit<Workout, "id">) => ({ id: "new-session", saved: Promise.resolve() }));
+const mockUpdate = jest.fn(async (_id: string, _patch: Partial<Workout>) => {});
 jest.mock("@/lib/data", () => ({
   createWorkoutLocalFirst: (w: Omit<Workout, "id">) => mockCreate(w),
+  updateWorkout: (id: string, patch: Partial<Workout>) => mockUpdate(id, patch),
   stripUndefined: (v: unknown) => v,
+}));
+let mockWatchInstalled = false;
+jest.mock("../../../modules/plato-watch", () => ({
+  __esModule: true,
+  default: { isWatchAppInstalled: () => mockWatchInstalled },
+}));
+const mockHealth = { requestAccess: jest.fn(async () => {}), startWatchWorkout: jest.fn(async (_k: string, _i: boolean) => true) };
+jest.mock("../../../modules/plato-health", () => ({
+  __esModule: true,
+  get default() {
+    return mockHealth;
+  },
 }));
 
 beforeEach(async () => {
   jest.clearAllMocks();
   mockActive = [];
+  mockWatchInstalled = false;
+  mockHealth.startWatchWorkout.mockImplementation(async () => true);
   await AsyncStorage.clear();
 });
 
@@ -87,4 +103,36 @@ it("refuses a sixth session in progress, as Start workout does", async () => {
   });
   expect(alert).toHaveBeenCalled();
   expect(mockCreate).not.toHaveBeenCalled();
+});
+
+describe("with a watch", () => {
+  it("asks for Health access, wakes the watch into the session, and marks it tracked there", async () => {
+    mockWatchInstalled = true;
+    await mount();
+    await act(async () => {
+      fireEvent.press(screen.getByText("Start outdoor run"));
+    });
+    expect(mockHealth.requestAccess.mock.invocationCallOrder[0]).toBeLessThan(mockHealth.startWatchWorkout.mock.invocationCallOrder[0]);
+    expect(mockHealth.startWatchWorkout).toHaveBeenCalledWith("run", false);
+    expect(mockUpdate).toHaveBeenCalledWith("new-session", { cardio: { kind: "run", indoor: false, watch: true } });
+  });
+
+  it("runs on the phone's clock when the watch can't be woken", async () => {
+    mockWatchInstalled = true;
+    mockHealth.startWatchWorkout.mockImplementation(async () => false);
+    await mount();
+    await act(async () => {
+      fireEvent.press(screen.getByText("Start outdoor run"));
+    });
+    expect(mockUpdate).not.toHaveBeenCalled();
+    expect(mockReplace).toHaveBeenCalledWith("/workout/new-session");
+  });
+
+  it("doesn't ask for Health access with no watch to track it", async () => {
+    await mount();
+    await act(async () => {
+      fireEvent.press(screen.getByText("Start outdoor run"));
+    });
+    expect(mockHealth.requestAccess).not.toHaveBeenCalled();
+  });
 });

@@ -21,6 +21,7 @@ type FakeBridge = {
   inbox: Entry[];
   sent: string[];
   listener: null | (() => void);
+  liveListener: null | ((event: { json: string }) => void);
   updateContext: jest.Mock;
   takeInbox: jest.Mock;
   ackInbox: jest.Mock;
@@ -32,6 +33,7 @@ jest.mock("../../../modules/plato-watch", () => {
     inbox: [],
     sent: [],
     listener: null,
+    liveListener: null,
     updateContext: jest.fn((json: string) => {
       bridge.sent.push(json);
     }),
@@ -39,7 +41,12 @@ jest.mock("../../../modules/plato-watch", () => {
     ackInbox: jest.fn((ids: string[]) => {
       bridge.inbox = bridge.inbox.filter((e: Entry) => !ids.includes(e.id));
     }),
-    addListener: jest.fn((_event: string, listener: () => void) => {
+    // One listener per event: the inbox's and the live readings'.
+    addListener: jest.fn((event: string, listener: () => void) => {
+      if (event === "onLive") {
+        bridge.liveListener = listener;
+        return { remove: () => (bridge.liveListener = null) };
+      }
       bridge.listener = listener;
       return { remove: () => (bridge.listener = null) };
     }),
@@ -89,6 +96,14 @@ const mockUpdateWorkout = jest.fn(async (id: string, updates: Partial<Workout>) 
   if (current) mockStore.set(id, { ...current, ...updates });
 });
 const mockStartFromTemplate = jest.fn((_t: Workout, _u: string) => ({ id: "w-new", saved: Promise.resolve() }));
+let mockCreated = 0;
+const mockCreate = jest.fn((w: Omit<Workout, "id">) => {
+  const id = `created-${++mockCreated}`;
+  mockStore.set(id, { ...w, id } as Workout);
+  return { id, saved: Promise.resolve() };
+});
+const mockSetLive = jest.fn();
+jest.mock("@/lib/watch-live", () => ({ setWatchLive: (live: unknown) => mockSetLive(live) }));
 const mockUpsertStats = jest.fn(async () => {});
 let mockAwaitingSync = false;
 // The real stripUndefined lives beside the Firestore SDK, which Jest can't load.
@@ -108,6 +123,7 @@ jest.mock("@/lib/data", () => {
     getWorkout: async (id: string) => mockStore.get(id) ?? null,
     updateWorkout: (id: string, updates: Partial<Workout>) => mockUpdateWorkout(id, updates),
     startFromTemplate: (t: Workout, u: string) => mockStartFromTemplate(t, u),
+    createWorkoutLocalFirst: (w: Omit<Workout, "id">) => mockCreate(w),
     getCompletedWorkouts: async () => [...mockStore.values()].filter((w) => w.completedAt),
     upsertUserStats: () => mockUpsertStats(),
     getBodyweightLog: async () => [],
@@ -169,6 +185,8 @@ beforeEach(async () => {
   mockBridge.inbox = [];
   mockBridge.sent = [];
   mockBridge.listener = null;
+  mockBridge.liveListener = null;
+  mockCreated = 0;
   jest.clearAllMocks();
   mockStore.clear();
   mockAuth = { dataUserId: "u1", loading: false };
@@ -445,5 +463,183 @@ describe("finishing and resting from the watch", () => {
     await settle();
     expect(mockExtendRest).toHaveBeenCalledWith(15_000);
     expect(mockEndRest).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("cardio sessions from the watch", () => {
+  const MILE = 1609.344;
+  const runExercise = { id: "running", name: "Running", category: "Cardio", musclesWorked: [], description: "" };
+
+  function session(overrides: Partial<Workout> = {}): Workout {
+    return {
+      id: "run1",
+      userId: "u1",
+      name: "Outdoor Run",
+      isTemplate: false,
+      createdAt: START,
+      startedAt: START,
+      cardio: { kind: "run", indoor: false, watch: true, watchStartOpId: "start-1" },
+      exercises: [{ id: "e1", exerciseId: "running", exercise: runExercise, orderIndex: 0, sets: [{ id: "s1", weightUnit: "lbs", isCompleted: false }] }],
+      ...overrides,
+    };
+  }
+
+  /** Five kilometres at five minutes each, as the watch sends it: metres, seconds, alternating. */
+  const fiveK = Array.from({ length: 51 }, (_, i) => [i * 100, i * 30]).flat();
+
+  function finish(overrides: Record<string, unknown> = {}) {
+    return entry({
+      opId: "fin-1",
+      kind: "finishCardio",
+      at: START.getTime() + 1500_000,
+      workoutId: null,
+      startOpId: "start-1",
+      session: "run",
+      indoor: false,
+      startedAt: START.getTime(),
+      duration: 1500,
+      distance: 5000,
+      activeCalories: 320.4,
+      avgHeartRate: 151.2,
+      maxHeartRate: 170.8,
+      healthId: "HK-1",
+      curve: fiveK,
+      ...overrides,
+    });
+  }
+
+  beforeEach(() => {
+    mockWorkouts = { active: [], templates: [], completed: [], loading: false };
+  });
+
+  it("starts a session the watch started, marked as tracked there, and leads with it", async () => {
+    mockBridge.inbox = [entry({ opId: "start-9", kind: "startCardio", at: START.getTime(), session: "bike", indoor: true })];
+    render(<WatchSync />);
+    await settle();
+    expect(mockCreate).toHaveBeenCalledTimes(1);
+    expect(mockCreate.mock.calls[0][0]).toMatchObject({
+      name: "Indoor Cycle",
+      startedAt: START,
+      cardio: { kind: "bike", indoor: true, watch: true, watchStartOpId: "start-9" },
+    });
+    expect(mockMarkCurrent).toHaveBeenCalledWith("created-1");
+  });
+
+  it("doesn't start it twice when the start arrives again", async () => {
+    mockWorkouts.active = [session({ cardio: { kind: "run", watch: true, watchStartOpId: "start-9" } })];
+    mockBridge.inbox = [entry({ opId: "start-9", kind: "startCardio", at: START.getTime(), session: "run", indoor: false })];
+    render(<WatchSync />);
+    await settle();
+    expect(mockCreate).not.toHaveBeenCalled();
+  });
+
+  it("pauses and resumes it at the moments the watch did", async () => {
+    const run = session();
+    mockStore.set(run.id, run);
+    mockWorkouts.active = [run];
+    mockBridge.inbox = [
+      entry({ opId: "p1", kind: "pauseCardio", at: START.getTime() + 600_000, workoutId: null, startOpId: "start-1" }),
+      entry({ opId: "r1", kind: "resumeCardio", at: START.getTime() + 660_000, workoutId: null, startOpId: "start-1" }),
+    ];
+    render(<WatchSync />);
+    await settle();
+    expect(mockUpdateWorkout.mock.calls[0][1].cardio).toMatchObject({ pausedAtMs: START.getTime() + 600_000 });
+    expect(mockStore.get("run1")!.cardio).toEqual({ kind: "run", indoor: false, watch: true, watchStartOpId: "start-1", pausedSeconds: 60 });
+  });
+
+  it("finishes it with what the watch measured, splits and records worked out here", async () => {
+    const run = session();
+    mockStore.set(run.id, run);
+    mockWorkouts.active = [run];
+    mockBridge.inbox = [finish()];
+    render(<WatchSync />);
+    await settle();
+    const saved = mockStore.get("run1")!;
+    expect(saved.completedAt).toEqual(new Date(START.getTime() + 1500_000));
+    expect(saved.durationMinutes).toBe(25);
+    expect(saved.exercises[0].sets[0]).toMatchObject({
+      duration: 1500,
+      distance: 5000,
+      isCompleted: true,
+      tracked: {
+        healthId: "HK-1",
+        source: "Apple Watch",
+        activeCalories: 320,
+        avgHeartRate: 151,
+        maxHeartRate: 171,
+        splitsKm: [300, 300, 300, 300, 300],
+        splitsMi: [483, 483, 483],
+        best: { "1k": 300, "1mi": 483, "5k": 1500 },
+      },
+    });
+    expect(mockUpsertStats).toHaveBeenCalled();
+  });
+
+  // Started on the phone, the watch woken into it: the watch may end it before
+  // it ever heard the phone's id, so it's matched by kind and start.
+  it("finds a session the phone started by its kind and start time", async () => {
+    const run = session({ cardio: { kind: "run", watch: true } });
+    mockStore.set(run.id, run);
+    mockWorkouts.active = [run];
+    mockBridge.inbox = [finish({ startOpId: "watch-own-id", startedAt: START.getTime() + 4000 })];
+    render(<WatchSync />);
+    await settle();
+    expect(mockCreate).not.toHaveBeenCalled();
+    expect(mockStore.get("run1")!.exercises[0].sets[0].distance).toBe(5000);
+  });
+
+  it("brings the whole session in when its start never landed", async () => {
+    mockBridge.inbox = [finish({ startOpId: "lost-start", distance: 3 * MILE })];
+    render(<WatchSync />);
+    await settle();
+    expect(mockCreate).toHaveBeenCalledTimes(1);
+    const created = mockCreate.mock.calls[0][0];
+    expect(created).toMatchObject({
+      name: "Outdoor Run",
+      startedAt: START,
+      completedAt: new Date(START.getTime() + 1500_000),
+      cardio: { kind: "run", watch: true, watchStartOpId: "lost-start" },
+    });
+    expect(created.exercises[0].sets[0]).toMatchObject({ duration: 1500, isCompleted: true });
+    expect(created.exercises[0].sets[0].distance).toBeCloseTo(3 * MILE, 0);
+  });
+
+  it("keeps the moment it was ended on the phone, adding what the watch measured", async () => {
+    const endedAt = new Date(START.getTime() + 1400_000);
+    const run = session({
+      completedAt: endedAt,
+      exercises: [{ id: "e1", exerciseId: "running", exercise: runExercise, orderIndex: 0, sets: [{ id: "s1", weightUnit: "lbs", isCompleted: true, duration: 1380 }] }],
+    });
+    mockStore.set(run.id, run);
+    mockWorkouts.completed = [run];
+    mockBridge.inbox = [finish()];
+    render(<WatchSync />);
+    await settle();
+    const saved = mockStore.get("run1")!;
+    expect(saved.completedAt).toEqual(endedAt);
+    expect(saved.exercises[0].sets[0]).toMatchObject({ duration: 1500, distance: 5000, tracked: expect.objectContaining({ healthId: "HK-1" }) });
+  });
+
+  it("tells the watch about a session it's tracking, and one the phone has ended", async () => {
+    const running = session();
+    mockWorkouts.active = [running];
+    mockWorkouts.completed = [
+      session({ id: "ended", completedAt: new Date(Date.now() - 60_000), cardio: { kind: "walk", watch: true, watchStartOpId: "start-2" } }),
+    ];
+    render(<WatchSync />);
+    await settle();
+    const snapshot = lastSnapshot();
+    expect(snapshot.workout.cardio).toEqual({ kind: "run", indoor: false, pausedAtMs: null, pausedSeconds: 0, watch: true, startOpId: "start-1" });
+    expect(snapshot.endedCardio).toEqual(["ended", "start-2"]);
+  });
+
+  it("passes the watch's live readings on to the session screen", async () => {
+    render(<WatchSync />);
+    await settle();
+    const reading = { workoutId: null, startOpId: "start-1", kind: "run", startedAt: START.getTime(), elapsed: 300, distance: 1000, heartRate: 150, paused: false, at: Date.now() };
+    await act(async () => mockBridge.liveListener?.({ json: JSON.stringify(reading) }));
+    expect(mockSetLive).toHaveBeenCalledWith(reading);
+    await act(async () => mockBridge.liveListener?.({ json: "{not json" }));
+    expect(mockSetLive).toHaveBeenCalledTimes(1);
   });
 });

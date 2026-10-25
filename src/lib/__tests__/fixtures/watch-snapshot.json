@@ -93,7 +93,8 @@
           }
         ]
       }
-    ]
+    ],
+    "cardio": null
   },
   "templates": [
     {
@@ -110,5 +111,6 @@
   "applied": [
     "op-1",
     "op-2"
-  ]
+  ],
+  "endedCardio": []
 }

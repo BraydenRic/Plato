@@ -16,6 +16,8 @@ import WatchConnectivity
 final class PlatoWatchSession: NSObject, WCSessionDelegate {
   static let shared = PlatoWatchSession()
   static let inboxChanged = Notification.Name("PlatoWatchInboxChanged")
+  /** A tracked session's live numbers arrived; `userInfo["json"]` holds them. */
+  static let liveReceived = Notification.Name("PlatoWatchLiveReceived")
 
   private let queue = DispatchQueue(label: "com.plato.workouts.watch-session")
   private let inboxKey = "plato.watch.inbox.v1"
@@ -82,6 +84,13 @@ final class PlatoWatchSession: NSObject, WCSessionDelegate {
     } catch {
       // Left pending; the next change, or the next state change, retries it.
     }
+  }
+
+  /** Whether there's a watch with Plato on it to start a session on. */
+  func watchAppInstalled() -> Bool {
+    guard WCSession.isSupported() else { return false }
+    let session = WCSession.default
+    return session.activationState == .activated && session.isPaired && session.isWatchAppInstalled
   }
 
   // MARK: Watch → phone
@@ -161,6 +170,16 @@ final class PlatoWatchSession: NSObject, WCSessionDelegate {
   }
 
   func session(_ session: WCSession, didReceiveMessage message: [String: Any]) {
+    // A tracked session's live numbers, every few seconds while the phone is
+    // in reach. Passed straight through: they're stale a moment later, so
+    // there's nothing to keep and no reply to give.
+    if message["kind"] as? String == "live" {
+      guard let json = message["live"] as? String else { return }
+      DispatchQueue.main.async {
+        NotificationCenter.default.post(name: PlatoWatchSession.liveReceived, object: nil, userInfo: ["json": json])
+      }
+      return
+    }
     _ = receive(message)
   }
 

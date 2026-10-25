@@ -28,6 +28,7 @@ import {
   sessionSet,
 } from "@/lib/cardio-session";
 import { computeStats, deleteWorkout, getCompletedWorkouts, stripUndefined, updateWorkout, upsertUserStats } from "@/lib/data";
+import { liveFor, useWatchLive } from "@/lib/watch-live";
 import { formatClock } from "@/lib/workout-utils";
 import type { Workout } from "@/types";
 
@@ -66,16 +67,26 @@ export function CardioSession({
   const ground = exercise ? distanceKind(exercise) : null;
   const groundUnit = ground ? distanceUnit(ground, unit) : null;
   const done = !!workout.completedAt;
-  const isPausedNow = isPaused(workout);
+  // Tracked on the watch: the clock, distance and heart rate come from there,
+  // and pausing is done there, where the sensors are.
+  const onWatch = !!workout.cardio?.watch;
+  const live = liveFor(useWatchLive(), workout, nowMs);
+  const isPausedNow = live ? live.paused : isPaused(workout);
 
   useEffect(() => {
-    if (done || isPausedNow) return;
+    // Ticks while paused too when the watch is tracking: it's how a stale
+    // reading is noticed and the phone's own clock takes back over.
+    if (done || (isPausedNow && !onWatch)) return;
     setNowMs(Date.now());
     const t = setInterval(() => setNowMs(Date.now()), 1000);
     return () => clearInterval(t);
-  }, [done, isPausedNow]);
+  }, [done, isPausedNow, onWatch]);
 
-  const seconds = done ? (set?.duration ?? 0) : movingSeconds(workout, nowMs);
+  const seconds = done
+    ? (set?.duration ?? 0)
+    : live
+      ? Math.floor(live.elapsed + (live.paused ? 0 : Math.max(0, nowMs - live.at) / 1000))
+      : movingSeconds(workout, nowMs);
 
   async function write(patch: Partial<Workout>) {
     onLocalChange({ ...workout, ...patch });
@@ -124,8 +135,10 @@ export function CardioSession({
   }
 
   function end() {
-    // Nothing to ask on a stair stepper: there's no distance to give.
-    if (!groundUnit) {
+    // Nothing to ask on a stair stepper: there's no distance to give. Nor when
+    // the watch is tracking: it measured how far, and sends it when it hears
+    // the session ended.
+    if (!groundUnit || onWatch) {
       void finish();
       return;
     }
@@ -220,9 +233,16 @@ export function CardioSession({
                   {isPausedNow ? "Paused" : "Moving time"}
                 </Text>
               </View>
+              {onWatch && <WatchFigures workout={workout} live={live} seconds={seconds} />}
             </View>
 
+            {onWatch && (
+              <Text style={styles.watchHint} maxFontSizeMultiplier={FontScaleCap.grid}>
+                Pause on your watch
+              </Text>
+            )}
             <View style={styles.controls}>
+              {!onWatch && (
               <Pressable
                 onPress={togglePause}
                 accessibilityRole="button"
@@ -237,6 +257,7 @@ export function CardioSession({
                   {isPausedNow ? "Resume" : "Pause"}
                 </Text>
               </Pressable>
+              )}
               <Pressable
                 onPress={end}
                 disabled={saving}
@@ -257,6 +278,62 @@ export function CardioSession({
         )}
       </KeyboardAvoidingView>
     </SafeAreaView>
+  );
+}
+
+/**
+ * What the watch is measuring, under the clock on the phone: how far, how
+ * fast on average, and the heart rate right now. Until its first reading
+ * arrives, a line saying the watch has it.
+ */
+function WatchFigures({
+  workout,
+  live,
+  seconds,
+}: {
+  workout: Workout;
+  live: ReturnType<typeof liveFor>;
+  seconds: number;
+}) {
+  const styles = useStyles();
+  const palette = usePalette();
+  const theme = useTheme();
+  const { unit } = useWeightUnit();
+  const exercise = workout.exercises[0]?.exercise;
+  const ground = exercise ? distanceKind(exercise) : null;
+  const groundUnit = ground ? distanceUnit(ground, unit) : null;
+
+  const figures: Figure[] = [];
+  if (live && ground && groundUnit && live.distance != null) {
+    const shown = formatDistance(live.distance, groundUnit);
+    figures.push({
+      key: "distance",
+      value: shown.split(" ")[0],
+      unit: shown.split(" ")[1],
+      label: "Distance",
+      icon: "navigate",
+      tint: theme.accent,
+    });
+    const rate = formatRate(live.distance, seconds, ground, unit);
+    if (rate) {
+      const { value, unit: per } = splitRate(rate);
+      figures.push({ key: "rate", value, unit: per, label: ground === "ride" ? "Avg speed" : "Avg pace", icon: "speedometer-outline", tint: theme.accent });
+    }
+  }
+  if (live?.heartRate) {
+    figures.push({ key: "hr", value: String(Math.round(live.heartRate)), unit: "bpm", label: "Heart rate", icon: "heart", tint: palette.danger });
+  }
+
+  return (
+    <View style={styles.watchFigures}>
+      {figures.length > 0 ? <FigureRow figures={figures} /> : null}
+      <View style={styles.watchStatus}>
+        <Ionicons name="watch-outline" size={14} color={palette.textTertiary} />
+        <Text style={styles.watchStatusText} maxFontSizeMultiplier={FontScaleCap.grid}>
+          {live ? "Tracking on your Apple Watch" : "Your Apple Watch is tracking this"}
+        </Text>
+      </View>
+    </View>
   );
 }
 
@@ -488,6 +565,27 @@ const useStyles = makeStyles((c) => ({
   controls: {
     flexDirection: "row",
     gap: Spacing.three,
+  },
+  watchFigures: {
+    alignItems: "center",
+    gap: Spacing.three,
+    marginTop: Spacing.four,
+  },
+  watchStatus: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  watchStatusText: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: c.textTertiary,
+  },
+  watchHint: {
+    fontSize: 12,
+    color: c.textTertiary,
+    textAlign: "center",
+    marginBottom: Spacing.two,
   },
   // Big enough to hit without looking, mid-stride.
   control: {

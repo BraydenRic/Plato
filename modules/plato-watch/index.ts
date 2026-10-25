@@ -3,6 +3,8 @@ import { requireOptionalNativeModule, type NativeModule } from "expo";
 type PlatoWatchEvents = {
   /** Something new arrived from the watch; read it with takeInbox(). */
   onInbox(): void;
+  /** A tracked session's live numbers. `json` is a WatchLive. */
+  onLive(event: { json: string }): void;
 };
 
 /** One op from the watch, still unapplied. `json` is a WatchOp. */
@@ -15,6 +17,8 @@ declare class PlatoWatchModule extends NativeModule<PlatoWatchEvents> {
   takeInbox(): InboxEntry[];
   /** Forgets ops once they've been applied (or rejected for good). */
   ackInbox(ids: string[]): void;
+  /** A watch is paired and has Plato on it. */
+  isWatchAppInstalled(): boolean;
 }
 
 /**
