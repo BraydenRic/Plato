@@ -67,7 +67,7 @@ public class PlatoHealthModule: Module {
     guard HKHealthStore.isHealthDataAvailable() else { return false }
     let configuration = Self.configuration(kind: kind, indoor: indoor, poolMetres: poolMetres)
     return try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Bool, Error>) in
-      store.startWatchApp(toHandle: configuration) { started, error in
+      store.startWatchApp(with: configuration) { started, error in
         if let error = error {
           continuation.resume(throwing: error)
         } else {

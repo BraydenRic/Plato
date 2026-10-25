@@ -141,7 +141,7 @@ A session (`workout.cardio` set) is stored as an ordinary workout holding one ex
 
 With an Apple Watch, the watch tracks it:
 
-- **Started on the watch** (Start → Cardio): an `HKWorkoutSession` runs there ([CardioTracker.swift](targets/watch/CardioTracker.swift)) and a `startCardio` op creates the phone's session. **Started on the phone**: `startWatchApp(toHandle:)` wakes the watch, which tracks it and learns the phone's id from the next snapshot (or is matched by kind and start time, if it ends first).
+- **Started on the watch** (Start → Cardio): an `HKWorkoutSession` runs there ([CardioTracker.swift](targets/watch/CardioTracker.swift)) and a `startCardio` op creates the phone's session. **Started on the phone**: `startWatchApp(with:)` wakes the watch, which tracks it and learns the phone's id from the next snapshot (or is matched by kind and start time, if it ends first).
 - **Pause and end on the watch**, which sends them as ops. Ending on the phone lists the session in the snapshot's `endedCardio`, and the watch stops and sends what it measured.
 - **`finishCardio`** carries time, distance, calories, heart rate, the Health workout's id and a record of distance against moving time; the phone works out splits and best efforts from it ([cardio-tracking.ts](src/lib/cardio-tracking.ts)), where Jest can check them. A finish with no session behind it brings the whole session in.
 - **Live numbers** go to the phone every 5 s while in reach (`onLive`, [watch-live.ts](src/lib/watch-live.ts)); never stored.
