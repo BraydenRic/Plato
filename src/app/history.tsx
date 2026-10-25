@@ -11,6 +11,7 @@ import { AWAITING_SYNC_MESSAGE, useWorkouts } from "@/hooks/use-workouts";
 import { deleteWorkout } from "@/lib/data";
 import { useWeightUnit } from "@/context/UnitContext";
 import { useTheme } from "@/context/ThemeContext";
+import { isCardioWorkout, workoutDistanceLabel } from "@/lib/cardio";
 import { completedSetCount, displayVolume, workoutVolumeLbs } from "@/lib/workout-utils";
 import type { Workout } from "@/types";
 
@@ -96,6 +97,9 @@ function HistoryRow({
   const { unit } = useWeightUnit();
   const theme = useTheme();
   const volume = workout.totalVolume ?? workoutVolumeLbs(workout);
+  // A run's headline is how far it went, where a lift's is how much it moved.
+  const distance = workoutDistanceLabel(workout, unit);
+  const cardio = isCardioWorkout(workout);
   // Past the largest standard text size the volume on the right took the row's
   // width and squeezed the name to a letter per line. Stack it underneath
   // instead, so the name gets the whole row.
@@ -109,12 +113,14 @@ function HistoryRow({
             <Text style={styles.rowTitle} maxFontSizeMultiplier={FontScaleCap.heading}>{workout.name}</Text>
             <Text style={styles.rowMeta}>
               {workout.completedAt!.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" })}
-              {` · ${completedSetCount(workout)} sets`}
+              {cardio ? "" : ` · ${completedSetCount(workout)} sets`}
               {workout.durationMinutes ? ` · ${workout.durationMinutes}m` : ""}
             </Text>
           </View>
           {volume > 0 ? (
             <Text style={[styles.volume, { color: theme.accentText }]} maxFontSizeMultiplier={FontScaleCap.title}>{displayVolume(volume, unit)}</Text>
+          ) : distance ? (
+            <Text style={[styles.volume, { color: theme.accentText }]} maxFontSizeMultiplier={FontScaleCap.title}>{distance}</Text>
           ) : (
             <Ionicons name="chevron-forward" size={16} color={palette.textTertiary} />
           )}

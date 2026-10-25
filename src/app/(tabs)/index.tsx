@@ -24,6 +24,7 @@ import {
   stripUndefined,
 } from "@/lib/data";
 import { useWeightUnit } from "@/context/UnitContext";
+import { isCardioWorkout, workoutDistanceLabel } from "@/lib/cardio";
 import { useTheme } from "@/context/ThemeContext";
 import {
   addDays,
@@ -692,6 +693,9 @@ function WorkoutRow({
   const total = totalSetCount(workout);
   const isLive = !!workout.startedAt && !workout.completedAt;
   const isPlanned = !workout.startedAt && !workout.completedAt;
+  // A finished run says how far and how long, not "1 exercise · 1/1 sets".
+  const distance = workoutDistanceLabel(workout, unit);
+  const finishedCardio = !!workout.completedAt && isCardioWorkout(workout);
   // Past the largest standard text size the volume on the right took the row's
   // width and squeezed the name to a letter per line. Stack it underneath
   // instead, so the name gets the whole row.
@@ -712,9 +716,15 @@ function WorkoutRow({
             <Text style={styles.rowTitle} maxFontSizeMultiplier={FontScaleCap.heading}>{workout.name}</Text>
             <Text style={styles.rowMeta}>
               {relativeDay(workoutDay(workout))}
-              {workout.exercises.length > 0 && ` · ${workout.exercises.length} exercise${workout.exercises.length === 1 ? "" : "s"}`}
-              {total > 0 && !isPlanned && ` · ${done}/${total} sets`}
-              {total > 0 && isPlanned && ` · ${total} sets planned`}
+              {finishedCardio ? (
+                workout.durationMinutes ? ` · ${workout.durationMinutes}m` : ""
+              ) : (
+                <>
+                  {workout.exercises.length > 0 && ` · ${workout.exercises.length} exercise${workout.exercises.length === 1 ? "" : "s"}`}
+                  {total > 0 && !isPlanned && ` · ${done}/${total} sets`}
+                  {total > 0 && isPlanned && ` · ${total} sets planned`}
+                </>
+              )}
             </Text>
           </View>
           {/* A plan gets the plain chevron rather than a PLANNED pill: the line
@@ -722,6 +732,8 @@ function WorkoutRow({
               day with a hollow dot. */}
           {!isPlanned && volume > 0 ? (
             <Text style={[styles.volume, { color: theme.accentText }]} maxFontSizeMultiplier={FontScaleCap.title}>{displayVolume(volume, unit)}</Text>
+          ) : !isPlanned && distance ? (
+            <Text style={[styles.volume, { color: theme.accentText }]} maxFontSizeMultiplier={FontScaleCap.title}>{distance}</Text>
           ) : (
             <Ionicons name="chevron-forward" size={16} color={palette.textTertiary} />
           )}

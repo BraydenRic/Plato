@@ -2,6 +2,7 @@ import { useMemo } from "react";
 import { ScrollView, Text, View, useWindowDimensions } from "react-native";
 import Ionicons from "@expo/vector-icons/Ionicons";
 
+import { CardioStats } from "@/components/cardio-stats";
 import { Card, EmptyState, SectionLabel } from "@/components/ui";
 import { MuscleMap } from "@/components/muscle-map";
 import { FontScaleCap, Spacing } from "@/constants/theme";
@@ -125,6 +126,9 @@ export default function StatsScreen() {
           <StatCard label="Sets" value={String(stats.totalSetsCompleted)} />
           <StatCard label="Time" value={formatDuration(stats.totalWorkoutTimeMinutes)} />
         </View>
+
+        {/* Renders nothing until there's cardio with a distance to show. */}
+        <CardioStats completed={completed} />
 
         <View>
           <SectionLabel>Muscles this week</SectionLabel>

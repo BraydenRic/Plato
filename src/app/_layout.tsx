@@ -9,6 +9,7 @@ import { BodyweightVolumeRepair } from "@/components/bodyweight-volume-repair";
 import { LiveActivitySync } from "@/components/live-activity-sync";
 import { WatchSync } from "@/components/watch-sync";
 import { AuthProvider, useAuth } from "@/context/AuthContext";
+import { HealthImportProvider } from "@/context/HealthImportContext";
 import { RestTimerProvider } from "@/context/RestTimerContext";
 import { SetTimerProvider } from "@/context/SetTimerContext";
 import { DefaultSetsProvider } from "@/context/DefaultSetsContext";
@@ -230,11 +231,14 @@ export default function RootLayout() {
                     leaving the workout screen, which unmounts it. */}
                 <SetTimerProvider>
                   <DefaultSetsProvider>
-                    <ThemedStatusBar />
-                    <LiveActivitySync />
-                    <WatchSync />
-                    <BodyweightVolumeRepair />
-                    <RootNavigator />
+                    {/* Off unless turned on in Profile; renders nothing of its own. */}
+                    <HealthImportProvider>
+                      <ThemedStatusBar />
+                      <LiveActivitySync />
+                      <WatchSync />
+                      <BodyweightVolumeRepair />
+                      <RootNavigator />
+                    </HealthImportProvider>
                   </DefaultSetsProvider>
                 </SetTimerProvider>
               </RestTimerProvider>

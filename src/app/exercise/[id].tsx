@@ -134,7 +134,7 @@ export default function ExerciseDetailScreen() {
 
         <View>
           <SectionLabel>Your progress</SectionLabel>
-          <ExerciseProgress exerciseId={exercise.id} />
+          <ExerciseProgress exerciseId={exercise.id} exercise={exercise} />
         </View>
 
         <View>

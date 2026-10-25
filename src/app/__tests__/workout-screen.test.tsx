@@ -581,3 +581,101 @@ describe("which live workout the bar leads with", () => {
     expect(mockMarkCurrent).not.toHaveBeenCalled();
   });
 });
+
+describe("cardio", () => {
+  const MILE = 1609.344;
+  const runningExercise = {
+    id: "running",
+    name: "Running",
+    category: "Cardio",
+    musclesWorked: ["Legs"],
+    description: "",
+  };
+
+  function runWorkout(sets: Workout["exercises"][number]["sets"], overrides: Partial<Workout> = {}): Workout {
+    return {
+      id: "w1",
+      userId: "u1",
+      name: "Morning run",
+      isTemplate: false,
+      exercises: [{ id: "ex0", exerciseId: "running", exercise: runningExercise, orderIndex: 0, sets }],
+      createdAt: new Date("2026-10-20T07:00:00Z"),
+      startedAt: new Date("2026-10-20T07:00:00Z"),
+      ...overrides,
+    };
+  }
+
+  const savedSets = () =>
+    (mockUpdateWorkout.mock.calls.at(-1) as unknown as [string, { exercises: Workout["exercises"] }])[1].exercises[0]
+      .sets;
+
+  it("takes a distance beside the time, in the unit setting's miles", async () => {
+    await loadWorkout(runWorkout([{ id: "s1", weightUnit: "lbs", isCompleted: false }]));
+    expect(screen.getByText("MILES")).toBeTruthy();
+
+    const distance = screen.getByLabelText("Distance, miles");
+    await act(async () => {
+      fireEvent.changeText(distance, "3.1");
+    });
+    await act(async () => {
+      fireEvent(distance, "endEditing");
+    });
+
+    // Stored in metres, and a distance alone is enough to count the set done.
+    const [set] = savedSets();
+    expect(set.distance).toBeCloseTo(3.1 * MILE);
+    expect(set.isCompleted).toBe(true);
+  });
+
+  it("keeps the set done when its time is cleared but its distance stays", async () => {
+    await loadWorkout(runWorkout([{ id: "s1", weightUnit: "lbs", isCompleted: true, duration: 1500, distance: 5000 }]));
+    const time = screen.getByDisplayValue("25:00");
+    await act(async () => {
+      fireEvent.changeText(time, "");
+    });
+    await act(async () => {
+      fireEvent(time, "endEditing");
+    });
+    const [set] = savedSets();
+    expect(set.duration).toBeUndefined();
+    expect(set.isCompleted).toBe(true);
+  });
+
+  it("shows the pace under a set with both", async () => {
+    await loadWorkout(runWorkout([{ id: "s1", weightUnit: "lbs", isCompleted: true, duration: 1500, distance: 5000 }]));
+    expect(screen.getByText("8:03 /mi")).toBeTruthy();
+  });
+
+  it("reads as distance and time at the top, not pounds and sets", async () => {
+    await loadWorkout(runWorkout([{ id: "s1", weightUnit: "lbs", isCompleted: true, duration: 1500, distance: 5000 }]));
+    expect(screen.getByText("3.11 mi")).toBeTruthy();
+    expect(screen.queryByText(/lbs$/)).toBeNull();
+    expect(screen.queryByText("1/1 sets")).toBeNull();
+  });
+
+  it("shows what the watch measured on a set that came from Apple Health", async () => {
+    await loadWorkout(
+      runWorkout(
+        [
+          {
+            id: "s1",
+            weightUnit: "lbs",
+            isCompleted: true,
+            duration: 1530,
+            distance: 3.2 * MILE,
+            tracked: { healthId: "H-1", avgHeartRate: 152, maxHeartRate: 171, activeCalories: 312, splitsMi: [490, 470, 480] },
+          },
+        ],
+        { completedAt: new Date("2026-10-20T07:26:00Z") }
+      )
+    );
+    expect(screen.getByText(/from Apple Health/)).toBeTruthy();
+    expect(screen.getByText("152")).toBeTruthy();
+    expect(screen.getByText("avg bpm · max 171")).toBeTruthy();
+    expect(screen.getByText("312")).toBeTruthy();
+    expect(screen.getByText("Splits · per mile")).toBeTruthy();
+    // Three whole miles, then the 0.20 past them: 1530 - 1440 = 90 s.
+    expect(screen.getByLabelText("Mile 2, 7:50")).toBeTruthy();
+    expect(screen.getByLabelText("Last 0.20 mi, 1:30")).toBeTruthy();
+  });
+});

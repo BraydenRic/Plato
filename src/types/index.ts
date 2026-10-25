@@ -28,9 +28,42 @@ export interface WorkoutSet {
   weightUnit: "lbs" | "kg" | "bodyweight";
   /** Seconds, for timed exercises (see Exercise.isTimed) — replaces weight/reps. */
   duration?: number;
+  /**
+   * Metres, for cardio that covers ground (see distanceKind). Always metres so a
+   * switch between miles and kilometres never touches stored data — the same
+   * reason volume is banked in lbs.
+   */
+  distance?: number;
+  /** What a watch measured on this set, when it came from Apple Health. */
+  tracked?: TrackedCardio;
   restTime?: number;
   isCompleted: boolean;
   completedAt?: Date;
+}
+
+/** Standard distances a run is timed over for records: 1 km, 1 mile, 5K… */
+export type BestEffortKey = "1k" | "1mi" | "5k" | "10k" | "half" | "marathon";
+
+/**
+ * The parts of a cardio set only a watch can measure. Never typed in: these
+ * arrive with a workout imported from Apple Health, and editing the set's time
+ * or distance afterwards leaves them describing what was recorded.
+ */
+export interface TrackedCardio {
+  /** Apple Health's id for the workout, so the same one is never imported twice. */
+  healthId: string;
+  /** What recorded it, as Health names it: "Brayden's Apple Watch", "Strava". */
+  source?: string;
+  indoor?: boolean;
+  activeCalories?: number;
+  avgHeartRate?: number;
+  maxHeartRate?: number;
+  /** Seconds for each whole mile, in order. A last partial mile isn't one. */
+  splitsMi?: number[];
+  /** Seconds for each whole kilometre, in order. */
+  splitsKm?: number[];
+  /** Fastest time, in seconds, over each standard distance within this session. */
+  best?: Partial<Record<BestEffortKey, number>>;
 }
 
 export interface WorkoutExercise {

@@ -61,6 +61,9 @@ jest.mock("@/context/AuthContext", () => ({
 jest.mock("@/components/bodyweight-volume-repair", () => ({ BodyweightVolumeRepair: () => null }));
 jest.mock("@/components/live-activity-sync", () => ({ LiveActivitySync: () => null }));
 jest.mock("@/components/watch-sync", () => ({ WatchSync: () => null }));
+jest.mock("@/context/HealthImportContext", () => ({
+  HealthImportProvider: ({ children }: { children: React.ReactNode }) => children,
+}));
 
 // No provider is mounted around any of this on purpose. The boundary renders in
 // place of RootLayout rather than inside it, so there is no context to read —

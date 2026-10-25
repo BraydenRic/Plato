@@ -334,7 +334,16 @@ export function applySetOp(
 
   let patch: Partial<WorkoutSet>;
   if (op.kind === "undoSet") {
-    patch = { weight: undefined, reps: undefined, duration: undefined, isCompleted: false, completedAt: undefined };
+    // Distance too: the watch can't show it, so a cardio set it un-logs must
+    // not keep a distance typed on the phone and look half-done.
+    patch = {
+      weight: undefined,
+      reps: undefined,
+      duration: undefined,
+      distance: undefined,
+      isCompleted: false,
+      completedAt: undefined,
+    };
   } else {
     const kind = watchSetKind(exercise);
     if (kind === "timed") {

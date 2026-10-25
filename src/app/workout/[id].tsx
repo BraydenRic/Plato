@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -29,6 +29,19 @@ import { makeStyles, usePalette } from "@/context/AppearanceContext";
 import { getWorkout, getCompletedWorkouts, reopenWorkout, saveAsTemplate, stripUndefined, subscribeWorkout, updateWorkout, upsertUserStats, computeStats, deleteWorkout } from "@/lib/data";
 import { useWorkouts } from "@/hooks/use-workouts";
 import { isBodyweightExercise, isTimedExercise } from "@/lib/exercises";
+import {
+  cardioSetDone,
+  distanceKind,
+  distanceUnit,
+  formatDistanceValue,
+  formatRate,
+  fromMetres,
+  isCardioWorkout,
+  parseDistanceText,
+  workoutCardioSeconds,
+  workoutDistanceLabel,
+  type DistanceKind,
+} from "@/lib/cardio";
 import { useRestTimer } from "@/context/RestTimerContext";
 import { useBodyweight } from "@/hooks/use-bodyweight";
 import { useSetTimer } from "@/context/SetTimerContext";
@@ -39,7 +52,10 @@ import { bodyweightOn, formatBodyweightLoad, convertWeight, displayVolume, forma
 import type { Workout, WorkoutExercise, WorkoutSet } from "@/types";
 
 
-const fieldKey = (setId: string, field: "weight" | "reps" | "duration") => `${setId}:${field}`;
+const fieldKey = (setId: string, field: "weight" | "reps" | "duration" | "distance") => `${setId}:${field}`;
+
+/** Column heading over a cardio set's distance, in the unit it's typed in. */
+const DISTANCE_HEADING = { mi: "MILES", km: "KM", m: "METERS", yd: "YARDS" } as const;
 
 /**
  * Width of the set-number column, shared by its "SET" heading and every row so
@@ -320,6 +336,15 @@ export default function WorkoutScreen() {
     );
   }
 
+  // Only once something's logged: an empty cardio workout still reads as its
+  // sets, so it doesn't open on a bare "0:00".
+  const cardioSeconds = workoutCardioSeconds(workout);
+  const cardioDistance = workoutDistanceLabel(workout, weightUnit);
+  const cardioSummary =
+    !isTemplate && isCardioWorkout(workout) && (cardioSeconds > 0 || cardioDistance)
+      ? { seconds: cardioSeconds, distance: cardioDistance }
+      : null;
+
   /**
    * Write the exercise list, and show it immediately.
    *
@@ -367,7 +392,9 @@ export default function WorkoutScreen() {
   function inputOrder() {
     return workout!.exercises.flatMap((ex) =>
       isTimedExercise(ex.exercise)
-        ? ex.sets.map((s) => fieldKey(s.id, "duration"))
+        ? distanceKind(ex.exercise)
+          ? ex.sets.flatMap((s) => [fieldKey(s.id, "duration"), fieldKey(s.id, "distance")])
+          : ex.sets.map((s) => fieldKey(s.id, "duration"))
         : ex.sets.flatMap((s) => [fieldKey(s.id, "weight"), fieldKey(s.id, "reps")])
     );
   }
@@ -465,10 +492,15 @@ export default function WorkoutScreen() {
 
   function commitTimer(t: { exerciseId: string; setId: string; startedAt: number }) {
     const secs = timedSeconds(t);
+    const distance = workout!.exercises
+      .find((ex) => ex.id === t.exerciseId)
+      ?.sets.find((s) => s.id === t.setId)?.distance;
+    // A distance typed before the clock was started still makes the set done.
+    const done = cardioSetDone({ duration: secs, distance });
     patchSet(t.exerciseId, t.setId, {
       duration: secs > 0 ? secs : undefined,
-      isCompleted: secs > 0,
-      completedAt: secs > 0 ? new Date() : undefined,
+      isCompleted: done,
+      completedAt: done ? new Date() : undefined,
     });
   }
 
@@ -588,8 +620,8 @@ export default function WorkoutScreen() {
                   : {
                       ...s,
                       duration: secs > 0 ? secs : undefined,
-                      isCompleted: secs > 0,
-                      completedAt: secs > 0 ? new Date() : undefined,
+                      isCompleted: cardioSetDone({ duration: secs, distance: s.distance }),
+                      completedAt: cardioSetDone({ duration: secs, distance: s.distance }) ? new Date() : undefined,
                     }
               ),
             }
@@ -856,21 +888,39 @@ export default function WorkoutScreen() {
               editable={!isDone}
             />
 
-            <View style={styles.summaryRow}>
-              <Text style={styles.summaryText} maxFontSizeMultiplier={FontScaleCap.title}>
-                {displayVolume(workout.totalVolume ?? liveVolume, weightUnit)}
-              </Text>
-              <Text style={styles.summaryDot}>·</Text>
-              <Text style={styles.summaryText} maxFontSizeMultiplier={FontScaleCap.title}>
-                {completedSetCount(workout)}/{totalSetCount(workout)} sets
-              </Text>
-              {isDone && workout.durationMinutes ? (
-                <>
-                  <Text style={styles.summaryDot}>·</Text>
-                  <Text style={styles.summaryText} maxFontSizeMultiplier={FontScaleCap.title}>{workout.durationMinutes}m</Text>
-                </>
-              ) : null}
-            </View>
+            {cardioSummary ? (
+              // A run reads as how far and how long. "0 lbs · 1/1 sets" is true
+              // and says nothing about it.
+              <View style={styles.summaryRow}>
+                {cardioSummary.distance ? (
+                  <>
+                    <Text style={styles.summaryText} maxFontSizeMultiplier={FontScaleCap.title}>
+                      {cardioSummary.distance}
+                    </Text>
+                    <Text style={styles.summaryDot}>·</Text>
+                  </>
+                ) : null}
+                <Text style={styles.summaryText} maxFontSizeMultiplier={FontScaleCap.title}>
+                  {formatClock(cardioSummary.seconds)}
+                </Text>
+              </View>
+            ) : (
+              <View style={styles.summaryRow}>
+                <Text style={styles.summaryText} maxFontSizeMultiplier={FontScaleCap.title}>
+                  {displayVolume(workout.totalVolume ?? liveVolume, weightUnit)}
+                </Text>
+                <Text style={styles.summaryDot}>·</Text>
+                <Text style={styles.summaryText} maxFontSizeMultiplier={FontScaleCap.title}>
+                  {completedSetCount(workout)}/{totalSetCount(workout)} sets
+                </Text>
+                {isDone && workout.durationMinutes ? (
+                  <>
+                    <Text style={styles.summaryDot}>·</Text>
+                    <Text style={styles.summaryText} maxFontSizeMultiplier={FontScaleCap.title}>{workout.durationMinutes}m</Text>
+                  </>
+                ) : null}
+              </View>
+            )}
 
             {workout.exercises.length === 0 && (
               <EmptyState title="No exercises yet" />
@@ -1061,6 +1111,10 @@ function ExerciseCard({
   const theme = useTheme();
   // Cardio and holds log a stopwatch per set instead of weight × reps.
   const timed = isTimedExercise(exercise.exercise);
+  // Cardio that covers ground logs how far beside how long.
+  const ground = timed ? distanceKind(exercise.exercise) : null;
+  const groundUnit = ground ? distanceUnit(ground, unit) : null;
+  const fromHealth = exercise.sets.some((set) => set.tracked);
   const setNumColWidth = useSetNumColWidth();
   const bodyweight = isBodyweightExercise(exercise.exercise);
   return (
@@ -1079,6 +1133,7 @@ function ExerciseCard({
                 ? ` · BW ${Math.round(convertWeight(bodyweightLbs, "lbs", unit))} ${unit}`
                 : " · BW not set"
               : ""}
+            {fromHealth ? " · from Apple Health" : ""}
           </Text>
         </View>
         {templateMode && (
@@ -1126,6 +1181,11 @@ function ExerciseCard({
                   TIME
                 </Text>
                 <View style={styles.timerCol} />
+                {groundUnit && (
+                  <Text style={[styles.setHeaderCell, styles.inputCol]} maxFontSizeMultiplier={FontScaleCap.grid}>
+                    {DISTANCE_HEADING[groundUnit]}
+                  </Text>
+                )}
               </>
             ) : (
               <>
@@ -1141,22 +1201,27 @@ function ExerciseCard({
           </View>
 
           {exercise.sets.map((set, i) => (
-            <SetRow
-              key={set.id}
-              index={i + 1}
-              set={set}
-              prev={prevSets?.[i]}
-              before={i > 0 ? exercise.sets[i - 1] : undefined}
-              readOnly={readOnly}
-              timed={timed}
-              bodyweight={bodyweight}
-              runningStartedAt={timingSetId === set.id ? timingStartedAt : undefined}
-              onToggleTimer={() => onToggleTimer?.(set.id, set.duration)}
-              registerInput={registerInput}
-              onInputFocus={onInputFocus}
-              onPatch={(patch) => onPatchSet(set.id, patch)}
-              onRemove={() => onRemoveSet(set.id)}
-            />
+            <Fragment key={set.id}>
+              <SetRow
+                index={i + 1}
+                set={set}
+                prev={prevSets?.[i]}
+                before={i > 0 ? exercise.sets[i - 1] : undefined}
+                readOnly={readOnly}
+                timed={timed}
+                ground={ground}
+                bodyweight={bodyweight}
+                runningStartedAt={timingSetId === set.id ? timingStartedAt : undefined}
+                onToggleTimer={() => onToggleTimer?.(set.id, set.duration)}
+                registerInput={registerInput}
+                onInputFocus={onInputFocus}
+                onPatch={(patch) => onPatchSet(set.id, patch)}
+                onRemove={() => onRemoveSet(set.id)}
+              />
+              {/* Outside the row, so swiping a set away doesn't drag its
+                  splits along half-hidden. */}
+              {timed && (ground || set.tracked) && <CardioDetail set={set} ground={ground} />}
+            </Fragment>
           ))}
 
           {!readOnly && (
@@ -1179,6 +1244,7 @@ function SetRow({
   before,
   readOnly,
   timed,
+  ground,
   bodyweight,
   runningStartedAt,
   onToggleTimer,
@@ -1194,6 +1260,8 @@ function SetRow({
   before?: WorkoutSet;
   readOnly: boolean;
   timed?: boolean;
+  /** Cardio that covers ground: the row takes a distance beside its time. */
+  ground?: DistanceKind | null;
   /** The weight field means *added* load, and blank reads as BW. */
   bodyweight: boolean;
   /** Set when this row's stopwatch is running (backdated by prior duration). */
@@ -1229,6 +1297,11 @@ function SetRow({
   const [weightText, setWeightText] = useState(shownWeight != null ? String(shownWeight) : "");
   const [repsText, setRepsText] = useState(set.reps != null ? String(set.reps) : "");
   const [durationText, setDurationText] = useState(set.duration != null ? formatClock(set.duration) : "");
+  // Stored in metres; typed and shown in miles or kilometres per the unit
+  // setting, so switching it re-reads old runs too.
+  const groundUnit = ground ? distanceUnit(ground, unit) : null;
+  const shownDistance = set.distance != null && groundUnit ? formatDistanceValue(set.distance, groundUnit) : "";
+  const [distanceText, setDistanceText] = useState(shownDistance);
   const editing = useRef(false);
 
   // Live readout while this row's stopwatch runs.
@@ -1277,7 +1350,8 @@ function SetRow({
     setWeightText(shownWeight != null ? String(shownWeight) : "");
     setRepsText(set.reps != null ? String(set.reps) : "");
     setDurationText(set.duration != null ? formatClock(set.duration) : "");
-  }, [shownWeight, set.reps, set.duration]);
+    setDistanceText(shownDistance);
+  }, [shownWeight, set.reps, set.duration, shownDistance]);
 
   function commit() {
     editing.current = false;
@@ -1318,7 +1392,8 @@ function SetRow({
 
   // Copy button: an untouched set right after a completed one repeats it in one
   // tap — same weight and reps (or time), marked done.
-  const untouched = !set.isCompleted && set.weight == null && set.reps == null && set.duration == null;
+  const untouched =
+    !set.isCompleted && set.weight == null && set.reps == null && set.duration == null && set.distance == null;
   const canCopyBefore = !readOnly && !running && untouched && !!before?.isCompleted;
   function copyBefore() {
     // Real guard, not a `!` assertion: the React Compiler turns unguarded
@@ -1329,7 +1404,12 @@ function SetRow({
     editing.current = false;
     onPatch(
       timed
-        ? { duration: src.duration, isCompleted: true, completedAt: new Date() }
+        ? {
+            duration: src.duration,
+            ...(ground ? { distance: src.distance } : {}),
+            isCompleted: true,
+            completedAt: new Date(),
+          }
         : {
             weight: src.weight,
             weightUnit: src.weightUnit,
@@ -1348,9 +1428,25 @@ function SetRow({
     if (durationText === baseline) return;
 
     const seconds = parseDurationText(durationText);
-    const done = seconds != null && seconds > 0;
+    const timeLogged = seconds != null && seconds > 0;
+    // On cardio a distance already in the row keeps the set done with the
+    // time cleared; on a hold, time is all there is.
+    const done = cardioSetDone({ duration: timeLogged ? seconds : undefined, distance: ground ? set.distance : undefined });
     onPatch({
-      duration: done ? seconds : undefined,
+      duration: timeLogged ? seconds : undefined,
+      isCompleted: done,
+      completedAt: done ? new Date() : undefined,
+    });
+  }
+
+  // How far, typed after the fact — what the treadmill's screen said.
+  function commitDistance() {
+    editing.current = false;
+    if (!groundUnit || distanceText === shownDistance) return;
+    const metres = parseDistanceText(distanceText, groundUnit);
+    const done = cardioSetDone({ duration: set.duration, distance: metres });
+    onPatch({
+      distance: metres,
       isCompleted: done,
       completedAt: done ? new Date() : undefined,
     });
@@ -1429,6 +1525,27 @@ function SetRow({
               />
             </Pressable>
           )}
+          {groundUnit && (
+            <TextInput
+              ref={(node) => registerInput?.(fieldKey(set.id, "distance"), node)}
+              style={[styles.setInput, styles.inputCol]}
+              maxFontSizeMultiplier={FontScaleCap.grid}
+              value={distanceText}
+              onPressIn={readOnly ? undefined : () => onInputFocus?.(fieldKey(set.id, "distance"))}
+              onFocus={() => {
+                editing.current = true;
+                onInputFocus?.(fieldKey(set.id, "distance"), true);
+              }}
+              onChangeText={setDistanceText}
+              onEndEditing={commitDistance}
+              // Metres and yards are whole; nobody rows 2,000.4 m.
+              keyboardType={groundUnit === "mi" || groundUnit === "km" ? "decimal-pad" : "number-pad"}
+              placeholder={prev?.distance != null ? formatDistanceValue(prev.distance, groundUnit) : "—"}
+              placeholderTextColor={palette.textTertiary}
+              editable={!readOnly}
+              accessibilityLabel={`Distance, ${DISTANCE_HEADING[groundUnit].toLowerCase()}`}
+            />
+          )}
         </>
       ) : (
         <>
@@ -1494,6 +1611,124 @@ function SetRow({
       </View>
       </Pressable>
     </ReanimatedSwipeable>
+  );
+}
+
+
+/**
+ * Beneath a cardio set: how fast it was, and — when a watch recorded it — the
+ * heart rate, calories and splits that came with it from Apple Health.
+ *
+ * A typed-in set gets one quiet line of pace, indented under its time so it
+ * reads as belonging to that row. A recorded one gets the full picture: this
+ * is the part of the workout the watch measured and the lifter didn't, and
+ * it's the reason a run is worth looking at again.
+ */
+function CardioDetail({ set, ground }: { set: WorkoutSet; ground: DistanceKind | null }) {
+  const styles = useStyles();
+  const palette = usePalette();
+  const theme = useTheme();
+  const { unit } = useWeightUnit();
+  const setNumColWidth = useSetNumColWidth();
+  const rate = ground ? formatRate(set.distance, set.duration, ground, unit) : null;
+  const tracked = set.tracked;
+  const indent = { marginLeft: setNumColWidth + Spacing.two };
+
+  if (!tracked) {
+    if (!rate) return null;
+    return (
+      <Text style={[styles.cardioRate, indent]} maxFontSizeMultiplier={FontScaleCap.grid}>
+        {rate}
+      </Text>
+    );
+  }
+
+  const tiles = [
+    rate ? { key: "rate", value: rate, label: ground === "ride" ? "avg speed" : "avg pace" } : null,
+    tracked.avgHeartRate
+      ? {
+          key: "hr",
+          value: String(tracked.avgHeartRate),
+          label: tracked.maxHeartRate ? `avg bpm · max ${tracked.maxHeartRate}` : "avg bpm",
+        }
+      : null,
+    tracked.activeCalories ? { key: "cal", value: String(tracked.activeCalories), label: "active cal" } : null,
+  ].filter((tile): tile is { key: string; value: string; label: string } => tile != null);
+
+  // Splits in the unit the rest of the app is reading in. Bikes get them too:
+  // a mile at a time is how a ride is compared with the last one.
+  const groundUnit = ground ? distanceUnit(ground, unit) : null;
+  const whole =
+    groundUnit === "mi" ? tracked.splitsMi : groundUnit === "km" ? tracked.splitsKm : undefined;
+  const rows: { label: string; seconds: number; perUnit: number }[] = (whole ?? []).map((seconds, i) => ({
+    label: String(i + 1),
+    seconds,
+    perUnit: seconds,
+  }));
+  // The bit past the last whole mile, so the splits add up to the run. Only
+  // when it's enough to mean something: a few metres over reads as noise.
+  if (whole && groundUnit && set.distance && set.duration) {
+    const leftUnits = fromMetres(set.distance, groundUnit) - whole.length;
+    const leftSeconds = set.duration - whole.reduce((sum, s) => sum + s, 0);
+    if (leftUnits >= 0.05 && leftSeconds > 0) {
+      rows.push({ label: leftUnits.toFixed(2), seconds: leftSeconds, perUnit: leftSeconds / leftUnits });
+    }
+  }
+  const fastest = rows.reduce((min, r) => Math.min(min, r.perUnit), Infinity);
+
+  return (
+    <View style={[styles.cardioPanel, indent]}>
+      {tiles.length > 0 && (
+        <View style={styles.cardioTiles}>
+          {tiles.map((tile) => (
+            <View key={tile.key} style={styles.cardioTile}>
+              <Text style={styles.cardioTileValue} maxFontSizeMultiplier={FontScaleCap.grid}>
+                {tile.value}
+              </Text>
+              <Text style={styles.cardioTileLabel} maxFontSizeMultiplier={FontScaleCap.grid}>
+                {tile.label}
+              </Text>
+            </View>
+          ))}
+        </View>
+      )}
+      {rows.length > 1 && groundUnit && (
+        <View style={styles.splits}>
+          <Text style={styles.splitsHeading} maxFontSizeMultiplier={FontScaleCap.grid}>
+            Splits · per {groundUnit === "mi" ? "mile" : "km"}
+          </Text>
+          {rows.map((row) => {
+            const isFastest = row.perUnit === fastest;
+            return (
+              <View
+                key={row.label}
+                style={styles.splitRow}
+                accessible
+                accessibilityLabel={`${row.label.includes(".") ? `Last ${row.label} ${groundUnit}` : `${groundUnit === "mi" ? "Mile" : "Kilometre"} ${row.label}`}, ${formatClock(Math.round(row.seconds))}`}>
+                <Text style={styles.splitLabel} maxFontSizeMultiplier={FontScaleCap.grid}>
+                  {row.label}
+                </Text>
+                <Text
+                  style={[styles.splitTime, isFastest && { color: palette.text, fontWeight: "800" }]}
+                  maxFontSizeMultiplier={FontScaleCap.grid}>
+                  {formatClock(Math.round(row.seconds))}
+                </Text>
+                {/* Length is speed against the fastest split, so the longest
+                    bar is the quickest stretch — further reads as faster. */}
+                <View style={styles.splitTrack}>
+                  <View
+                    style={[
+                      styles.splitBar,
+                      { width: `${(fastest / row.perUnit) * 100}%`, backgroundColor: theme.accent },
+                    ]}
+                  />
+                </View>
+              </View>
+            );
+          })}
+        </View>
+      )}
+    </View>
   );
 }
 
@@ -1696,6 +1931,78 @@ const useStyles = makeStyles((c) => ({
     height: 30,
     alignItems: "center",
     justifyContent: "center",
+  },
+  cardioRate: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: c.textSecondary,
+    fontVariant: ["tabular-nums"],
+    marginTop: -2,
+    marginBottom: 2,
+  },
+  cardioPanel: {
+    gap: Spacing.three,
+    paddingTop: Spacing.one,
+    paddingBottom: Spacing.one,
+  },
+  cardioTiles: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    columnGap: Spacing.four,
+    rowGap: Spacing.two,
+  },
+  cardioTile: {
+    gap: 1,
+  },
+  cardioTileValue: {
+    fontSize: 17,
+    fontWeight: "800",
+    color: c.text,
+    fontVariant: ["tabular-nums"],
+  },
+  cardioTileLabel: {
+    fontSize: 11,
+    color: c.textTertiary,
+  },
+  splits: {
+    gap: 6,
+  },
+  splitsHeading: {
+    fontSize: 10,
+    fontWeight: "700",
+    letterSpacing: 1,
+    textTransform: "uppercase",
+    color: c.textTertiary,
+  },
+  splitRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.two,
+  },
+  splitLabel: {
+    width: 34,
+    fontSize: 12,
+    fontWeight: "600",
+    color: c.textTertiary,
+    fontVariant: ["tabular-nums"],
+  },
+  splitTime: {
+    width: 52,
+    fontSize: 13,
+    fontWeight: "600",
+    color: c.textSecondary,
+    fontVariant: ["tabular-nums"],
+  },
+  splitTrack: {
+    flex: 1,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: c.surfaceRaised,
+    overflow: "hidden",
+  },
+  splitBar: {
+    height: 6,
+    borderRadius: 3,
   },
   addSetButton: {
     alignItems: "center",

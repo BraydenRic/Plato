@@ -332,7 +332,7 @@ export function newId(): string {
 
 /** A set counts as remembered only if it was finished with a real number in it. */
 function isLogged(set: WorkoutSet): boolean {
-  return set.isCompleted && (set.weight != null || set.duration != null);
+  return set.isCompleted && (set.weight != null || set.duration != null || set.distance != null);
 }
 
 /**

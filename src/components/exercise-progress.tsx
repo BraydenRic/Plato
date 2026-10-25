@@ -7,7 +7,10 @@ import { FontScaleCap, Radius, Spacing } from "@/constants/theme";
 import { makeStyles, usePalette } from "@/context/AppearanceContext";
 import { useWeightUnit } from "@/context/UnitContext";
 import { useWorkouts } from "@/hooks/use-workouts";
-import { convertWeight, estimatedOneRepMax, formatWeight } from "@/lib/workout-utils";
+import { distanceKind, distanceUnit, formatDistance, formatRate, toMetres, type DistanceKind } from "@/lib/cardio";
+import { isTimedExercise } from "@/lib/exercises";
+import { convertWeight, estimatedOneRepMax, formatClock, formatWeight } from "@/lib/workout-utils";
+import type { Exercise } from "@/types";
 
 const CHART_HEIGHT = 150;
 const MAX_SESSIONS = 12;
@@ -46,9 +49,142 @@ const METRICS: { key: Metric; label: string }[] = [
   { key: "top", label: "Top set" },
 ];
 
-// Personal record + progress trend for one exercise, derived entirely from the
-// user's completed workout history (never stored counters).
-export function ExerciseProgress({ exerciseId }: { exerciseId: string }) {
+/**
+ * Progress for one exercise, derived entirely from the user's completed workout
+ * history (never stored counters).
+ *
+ * Timed exercises get their own card: a plank or a run has no weight, so the
+ * lifting card found nothing in them and said "No sets logged yet" however many
+ * had been.
+ */
+export function ExerciseProgress({ exerciseId, exercise }: { exerciseId: string; exercise?: Exercise }) {
+  return exercise && isTimedExercise(exercise) ? (
+    <TimedProgress exercise={exercise} />
+  ) : (
+    <LiftProgress exerciseId={exerciseId} />
+  );
+}
+
+/** Below this, a session's average pace is a sprint, not a record worth keeping. */
+function rateFloorMetres(kind: DistanceKind, unit: "lbs" | "kg"): number {
+  const length = distanceUnit(kind, unit);
+  if (kind === "row") return 500;
+  if (kind === "swim") return toMetres(100, length);
+  return toMetres(1, length);
+}
+
+const RECENT_SESSIONS = 5;
+
+function TimedProgress({ exercise }: { exercise: Exercise }) {
+  const styles = useStyles();
+  const { completed } = useWorkouts();
+  const { unit } = useWeightUnit();
+  const ground = distanceKind(exercise);
+
+  // One per workout, newest first: the time and distance of its completed sets.
+  const sessions = useMemo(() => {
+    const out: { id: string; date: Date; seconds: number; metres: number }[] = [];
+    for (const w of completed) {
+      let seconds = 0;
+      let metres = 0;
+      for (const ex of w.exercises) {
+        if (ex.exerciseId !== exercise.id) continue;
+        for (const s of ex.sets) {
+          if (!s.isCompleted) continue;
+          seconds += s.duration ?? 0;
+          metres += s.distance ?? 0;
+        }
+      }
+      if (seconds > 0 || metres > 0) out.push({ id: w.id, date: w.completedAt!, seconds, metres });
+    }
+    return out;
+  }, [completed, exercise.id]);
+
+  if (sessions.length === 0) {
+    return (
+      <View style={styles.card}>
+        <Text style={styles.emptyText}>
+          Nothing logged yet. Your bests appear after your first workout with it.
+        </Text>
+      </View>
+    );
+  }
+
+  const groundUnit = ground ? distanceUnit(ground, unit) : null;
+  const longestTime = Math.max(...sessions.map((s) => s.seconds));
+  const longestDistance = Math.max(...sessions.map((s) => s.metres));
+  // Fastest average over a real distance — fewest seconds per metre.
+  const floor = ground ? rateFloorMetres(ground, unit) : Infinity;
+  const quickest = sessions
+    .filter((s) => s.metres >= floor && s.seconds > 0)
+    .reduce<(typeof sessions)[number] | null>(
+      (best, s) => (!best || s.seconds / s.metres < best.seconds / best.metres ? s : best),
+      null
+    );
+  const totalSeconds = sessions.reduce((sum, s) => sum + s.seconds, 0);
+
+  const stats =
+    ground && groundUnit && longestDistance > 0
+      ? [
+          { label: "Longest", value: formatDistance(longestDistance, groundUnit) },
+          {
+            label: ground === "ride" ? "Fastest avg" : "Best pace",
+            value: quickest ? formatRate(quickest.metres, quickest.seconds, ground, unit)! : "—",
+          },
+        ]
+      : [
+          { label: "Longest", value: longestTime > 0 ? formatClock(longestTime) : "—" },
+          { label: "Total time", value: formatClock(totalSeconds) },
+        ];
+
+  return (
+    <View style={styles.card}>
+      <View style={styles.statsRow}>
+        {stats.map((stat) => (
+          <View key={stat.label} style={styles.statRowItem}>
+            <View style={styles.stat}>
+              <Text style={styles.statValue} maxFontSizeMultiplier={FontScaleCap.grid}>
+                {stat.value}
+              </Text>
+              <Text style={styles.statLabel}>{stat.label}</Text>
+            </View>
+            <View style={styles.statDivider} />
+          </View>
+        ))}
+        <View style={styles.stat}>
+          <Text style={styles.statValue} maxFontSizeMultiplier={FontScaleCap.grid}>
+            {sessions.length}
+          </Text>
+          <Text style={styles.statLabel}>Session{sessions.length === 1 ? "" : "s"}</Text>
+        </View>
+      </View>
+
+      <View style={styles.recent}>
+        {sessions.slice(0, RECENT_SESSIONS).map((s) => {
+          const rate = ground ? formatRate(s.metres, s.seconds, ground, unit) : null;
+          return (
+            <View key={s.id} style={styles.recentRow}>
+              <Text style={styles.recentDate} maxFontSizeMultiplier={FontScaleCap.grid}>
+                {s.date.toLocaleDateString(undefined, { month: "short", day: "numeric" })}
+              </Text>
+              <Text style={styles.recentValue} maxFontSizeMultiplier={FontScaleCap.grid}>
+                {[
+                  s.metres > 0 && groundUnit ? formatDistance(s.metres, groundUnit) : null,
+                  s.seconds > 0 ? formatClock(s.seconds) : null,
+                  rate,
+                ]
+                  .filter(Boolean)
+                  .join("  ·  ")}
+              </Text>
+            </View>
+          );
+        })}
+      </View>
+    </View>
+  );
+}
+
+function LiftProgress({ exerciseId }: { exerciseId: string }) {
   const styles = useStyles();
   const { completed } = useWorkouts();
   const { unit } = useWeightUnit();
@@ -436,6 +572,34 @@ const useStyles = makeStyles((c) => ({
     flexDirection: "row",
     justifyContent: "space-between",
     marginTop: -Spacing.two,
+  },
+  statRowItem: {
+    flex: 1,
+    flexDirection: "row",
+  },
+  recent: {
+    gap: Spacing.two,
+    borderTopWidth: 1,
+    borderTopColor: c.border,
+    paddingTop: Spacing.three,
+  },
+  recentRow: {
+    flexDirection: "row",
+    alignItems: "baseline",
+    gap: Spacing.three,
+  },
+  recentDate: {
+    width: 52,
+    fontSize: 12,
+    color: c.textTertiary,
+    fontVariant: ["tabular-nums"],
+  },
+  recentValue: {
+    flex: 1,
+    fontSize: 13,
+    fontWeight: "600",
+    color: c.textSecondary,
+    fontVariant: ["tabular-nums"],
   },
   axisLabel: {
     fontSize: 10,
