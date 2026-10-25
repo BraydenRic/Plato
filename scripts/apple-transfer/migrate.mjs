@@ -308,52 +308,143 @@ async function apply() {
   console.log(commit ? "APPLYING FOR REAL\n" : "DRY RUN — nothing will be written. Add --commit.\n");
 
   for (const [uid, user] of ready) {
-    /*
-     * importUsers is the only way to change providerData, and it *overwrites*
-     * the record rather than merging. Anything not restated here is lost — most
-     * dangerously a password hash, which listUsers does not return in a form
-     * that can be handed back without the project's hash parameters.
-     *
-     * So this refuses to touch anyone it cannot rewrite losslessly. Those users
-     * have another way in anyway, which is exactly why they are the safe ones to
-     * leave alone.
-     */
-    if (user.hasPassword || user.providers.length > 1) {
-      console.log(
-        `  skip  ${uid}  has ${user.providers.join(", ")}${user.hasPassword ? " + password" : ""}` +
-          ` — can sign in another way; rewrite by hand if you want the Apple link back`
-      );
-      continue;
-    }
+    try {
+      const plan = await planRewrite(auth, uid, user);
+      if (plan.already) {
+        // A previous run wrote it but stopped before saving the map.
+        if (commit) user.appliedAt = new Date().toISOString();
+        console.log(`  already  ${uid}  points at ${user.newSub}`);
+        continue;
+      }
+      if (plan.skip) {
+        console.log(`  skip  ${uid}  ${plan.skip}`);
+        continue;
+      }
 
-    const record = {
+      if (!commit) {
+        console.log(`  would  ${uid}  ${user.appleSub} -> ${user.newSub}`);
+        continue;
+      }
+
+      const result = await auth.importUsers([plan.record]);
+      if (result.failureCount > 0) {
+        console.error(`  FAIL   ${uid}  ${result.errors[0]?.error?.message ?? "unknown"}`);
+        continue;
+      }
+      user.appliedAt = new Date().toISOString();
+      console.log(`  done   ${uid}  ${user.appleSub} -> ${user.newSub}`);
+    } catch (error) {
+      // Keep going, and still save the map below for everyone already done.
+      console.error(`  FAIL   ${uid}  ${error.message}`);
+    }
+  }
+
+  if (commit) saveMap(map);
+}
+
+/** Resolves a Firebase user lookup to null, rather than throwing, when nobody matches. */
+async function unlessNotFound(lookup) {
+  try {
+    return await lookup;
+  } catch (error) {
+    if (error.code === "auth/user-not-found") return null;
+    throw error;
+  }
+}
+
+/**
+ * Decides what `apply` does with one user: `{ already }`, `{ skip: reason }`, or
+ * `{ record }` ready for importUsers.
+ *
+ * Everything here reads the live auth record, never the map. The map is written
+ * once by `collect` and can be weeks old by now, and importUsers is about to
+ * replace whatever is live, so the live record is the one that must be safe to
+ * replace and the one whose fields must be carried across.
+ */
+async function planRewrite(auth, uid, user) {
+  // importUsers would quietly re-create a user who deleted their account.
+  const live = await unlessNotFound(auth.getUser(uid));
+  if (!live) return { skip: "no longer exists — deleted since `collect`" };
+
+  const apple = live.providerData.find((p) => p.providerId === "apple.com");
+  if (apple?.uid === user.newSub) return { already: true };
+
+  /*
+   * importUsers is the only way to change providerData, and it *overwrites*
+   * the record rather than merging. Anything not restated is lost — most
+   * dangerously a password hash, which cannot be handed back without the
+   * project's hash parameters.
+   *
+   * So this refuses to touch anyone it cannot rewrite losslessly. Those users
+   * have another way in anyway, which is exactly why they are the safe ones to
+   * leave alone. Firebase only promises the hash from listUsers (where the
+   * map's hasPassword came from), not getUser, but a password always appears
+   * as a second, "password" provider, so the provider count catches it anyway.
+   */
+  const providers = live.providerData.map((p) => p.providerId);
+  const hasPassword = user.hasPassword || Boolean(live.passwordHash);
+  if (hasPassword || providers.length > 1) {
+    return {
+      skip:
+        `has ${providers.join(", ")}${hasPassword ? " + password" : ""}` +
+        ` — can sign in another way; rewrite by hand if you want the Apple link back`,
+    };
+  }
+  if (live.multiFactor?.enrolledFactors?.length) {
+    return { skip: "has a second factor enrolled, which this can't restate — rewrite by hand" };
+  }
+  if (apple?.uid !== user.appleSub) {
+    return {
+      skip: `Apple link is now ${apple?.uid ?? "gone"}, not the collected ${user.appleSub} — check by hand`,
+    };
+  }
+
+  /*
+   * importUsers doesn't check that an identifier is unique. If this person
+   * signed in with Apple again after the transfer (a new phone, a reinstall),
+   * Firebase didn't recognise the new sub and made them a second, empty
+   * account that holds it. Importing anyway would link both accounts to one
+   * Apple id, and which one a sign-in reaches is then anyone's guess.
+   */
+  const holder = await unlessNotFound(auth.getUserByProviderUid("apple.com", user.newSub));
+  if (holder && holder.uid !== uid) {
+    return {
+      skip:
+        `${user.newSub} already belongs to ${holder.uid}, made by signing in after the transfer` +
+        ` — keep one account (see README), then re-run`,
+    };
+  }
+
+  /*
+   * Restate everything else the live record has. The display name matters
+   * most: Apple sends a name only on the very first sign-in, the app saves it
+   * here, and nothing else keeps a copy.
+   */
+  return {
+    record: {
       uid,
-      email: user.email ?? undefined,
-      emailVerified: true,
+      email: live.email,
+      emailVerified: live.emailVerified,
+      displayName: live.displayName,
+      photoURL: live.photoURL,
+      phoneNumber: live.phoneNumber,
+      disabled: live.disabled,
+      customClaims: live.customClaims,
+      metadata: {
+        creationTime: live.metadata.creationTime,
+        lastSignInTime: live.metadata.lastSignInTime,
+      },
       providerData: [
         {
           uid: user.newSub,
           providerId: "apple.com",
-          email: user.newEmail ?? user.email ?? undefined,
+          email: user.newEmail ?? apple.email ?? live.email,
+          displayName: apple.displayName,
+          photoURL: apple.photoURL,
         },
       ],
-    };
-
-    if (!commit) {
-      console.log(`  would  ${uid}  ${user.appleSub} -> ${user.newSub}`);
-      continue;
-    }
-
-    const result = await auth.importUsers([record]);
-    if (result.failureCount > 0) {
-      console.error(`  FAIL   ${uid}  ${result.errors[0]?.error?.message ?? "unknown"}`);
-      continue;
-    }
-    user.appliedAt = new Date().toISOString();
-    console.log(`  done   ${uid}  ${user.appleSub} -> ${user.newSub}`);
-  }
-
-  if (commit) saveMap(map);
+    },
+  };
 }
 
 // ── entry ────────────────────────────────────────────────────────────────────

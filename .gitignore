@@ -30,6 +30,12 @@ yarn-error.*
 .DS_Store
 *.pem
 
+# Firebase Admin keys under their default or README names, and the
+# apple-transfer map (user ids and emails), wherever they end up being saved
+*firebase-adminsdk*.json
+service-account*.json
+apple-transfer-map.json
+
 # local env files
 .env*.local
 

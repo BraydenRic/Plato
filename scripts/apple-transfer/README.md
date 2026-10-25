@@ -55,8 +55,9 @@ later:
 
 ## Order of operations
 
-Steps 4 and 5 want to be close together. Everything after step 5 can take its
-time, within Apple's exchange window.
+Steps 4 and 5 want to be close together. Steps 6 to 9 don't have to be rushed
+to stay inside Apple's exchange window, but each day they wait is a day an
+existing user can end up in a second account (see below).
 
 1. Confirm the prerequisites above, then `npm run check`.
 2. `npm run collect`
@@ -76,6 +77,16 @@ Apple **for the first time between your last `collect` and the transfer
 completing**. Anyone who signs up *after* the transfer is an ordinary new user
 on the new team with nothing to migrate, and anyone already collected is
 already safe. A final `collect` immediately before you accept closes it.
+
+The second gap opens when you accept and closes as `apply` reaches each user.
+Someone already signed in stays signed in, but an existing user who signs in
+with Apple *again* in between (a new phone, a reinstall, after signing out)
+brings Firebase a `sub` it has never seen, so they get a second, empty account
+holding their new identifier. `apply` notices, skips them and prints both uids.
+The original, with their history, is usually the one to keep. Once nothing in
+the new account is wanted, delete it (Profile → Delete account while signed in
+to it removes its rows too; Firebase Console → Authentication removes only the
+login), then run `apply` again.
 
 ## Setup
 
@@ -197,6 +208,15 @@ account.
 Those users can already sign in another way, so they lose nothing by being left
 alone. They'll simply have a stale Apple link. Re-link by hand if you want it
 back.
+
+Because the overwrite keeps only what it's given, `apply` re-reads each user's
+live record rather than trusting the map, which can be weeks old, and copies
+everything else across: the display name (Apple sends it only on the first
+sign-in, and nothing else keeps a copy), photo, disabled flag, custom claims,
+and creation and last sign-in times. It also skips, saying why, anyone who
+has deleted their account since `collect` (importing would re-create it),
+whose Apple link no longer matches the map, or whose new identifier already
+belongs to another account.
 
 ## If something goes wrong
 
