@@ -241,6 +241,35 @@ it("keeps the setting to the account that turned it on", async () => {
   expect(mockCreate.mock.calls.every(([w]) => w.userId === "u1")).toBe(true);
 });
 
+it("stops partway when the account changes in the middle of an import", async () => {
+  await AsyncStorage.setItem(HEALTH_KEY_PREFIX + "u1", JSON.stringify({ enabled: true, seen: [] }));
+  mockHealth.getWorkouts.mockImplementation(async () => [run("H-1"), run("H-2")]);
+  let release: (() => void) | null = null;
+  mockHealth.getDistanceSamples.mockImplementationOnce(
+    () =>
+      new Promise((resolve) => {
+        release = () => resolve([]);
+      })
+  );
+  const view = await mount();
+  expect(mockHealth.getDistanceSamples).toHaveBeenCalledWith("H-1");
+
+  mockUserId = "u2";
+  view.rerender(
+    <HealthImportProvider>
+      <Probe />
+    </HealthImportProvider>
+  );
+  await flush();
+  await act(async () => release?.());
+  await flush();
+
+  // The one already in hand finishes for its own account; the rest don't start.
+  expect(mockCreate).toHaveBeenCalledTimes(1);
+  expect(mockCreate.mock.calls[0][0].userId).toBe("u1");
+  expect(mockHealth.getDistanceSamples).not.toHaveBeenCalledWith("H-2");
+});
+
 it("stays off when iOS can't be asked", async () => {
   mockHealth.requestAccess.mockImplementation(async () => {
     throw new Error("no");

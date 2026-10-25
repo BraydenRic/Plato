@@ -319,10 +319,9 @@ export function weeklyDistance(
     weekStart: addDays(thisWeek, -7 * (weeks - 1 - i)),
     metres: 0,
   }));
-  const first = buckets[0].weekStart.getTime();
   for (const s of sessions) {
     const start = startOfWeek(s.date).getTime();
-    if (start < first) continue;
+    // Older than the window finds no bucket, and is left out.
     const bucket = buckets.find((b) => b.weekStart.getTime() === start);
     if (bucket) bucket.metres += s.metres;
   }
