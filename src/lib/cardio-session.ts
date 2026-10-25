@@ -2,6 +2,7 @@ import type { ComponentProps } from "react";
 import type Ionicons from "@expo/vector-icons/Ionicons";
 
 import { distanceKind } from "./cardio";
+import { movingStretches } from "./phone-distance";
 import { EXERCISES } from "./exercises";
 import { newId } from "./workout-utils";
 import type { CardioSessionKind, TrackedCardio, Workout, WorkoutSet } from "@/types";
@@ -195,6 +196,18 @@ export function movingSeconds(workout: Workout, nowMs: number): number {
     (workout.cardio?.pausedSeconds ?? 0) * 1000 +
     (workout.cardio?.pausedAtMs != null ? Math.max(0, nowMs - workout.cardio.pausedAtMs) : 0);
   return Math.max(0, Math.floor((nowMs - started - pausedMs) / 1000));
+}
+
+/**
+ * Seconds moving from the start up to `untilMs`, less the pauses kept in
+ * that time: how long the phone had the session before a watch took over at
+ * `untilMs`. Zero for a watch that started it.
+ */
+export function movingSecondsUntil(workout: Workout, untilMs: number): number {
+  const start = workout.startedAt?.getTime();
+  if (start == null || untilMs <= start) return 0;
+  const ms = movingStretches(start, untilMs, workout.cardio?.pauses).reduce((sum, s) => sum + (s.toMs - s.fromMs), 0);
+  return Math.round(ms / 1000);
 }
 
 export function isPaused(workout: Workout): boolean {

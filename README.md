@@ -145,6 +145,7 @@ With an Apple Watch, the watch tracks it:
 - **Pause and end on the watch**, which sends them as ops. Ending on the phone lists the session in the snapshot's `endedCardio`, and the watch stops and sends what it measured.
 - **`finishCardio`** carries time, distance, calories, heart rate, the Health workout's id and a record of distance against moving time; the phone works out splits and best efforts from it ([cardio-tracking.ts](src/lib/cardio-tracking.ts)), where Jest can check them. A finish with no session behind it brings the whole session in.
 - **Live numbers** go to the phone every 5 s while in reach (`onLive`, [watch-live.ts](src/lib/watch-live.ts)); never stored.
+- **Matching by kind and start time** (within 5 minutes) is only for a session the phone woke the watch for: `startCardio` carries `fromPhone`, and a run started on the wrist is never taken for a session discarded on the phone. A watch that takes over a phone session late gets the phone's stretch counted first — its moving time, and on foot its step count — on the clock and in what's saved.
 - The session is saved to Apple Health by the watch, for the rings. Plato reads nothing from Health except during its own sessions — there's no import of other apps' workouts.
 
 With no watch tracking it, a session **on foot** (run, walk, hike) is measured by the iPhone's step counter, `CMPedometer` in [modules/plato-motion](modules/plato-motion). The motion coprocessor counts steps whether Plato is open or not, so nothing has to stay awake:

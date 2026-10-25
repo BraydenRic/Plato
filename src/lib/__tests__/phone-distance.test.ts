@@ -1,5 +1,5 @@
 import { splits } from "../cardio-tracking";
-import { curveFromPieces, movingStretches, stepCounted, stepPieces } from "../phone-distance";
+import { curveFromPieces, movingStretches, stepCounted, stepPieces, withLead } from "../phone-distance";
 
 /**
  * The step counter is asked about windows of time, so which windows matters:
@@ -96,5 +96,17 @@ describe("the curve", () => {
     const curve = curveFromPieces(pieces, Array(pieces.length / 2).fill(200));
     expect(curve.seconds[curve.seconds.length - 1]).toBe(17 * 60);
     expect(splits(curve, 1609.344)).toEqual([483, 483]);
+  });
+});
+
+describe("a watch's curve after the phone's start", () => {
+  it("puts the phone's stretch in front, so splits cover the whole session", () => {
+    const watch = { metres: [0, 1000, 2000], seconds: [0, 300, 600] };
+    expect(withLead(watch, 400, 120)).toEqual({ metres: [0, 400, 1400, 2400], seconds: [0, 120, 420, 720] });
+  });
+
+  it("is the watch's own curve with nothing before it", () => {
+    const watch = { metres: [0, 1000], seconds: [0, 300] };
+    expect(withLead(watch, 0, 0)).toBe(watch);
   });
 });

@@ -71,5 +71,18 @@ export function curveFromPieces(pieces: number[], metres: number[]): Curve {
   return curve;
 }
 
+/**
+ * A watch's curve with the phone's stretch before the watch took over put in
+ * front: from nothing to what the phone had counted, then the watch's points
+ * carried on from there. So splits and fastest efforts cover the whole session.
+ */
+export function withLead(curve: Curve, metres: number, seconds: number): Curve {
+  if (metres <= 0 && seconds <= 0) return curve;
+  return {
+    metres: [0, ...curve.metres.map((m) => m + metres)],
+    seconds: [0, ...curve.seconds.map((s) => s + seconds)],
+  };
+}
+
 /** Less than this and nothing was really counted: a phone left on a bench, not a walk. */
 export const MIN_PHONE_METRES = 20;

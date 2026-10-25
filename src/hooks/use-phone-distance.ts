@@ -7,20 +7,37 @@ import { MIN_PHONE_METRES, curveFromPieces, movingStretches, stepCounted, stepPi
 import { traceWatch } from "@/lib/watch-trace";
 import type { TrackedCardio, Workout } from "@/types";
 
+/** Plato has been told no, rather than not asked yet. */
+function refusedMotion(): boolean {
+  try {
+    const status = PlatoMotion?.authorization();
+    return status === "denied" || status === "restricted";
+  } catch {
+    return true;
+  }
+}
+
 /**
  * Whether the step counter can measure this session: one on foot, on an
  * iPhone that counts distance, where Plato hasn't been refused Motion &
  * Fitness. Not yet asked counts as yes — asking is how the question gets put.
+ *
+ * A session begun on build 67 kept only its paused total, not each pause, so
+ * there's no knowing which minutes to leave out: it's asked how far instead.
  */
-function canCount(workout: Workout): boolean {
+export function canCount(workout: Workout): boolean {
   if (!PlatoMotion || !workout.startedAt || !workout.cardio || !stepCounted(workout.cardio.kind)) return false;
+  const kept = (workout.cardio.pauses ?? []).reduce((sum, p) => sum + (p.toMs - p.fromMs) / 1000, 0);
+  if ((workout.cardio.pausedSeconds ?? 0) - kept > 1) return false;
   try {
-    const status = PlatoMotion.authorization();
-    return PlatoMotion.isAvailable() && status !== "denied" && status !== "restricted";
+    return PlatoMotion.isAvailable() && !refusedMotion();
   } catch {
     return false;
   }
 }
+
+/** After a failed count, how long before trying again — unless Plato was refused, which no retry fixes. */
+const RETRY_MS = 5_000;
 
 function flat(stretches: Stretch[]): number[] {
   return stretches.flatMap((s) => [s.fromMs, s.toMs]);
@@ -41,6 +58,8 @@ export function usePhoneDistance(workout: Workout, enabled: boolean): number | n
   // before a pause or a resume is never added to the stretches since.
   const [live, setLive] = useState<{ fromMs: number; metres: number } | null>(null);
   const [refused, setRefused] = useState(false);
+  // Bumped to start counting again after a one-off failure.
+  const [attempt, setAttempt] = useState(0);
   const counting = enabled && !refused && canCount(workout);
   const startMs = workout.startedAt?.getTime();
   const pausedAtMs = workout.cardio?.pausedAtMs;
@@ -55,6 +74,15 @@ export function usePhoneDistance(workout: Workout, enabled: boolean): number | n
     if (!counting || !PlatoMotion || startMs == null) return;
     const motion = PlatoMotion;
     let cancelled = false;
+    let retry: ReturnType<typeof setTimeout> | undefined;
+    // Refused for good, the figure goes; anything else — the permission sheet
+    // still up, a hiccup — is tried again shortly rather than given up on.
+    const failed = (why: string) => {
+      if (cancelled) return;
+      traceWatch(`steps: ${why}`);
+      if (refusedMotion()) setRefused(true);
+      else if (retry == null) retry = setTimeout(() => setAttempt((n) => n + 1), RETRY_MS);
+    };
     const stretches = movingStretches(startMs, pausedAtMs ?? Date.now(), JSON.parse(pausesKey) as Stretch[]);
     // Running, the last stretch is the one under way: counted live.
     const underWay = pausedAtMs == null ? stretches.pop() : undefined;
@@ -64,29 +92,27 @@ export function usePhoneDistance(workout: Workout, enabled: boolean): number | n
       .then((metres) => {
         if (!cancelled) setBanked(metres.reduce((sum, m) => sum + Math.max(0, m), 0));
       })
-      .catch((e: unknown) => {
-        if (cancelled) return;
-        traceWatch(`steps: couldn't count (${e instanceof Error ? e.message : String(e)})`);
-        setRefused(true);
-      });
+      .catch((e: unknown) => failed(`couldn't count (${e instanceof Error ? e.message : String(e)})`));
 
-    if (!underWay) return () => void (cancelled = true);
+    if (!underWay) {
+      return () => {
+        cancelled = true;
+        clearTimeout(retry);
+      };
+    }
     const subscription = motion.addListener("onDistance", (reading) => {
       if (cancelled) return;
-      if ("error" in reading) {
-        traceWatch(`steps: live count failed (code ${reading.error})`);
-        setRefused(true);
-      } else {
-        setLive({ fromMs: underWay.fromMs, metres: reading.distance });
-      }
+      if ("error" in reading) failed(`live count failed (code ${reading.error})`);
+      else setLive({ fromMs: underWay.fromMs, metres: reading.distance });
     });
     motion.startUpdates(underWay.fromMs);
     return () => {
       cancelled = true;
+      clearTimeout(retry);
       subscription.remove();
       motion.stopUpdates();
     };
-  }, [counting, startMs, pausedAtMs, pausesKey]);
+  }, [counting, startMs, pausedAtMs, pausesKey, attempt]);
 
   const sinceResume = live && live.fromMs === liveFromMs ? live.metres : 0;
   return counting && banked != null ? banked + sinceResume : null;
@@ -116,4 +142,42 @@ export async function measureOnPhone(
     traceWatch(`steps: couldn't measure the session (${e instanceof Error ? e.message : String(e)})`);
     return null;
   }
+}
+
+/**
+ * Metres the step counter counted from the start up to `untilMs`, pauses left
+ * out: the stretch the phone had before a watch took over. Null when it
+ * can't say.
+ */
+export async function stepsBefore(workout: Workout, untilMs: number): Promise<number | null> {
+  if (!PlatoMotion || !canCount(workout)) return null;
+  const stretches = movingStretches(workout.startedAt!.getTime(), untilMs, workout.cardio!.pauses);
+  if (stretches.length === 0) return 0;
+  try {
+    const metres = await PlatoMotion.distances(flat(stretches));
+    return metres.reduce((sum, m) => sum + Math.max(0, m), 0);
+  } catch {
+    return null;
+  }
+}
+
+/** The before-the-watch distance, for the figure under the clock. Asked once per takeover. */
+export function useStepsBefore(workout: Workout, untilMs: number | null): number | null {
+  const [counted, setCounted] = useState<{ untilMs: number; metres: number } | null>(null);
+  const possible = untilMs != null && canCount(workout);
+
+  // Asked again when the session changes — a pause or resume from the watch,
+  // rare — which costs a few step-counter queries and keeps it right.
+  useEffect(() => {
+    if (!possible || untilMs == null) return;
+    let cancelled = false;
+    void stepsBefore(workout, untilMs).then((metres) => {
+      if (!cancelled && metres != null) setCounted({ untilMs, metres });
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [possible, untilMs, workout]);
+
+  return possible && counted?.untilMs === untilMs ? counted.metres : null;
 }

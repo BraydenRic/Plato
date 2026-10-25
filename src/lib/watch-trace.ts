@@ -17,26 +17,36 @@ const KEY = "plato.watch.trace.v1";
 const LIMIT = 60;
 
 let lines: string[] = [];
-let loaded = false;
+let loaded: Promise<void> | null = null;
+
+/**
+ * Merges what earlier launches stored in ahead of this launch's lines, once.
+ * Every write waits on it: written before, a launch's first line would
+ * replace the trace from the launch before — the one being looked into.
+ */
+function load(): Promise<void> {
+  loaded ??= AsyncStorage.getItem(KEY)
+    .then((raw) => {
+      const stored = raw ? (JSON.parse(raw) as unknown) : [];
+      if (Array.isArray(stored)) lines = [...(stored as string[]), ...lines].slice(-LIMIT);
+    })
+    .catch(() => {
+      // Nothing worth crashing diagnostics over.
+    });
+  return loaded;
+}
 
 export function traceWatch(step: string, now = new Date()): void {
   const stamp = now.toTimeString().slice(0, 8);
   lines = [...lines, `${stamp} ${step}`].slice(-LIMIT);
-  AsyncStorage.setItem(KEY, JSON.stringify(lines)).catch(() => {});
+  load()
+    .then(() => AsyncStorage.setItem(KEY, JSON.stringify(lines)))
+    .catch(() => {});
 }
 
 /** The trace, oldest first, for the diagnostics alert. */
 export async function readWatchTrace(): Promise<string[]> {
-  if (!loaded) {
-    loaded = true;
-    try {
-      const raw = await AsyncStorage.getItem(KEY);
-      const stored = raw ? (JSON.parse(raw) as unknown) : [];
-      if (Array.isArray(stored)) lines = [...(stored as string[]), ...lines].slice(-LIMIT);
-    } catch {
-      // Nothing worth crashing diagnostics over.
-    }
-  }
+  await load();
   return lines;
 }
 
@@ -48,12 +58,16 @@ export type WatchStart =
 
 const starts = new Map<string, WatchStart>();
 const listeners = new Set<() => void>();
-let version = 0;
 
 export function setWatchStart(sessionId: string, start: WatchStart): void {
   starts.set(sessionId, start);
-  version += 1;
   listeners.forEach((listener) => listener());
+}
+
+/** Whether a watch was woken for this session — so a discard of it has a watch to stop. */
+export function watchWasWoken(sessionId: string): boolean {
+  const state = starts.get(sessionId)?.state;
+  return state === "waking" || state === "woken";
 }
 
 function subscribe(listener: () => void) {
@@ -61,15 +75,23 @@ function subscribe(listener: () => void) {
   return () => listeners.delete(listener);
 }
 
+/**
+ * The value comes back through useSyncExternalStore, not read beside it: the
+ * React Compiler caches a plain read like `starts.get(id)` per id, and the
+ * line under the clock would say "Waking your watch…" forever.
+ */
 export function useWatchStart(sessionId: string): WatchStart | undefined {
-  useSyncExternalStore(subscribe, () => version, () => version);
-  return starts.get(sessionId);
+  return useSyncExternalStore(
+    subscribe,
+    () => starts.get(sessionId),
+    () => undefined
+  );
 }
 
 /** For tests. */
 export function resetWatchTrace(): void {
   lines = [];
-  loaded = false;
+  loaded = null;
   starts.clear();
-  version += 1;
+  listeners.forEach((listener) => listener());
 }

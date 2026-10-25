@@ -304,8 +304,12 @@ export type WatchOp =
   | (OpBase & { kind: "finish"; workoutId: string })
   | (OpBase & { kind: "extendRest"; workoutId: string; seconds: number })
   | (OpBase & { kind: "endRest"; workoutId: string })
-  /** A session started on the watch. Its opId is how the watch knows it until the phone's id arrives. */
-  | (OpBase & { kind: "startCardio"; session: CardioSessionKind; indoor: boolean })
+  /**
+   * A session the watch is now tracking. Its opId is how the watch knows it
+   * until the phone's id arrives. `fromPhone`: the phone woke the watch for it
+   * (false: started on the watch; absent: a watch build from before it said).
+   */
+  | (OpBase & { kind: "startCardio"; session: CardioSessionKind; indoor: boolean; fromPhone?: boolean })
   | (OpBase & CardioRef & { kind: "pauseCardio" | "resumeCardio"; session?: CardioSessionKind; startedAt?: number })
   /**
    * A session ended, with what the watch measured. Complete on its own: if
@@ -400,7 +404,13 @@ export function parseWatchOp(raw: unknown): WatchOp | null {
     }
     case "startCardio":
       if (!SESSION_KINDS.includes(op.session as CardioSessionKind) || typeof op.indoor !== "boolean") return null;
-      return { ...base, kind: "startCardio", session: op.session as CardioSessionKind, indoor: op.indoor };
+      return {
+        ...base,
+        kind: "startCardio",
+        session: op.session as CardioSessionKind,
+        indoor: op.indoor,
+        ...(typeof op.fromPhone === "boolean" ? { fromPhone: op.fromPhone } : {}),
+      };
     case "pauseCardio":
     case "resumeCardio": {
       // Kind and start help find a session the watch doesn't know the id of.

@@ -629,6 +629,57 @@ describe("cardio sessions from the watch", () => {
     expect(mockCreate).not.toHaveBeenCalled();
   });
 
+  // Discarded on the phone before the watch had linked it, so remembered only
+  // by kind and start time. A run then started on the wrist is a new run.
+  describe("after a session is discarded here", () => {
+    beforeEach(() => {
+      recordCardioDiscard(session({ id: "gone", cardio: { kind: "run", watch: true } }));
+    });
+
+    it("doesn't take a run started on the watch for the discarded one", async () => {
+      mockBridge.inbox = [
+        entry({ opId: "start-new", kind: "startCardio", at: START.getTime() + 60_000, session: "run", indoor: false, fromPhone: false }),
+      ];
+      render(<WatchSync />);
+      await settle();
+      expect(mockCreate).toHaveBeenCalledTimes(1);
+      expect(mockCreate.mock.calls[0][0]).toMatchObject({ cardio: { kind: "run", watch: true, watchStartOpId: "start-new" } });
+    });
+
+    it("still turns away a woken watch's start for it", async () => {
+      mockBridge.inbox = [
+        entry({ opId: "start-late", kind: "startCardio", at: START.getTime() + 8_000, session: "run", indoor: false, fromPhone: true }),
+      ];
+      render(<WatchSync />);
+      await settle();
+      expect(mockCreate).not.toHaveBeenCalled();
+    });
+
+    it("finishes a watch-started run its own start op finds, though it's the same kind and minute", async () => {
+      const fresh = session({ id: "run2", startedAt: new Date(START.getTime() + 60_000), cardio: { kind: "run", watch: true, watchStartOpId: "start-2" } });
+      mockStore.set(fresh.id, fresh);
+      mockWorkouts.active = [fresh];
+      mockBridge.inbox = [finish({ startOpId: "start-2", startedAt: START.getTime() + 60_000 })];
+      render(<WatchSync />);
+      await settle();
+      expect(mockStore.get("run2")!.exercises[0].sets[0]).toMatchObject({ duration: 1500, distance: 5000, isCompleted: true });
+    });
+  });
+
+  // The watch took over two minutes in, after a 30-second pause on the phone:
+  // the session's time is the watch's plus the phone's 90 moving seconds.
+  it("counts the phone's time before the watch took over, less a pause in it", async () => {
+    const run = session({
+      cardio: { kind: "run", watch: true, pausedSeconds: 30, pauses: [{ fromMs: START.getTime() + 20_000, toMs: START.getTime() + 50_000 }] },
+    });
+    mockStore.set(run.id, run);
+    mockWorkouts.active = [run];
+    mockBridge.inbox = [finish({ startOpId: null, startedAt: START.getTime() + 120_000 })];
+    render(<WatchSync />);
+    await settle();
+    expect(mockStore.get("run1")!.exercises[0].sets[0].duration).toBe(1590);
+  });
+
   it("brings the whole session in when its start never landed", async () => {
     mockBridge.inbox = [finish({ startOpId: "lost-start", distance: 3 * MILE })];
     render(<WatchSync />);

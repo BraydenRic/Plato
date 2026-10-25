@@ -3,7 +3,7 @@
   "at" : 1792780210000,
   "exerciseId" : "we-bench",
   "kind" : "logSet",
-  "opId" : "F84C60E0-EB3B-44C4-A84A-3F9D8D4EA00C",
+  "opId" : "76C49D52-28BD-429B-8866-A3E40813C474",
   "reps" : 5,
   "setId" : "s2",
   "unit" : "lbs",
@@ -15,24 +15,25 @@
   "duration" : 60,
   "exerciseId" : "we-plank",
   "kind" : "logSet",
-  "opId" : "030D89ED-03C6-4AB8-BDB9-4514EA20BEA6",
+  "opId" : "5633FCD5-6C10-4C09-8AA7-345496B57CC0",
   "setId" : "k1",
   "unit" : "lbs",
   "workoutId" : "w-live"
 },
 {
   "at" : 1792780210000,
+  "fromPhone" : false,
   "indoor" : false,
   "kind" : "startCardio",
-  "opId" : "4291EC33-D3D6-4FCC-BCB4-D9CECB5714CA",
+  "opId" : "53F48342-6295-4D6A-B50A-67F40C46C9F1",
   "session" : "run"
 },
 {
   "at" : 1792780210000,
   "kind" : "pauseCardio",
-  "opId" : "1915D340-ABB1-47FF-BC03-C72C6A6C5C0E",
+  "opId" : "1643D239-2168-416F-89F6-EB550B82A24C",
   "session" : "run",
-  "startOpId" : "4291EC33-D3D6-4FCC-BCB4-D9CECB5714CA",
+  "startOpId" : "53F48342-6295-4D6A-B50A-67F40C46C9F1",
   "startedAt" : 1792779000000
 },
 {
@@ -53,9 +54,9 @@
   "indoor" : false,
   "kind" : "finishCardio",
   "maxHeartRate" : 171,
-  "opId" : "950D921E-CEE4-4D2D-942D-55E020AA7ACB",
+  "opId" : "A2BDA7EA-5CDA-492A-82E3-1690716BDAC7",
   "session" : "run",
-  "startOpId" : "4291EC33-D3D6-4FCC-BCB4-D9CECB5714CA",
+  "startOpId" : "53F48342-6295-4D6A-B50A-67F40C46C9F1",
   "startedAt" : 1792779000000,
   "workoutId" : "w-run"
 },
@@ -63,7 +64,7 @@
   "at" : 1792780210000,
   "exerciseId" : "we-bench",
   "kind" : "undoSet",
-  "opId" : "995C7E7F-807F-4FE9-92DE-3E232C966C93",
+  "opId" : "7B81E3A1-9809-4BF7-9419-A238CD95335E",
   "setId" : "s1",
   "workoutId" : "w-live"
 },
@@ -71,33 +72,33 @@
   "at" : 1792780210000,
   "exerciseId" : "we-bench",
   "kind" : "addSet",
-  "opId" : "7349689B-2210-4FD6-952E-1404FCF6F852",
+  "opId" : "ED09E1AC-FB8D-4B9F-8AE9-779488E85855",
   "setId" : "B3C1A2E4-1111-4222-8333-944455556666",
   "workoutId" : "w-live"
 },
 {
   "at" : 1792780210000,
   "kind" : "startTemplate",
-  "opId" : "AA2269D6-E068-4DD2-90BC-5511231512AF",
+  "opId" : "CF1B7A61-3061-4023-A302-C23FA59C1A27",
   "templateId" : "t-push"
 },
 {
   "at" : 1792780210000,
   "kind" : "finish",
-  "opId" : "9085D023-EDC1-45D9-9857-63AFAC185014",
+  "opId" : "75BD791A-F52E-4FC4-94D9-D70C59DDF084",
   "workoutId" : "w-live"
 },
 {
   "at" : 1792780210000,
   "kind" : "extendRest",
-  "opId" : "70DB8F44-9BB8-471C-A213-BE77E79FF4D1",
+  "opId" : "CDB4448C-BEEC-4411-ABD7-8272CBB37354",
   "seconds" : 15,
   "workoutId" : "w-live"
 },
 {
   "at" : 1792780210000,
   "kind" : "endRest",
-  "opId" : "FFDBB6BB-514D-4EB3-A453-F5B2B2B0F84C",
+  "opId" : "16A0A2BA-D68B-4DEA-BE11-E593CA157887",
   "workoutId" : "w-live"
 }
 ]

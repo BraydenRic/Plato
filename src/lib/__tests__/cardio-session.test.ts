@@ -3,6 +3,7 @@ import {
   isCardioSession,
   isPaused,
   movingSeconds,
+  movingSecondsUntil,
   newCardioSession,
   paused,
   placeLabel,
@@ -213,5 +214,17 @@ describe("a session's glyph", () => {
 
   it("is none for a workout", () => {
     expect(sessionIcon(makeWorkout({ exercises: [makeWorkoutExercise("bench-press", [makeSet()])] }))).toBeNull();
+  });
+});
+
+describe("the phone's time before a watch took over", () => {
+  it("is the moving time up to the takeover, pauses left out", () => {
+    const run = finished("run", 0, {}, { pausedSeconds: 30, pauses: [{ fromMs: T0 + 20_000, toMs: T0 + 50_000 }] });
+    expect(movingSecondsUntil(run, T0 + 120_000)).toBe(90);
+  });
+
+  it("is nothing for a session the watch started", () => {
+    expect(movingSecondsUntil(finished("run", 0, {}), T0)).toBe(0);
+    expect(movingSecondsUntil(finished("run", 0, {}), T0 - 5000)).toBe(0);
   });
 });

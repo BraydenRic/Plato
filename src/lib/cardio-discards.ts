@@ -2,6 +2,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useSyncExternalStore } from "react";
 
 import type { EndedCardio } from "./watch-protocol";
+import { watchWasWoken } from "./watch-trace";
 import type { Workout } from "@/types";
 
 /**
@@ -47,11 +48,16 @@ export function loadCardioDiscards(): Promise<void> {
   return loaded;
 }
 
-/** Call when a session is thrown away on the phone. Only watch-tracked ones need it. */
+/**
+ * Call when a session is thrown away on the phone. Only ones a watch has, or
+ * was woken for, need it: a watch still starting up would otherwise carry on
+ * into a run nobody wants.
+ */
 export function recordCardioDiscard(workout: Workout, now = Date.now()): void {
-  // Not tracked on a watch, or the watch already sent what it measured:
-  // there's nothing out there still to stop.
-  if (!workout.cardio?.watch || workout.exercises[0]?.sets[0]?.tracked) return;
+  // No watch involved, or the watch already sent what it measured: there's
+  // nothing out there still to stop.
+  if (!workout.cardio || workout.exercises[0]?.sets[0]?.tracked) return;
+  if (!workout.cardio.watch && !watchWasWoken(workout.id)) return;
   discards = prune(
     [
       ...discards,
@@ -88,7 +94,7 @@ export function useCardioDiscards(): readonly Discard[] {
 }
 
 /** A session discarded before the watch's start reached the phone is matched this close to it. */
-const SAME_START_MS = 30 * 60 * 1000;
+const SAME_START_MS = 5 * 60 * 1000;
 
 /** Whether an op from the watch is about a session thrown away here. */
 export function isDiscarded(ref: {

@@ -192,7 +192,7 @@ var logged = log
 logged = WatchOp(kind: .logSet, at: 1792780210000, workoutId: workout.id, exerciseId: bench.id, setId: "s2")
 logged.weight = 182.5; logged.reps = 5; logged.unit = "lbs"
 var cardioStart = WatchOp(kind: .startCardio, at: 1792780210000)
-cardioStart.session = "run"; cardioStart.indoor = false
+cardioStart.session = "run"; cardioStart.indoor = false; cardioStart.fromPhone = false
 var cardioPause = WatchOp(kind: .pauseCardio, at: 1792780210000)
 cardioPause.startOpId = cardioStart.opId; cardioPause.session = "run"; cardioPause.startedAt = 1792779000000
 var cardioFinish = WatchOp(kind: .finishCardio, at: 1792780210000, workoutId: "w-run")

@@ -132,6 +132,10 @@ struct WatchOp: Codable, Identifiable, Equatable {
   var indoor: Bool?
   /// The session's start op, for one the watch started.
   var startOpId: String?
+  /// On startCardio: the phone woke the watch for this session, so it's one
+  /// the phone already has. False for one started on the watch itself, which
+  /// can't be mistaken for a phone session by kind and time.
+  var fromPhone: Bool?
   /// ms since epoch
   var startedAt: Double?
   /// Metres.

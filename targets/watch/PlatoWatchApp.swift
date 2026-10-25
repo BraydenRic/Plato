@@ -52,10 +52,11 @@ struct RootView: View {
   private var content: some View {
     if let result = store.cardioFinished {
       CardioFinishedView(result: result)
-    } else if let message = store.cardioError {
-      CardioErrorView(message: message)
     } else if tracker.isActive {
       CardioLiveView()
+    } else if let message = store.cardioError {
+      // Under a live session, never over it: a retry that worked shows the run.
+      CardioErrorView(message: message)
     } else if let summary = store.finished {
       FinishedView(summary: summary)
     } else if let session = store.phoneSession {

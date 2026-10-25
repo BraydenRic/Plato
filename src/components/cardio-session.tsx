@@ -10,7 +10,7 @@ import { FontScaleCap, Radius, Spacing } from "@/constants/theme";
 import { makeStyles, usePalette } from "@/context/AppearanceContext";
 import { useTheme } from "@/context/ThemeContext";
 import { useWeightUnit } from "@/context/UnitContext";
-import { measureOnPhone, usePhoneDistance } from "@/hooks/use-phone-distance";
+import { canCount, measureOnPhone, usePhoneDistance, useStepsBefore } from "@/hooks/use-phone-distance";
 import { useWorkouts } from "@/hooks/use-workouts";
 import {
   distanceKind,
@@ -27,6 +27,7 @@ import {
   isPaused,
   kindInfo,
   movingSeconds,
+  movingSecondsUntil,
   paused,
   recentOfKind,
   resumed,
@@ -85,6 +86,10 @@ export function CardioSession({
   // With no watch tracking it, a session on foot is measured by the phone's
   // step counter — the screen needn't be on for that, only for the figure.
   const phoneMetres = usePhoneDistance(workout, !done && !onWatch);
+  // A watch that took over a session already running here: the phone's
+  // stretch before it — its time, and on foot its steps — comes first.
+  const leadSeconds = live ? movingSecondsUntil(workout, live.startedAt) : 0;
+  const leadMetres = useStepsBefore(workout, !done && live && leadSeconds > 0 ? live.startedAt : null);
 
   useEffect(() => {
     // Ticks while paused too when the watch is tracking: it's how a stale
@@ -95,11 +100,9 @@ export function CardioSession({
     return () => clearInterval(t);
   }, [done, isPausedNow, onWatch]);
 
-  const seconds = done
-    ? (set?.duration ?? 0)
-    : live
-      ? Math.floor(live.elapsed + (live.paused ? 0 : Math.max(0, nowMs - live.at) / 1000))
-      : movingSeconds(workout, nowMs);
+  // The watch's own time, carried on from its reading to now.
+  const watchSeconds = live ? live.elapsed + (live.paused ? 0 : Math.max(0, nowMs - live.at) / 1000) : 0;
+  const seconds = done ? (set?.duration ?? 0) : live ? Math.floor(leadSeconds + watchSeconds) : movingSeconds(workout, nowMs);
 
   async function write(patch: Partial<Workout>) {
     onLocalChange({ ...workout, ...patch });
@@ -156,8 +159,10 @@ export function CardioSession({
       return;
     }
     // On foot, the step counter knows how far — build 67 asked anyway. Its
-    // minute-by-minute counts up to this moment give the splits too.
-    if (phoneMetres != null) {
+    // minute-by-minute counts up to this moment give the splits too. Tried
+    // whenever it could count, not only when the live figure is showing: a
+    // live count that hiccuped says nothing about the session's minutes.
+    if (canCount(workout)) {
       const nowMs = Date.now();
       setSaving(true);
       const measured = await measureOnPhone(workout, nowMs);
@@ -257,7 +262,12 @@ export function CardioSession({
                 </Text>
               </View>
               {onWatch ? (
-                <WatchFigures workout={workout} live={live} seconds={seconds} />
+                <WatchFigures
+                  workout={workout}
+                  live={live}
+                  watchSeconds={watchSeconds}
+                  lead={leadMetres != null ? { metres: leadMetres, seconds: leadSeconds } : null}
+                />
               ) : (
                 <>
                   {phoneMetres != null && (
@@ -304,7 +314,8 @@ export function CardioSession({
                 ]}>
                 <Ionicons name="stop" size={20} color={theme.onAccent} />
                 <Text style={[styles.controlText, { color: theme.onAccent }]} maxFontSizeMultiplier={FontScaleCap.keypad}>
-                  End
+                  {/* Reading back a long run's minutes takes a moment. */}
+                  {saving ? "Saving…" : "End"}
                 </Text>
               </Pressable>
             </View>
@@ -319,18 +330,29 @@ export function CardioSession({
  * What the watch is measuring, under the clock on the phone: how far, how
  * fast on average, and the heart rate right now. Until its first reading
  * arrives, a line saying the watch has it.
+ *
+ * `lead` is the phone's stretch before the watch took over, when the step
+ * counter could say how far it went: then distance and pace cover the whole
+ * session. Without it, both are the watch's alone, so pace stays honest.
  */
 function WatchFigures({
   workout,
   live,
-  seconds,
+  watchSeconds,
+  lead,
 }: {
   workout: Workout;
   live: ReturnType<typeof liveFor>;
-  seconds: number;
+  watchSeconds: number;
+  lead: { metres: number; seconds: number } | null;
 }) {
+  const distance = live?.distance != null ? live.distance + (lead?.metres ?? 0) : null;
   return (
-    <LiveFigures workout={workout} distance={live?.distance ?? null} seconds={seconds} heartRate={live?.heartRate ?? null}>
+    <LiveFigures
+      workout={workout}
+      distance={distance}
+      seconds={watchSeconds + (lead?.seconds ?? 0)}
+      heartRate={live?.heartRate ?? null}>
       <StatusLine icon="watch-outline" text={live ? "Tracking on your Apple Watch" : "Your Apple Watch is tracking this"} />
     </LiveFigures>
   );
@@ -406,10 +428,9 @@ const WATCH_START_PATIENCE_MS = 45_000;
 
 /**
  * While the phone waits for the watch to take over: what's happening, in one
- * quiet line under the clock. A watch woken in the background asks for Health
- * access on its own screen, which is easy to miss — so if it hasn't started
- * tracking after a while, this says where to look rather than leaving the
- * session to run on the phone's clock without a word.
+ * quiet line under the clock. If the watch hasn't started after a while it
+ * says so, rather than leaving the session to run on the phone without a
+ * word — someone expecting heart rate and splits finds out now, not at the end.
  */
 function WatchStartLine({ sessionId, nowMs }: { sessionId: string; nowMs: number }) {
   const styles = useStyles();
@@ -423,7 +444,7 @@ function WatchStartLine({ sessionId, nowMs }: { sessionId: string; nowMs: number
         ? "Waking your watch…"
         : nowMs - start.at < WATCH_START_PATIENCE_MS
           ? "Starting on your watch…"
-          : "Your watch hasn't started tracking. Check it: it may be asking to allow Apple Health.";
+          : "Your watch hasn't started tracking, so your iPhone is timing this.";
   return (
     <View style={[styles.watchStatus, styles.watchStartLine]}>
       <Ionicons name="watch-outline" size={14} color={palette.textTertiary} />
@@ -521,6 +542,10 @@ function FinishedSession({ workout, onAddDistance }: { workout: Workout; onAddDi
   const distance = set?.distance && groundUnit ? formatDistance(set.distance, groundUnit) : null;
   const when = workout.startedAt ?? workout.completedAt!;
   const span = sessionSpan(workout);
+  // Ended on the phone while the watch tracked it: its distance follows in a
+  // moment, and anything typed now would be overwritten. The menu still has
+  // Add distance if it never comes.
+  const awaitingWatch = !!workout.cardio?.watch && !tracked;
   const recent = recentOfKind(completed, workout);
   const noun = kindInfo(workout.cardio?.kind ?? "run").noun;
 
@@ -602,7 +627,12 @@ function FinishedSession({ workout, onAddDistance }: { workout: Workout; onAddDi
         )}
         {/* Right where the distance would be, not behind the menu: the one
             thing missing, and the one that makes pace and splits possible. */}
-        {!distance && groundUnit && (
+        {!distance && groundUnit && awaitingWatch && (
+          <View style={styles.awaitingWatch}>
+            <StatusLine icon="watch-outline" text="Your watch is sending the distance" />
+          </View>
+        )}
+        {!distance && groundUnit && !awaitingWatch && (
           <Pressable
             onPress={onAddDistance}
             accessibilityRole="button"
@@ -873,6 +903,10 @@ const useStyles = makeStyles((c) => ({
     fontSize: 13,
     fontWeight: "600",
     color: c.textTertiary,
+  },
+  awaitingWatch: {
+    alignSelf: "flex-start",
+    marginTop: Spacing.two,
   },
   addDistance: {
     flexDirection: "row",

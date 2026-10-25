@@ -230,6 +230,14 @@ describe("a finished session with only a time", () => {
     expect(lastPatch().exercises![0].sets[0].distance).toBeCloseTo(3 * MILE);
   });
 
+  // Ended on the phone while the watch tracked it: the watch's distance is
+  // on its way, and a typed one would only be overwritten.
+  it("waits for the watch's distance rather than offering to type one", () => {
+    show(timeOnly({ cardio: { kind: "run", watch: true } }));
+    expect(screen.getByText("Your watch is sending the distance")).toBeTruthy();
+    expect(screen.queryByText("Add distance")).toBeNull();
+  });
+
   it("doesn't offer a distance a stair stepper can't have", () => {
     show(session("stairs", { completedAt: new Date(T0 + 1800_000) }, { isCompleted: true, duration: 1500 }));
     expect(screen.queryByText("Add distance")).toBeNull();
@@ -310,6 +318,15 @@ describe("tracked on the watch", () => {
     expect(lastPatch().completedAt).toEqual(new Date(T0 + 65_000));
   });
 
+  // Taken over 40 s in, after the phone had the session: the clock carries on
+  // from the phone's time rather than jumping back to the watch's.
+  it("keeps the phone's time before a late takeover on the clock", () => {
+    mockLive = { workoutId: "s1", startOpId: null, kind: "run", startedAt: T0 + 40_000, elapsed: 20, distance: 100, heartRate: 140, paused: false, at: T0 + 60_000 };
+    show(onWatch());
+    // 40 s on the phone, 20 at the reading, 5 since.
+    expect(screen.getByText("1:05")).toBeTruthy();
+  });
+
   it("goes back to its own clock when the watch goes quiet", () => {
     mockLive = { workoutId: "s1", startOpId: null, kind: "run", startedAt: T0, elapsed: 30, distance: 100, heartRate: 120, paused: false, at: T0 };
     show(onWatch());
@@ -339,6 +356,18 @@ describe("waking the watch", () => {
     setWatchStart("s1", { state: "woken", at: T0 });
     show(session("run"));
     expect(screen.getByText(/Your watch hasn't started tracking/)).toBeTruthy();
+  });
+
+  // In the app the React Compiler cached the first value and the line never
+  // moved on; it has to follow every change after the screen is up.
+  it("moves on as waking the watch goes on", async () => {
+    setWatchStart("s1", { state: "waking", at: T0 });
+    show(session("run"));
+    expect(screen.getByText("Waking your watch…")).toBeTruthy();
+    await act(async () => {
+      setWatchStart("s1", { state: "failed", reason: "Your watch couldn't be woken. Is it on your wrist?" });
+    });
+    expect(screen.getByText("Your watch couldn't be woken. Is it on your wrist?")).toBeTruthy();
   });
 
   it("says why the watch couldn't be woken", () => {
@@ -436,6 +465,19 @@ describe("with the iPhone's step counter", () => {
     expect(screen.getByText("How far did you go?")).toBeTruthy();
   });
 
+  it("measures at End even if the live count never showed", async () => {
+    mockMotion.distances.mockImplementationOnce(async () => {
+      throw new Error("not yet");
+    });
+    show(session("run", { cardio: { kind: "run", pausedSeconds: 10, pauses: [{ fromMs: T0 + 10_000, toMs: T0 + 20_000 }] } }));
+    await act(async () => {});
+    await act(async () => {
+      fireEvent.press(screen.getByLabelText("End"));
+    });
+    expect(screen.queryByText("How far did you go?")).toBeNull();
+    expect(lastPatch().exercises![0].sets[0]).toMatchObject({ distance: 400, tracked: { source: "iPhone" } });
+  });
+
   it("asks how far when it counted next to nothing", async () => {
     mockMotion.distances.mockImplementation(async (windows: number[]) => windows.filter((_, i) => i % 2 === 0).map(() => 3));
     show(session("run"));
@@ -446,14 +488,57 @@ describe("with the iPhone's step counter", () => {
     expect(screen.getByText("How far did you go?")).toBeTruthy();
   });
 
-  it("stops counting, and asks, when the live count fails", async () => {
+  it("stops counting when Motion & Fitness is turned off mid-run", async () => {
     show(session("run"));
     await act(async () => {});
+    mockMotion.status = "denied";
     await act(async () => {
       mockMotion.listener!({ error: 105 });
     });
     expect(screen.queryByText("Counting steps on your iPhone")).toBeNull();
     expect(mockMotion.stopUpdates).toHaveBeenCalled();
+  });
+
+  // A failure that isn't a refusal — the sheet still up, a hiccup — is tried
+  // again, not taken as the end of counting for the whole run.
+  it("tries again after a hiccup, and keeps counting", async () => {
+    jest.useFakeTimers({ now: T0 + 65_000 });
+    try {
+      show(session("run"));
+      await act(async () => {});
+      await act(async () => {
+        mockMotion.listener!({ error: 103 });
+      });
+      expect(screen.getByText("Counting steps on your iPhone")).toBeTruthy();
+      mockMotion.startUpdates.mockClear();
+      await act(async () => {
+        jest.advanceTimersByTime(5_000);
+      });
+      expect(mockMotion.startUpdates).toHaveBeenCalledWith(T0);
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
+  // A run begun on build 67 kept only its paused total: which minutes to
+  // leave out is unknown, so it's asked how far rather than mis-measured.
+  it("asks how far for a session from before pauses were kept", async () => {
+    show(session("run", { cardio: { kind: "run", pausedSeconds: 120 } }));
+    await act(async () => {});
+    expect(mockMotion.startUpdates).not.toHaveBeenCalled();
+    await act(async () => {
+      fireEvent.press(screen.getByLabelText("End"));
+    });
+    expect(screen.getByText("How far did you go?")).toBeTruthy();
+  });
+
+  it("adds what it counted before a late watch takeover to the watch's distance", async () => {
+    mockLive = { workoutId: "s1", startOpId: null, kind: "run", startedAt: T0 + 40_000, elapsed: 20, distance: 100, heartRate: 140, paused: false, at: T0 + 60_000 };
+    show(session("run", { cardio: { kind: "run", watch: true } }));
+    await act(async () => {});
+    // The 40 s before the watch: one window, 200 m by the mock.
+    expect(mockMotion.distances).toHaveBeenCalledWith([T0, T0 + 40_000]);
+    expect(screen.getByLabelText("Distance: 0.19 mi")).toBeTruthy();
   });
 
   it("leaves a session the watch is tracking to the watch", async () => {

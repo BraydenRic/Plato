@@ -251,6 +251,11 @@ describe("parseWatchOp", () => {
     }
   });
 
+  it("reads the watch's own word on whether the phone woke it", () => {
+    const start = opsFixture.find((op) => op.kind === "startCardio");
+    expect(parseWatchOp(start)).toMatchObject({ kind: "startCardio", fromPhone: false });
+  });
+
   it("reads a logged set, with absent fields as null", () => {
     expect(parseWatchOp(logSet)).toEqual({ ...logSet, duration: null });
   });
@@ -521,6 +526,16 @@ describe("cardio ops from the watch", () => {
 
   it("refuses a kind of session it doesn't know", () => {
     expect(parseWatchOp({ ...base, kind: "startCardio", session: "skydive", indoor: false })).toBeNull();
+  });
+
+  // Whether the phone woke the watch for it: what lets a run started on the
+  // wrist never be taken for a session discarded on the phone. A watch build
+  // from before the field sends none, and that still reads.
+  it("reads whether the phone woke the watch for a start", () => {
+    expect(parseWatchOp({ ...base, kind: "startCardio", session: "run", indoor: false, fromPhone: false })).toMatchObject({ fromPhone: false });
+    expect(parseWatchOp({ ...base, kind: "startCardio", session: "run", indoor: false, fromPhone: true })).toMatchObject({ fromPhone: true });
+    expect(parseWatchOp({ ...base, kind: "startCardio", session: "run", indoor: false })).not.toHaveProperty("fromPhone");
+    expect(parseWatchOp({ ...base, kind: "startCardio", session: "run", indoor: false, fromPhone: "yes" })).not.toHaveProperty("fromPhone");
   });
 
   it("drops a malformed curve but keeps the run", () => {
