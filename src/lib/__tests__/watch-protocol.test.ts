@@ -8,10 +8,12 @@ import {
   displayWeight,
   endedCardio,
   finishedFields,
+  fitWatchSnapshot,
   opTime,
   parseWatchLive,
   parseWatchOp,
   SNAPSHOT_APPLIED_LIMIT,
+  WATCH_SNAPSHOT_MAX_BYTES,
   type WatchOp,
   type WatchSetOp,
 } from "../watch-protocol";
@@ -588,5 +590,92 @@ describe("sessions ended on the phone", () => {
     expect(endedCardio([withData], NOW)).toEqual([]);
     expect(endedCardio([ended({ completedAt: new Date(NOW - 7 * 3600_000) })], NOW)).toEqual([]);
     expect(endedCardio([ended({ cardio: { kind: "run" } })], NOW)).toEqual([]);
+  });
+
+  // Ended and measured by steps on the phone, then a late watch start linked
+  // it: the watch still has its numbers to send, and has to hear to stop.
+  it("still lists one the iPhone measured before the watch's start turned up", () => {
+    const byPhone = ended({});
+    byPhone.exercises = [{ ...byPhone.exercises[0], sets: [{ ...byPhone.exercises[0].sets[0], tracked: { source: "iPhone" } }] }];
+    expect(endedCardio([byPhone], NOW)).toHaveLength(1);
+  });
+});
+
+describe("what the watch can send back", () => {
+  // A typo the phone took — 1012 reps — pre-filled on the watch made Done
+  // send a set parseWatchOp refused, and the set quietly flipped back.
+  it("sends no number an op couldn't carry back", () => {
+    const workout = liveWorkout();
+    workout.exercises[0].sets[1] = set("s2", { weight: 9000, reps: 1012, duration: 100_000 });
+    const [, s2] = snapshot({ workout }).workout!.exercises[0].sets;
+    expect([s2.weight, s2.reps, s2.duration]).toEqual([null, null, null]);
+  });
+
+  // Past a 32-bit Int, the watch's decoder failed on the whole snapshot and
+  // the watch froze on the last one it could read.
+  it("never sends a whole number the watch can't decode", () => {
+    const workout = liveWorkout();
+    workout.exercises[0].sets[2] = set("s3", { reps: 2_500_000_000 });
+    const last = lastSession();
+    last.exercises[0].sets[0] = set("o1", { weight: 180, reps: 2_500_000_000, isCompleted: true });
+    const sets = snapshot({ workout, completed: [last] }).workout!.exercises[0].sets;
+    expect(sets[2].reps).toBeNull();
+    expect(sets[0].lastReps).toBeNull();
+  });
+
+  it("keeps everything in range as it was", () => {
+    const workout = liveWorkout();
+    workout.exercises[0].sets[1] = set("s2", { weight: 5000, reps: 1000 });
+    const [, s2] = snapshot({ workout }).workout!.exercises[0].sets;
+    expect([s2.weight, s2.reps]).toEqual([5000, 1000]);
+  });
+});
+
+describe("fitting the snapshot in one message", () => {
+  const uuid = (i: number) => `${String(i).padStart(8, "0")}-1111-4222-8333-944455556666`;
+  const longName = (i: number) => `Single-arm landmine press with a pause at the bottom ${i}`;
+
+  function heavy() {
+    const many = (prefix: string, count: number, sets: number) =>
+      Array.from({ length: count }, (_, i) =>
+        workoutExercise(
+          `${prefix}${i}`,
+          exercise(`custom-${i}`, longName(i)),
+          Array.from({ length: sets }, (_, j) => set(`${prefix}${i}-${j}`, { weight: 100, reps: 8, isCompleted: j < sets / 2 }))
+        )
+      );
+    const templates = Array.from({ length: 40 }, (_, t) => ({ ...template(), id: `t${t}`, exercises: many(`t${t}e`, 15, 3) }));
+    const done = { ...lastSession(), exercises: many("x", 30, 5).map((e) => ({ ...e, id: `old-${e.id}` })) };
+    return snapshot({
+      workout: { ...liveWorkout(), exercises: many("x", 30, 5) },
+      templates,
+      completed: [done],
+      applied: Array.from({ length: SNAPSHOT_APPLIED_LIMIT }, (_, i) => uuid(i)),
+    });
+  }
+
+  it("leaves one that fits alone", () => {
+    const small = snapshot();
+    expect(fitWatchSnapshot(small)).toBe(small);
+  });
+
+  it("cuts one past the limit to fit, keeping the workout and the newest applied ids", () => {
+    const big = heavy();
+    expect(JSON.stringify(big).length).toBeGreaterThan(WATCH_SNAPSHOT_MAX_BYTES);
+    const fitted = fitWatchSnapshot(big);
+    expect(JSON.stringify(fitted).length).toBeLessThanOrEqual(WATCH_SNAPSHOT_MAX_BYTES);
+    expect(fitted.workout!.exercises).toHaveLength(30);
+    expect(fitted.workout!.exercises[0].sets.map((s) => [s.id, s.reps])).toEqual(
+      big.workout!.exercises[0].sets.map((s) => [s.id, s.reps])
+    );
+    expect(fitted.applied[fitted.applied.length - 1]).toBe(uuid(SNAPSHOT_APPLIED_LIMIT - 1));
+    // Templates go from the end of the list, if at all.
+    expect(fitted.templates.map((t) => t.id)).toEqual(big.templates.slice(0, fitted.templates.length).map((t) => t.id));
+  });
+
+  it("counts bytes, not characters", () => {
+    const wide = snapshot({ templates: [{ ...template(), name: "腕立て伏せ".repeat(4000) }] });
+    expect(JSON.stringify(wide).length).toBeLessThan(WATCH_SNAPSHOT_MAX_BYTES);
+    expect(fitWatchSnapshot(wide).templates).toEqual([]);
   });
 });

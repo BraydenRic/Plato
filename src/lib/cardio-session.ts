@@ -200,13 +200,15 @@ export function movingSeconds(workout: Workout, nowMs: number): number {
 
 /**
  * Seconds moving from the start up to `untilMs`, less the pauses kept in
- * that time: how long the phone had the session before a watch took over at
- * `untilMs`. Zero for a watch that started it.
+ * that time — and one still on, up to `untilMs`: how long the phone had the
+ * session before a watch took over at `untilMs`. Zero for a watch that
+ * started it.
  */
 export function movingSecondsUntil(workout: Workout, untilMs: number): number {
   const start = workout.startedAt?.getTime();
   if (start == null || untilMs <= start) return 0;
-  const ms = movingStretches(start, untilMs, workout.cardio?.pauses).reduce((sum, s) => sum + (s.toMs - s.fromMs), 0);
+  const pauses = resumed(workout, untilMs)?.pauses;
+  const ms = movingStretches(start, untilMs, pauses).reduce((sum, s) => sum + (s.toMs - s.fromMs), 0);
   return Math.round(ms / 1000);
 }
 

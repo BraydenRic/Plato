@@ -224,3 +224,72 @@ enum CardioFormat {
     return (kind == .bike ? "--.-" : "--:--", rateUnit(kind: kind, weightUnit: weightUnit))
   }
 }
+
+/// Which of the phone's sessions the watch is tracking, and whether the phone
+/// has ended it, read from a snapshot. Pure, so the logic tests can hold it to
+/// the same rules as the phone's side (watch-sync's startCardio): a session
+/// thrown away there must stop the watch tracking it, but never the one the
+/// watch was woken for when the run was started again straight after.
+enum CardioMatch {
+  /// What the watch knows of the session it's tracking.
+  struct Tracked {
+    /// A CardioKind's raw value.
+    var kind: String
+    /// ms since epoch
+    var startedAt: Double?
+    /// The phone woke the watch for it, rather than its own picker.
+    var fromPhone: Bool
+    var workoutId: String?
+    var startOpId: String?
+  }
+
+  /// A session the phone started, and this close to when the watch began
+  /// tracking, is the one it woke the watch for.
+  static let sameStartMs: Double = 5 * 60 * 1000
+
+  /// The phone's id for the tracked session, if this snapshot shows it: by
+  /// the watch's own start op, or — for one the phone woke the watch for — by
+  /// kind and start, unless a session discarded there started nearer, which
+  /// makes that the one the watch was woken for.
+  static func link(_ tracked: Tracked, in snapshot: WatchSnapshot) -> String? {
+    guard tracked.workoutId == nil, let workout = snapshot.workout, let cardio = workout.cardio else { return nil }
+    if let mine = tracked.startOpId, cardio.startOpId == mine { return workout.id }
+    guard tracked.fromPhone, cardio.startOpId == nil, cardio.kind == tracked.kind,
+          let started = tracked.startedAt else { return nil }
+    let gap = abs(workout.startedAt - started)
+    guard gap < sameStartMs else { return nil }
+    let nearerEnded = (snapshot.endedCardio ?? []).contains {
+      $0.startOpId == nil && $0.kind == tracked.kind && abs($0.startedAt - started) < gap
+    }
+    return nearerEnded ? nil : workout.id
+  }
+
+  /// The entry saying the phone ended or threw away the tracked session: by
+  /// id, by the watch's own start op, or — only for a session the phone woke
+  /// the watch for, that it hasn't linked — by kind and start. Never a session
+  /// started on the wrist: a run begun there just after discarding one on the
+  /// phone is a new run, and ending it by mistake would lose it without a
+  /// word. Call after `link`, with what it found.
+  static func ended(_ tracked: Tracked, in snapshot: WatchSnapshot) -> EndedCardio? {
+    (snapshot.endedCardio ?? []).first { entry in
+      if let id = tracked.workoutId, entry.id == id { return true }
+      if let mine = tracked.startOpId, entry.startOpId == mine { return true }
+      guard tracked.fromPhone, tracked.workoutId == nil, entry.startOpId == nil, entry.kind == tracked.kind,
+            let started = tracked.startedAt,
+            // Sent before this tracking began, a snapshot can't have meant it:
+            // a run discarded and started again wakes the watch for the new
+            // one, often before the snapshot naming it arrives. A discard that
+            // did mean it comes again once the phone has the watch's start.
+            snapshot.sentAt >= started else { return false }
+      let gap = abs(entry.startedAt - started)
+      guard gap < sameStartMs else { return false }
+      // A session still running on the phone that started nearer is the one
+      // being tracked, not this.
+      if let workout = snapshot.workout, let cardio = workout.cardio, cardio.startOpId == nil,
+         cardio.kind == tracked.kind, abs(workout.startedAt - started) <= gap {
+        return false
+      }
+      return true
+    }
+  }
+}

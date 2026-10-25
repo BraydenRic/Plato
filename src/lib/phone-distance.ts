@@ -87,19 +87,45 @@ export function withLead(curve: Curve, metres: number, seconds: number): Curve {
 /**
  * The curve brought up to `total` metres. The step counter files its
  * minute-by-minute history a little behind its live count, so at the end of
- * a session the last minute or two can come back short. A small shortfall is
- * put where it belongs, at the end; a big one — the history mostly missing —
- * is spread over the whole curve, so no single minute gets a burst of speed
+ * a session the last minute or two can come back empty.
+ *
+ * Those empty minutes are where the shortfall belongs, so it's put back
+ * there, spread over them — at no more than the pace of the minutes before,
+ * since that's all the lag can account for. Scaling the whole curve instead
+ * squeezed the distance into the minutes that were filed, and a steady
+ * 8:00 mile with two minutes missing came out as a 6:00 mile record.
+ *
+ * What's left after that — or a shortfall with no empty minutes to put it in
+ * — is history counted short throughout: a little goes at the end, more is
+ * spread over the whole curve, so no single minute gets a burst of speed
  * that would turn up in the splits.
  */
 export function matchTotal(curve: Curve, total: number): Curve {
-  const counted = curve.metres[curve.metres.length - 1] ?? 0;
+  const { metres, seconds } = curve;
+  const last = metres.length - 1;
+  const counted = metres[last] ?? 0;
   if (counted <= 0 || total <= counted) return curve;
-  if (total - counted <= total * 0.15) {
-    return { metres: [...curve.metres.slice(0, -1), total], seconds: curve.seconds };
+
+  // The trailing minutes that added nothing, from the point they start at.
+  let tailFrom = last;
+  while (tailFrom > 0 && metres[tailFrom - 1] >= counted) tailFrom--;
+  const tailSeconds = seconds[last] - seconds[tailFrom];
+  let filled = curve;
+  if (tailSeconds > 0 && seconds[tailFrom] > 0) {
+    const fill = Math.min(total - counted, (counted / seconds[tailFrom]) * tailSeconds);
+    filled = {
+      metres: metres.map((m, i) => (i <= tailFrom ? m : counted + (fill * (seconds[i] - seconds[tailFrom])) / tailSeconds)),
+      seconds,
+    };
   }
-  const factor = total / counted;
-  return { metres: curve.metres.map((m) => m * factor), seconds: curve.seconds };
+
+  const reached = filled.metres[last];
+  if (total - reached < 1e-6) return filled;
+  if (total - reached <= total * 0.15) {
+    return { metres: [...filled.metres.slice(0, -1), total], seconds };
+  }
+  const factor = total / reached;
+  return { metres: filled.metres.map((m) => m * factor), seconds };
 }
 
 /** Less than this and nothing was really counted — the phone set down, not a walk. Saved without a distance. */

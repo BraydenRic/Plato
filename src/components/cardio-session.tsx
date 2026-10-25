@@ -72,6 +72,9 @@ export function CardioSession({
   // "end": ending, asking how far. "edit": correcting a finished one.
   const [askDistance, setAskDistance] = useState<"end" | "edit" | null>(null);
   const [distanceText, setDistanceText] = useState("");
+  // When End was tapped: the session ends then, not when "How far did you
+  // go?" is answered — reading a distance off a rower takes a while.
+  const [endedAtMs, setEndedAtMs] = useState<number | null>(null);
 
   const set = sessionSet(workout);
   const exercise = workout.exercises[0]?.exercise;
@@ -151,11 +154,12 @@ export function CardioSession({
   }
 
   async function end() {
+    const tappedAt = Date.now();
     // Nothing to ask on a stair stepper: there's no distance to give. Nor when
     // the watch is tracking: it measured how far, and sends it when it hears
     // the session ended.
     if (!groundUnit || onWatch) {
-      void finish();
+      void finish(undefined, undefined, tappedAt);
       return;
     }
     // On foot, the step counter knows how far — build 67 asked anyway. Its
@@ -163,15 +167,18 @@ export function CardioSession({
     // whenever it could count, not only when the live figure is showing: a
     // live count that hiccuped says nothing about the session's minutes.
     if (canCount(workout)) {
-      const nowMs = Date.now();
       setSaving(true);
-      const measured = await measureOnPhone(workout, nowMs, phoneMetres);
+      const measured = await measureOnPhone(workout, tappedAt, phoneMetres);
       if (measured) {
-        await finish(measured.distance, measured.tracked, nowMs);
+        await finish(measured.distance, measured.tracked, tappedAt);
         return;
       }
       setSaving(false);
     }
+    setEndedAtMs(tappedAt);
+    // Held there too, so a question left up — or the screen closed under it —
+    // adds no time: coming back finds the session paused at End.
+    if (!isPaused(workout)) write({ cardio: paused(workout, tappedAt) }).catch(() => {});
     setDistanceText("");
     setAskDistance("end");
   }
@@ -237,10 +244,12 @@ export function CardioSession({
             saving={saving}
             primary={askDistance === "end" ? `Save ${workout.name.toLowerCase()}` : "Save"}
             onPrimary={() =>
-              askDistance === "end" ? finish(parseDistanceText(distanceText, groundUnit!)) : saveEditedDistance()
+              askDistance === "end"
+                ? finish(parseDistanceText(distanceText, groundUnit!), undefined, endedAtMs ?? undefined)
+                : saveEditedDistance()
             }
             secondary={askDistance === "end" ? "Skip" : "Cancel"}
-            onSecondary={() => (askDistance === "end" ? finish() : setAskDistance(null))}
+            onSecondary={() => (askDistance === "end" ? finish(undefined, undefined, endedAtMs ?? undefined) : setAskDistance(null))}
           />
         ) : done ? (
           <FinishedSession workout={workout} onAddDistance={editDistance} />

@@ -168,6 +168,39 @@ it("saves without a distance when it's skipped", async () => {
   expect(set.distance).toBeUndefined();
 });
 
+// Reading 5000 m off a rower, or leaving the question up through a cool-down,
+// isn't moving time: the session ends when End is tapped.
+it("ends at End, not when the distance is given", async () => {
+  show(session("run"));
+  await act(async () => {
+    fireEvent.press(screen.getByLabelText("End"));
+  });
+  // Held paused there, so a question left up adds nothing either.
+  expect(mockUpdate.mock.calls[0][1].cardio).toEqual({ kind: "run", indoor: false, pausedAtMs: T0 + 65_000 });
+  jest.spyOn(Date, "now").mockReturnValue(T0 + 65_000 + 15 * 60_000);
+  await act(async () => {
+    fireEvent.changeText(screen.getByLabelText("Distance in miles"), "3.1");
+  });
+  await act(async () => {
+    fireEvent.press(screen.getByText("Save outdoor run"));
+  });
+  expect(lastPatch().completedAt).toEqual(new Date(T0 + 65_000));
+  expect(lastPatch().exercises![0].sets[0].duration).toBe(65);
+});
+
+it("ends at End when the distance is skipped later", async () => {
+  show(session("run"));
+  await act(async () => {
+    fireEvent.press(screen.getByLabelText("End"));
+  });
+  jest.spyOn(Date, "now").mockReturnValue(T0 + 65_000 + 10 * 60_000);
+  await act(async () => {
+    fireEvent.press(screen.getByText("Skip"));
+  });
+  expect(lastPatch().completedAt).toEqual(new Date(T0 + 65_000));
+  expect(lastPatch().exercises![0].sets[0].duration).toBe(65);
+});
+
 it("doesn't ask how far on a stair stepper", async () => {
   show(session("stairs"));
   await act(async () => {
@@ -445,6 +478,22 @@ describe("with the iPhone's step counter", () => {
     expect(mockMotion.startUpdates).toHaveBeenCalledWith(T0 + 20_000);
     await act(async () => {
       mockMotion.listener!({ distance: 100, at: T0 + 60_000 });
+    });
+    // 200 m banked + 100 m live.
+    expect(screen.getByLabelText("Distance: 0.19 mi")).toBeTruthy();
+  });
+
+  // Resumed in the same millisecond the count started — or the clock stepped
+  // back while paused — there was no stretch since the resume yet: the live
+  // count started from the session's start, under a tag the figure never
+  // matched, and stuck at what was banked until the next pause.
+  it("counts live from the last resume, whatever the clock says", async () => {
+    show(session("run", { cardio: { kind: "run", pausedSeconds: 60, pauses: [{ fromMs: T0 + 5_000, toMs: T0 + 65_000 }] } }));
+    await act(async () => {});
+    expect(mockMotion.distances).toHaveBeenCalledWith([T0, T0 + 5_000]);
+    expect(mockMotion.startUpdates).toHaveBeenCalledWith(T0 + 65_000);
+    await act(async () => {
+      mockMotion.listener!({ distance: 100, at: T0 + 65_000 });
     });
     // 200 m banked + 100 m live.
     expect(screen.getByLabelText("Distance: 0.19 mi")).toBeTruthy();

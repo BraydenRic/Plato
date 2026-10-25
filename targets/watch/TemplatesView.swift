@@ -50,9 +50,10 @@ struct TemplatesView: View {
           .listRowBackground(Color.clear)
       }
       .navigationTitle("Start")
-      // Faint, so white text stays readable on every accent — graphite's
-      // near-white included.
-      .containerBackground(store.accent.opacity(0.3).gradient, for: .navigation)
+      // Faint, so text stays readable on every accent — the grey hint and
+      // version included, which sit straight on it; fainter still for
+      // graphite's near-white.
+      .containerBackground(store.accent.opacity(store.accentWash).gradient, for: .navigation)
       .navigationDestination(for: WatchTemplate.self) { template in
         TemplateDetailView(template: template)
       }

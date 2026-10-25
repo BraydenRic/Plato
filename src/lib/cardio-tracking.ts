@@ -176,6 +176,18 @@ export function trackedFromWatch(input: {
   });
 }
 
+/** What a session the iPhone's step counter measured says measured it. */
+export const PHONE_SOURCE = "iPhone";
+
+/**
+ * Whether a session's set already holds what a watch measured. The iPhone's
+ * step count doesn't count: a watch that turns out to have been tracking the
+ * session too still has its numbers to send.
+ */
+export function measuredByWatch(tracked: TrackedCardio | undefined): boolean {
+  return !!tracked && tracked.source !== PHONE_SOURCE;
+}
+
 /**
  * The `tracked` part of a session the iPhone's step counter measured: splits
  * and fastest efforts from its minute-by-minute distance, worked out the same
@@ -183,7 +195,7 @@ export function trackedFromWatch(input: {
  */
 export function trackedFromPhone(input: { indoor: boolean; curve: Curve; isRun: boolean }): TrackedCardio {
   return present({
-    source: "iPhone",
+    source: PHONE_SOURCE,
     indoor: input.indoor || undefined,
     ...curveFigures(input.curve, true, input.isRun),
   });

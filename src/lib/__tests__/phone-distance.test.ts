@@ -1,4 +1,4 @@
-import { splits } from "../cardio-tracking";
+import { splits, trackedFromPhone } from "../cardio-tracking";
 import { curveFromPieces, matchTotal, movingStretches, stepCounted, stepPieces, withLead } from "../phone-distance";
 
 /**
@@ -126,5 +126,32 @@ describe("bringing the minutes up to the live count", () => {
 
   it("leaves a curve that already covers it alone", () => {
     expect(matchTotal(curve, 500)).toBe(curve);
+  });
+
+  // A steady mile in 8:00, read the moment End was tapped, with the last two
+  // minutes not filed yet. Scaled, it saved a 6:00 mile record.
+  it("puts what the empty minutes at the end missed back into them", () => {
+    const MILE = 1609.344;
+    const pieces = stepPieces([{ fromMs: T0, toMs: T0 + 8 * MIN }]);
+    const filed = [...Array(6).fill(MILE / 8), 0, 0];
+    const tracked = trackedFromPhone({ indoor: false, curve: matchTotal(curveFromPieces(pieces, filed), MILE), isRun: true });
+    expect(tracked.splitsMi).toEqual([480]);
+    expect(tracked.best?.["1mi"]).toBe(480);
+    expect(tracked.best?.["1k"]).toBe(298);
+  });
+
+  it("fills a long missing stretch at the pace before it", () => {
+    // 2 km in 10 minutes, only the first three filed.
+    const pieces = stepPieces([{ fromMs: T0, toMs: T0 + 10 * MIN }]);
+    const curve = matchTotal(curveFromPieces(pieces, [200, 200, 200, 0, 0, 0, 0, 0, 0, 0]), 2000);
+    expect(splits(curve, 1000)).toEqual([300, 300]);
+  });
+
+  // The empty minutes can only hold what the pace before them would have
+  // covered; more than that was counted short all along, and is spread.
+  it("spreads what's left once the empty minutes are filled", () => {
+    const filled = matchTotal({ metres: [0, 200, 400, 400], seconds: [0, 60, 120, 180] }, 1200);
+    expect(filled.metres[3]).toBeCloseTo(1200);
+    expect(filled.metres[1]).toBeCloseTo(400);
   });
 });

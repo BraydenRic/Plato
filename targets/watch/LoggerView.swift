@@ -31,6 +31,9 @@ struct LoggerView: View {
     }
     .onAppear { settle() }
     .onChange(of: workout.id) { settle() }
+    // The same workout with the open exercise removed on the phone: left on
+    // a page that no longer exists, no page is active and the crown is dead.
+    .onChange(of: workout.exercises.map(\.id)) { settle() }
   }
 
   /// Opens on the first exercise with a set left, and lands somewhere real

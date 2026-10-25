@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 
 import PlatoMotion from "../../modules/plato-motion";
 import { resumed } from "@/lib/cardio-session";
-import { trackedFromPhone } from "@/lib/cardio-tracking";
+import { PHONE_SOURCE, trackedFromPhone } from "@/lib/cardio-tracking";
 import {
   MIN_PHONE_METRES,
   curveFromPieces,
@@ -52,6 +52,12 @@ function flat(stretches: Stretch[]): number[] {
   return stretches.flatMap((s) => [s.fromMs, s.toMs]);
 }
 
+/** Where the stretch under way began, while running: the last resume, or the start. */
+function liveFrom(startMs: number | undefined, pausedAtMs: number | undefined, pauses: Stretch[] | undefined) {
+  if (pausedAtMs != null) return undefined;
+  return pauses?.length ? pauses[pauses.length - 1].toMs : startMs;
+}
+
 /**
  * How far the step counter says a running session has gone, for the figure
  * under the clock. Null when it can't say.
@@ -76,8 +82,7 @@ export function usePhoneDistance(workout: Workout, enabled: boolean): number | n
   // One key for "the pauses changed", so a new array from the store with the
   // same pauses in it doesn't restart the count.
   const pausesKey = JSON.stringify(pauses ?? []);
-  // Where the stretch under way began: the last resume, or the start.
-  const liveFromMs = pausedAtMs == null ? (pauses?.length ? pauses[pauses.length - 1].toMs : startMs) : undefined;
+  const liveFromMs = liveFrom(startMs, pausedAtMs, pauses);
 
   useEffect(() => {
     if (!counting || !PlatoMotion || startMs == null) return;
@@ -92,9 +97,15 @@ export function usePhoneDistance(workout: Workout, enabled: boolean): number | n
       if (refusedMotion()) setRefused(true);
       else if (retry == null) retry = setTimeout(() => setAttempt((n) => n + 1), RETRY_MS);
     };
-    const stretches = movingStretches(startMs, pausedAtMs ?? Date.now(), JSON.parse(pausesKey) as Stretch[]);
-    // Running, the last stretch is the one under way: counted live.
-    const underWay = pausedAtMs == null ? stretches.pop() : undefined;
+    const pauseList = JSON.parse(pausesKey) as Stretch[];
+    // Running, the stretch under way — from the last resume — is counted
+    // live, and everything before it asked about once. Taken from the pauses,
+    // not the clock: an effect run in the resume's own millisecond, or after
+    // the clock stepped back, would find no stretch since and count live from
+    // the start, under a tag the figure never matches.
+    const underWayFrom = liveFrom(startMs, pausedAtMs, pauseList);
+    const stretches = movingStretches(startMs, pausedAtMs ?? underWayFrom!, pauseList);
+    const underWay = underWayFrom != null ? { fromMs: underWayFrom } : undefined;
 
     motion
       .distances(flat(stretches))
@@ -162,7 +173,7 @@ export async function measureOnPhone(
   const tracked =
     curve && counted > 0
       ? trackedFromPhone({ indoor: !!cardio.indoor, curve: matchTotal(curve, distance), isRun: cardio.kind === "run" })
-      : { source: "iPhone", ...(cardio.indoor ? { indoor: true } : {}) };
+      : { source: PHONE_SOURCE, ...(cardio.indoor ? { indoor: true } : {}) };
   return { distance, tracked };
 }
 
@@ -173,7 +184,9 @@ export async function measureOnPhone(
  */
 export async function stepsBefore(workout: Workout, untilMs: number): Promise<number | null> {
   if (!PlatoMotion || !canCount(workout)) return null;
-  const stretches = movingStretches(workout.startedAt!.getTime(), untilMs, workout.cardio!.pauses);
+  // A pause still on at the takeover counts as one up to it: steps taken
+  // while paused here aren't the session's.
+  const stretches = movingStretches(workout.startedAt!.getTime(), untilMs, resumed(workout, untilMs)!.pauses);
   if (stretches.length === 0) return 0;
   try {
     const metres = await PlatoMotion.distances(flat(stretches));

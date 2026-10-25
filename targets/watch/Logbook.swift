@@ -195,6 +195,28 @@ enum Logbook {
     return "\(exercises) \u{00B7} \(sets)"
   }
 
+  /// How strongly the theme's accent washes the Start screen: 0.3, or fainter
+  /// for a light accent. At 0.3 graphite's near-white left the grey text that
+  /// sits straight on the wash — the empty list's hint, the version — under
+  /// 4.5:1. Held to the lightness of the lightest coloured accent, cyan's, it
+  /// reads like every other theme; those keep 0.3.
+  static func washOpacity(accentHex: String?) -> Double {
+    let full = 0.3
+    guard var digits = accentHex?.trimmingCharacters(in: .whitespaces) else { return full }
+    if digits.hasPrefix("#") { digits.removeFirst() }
+    guard digits.count == 6, let value = UInt32(digits, radix: 16) else { return full }
+    // WCAG relative luminance.
+    let linear = { (channel: UInt32) -> Double in
+      let c = Double(channel & 0xFF) / 255
+      return c <= 0.04045 ? c / 12.92 : pow((c + 0.055) / 1.055, 2.4)
+    }
+    let luminance = 0.2126 * linear(value >> 16) + 0.7152 * linear(value >> 8) + 0.0722 * linear(value)
+    let ceiling = 0.4
+    guard luminance > ceiling else { return full }
+    // Over black, a wash's luminance goes about as its opacity to the 2.2.
+    return full * pow(ceiling / luminance, 1 / 2.2)
+  }
+
   static func setCounts(in workout: WatchWorkout) -> (done: Int, total: Int) {
     let sets = workout.exercises.flatMap { $0.sets }
     return (sets.filter { $0.done }.count, sets.count)

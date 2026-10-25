@@ -227,4 +227,11 @@ describe("the phone's time before a watch took over", () => {
     expect(movingSecondsUntil(finished("run", 0, {}), T0)).toBe(0);
     expect(movingSecondsUntil(finished("run", 0, {}), T0 - 5000)).toBe(0);
   });
+
+  // Paused on the phone 10 s in while the watch was waking, and the watch
+  // took over at 90 s: the phone had it moving for 10 s, not 90.
+  it("leaves out a pause still on when the watch took over", () => {
+    const run = finished("run", 0, {}, { pausedAtMs: T0 + 10_000 });
+    expect(movingSecondsUntil(run, T0 + 90_000)).toBe(10);
+  });
 });

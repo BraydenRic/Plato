@@ -1,6 +1,7 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useSyncExternalStore } from "react";
 
+import { measuredByWatch } from "./cardio-tracking";
 import type { EndedCardio } from "./watch-protocol";
 import { watchWasWoken } from "./watch-trace";
 import type { Workout } from "@/types";
@@ -20,7 +21,12 @@ const KEY = "plato.cardio.discarded.v1";
 const KEEP_MS = 6 * 60 * 60 * 1000;
 const LIMIT = 50;
 
-type Discard = EndedCardio & { at: number };
+/**
+ * What's kept of one. `userId` and `indoor` stay on the phone — the snapshot
+ * carries only the EndedCardio part — and are absent from entries written
+ * before they were kept, which match whoever and wherever.
+ */
+type Discard = EndedCardio & { at: number; userId?: string; indoor?: boolean };
 
 let discards: Discard[] = [];
 let loaded: Promise<void> | null = null;
@@ -48,26 +54,20 @@ export function loadCardioDiscards(): Promise<void> {
   return loaded;
 }
 
-/**
- * Call when a session is thrown away on the phone. Only ones a watch has, or
- * was woken for, need it: a watch still starting up would otherwise carry on
- * into a run nobody wants.
- */
-export function recordCardioDiscard(workout: Workout, now = Date.now()): void {
-  // No watch involved, or the watch already sent what it measured: there's
-  // nothing out there still to stop.
-  if (!workout.cardio || workout.exercises[0]?.sets[0]?.tracked) return;
-  if (!workout.cardio.watch && !watchWasWoken(workout.id)) return;
+function remember(workout: Workout, startOpId: string | null, now: number) {
+  const cardio = workout.cardio!;
   discards = prune(
     [
       ...discards,
       {
         id: workout.id,
-        startOpId: workout.cardio.watchStartOpId ?? null,
-        kind: workout.cardio.kind,
+        startOpId,
+        kind: cardio.kind,
         startedAt: (workout.startedAt ?? workout.createdAt).getTime(),
         discard: true,
         at: now,
+        userId: workout.userId,
+        ...(cardio.indoor != null ? { indoor: cardio.indoor } : {}),
       },
     ],
     now
@@ -76,9 +76,35 @@ export function recordCardioDiscard(workout: Workout, now = Date.now()): void {
   AsyncStorage.setItem(KEY, JSON.stringify(discards)).catch(() => {});
 }
 
-/** The discards to put in the snapshot. */
-export function cardioDiscards(): EndedCardio[] {
-  return discards.map(({ at: _at, ...ended }) => ended);
+/**
+ * Call when a session is thrown away on the phone. Only ones a watch has, or
+ * was woken for, need it: a watch still starting up would otherwise carry on
+ * into a run nobody wants.
+ */
+export function recordCardioDiscard(workout: Workout, now = Date.now()): void {
+  // No watch involved, or the watch already sent what it measured: there's
+  // nothing out there still to stop.
+  if (!workout.cardio || measuredByWatch(workout.exercises[0]?.sets[0]?.tracked)) return;
+  if (!workout.cardio.watch && !watchWasWoken(workout.id)) return;
+  remember(workout, workout.cardio.watchStartOpId ?? null, now);
+}
+
+/**
+ * A woken watch whose start arrived after the phone had already ended the
+ * session: it began tracking once the session was over, so it's told to stop
+ * and keep nothing — by its own start op, the one way it's sure to know
+ * itself. The session stays as the phone saved it.
+ */
+export function discardWatchStart(workout: Workout, startOpId: string, now = Date.now()): void {
+  if (!workout.cardio) return;
+  remember(workout, startOpId, now);
+}
+
+/** The discards to put in this account's snapshot. */
+export function cardioDiscards(userId?: string | null): EndedCardio[] {
+  return discards
+    .filter((d) => userId == null || d.userId == null || d.userId === userId)
+    .map(({ at: _at, userId: _userId, indoor: _indoor, ...ended }) => ended);
 }
 
 function subscribe(listener: () => void) {
@@ -100,19 +126,29 @@ const SAME_START_MS = 5 * 60 * 1000;
 export function isDiscarded(ref: {
   workoutId: string | null;
   startOpId: string | null;
+  /** Who the op is being applied to: another account's discards never match by kind and start. */
+  userId?: string | null;
   session?: string;
+  indoor?: boolean;
   startedAt?: number;
+  /**
+   * When a session still here that the op could equally be about started.
+   * A discard then matches by kind and start only if it started nearer: a
+   * run discarded and started again seconds later wakes the watch for the
+   * new one, and that start mustn't be taken for the old one's.
+   */
+  rivalStartedAt?: number;
 }): boolean {
-  return discards.some(
-    (d) =>
-      (ref.workoutId != null && d.id === ref.workoutId) ||
-      (ref.startOpId != null && d.startOpId === ref.startOpId) ||
-      // Thrown away before the watch's start had linked it: by kind and start.
-      (d.startOpId == null &&
-        ref.session === d.kind &&
-        ref.startedAt != null &&
-        Math.abs(ref.startedAt - d.startedAt) < SAME_START_MS)
-  );
+  return discards.some((d) => {
+    if (ref.workoutId != null && d.id === ref.workoutId) return true;
+    if (ref.startOpId != null && d.startOpId === ref.startOpId) return true;
+    // Thrown away before the watch's start had linked it: by kind and start.
+    if (d.startOpId != null || ref.session !== d.kind || ref.startedAt == null) return false;
+    if (ref.userId != null && d.userId != null && d.userId !== ref.userId) return false;
+    if (ref.indoor != null && d.indoor != null && ref.indoor !== d.indoor) return false;
+    const gap = Math.abs(ref.startedAt - d.startedAt);
+    return gap < SAME_START_MS && (ref.rivalStartedAt == null || gap < Math.abs(ref.startedAt - ref.rivalStartedAt));
+  });
 }
 
 /** For tests: forget everything, on disk and off. */

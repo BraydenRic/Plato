@@ -1,8 +1,9 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { act, render } from "@testing-library/react-native";
 
-import { APPLIED_KEY, RETRY_MS, START_TTL_MS, WatchSync } from "../watch-sync";
+import { APPLIED_KEY, INBOX_OWNER_KEY, RETRY_MS, START_TTL_MS, WatchSync } from "../watch-sync";
 import { recordCardioDiscard, resetCardioDiscards } from "@/lib/cardio-discards";
+import { GUEST_USER_ID } from "@/lib/local-store";
 import type { Workout } from "@/types";
 
 /**
@@ -393,6 +394,52 @@ describe("ops arriving out of order", () => {
     await settle();
     expect(mockUpdateWorkout).not.toHaveBeenCalled();
   });
+
+  // Logged and undone on the watch out of range, then logged on the phone:
+  // when the queued pair arrives, the undo mustn't wipe the phone's set.
+  it("doesn't clear a set logged on the phone after the watch's clear", async () => {
+    const now = Date.now();
+    const workout = live();
+    workout.exercises[0].sets[0] = { id: "s1", weightUnit: "lbs", weight: 200, reps: 3, isCompleted: true, completedAt: new Date(now) };
+    mockStore.set("w1", workout);
+    mockBridge.inbox = [
+      logSet("op-log", now - 60_000),
+      entry({ opId: "op-undo", kind: "undoSet", at: now - 55_000, workoutId: "w1", exerciseId: "e1", setId: "s1" }),
+    ];
+    render(<WatchSync />);
+    await settle();
+    expect(mockUpdateWorkout).not.toHaveBeenCalled();
+    expect(mockStore.get("w1")!.exercises[0].sets[0]).toMatchObject({ weight: 200, reps: 3, isCompleted: true });
+    expect(mockBridge.inbox).toEqual([]);
+  });
+
+  // A nested date can reach memory as a Firestore Timestamp or a string; the
+  // comparison has to read either rather than throw and lose the edit.
+  it("reads a done set's time however it was stored", async () => {
+    const now = Date.now();
+    const stamp = { seconds: Math.floor(now / 1000), nanoseconds: 0, toMillis: () => Math.floor(now / 1000) * 1000 };
+    const workout = live();
+    workout.exercises[0].sets[0] = { id: "s1", weightUnit: "lbs", weight: 200, reps: 3, isCompleted: true, completedAt: stamp as unknown as Date };
+    workout.exercises[0].sets[1] = {
+      id: "s2",
+      weightUnit: "lbs",
+      weight: 200,
+      reps: 3,
+      isCompleted: true,
+      completedAt: new Date(now - 120_000).toISOString() as unknown as Date,
+    };
+    mockStore.set("w1", workout);
+    mockBridge.inbox = [
+      logSet("op-1", now - 60_000),
+      entry({ opId: "op-2", kind: "logSet", at: now - 60_000, workoutId: "w1", exerciseId: "e1", setId: "s2", weight: 185, reps: 5, unit: "lbs" }),
+    ];
+    render(<WatchSync />);
+    await settle();
+    // The Timestamp is newer: the phone's set stands. The string is older: the watch's edit lands.
+    expect(mockUpdateWorkout).toHaveBeenCalledTimes(1);
+    expect(mockStore.get("w1")!.exercises[0].sets[1]).toMatchObject({ weight: 185, reps: 5 });
+    expect(mockBridge.inbox).toEqual([]);
+  });
 });
 
 describe("a phone that has only just signed in", () => {
@@ -413,6 +460,95 @@ describe("a phone that has only just signed in", () => {
     await settle();
     expect(mockUpdateWorkout).toHaveBeenCalledTimes(1);
     expect(mockBridge.inbox).toEqual([]);
+  });
+});
+
+// The native inbox isn't per account, and keeps ops while signed out on
+// purpose. One person's run finished on the wrist after they signed out must
+// not land in whoever signs in next.
+describe("ops another account left behind", () => {
+  const lostFinish = (startedAt: number) =>
+    entry({
+      opId: "fin-other",
+      kind: "finishCardio",
+      at: startedAt + 1500_000,
+      workoutId: "their-run",
+      startOpId: "their-start",
+      session: "run",
+      indoor: false,
+      startedAt,
+      duration: 1500,
+      distance: 5000,
+      activeCalories: 300,
+      avgHeartRate: 150,
+      maxHeartRate: 170,
+      healthId: "HK-THEIRS",
+      curve: null,
+    });
+
+  it("drops what was waiting for another account", async () => {
+    await AsyncStorage.setItem(INBOX_OWNER_KEY, JSON.stringify({ userId: "someone-else", since: 0 }));
+    mockBridge.inbox = [logSet("op-1")];
+    render(<WatchSync />);
+    await settle();
+    expect(mockUpdateWorkout).not.toHaveBeenCalled();
+    expect(mockBridge.inbox).toEqual([]);
+    expect(JSON.parse((await AsyncStorage.getItem(INBOX_OWNER_KEY))!)).toMatchObject({ userId: "u1" });
+  });
+
+  it("keeps them for the same account signing back in", async () => {
+    await AsyncStorage.setItem(INBOX_OWNER_KEY, JSON.stringify({ userId: "u1", since: 0 }));
+    mockBridge.inbox = [logSet("op-1")];
+    render(<WatchSync />);
+    await settle();
+    expect(mockUpdateWorkout).toHaveBeenCalledTimes(1);
+  });
+
+  // A guest's data moves into the account they sign in to; so do their ops.
+  it("keeps a guest's for the account they sign in to", async () => {
+    await AsyncStorage.setItem(INBOX_OWNER_KEY, JSON.stringify({ userId: GUEST_USER_ID, since: 0 }));
+    mockBridge.inbox = [logSet("op-1")];
+    render(<WatchSync />);
+    await settle();
+    expect(mockUpdateWorkout).toHaveBeenCalledTimes(1);
+  });
+
+  it("doesn't bring in a run that began before this account signed in, arriving after", async () => {
+    await AsyncStorage.setItem(INBOX_OWNER_KEY, JSON.stringify({ userId: "someone-else", since: 0 }));
+    mockWorkouts = { active: [], templates: [], completed: [], loading: false };
+    render(<WatchSync />);
+    await settle();
+    mockBridge.inbox = [lostFinish(Date.now() - 1600_000)];
+    await act(async () => mockBridge.listener?.());
+    await settle();
+    expect(mockCreate).not.toHaveBeenCalled();
+    expect(mockBridge.inbox).toEqual([]);
+  });
+
+  it("still brings in a run begun since", async () => {
+    await AsyncStorage.setItem(INBOX_OWNER_KEY, JSON.stringify({ userId: "someone-else", since: 0 }));
+    mockWorkouts = { active: [], templates: [], completed: [], loading: false };
+    render(<WatchSync />);
+    await settle();
+    await act(async () => {
+      jest.advanceTimersByTime(60_000);
+    });
+    mockBridge.inbox = [lostFinish(Date.now() - 10_000)];
+    await act(async () => mockBridge.listener?.());
+    await settle();
+    expect(mockCreate).toHaveBeenCalledTimes(1);
+  });
+
+  it("doesn't let another account's discard turn away this one's watch", async () => {
+    recordCardioDiscard({ ...live({ id: "gone", userId: "someone-else" }), cardio: { kind: "run", watch: true } });
+    mockWorkouts = { active: [], templates: [], completed: [], loading: false };
+    mockBridge.inbox = [
+      entry({ opId: "start-mine", kind: "startCardio", at: START.getTime() + 8_000, session: "run", indoor: false, fromPhone: true }),
+    ];
+    render(<WatchSync />);
+    await settle();
+    expect(mockCreate).toHaveBeenCalledTimes(1);
+    expect(lastSnapshot().endedCardio).toEqual([]);
   });
 });
 
@@ -677,6 +813,147 @@ describe("cardio sessions from the watch", () => {
       render(<WatchSync />);
       await settle();
       expect(mockStore.get("run2")!.exercises[0].sets[0]).toMatchObject({ duration: 1500, distance: 5000, isCompleted: true });
+    });
+  });
+
+  // An Outdoor Run discarded on the phone to pick Indoor before the watch's
+  // start for it landed — so remembered by kind and start alone — and the
+  // new run started 20 s later, waking the watch again.
+  describe("after a run is discarded and started again", () => {
+    const restarted = (indoor: boolean) =>
+      session({
+        id: "run2",
+        name: indoor ? "Indoor Run" : "Outdoor Run",
+        startedAt: new Date(START.getTime() + 20_000),
+        cardio: { kind: "run", indoor },
+      });
+    const wokenStart = (opId: string, afterMs: number, indoor: boolean) =>
+      entry({ opId, kind: "startCardio", at: START.getTime() + afterMs, session: "run", indoor, fromPhone: true });
+
+    beforeEach(() => {
+      recordCardioDiscard(session({ id: "gone", cardio: { kind: "run", indoor: false, watch: true } }));
+    });
+
+    it("takes the woken watch's start for the new run, which started nearer", async () => {
+      const run = restarted(false);
+      mockStore.set(run.id, run);
+      mockWorkouts.active = [run];
+      mockBridge.inbox = [wokenStart("start-2", 26_000, false)];
+      render(<WatchSync />);
+      await settle();
+      expect(mockStore.get("run2")!.cardio).toMatchObject({ watch: true, watchStartOpId: "start-2" });
+      expect(mockCreate).not.toHaveBeenCalled();
+    });
+
+    it("tells the two apart by indoors and out, too", async () => {
+      const run = restarted(true);
+      mockStore.set(run.id, run);
+      mockWorkouts.active = [run];
+      // Nearer the discarded run's start, but tracking indoors: the new one's.
+      mockBridge.inbox = [wokenStart("start-2", 8_000, true)];
+      render(<WatchSync />);
+      await settle();
+      expect(mockStore.get("run2")!.cardio).toMatchObject({ watch: true, watchStartOpId: "start-2" });
+    });
+
+    it("still turns away the discarded run's own late start", async () => {
+      const run = restarted(false);
+      mockStore.set(run.id, run);
+      mockWorkouts.active = [run];
+      mockBridge.inbox = [wokenStart("start-1", 3_000, false)];
+      render(<WatchSync />);
+      await settle();
+      expect(mockStore.get("run2")!.cardio).toEqual({ kind: "run", indoor: false });
+      expect(mockCreate).not.toHaveBeenCalled();
+    });
+
+    it("finishes the new run by kind and start, not the discarded one", async () => {
+      const run = restarted(false);
+      mockStore.set(run.id, run);
+      mockWorkouts.active = [run];
+      mockBridge.inbox = [finish({ startOpId: null, startedAt: START.getTime() + 24_000 })];
+      render(<WatchSync />);
+      await settle();
+      expect(mockStore.get("run2")!.exercises[0].sets[0]).toMatchObject({ distance: 5000, isCompleted: true });
+    });
+  });
+
+  // The watch's start for a run the phone woke it for, slow — the Health sheet
+  // on the wrist, or the system's queue — lands after End on the phone.
+  describe("a woken watch's start after the phone ended the run", () => {
+    // Recent, so the snapshot still lists it as ended.
+    let t0 = 0;
+    let endedAt = 0;
+
+    beforeEach(() => {
+      t0 = Date.now() - 120_000;
+      endedAt = t0 + 50_000;
+      const run = session({
+        startedAt: new Date(t0),
+        createdAt: new Date(t0),
+        completedAt: new Date(endedAt),
+        cardio: { kind: "run", indoor: false },
+        exercises: [
+          {
+            id: "e1",
+            exerciseId: "running",
+            exercise: runExercise,
+            orderIndex: 0,
+            sets: [{ id: "s1", weightUnit: "lbs", isCompleted: true, duration: 50, distance: 150, tracked: { source: "iPhone" } }],
+          },
+        ],
+      });
+      mockStore.set(run.id, run);
+      mockWorkouts.completed = [run];
+    });
+
+    it("marks the run as the watch's, so the watch hears it ended and sends what it has", async () => {
+      mockBridge.inbox = [entry({ opId: "start-w", kind: "startCardio", at: t0 + 8_000, session: "run", indoor: false, fromPhone: true })];
+      const view = render(<WatchSync />);
+      await settle();
+      expect(mockCreate).not.toHaveBeenCalled();
+      expect(mockMarkCurrent).not.toHaveBeenCalled();
+      expect(mockStore.get("run1")!.cardio).toMatchObject({ watch: true, watchStartOpId: "start-w" });
+      mockWorkouts = { ...mockWorkouts, completed: [mockStore.get("run1")!] };
+      view.rerender(<WatchSync />);
+      await settle();
+      expect(lastSnapshot().endedCardio).toContainEqual({ id: "run1", startOpId: "start-w", kind: "run", startedAt: t0, discard: false });
+    });
+
+    it("tells a watch that only began once it was over to stop and keep nothing", async () => {
+      mockBridge.inbox = [entry({ opId: "start-late", kind: "startCardio", at: endedAt + 10_000, session: "run", indoor: false, fromPhone: true })];
+      render(<WatchSync />);
+      await settle();
+      expect(mockCreate).not.toHaveBeenCalled();
+      expect(mockStore.get("run1")!.cardio).toEqual({ kind: "run", indoor: false });
+      expect(lastSnapshot().endedCardio).toContainEqual({ id: "run1", startOpId: "start-late", kind: "run", startedAt: t0, discard: true });
+    });
+
+    it("still takes a run begun on the wrist afterwards as a new run", async () => {
+      mockBridge.inbox = [entry({ opId: "start-own", kind: "startCardio", at: endedAt + 10_000, session: "run", indoor: false, fromPhone: false })];
+      render(<WatchSync />);
+      await settle();
+      expect(mockCreate).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  // Paused on the phone while the watch was still waking: when the watch
+  // takes over, the pause ends where the watch began, rather than counting
+  // as moving time before it and making the watch's own pause do nothing.
+  it("closes a pause left on here when the watch takes over", async () => {
+    const run = session({ cardio: { kind: "run", indoor: false, pausedAtMs: START.getTime() + 10_000 } });
+    mockStore.set(run.id, run);
+    mockWorkouts.active = [run];
+    mockBridge.inbox = [entry({ opId: "start-w", kind: "startCardio", at: START.getTime() + 90_000, session: "run", indoor: false, fromPhone: true })];
+    render(<WatchSync />);
+    await settle();
+    expect(mockStore.get("run1")!.cardio).toEqual({
+      kind: "run",
+      indoor: false,
+      watch: true,
+      watchStartOpId: "start-w",
+      pausedSeconds: 80,
+      pauses: [{ fromMs: START.getTime() + 10_000, toMs: START.getTime() + 90_000 }],
     });
   });
 

@@ -1,5 +1,5 @@
 import { cardioSetDone } from "./cardio";
-import { MAX_CURVE_POINTS } from "./cardio-tracking";
+import { MAX_CURVE_POINTS, measuredByWatch } from "./cardio-tracking";
 import { isBodyweightExercise, isTimedExercise } from "./exercises";
 import { convertWeight, liveSetSeconds, previousSetsByExercise, workoutVolumeLbs } from "./workout-utils";
 import type { CardioSessionKind, Workout, WorkoutExercise, WorkoutSet } from "@/types";
@@ -129,12 +129,14 @@ export const ENDED_CARDIO_WINDOW_MS = 6 * 60 * 60 * 1000;
 /**
  * Watch-tracked sessions ended on the phone that are still waiting for what
  * the watch measured: finished, but with nothing from the watch on their set.
+ * The iPhone's step count isn't from the watch: a session the phone measured
+ * before a late watch start turned up still waits for that watch.
  */
 export function endedCardio(completed: Workout[], now: number): EndedCardio[] {
   const ended: EndedCardio[] = [];
   for (const w of completed) {
     if (!w.cardio?.watch || !w.completedAt || now - w.completedAt.getTime() > ENDED_CARDIO_WINDOW_MS) continue;
-    if (w.exercises[0]?.sets[0]?.tracked) continue;
+    if (measuredByWatch(w.exercises[0]?.sets[0]?.tracked)) continue;
     ended.push({
       id: w.id,
       startOpId: w.cardio.watchStartOpId ?? null,
@@ -162,6 +164,15 @@ export function watchSetKind(exercise: WorkoutExercise): WatchSetKind {
 }
 
 /**
+ * What the phone takes back from the watch (see parseWatchOp), and so all
+ * the snapshot sends: a number the watch pre-fills is one Done can send.
+ * Weights are in the op's unit.
+ */
+const WEIGHT_RANGE = { min: -2000, max: 5000 };
+const REPS_RANGE = { min: 0, max: 1000 };
+const DURATION_RANGE = { min: 0, max: 24 * 60 * 60 };
+
+/**
  * A set's weight as the phone's set row would show it, in `unit`.
  *
  * Mirrors SetRow's shownWeight: loads follow the unit preference, and a
@@ -175,12 +186,25 @@ export function displayWeight(set: WorkoutSet | undefined, unit: "lbs" | "kg"): 
 }
 
 /**
- * Whole numbers for the fields the watch decodes as integers. One stray
- * fraction (old data, another client) would fail the watch's decoder, and it
- * would then ignore every snapshot from that point on.
+ * A weight the watch can send back as it is, or null. The phone takes any
+ * number typed; a typo past what an op may carry, pre-filled on the watch,
+ * made Done send a set the phone then refused without a word.
  */
-function whole(value: number | undefined | null): number | null {
-  return value == null || !Number.isFinite(value) ? null : Math.round(value);
+function watchWeight(weight: number | null): number | null {
+  return weight != null && weight >= WEIGHT_RANGE.min && weight <= WEIGHT_RANGE.max ? weight : null;
+}
+
+/**
+ * Whole numbers for the fields the watch decodes as integers, within what an
+ * op may carry back. One stray fraction (old data, another client) would
+ * fail the watch's decoder, and so would a number past a 32-bit Int — a
+ * Series 8 is one — and it would then ignore every snapshot from that point
+ * on. Out of range is null: there's no honest number to show instead.
+ */
+function whole(value: number | undefined | null, range: { min: number; max: number }): number | null {
+  if (value == null || !Number.isFinite(value)) return null;
+  const rounded = Math.round(value);
+  return rounded >= range.min && rounded <= range.max ? rounded : null;
 }
 
 function toWatchWorkout(workout: Workout, completed: Workout[], unit: "lbs" | "kg"): WatchWorkout {
@@ -198,12 +222,12 @@ function toWatchWorkout(workout: Workout, completed: Workout[], unit: "lbs" | "k
         sets: exercise.sets.map((set, i) => ({
           id: set.id,
           done: set.isCompleted,
-          weight: displayWeight(set, unit),
-          reps: whole(set.reps),
-          duration: whole(set.duration),
-          lastWeight: displayWeight(last?.[i], unit),
-          lastReps: whole(last?.[i]?.reps),
-          lastDuration: whole(last?.[i]?.duration),
+          weight: watchWeight(displayWeight(set, unit)),
+          reps: whole(set.reps, REPS_RANGE),
+          duration: whole(set.duration, DURATION_RANGE),
+          lastWeight: watchWeight(displayWeight(last?.[i], unit)),
+          lastReps: whole(last?.[i]?.reps, REPS_RANGE),
+          lastDuration: whole(last?.[i]?.duration, DURATION_RANGE),
         })),
       };
     }),
@@ -256,7 +280,7 @@ export function buildWatchSnapshot(input: {
     sentAt: input.now,
     account: input.signedIn ? "signedIn" : "none",
     unit: input.unit,
-    restSeconds: whole(input.restSeconds) ?? 0,
+    restSeconds: whole(input.restSeconds, DURATION_RANGE) ?? 0,
     restEndsAt: workout && input.rest?.workoutId === workout.id ? input.rest.endsAt : null,
     accent: input.accent,
     onAccent: input.onAccent,
@@ -265,6 +289,62 @@ export function buildWatchSnapshot(input: {
     applied: input.applied.slice(-SNAPSHOT_APPLIED_LIMIT),
     endedCardio: input.signedIn ? (input.endedCardio ?? []) : [],
   };
+}
+
+/**
+ * The most a snapshot may be, as UTF-8. WatchConnectivity refuses a context
+ * or message past about 64 KB — Apple gives no number — and nothing tells
+ * either side: the watch just keeps the last snapshot it got, for good. A
+ * heavy user is nearer 30 KB; this leaves room for the rest of the payload.
+ */
+export const WATCH_SNAPSHOT_MAX_BYTES = 56 * 1024;
+
+function utf8Length(text: string): number {
+  let bytes = 0;
+  for (let i = 0; i < text.length; i++) {
+    const code = text.charCodeAt(i);
+    if (code < 0x80) bytes += 1;
+    else if (code < 0x800) bytes += 2;
+    else if (code >= 0xd800 && code <= 0xdbff) {
+      // A surrogate pair: one four-byte character.
+      bytes += 4;
+      i++;
+    } else bytes += 3;
+  }
+  return bytes;
+}
+
+/**
+ * The snapshot cut down to fit, what's least missed going first: last
+ * session's numbers on sets already done (nothing reads them), most of each
+ * template's preview, the older applied ids, then templates from the end of
+ * the list. The workout in progress is never cut — it's what the watch is for.
+ */
+export function fitWatchSnapshot(snapshot: WatchSnapshot, maxBytes = WATCH_SNAPSHOT_MAX_BYTES): WatchSnapshot {
+  const fits = (s: WatchSnapshot) => utf8Length(JSON.stringify(s)) <= maxBytes;
+  if (fits(snapshot)) return snapshot;
+  const cuts: ((s: WatchSnapshot) => WatchSnapshot)[] = [
+    (s) => ({
+      ...s,
+      workout: s.workout && {
+        ...s.workout,
+        exercises: s.workout.exercises.map((e) => ({
+          ...e,
+          sets: e.sets.map((set) => (set.done ? { ...set, lastWeight: null, lastReps: null, lastDuration: null } : set)),
+        })),
+      },
+    }),
+    (s) => ({ ...s, templates: s.templates.map((t) => ({ ...t, exercises: t.exercises.slice(0, 3) })) }),
+    // The newest are the ones a watch can still be waiting on.
+    (s) => ({ ...s, applied: s.applied.slice(-100) }),
+  ];
+  let next = snapshot;
+  for (const cut of cuts) {
+    next = cut(next);
+    if (fits(next)) return next;
+  }
+  while (next.templates.length > 0 && !fits(next)) next = { ...next, templates: next.templates.slice(0, -1) };
+  return next;
 }
 
 // ── Ops from the watch ────────────────────────────────────────────────────────
@@ -369,9 +449,9 @@ export function parseWatchOp(raw: unknown): WatchOp | null {
     case "logSet": {
       if (!isId(op.workoutId) || !isId(op.exerciseId) || !isId(op.setId)) return null;
       if (op.unit !== "lbs" && op.unit !== "kg") return null;
-      const weight = finiteOrNull(op.weight, -2000, 5000);
-      const reps = finiteOrNull(op.reps, 0, 1000);
-      const duration = finiteOrNull(op.duration, 0, 24 * 60 * 60);
+      const weight = finiteOrNull(op.weight, WEIGHT_RANGE.min, WEIGHT_RANGE.max);
+      const reps = finiteOrNull(op.reps, REPS_RANGE.min, REPS_RANGE.max);
+      const duration = finiteOrNull(op.duration, DURATION_RANGE.min, DURATION_RANGE.max);
       if (weight === undefined || reps === undefined || duration === undefined) return null;
       return {
         ...base,

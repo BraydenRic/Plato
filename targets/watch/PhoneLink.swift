@@ -48,9 +48,14 @@ final class PhoneLink: NSObject, WCSessionDelegate {
   /// so once anything is waiting in the queue, everything after it goes the
   /// same way. Otherwise a Finish sent as a message could reach the phone
   /// before the sets queued ahead of it.
+  ///
+  /// A start, which can't be queued, isn't sent past the queue either: it
+  /// would land before a finish still waiting there, find the old workout
+  /// running, and be dropped without a word. It fails instead, and the watch
+  /// says it couldn't reach the phone, to try again once it's caught up.
   func send(opId: String, json: String, allowQueue: Bool, completion: @escaping (Bool) -> Void) {
     let session = WCSession.default
-    guard session.activationState == .activated else {
+    guard session.activationState == .activated, allowQueue || session.outstandingUserInfoTransfers.isEmpty else {
       completion(false)
       return
     }

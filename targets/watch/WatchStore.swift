@@ -76,9 +76,6 @@ final class WatchStore: ObservableObject {
   private let startPollInterval: TimeInterval = 2
   /// How often a tracked session's numbers go to the phone while it's in reach.
   private let liveInterval: TimeInterval = 5
-  /// A session the phone started, and this close to when the watch began
-  /// tracking, is the one it woke the watch for.
-  private let sameStartMs: Double = 5 * 60 * 1000
   /// An op the phone never confirms is dropped after this, so one lost on the
   /// way can't hold the watch's view of a set forever.
   private let pendingLifetimeMs: Double = 6 * 60 * 60 * 1000
@@ -122,6 +119,8 @@ final class WatchStore: ObservableObject {
   var unit: String { snapshot?.unit ?? "lbs" }
   var accent: Color { Color(hex: snapshot?.accent) ?? .platoViolet }
   var onAccent: Color { Color(hex: snapshot?.onAccent) ?? .white }
+  /// The opacity the Start screen washes the accent in — see Logbook.washOpacity.
+  var accentWash: Double { Logbook.washOpacity(accentHex: snapshot?.accent) }
 
   /// When the current rest ends, while one is running.
   var restDeadline: Date? {
@@ -362,30 +361,22 @@ final class WatchStore: ObservableObject {
   }
 
   /// What a snapshot says about the session this watch is tracking: which of
-  /// the phone's sessions it is, and whether it was ended over there.
+  /// the phone's sessions it is, and whether it was ended over there. The
+  /// rules are CardioMatch's.
   private func reconcileCardio(with next: WatchSnapshot) {
     guard tracker.isActive else { return }
-    if tracker.workoutId == nil, let workout = next.workout, let cardio = workout.cardio {
-      if let mine = tracker.startOpId, cardio.startOpId == mine {
-        tracker.link(to: workout.id)
-      } else if tracker.fromPhone, cardio.startOpId == nil, cardio.kind == tracker.kind.rawValue,
-                let started = tracker.startedAt, abs(workout.startedAt - started.ms) < sameStartMs {
-        tracker.link(to: workout.id)
-      }
+    var tracked = CardioMatch.Tracked(
+      kind: tracker.kind.rawValue,
+      startedAt: tracker.startedAt?.ms,
+      fromPhone: tracker.fromPhone,
+      workoutId: tracker.workoutId,
+      startOpId: tracker.startOpId
+    )
+    if let id = CardioMatch.link(tracked, in: next) {
+      tracker.link(to: id)
+      tracked.workoutId = id
     }
-    // Ended or thrown away on the phone: by id, by the watch's own start op,
-    // or — only for a session the phone woke this watch for and no watch has
-    // claimed — by kind and start. Never a session started here: a run begun
-    // on the wrist just after discarding one on the phone is a new run, and
-    // ending it by mistake would lose it without a word.
-    let ended = (next.endedCardio ?? []).first { entry in
-      if let id = tracker.workoutId, entry.id == id { return true }
-      if let mine = tracker.startOpId, entry.startOpId == mine { return true }
-      guard tracker.fromPhone, tracker.workoutId == nil, entry.startOpId == nil, entry.kind == tracker.kind.rawValue,
-            let started = tracker.startedAt else { return false }
-      return abs(entry.startedAt - started.ms) < sameStartMs
-    }
-    if let ended {
+    if let ended = CardioMatch.ended(tracked, in: next) {
       tracker.end(discard: ended.discard)
     }
   }

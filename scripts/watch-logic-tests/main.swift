@@ -174,6 +174,50 @@ var precise = CurveRecorder()
 precise.record(metres: 123.456789, seconds: 40.04999)
 check(precise.flat() == [0, 0, 123.5, 40], "sent to a tenth, so a long run fits in one message")
 
+// Which phone session the watch is tracking, and whether it was ended there.
+func cardioSnapshot(sentAt: Double, workout: WatchWorkout?, ended: [EndedCardio]) -> WatchSnapshot {
+  WatchSnapshot(v: 1, sentAt: sentAt, account: "signedIn", unit: "lbs", restSeconds: 0, restEndsAt: nil,
+                accent: "#8b5cf6", onAccent: "#ffffff", workout: workout, templates: [], applied: [], endedCardio: ended)
+}
+func phoneRun(_ id: String, startedAt: Double, startOpId: String? = nil) -> WatchWorkout {
+  WatchWorkout(id: id, name: "Indoor Run", startedAt: startedAt, exercises: [],
+               cardio: WatchCardio(kind: "run", indoor: true, pausedAtMs: nil, pausedSeconds: 0, watch: false, startOpId: startOpId))
+}
+let t0 = 1792779000000.0
+// An outdoor run discarded on the phone at t0 before the watch's start landed,
+// then an indoor one started at t0+20 s that woke the watch, tracking from t0+26 s.
+let gone = EndedCardio(id: "s1", startOpId: nil, kind: "run", startedAt: t0, discard: true)
+let restarted = CardioMatch.Tracked(kind: "run", startedAt: t0 + 26_000, fromPhone: true, workoutId: nil, startOpId: "start-2")
+let staleSnapshot = cardioSnapshot(sentAt: t0 + 5_000, workout: nil, ended: [gone])
+check(CardioMatch.ended(restarted, in: staleSnapshot) == nil, "a discard sent before this tracking began doesn't end it")
+let freshSnapshot = cardioSnapshot(sentAt: t0 + 21_000, workout: phoneRun("s2", startedAt: t0 + 20_000), ended: [gone])
+check(CardioMatch.link(restarted, in: freshSnapshot) == "s2", "links to the restarted run, which started nearer than the discard")
+check(CardioMatch.ended(restarted, in: freshSnapshot) == nil, "and isn't ended by the discarded one")
+// The discarded run's own slow start: tracking from t0+3 s.
+let slowFirst = CardioMatch.Tracked(kind: "run", startedAt: t0 + 3_000, fromPhone: true, workoutId: nil, startOpId: "start-1")
+let afterIgnored = cardioSnapshot(sentAt: t0 + 22_000, workout: phoneRun("s2", startedAt: t0 + 20_000), ended: [gone])
+check(CardioMatch.link(slowFirst, in: afterIgnored) == nil, "a start nearer the discard isn't taken for the new run")
+check(CardioMatch.ended(slowFirst, in: afterIgnored)?.discard == true, "and is ended, keeping nothing")
+check(CardioMatch.ended(slowFirst, in: cardioSnapshot(sentAt: t0 + 9_000, workout: nil, ended: [gone]))?.discard == true,
+      "a discard sent after the tracking began still ends it")
+let picked = CardioMatch.Tracked(kind: "run", startedAt: t0 + 60_000, fromPhone: false, workoutId: nil, startOpId: "start-w")
+check(CardioMatch.ended(picked, in: cardioSnapshot(sentAt: t0 + 61_000, workout: nil, ended: [gone])) == nil,
+      "never ends a run started on the wrist by kind and start")
+let lateStart = EndedCardio(id: "s3", startOpId: "start-late", kind: "run", startedAt: t0, discard: true)
+let late = CardioMatch.Tracked(kind: "run", startedAt: t0 + 90_000, fromPhone: true, workoutId: nil, startOpId: "start-late")
+check(CardioMatch.ended(late, in: cardioSnapshot(sentAt: t0 + 1_000, workout: nil, ended: [lateStart]))?.discard == true,
+      "its own start op ends it, whenever the snapshot was sent")
+check(CardioMatch.link(CardioMatch.Tracked(kind: "run", startedAt: t0, fromPhone: false, workoutId: nil, startOpId: "start-9"),
+                       in: cardioSnapshot(sentAt: t0, workout: phoneRun("w9", startedAt: t0, startOpId: "start-9"), ended: [])) == "w9",
+      "links by its own start op")
+
+// The Start screen's wash.
+check(Logbook.washOpacity(accentHex: "#8b5cf6") == 0.3 && Logbook.washOpacity(accentHex: "#06b6d4") == 0.3,
+      "coloured accents wash at 0.3")
+let graphiteWash = Logbook.washOpacity(accentHex: "#fafafa")
+check(graphiteWash > 0.15 && graphiteWash < 0.22, "graphite's near-white washes fainter")
+check(Logbook.washOpacity(accentHex: nil) == 0.3 && Logbook.washOpacity(accentHex: "nope") == 0.3, "no accent, the default wash")
+
 check(CardioFormat.distance(3.1 * CardioFormat.mile, kind: .run, weightUnit: "lbs") == "3.10", "miles to two places")
 check(CardioFormat.distance(5000, kind: .run, weightUnit: "kg") == "5.00", "kilometres to two places")
 check(CardioFormat.distance(1000, kind: .swim, weightUnit: "kg") == "1000", "metres in the pool, whole")

@@ -30,6 +30,7 @@ import {
   buildWatchSnapshot,
   endedCardio,
   finishedFields,
+  fitWatchSnapshot,
   opTime,
   parseWatchLive,
   parseWatchOp,
@@ -38,13 +39,19 @@ import {
   type WatchOp,
 } from "@/lib/watch-protocol";
 import { distanceKind } from "@/lib/cardio";
-import { movingSecondsUntil, newCardioSession, paused, resumed, sessionTarget } from "@/lib/cardio-session";
-import { curveFromFlat, trackedFromWatch } from "@/lib/cardio-tracking";
+import { movingSecondsUntil, newCardioSession, paused, resumed, sessionSet, sessionTarget } from "@/lib/cardio-session";
+import { curveFromFlat, measuredByWatch, trackedFromWatch } from "@/lib/cardio-tracking";
 import { stepsBefore } from "@/hooks/use-phone-distance";
 import { withLead } from "@/lib/phone-distance";
 import { setWatchLive } from "@/lib/watch-live";
 import { traceWatch } from "@/lib/watch-trace";
-import { cardioDiscards, isDiscarded, loadCardioDiscards, useCardioDiscards } from "@/lib/cardio-discards";
+import {
+  cardioDiscards,
+  discardWatchStart,
+  isDiscarded,
+  loadCardioDiscards,
+  useCardioDiscards,
+} from "@/lib/cardio-discards";
 import {
   MAX_ACTIVE_WORKOUTS,
   bodyweightOn,
@@ -59,6 +66,8 @@ import type { BodyweightEntry, Workout } from "@/types";
 export const APPLIED_KEY = "plato.watch.applied.v1";
 /** When each set was last changed from the watch — see WatchSyncContext.setStamps. */
 export const STAMPS_KEY = "plato.watch.setStamps.v1";
+/** Whose the ops waiting in the native inbox are — see claimInbox. */
+export const INBOX_OWNER_KEY = "plato.watch.inboxOwner.v1";
 const APPLIED_LIMIT = SNAPSHOT_APPLIED_LIMIT;
 const STAMPS_LIMIT = 500;
 /** Coalesces a burst of changes (a set, then its rest) into one send. */
@@ -107,6 +116,12 @@ export type WatchSyncContext = {
    */
   setStamps: Map<string, number>;
   saveStamps: () => void;
+  /**
+   * Since when this account has had the phone's ops from the watch, ms — 0
+   * if no other account has. A session that began before that was someone
+   * else's, still running on the wrist when they signed out.
+   */
+  accountSince: () => number;
 };
 
 /**
@@ -138,6 +153,7 @@ function WatchSyncBridge() {
   const [applied, setApplied] = useState<string[] | null>(null);
   const appliedRef = useRef<string[]>([]);
   const stampsRef = useRef(new Map<string, number>());
+  const accountSinceRef = useRef(0);
   const latest = useRef<WatchSyncContext | null>(null);
   const lastSent = useRef<string | null>(null);
   const chain = useRef(Promise.resolve());
@@ -189,6 +205,8 @@ function WatchSyncBridge() {
         }
         AsyncStorage.setItem(STAMPS_KEY, JSON.stringify([...stamps])).catch(() => {});
       },
+      // Read when an op is applied, not now: the inbox is claimed after this runs.
+      accountSince: () => accountSinceRef.current,
     };
   });
 
@@ -215,7 +233,7 @@ function WatchSyncBridge() {
         // that only has to outlast a watch out of range for a run.
         endedCardio: [
           ...endedCardio(completed, Math.floor(Date.now() / 600_000) * 600_000),
-          ...(discards.length > 0 ? cardioDiscards() : []),
+          ...(discards.length > 0 ? cardioDiscards(dataUserId) : []),
         ],
         // Stamped at send time; leaving it out here keeps the key stable
         // across renders that changed nothing.
@@ -240,8 +258,16 @@ function WatchSyncBridge() {
 
   useEffect(() => {
     const bridge = PlatoWatch;
-    if (!canApply || !bridge) return;
+    if (!canApply || !bridge || !dataUserId) return;
     let cancelled = false;
+    // Whatever another account left waiting goes before anything is applied —
+    // after any drain still under way, so the two never take the same op.
+    const claimed = chain.current
+      .then(() => claimInbox(bridge, dataUserId))
+      .then((since) => {
+        accountSinceRef.current = since;
+      })
+      .catch((e) => console.warn("Couldn't check whose the watch's ops are", e));
     let retry: ReturnType<typeof setTimeout> | undefined;
     const attempts = new Map<string, number>();
 
@@ -263,6 +289,9 @@ function WatchSyncBridge() {
       } catch {
         op = null;
       }
+      // Dropped all the same, but no longer without a word: a set the watch
+      // showed as logged has gone, and diagnostics should say why.
+      if (!op) traceWatch("watch op: couldn't be read, or a number out of range — dropped");
       const ctx = latest.current;
       if (op && op.opId === entry.id && ctx) {
         if (op.kind === "startTemplate") {
@@ -297,6 +326,7 @@ function WatchSyncBridge() {
 
     const drain = () => {
       chain.current = chain.current
+        .then(() => claimed)
         .then(async () => {
           for (const entry of bridge.takeInbox()) {
             if (cancelled) return;
@@ -319,7 +349,9 @@ function WatchSyncBridge() {
       clearTimeout(retry);
       subscription.remove();
     };
-  }, [canApply]);
+    // Again for a new account — a guest signing in goes straight from one to
+    // the other — so the inbox is claimed for whoever's ops are applied.
+  }, [canApply, dataUserId]);
 
   // ── In: a tracked session's live numbers ───────────────────────────────────
   // Straight to the session screen. Not ops: nothing is written, and a reading
@@ -357,11 +389,74 @@ function WatchSyncBridge() {
  */
 function snapshotKeyOrNull(input: Parameters<typeof buildWatchSnapshot>[0]): string | null {
   try {
-    return JSON.stringify(buildWatchSnapshot(input));
+    return JSON.stringify(fitWatchSnapshot(buildWatchSnapshot(input)));
   } catch (e) {
     console.warn("Couldn't build the watch snapshot", e);
     return null;
   }
+}
+
+/**
+ * Takes the native inbox for `userId`, and says since when it's theirs.
+ *
+ * The inbox isn't per account, and is kept on purpose while signed out, so
+ * ops the watch sends then still reach the same person when they sign back
+ * in. Another account's are dropped instead — a run finished on the wrist
+ * after one person signed out must not land in whoever signs in next. A
+ * guest signing in keeps what's there: their data moves into the account.
+ */
+async function claimInbox(bridge: NonNullable<typeof PlatoWatch>, userId: string): Promise<number> {
+  let owner: { userId: string; since: number } | null = null;
+  try {
+    const parsed = JSON.parse((await AsyncStorage.getItem(INBOX_OWNER_KEY)) ?? "null") as unknown;
+    const candidate = parsed as { userId?: unknown; since?: unknown } | null;
+    if (candidate && typeof candidate.userId === "string" && typeof candidate.since === "number") {
+      owner = { userId: candidate.userId, since: candidate.since };
+    }
+  } catch {
+    owner = null;
+  }
+  let since = owner?.since ?? 0;
+  const handedOver = !!owner && owner.userId !== userId && !(isGuestUserId(owner.userId) && !isGuestUserId(userId));
+  if (handedOver) {
+    const left = bridge.takeInbox();
+    if (left.length > 0) {
+      bridge.ackInbox(left.map((e) => e.id));
+      traceWatch(`watch ops: ${left.length} left by another account — dropped`);
+    }
+    since = Date.now();
+  }
+  if (owner?.userId !== userId || owner.since !== since) {
+    await AsyncStorage.setItem(INBOX_OWNER_KEY, JSON.stringify({ userId, since })).catch(() => {});
+  }
+  return since;
+}
+
+/**
+ * A stored time in ms, whatever shape it reached memory in. A set's
+ * completedAt should be a Date, but a nested one has come back from Firestore
+ * as a Timestamp and from the guest store as a string — and a getTime() on
+ * either threw, losing the watch's edit.
+ */
+function millisOf(value: unknown): number | null {
+  if (value == null) return null;
+  if (value instanceof Date) return Number.isFinite(value.getTime()) ? value.getTime() : null;
+  if (typeof value === "number") return Number.isFinite(value) ? value : null;
+  if (typeof value === "string") {
+    const parsed = Date.parse(value);
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+  if (typeof value === "object") {
+    const stamp = value as { toMillis?: unknown; seconds?: unknown; nanoseconds?: unknown };
+    if (typeof stamp.toMillis === "function") {
+      const ms = (stamp.toMillis as () => unknown)();
+      return typeof ms === "number" && Number.isFinite(ms) ? ms : null;
+    }
+    if (typeof stamp.seconds === "number") {
+      return stamp.seconds * 1000 + (typeof stamp.nanoseconds === "number" ? stamp.nanoseconds / 1e6 : 0);
+    }
+  }
+  return null;
 }
 
 function readList(raw: string | null): unknown[] {
@@ -408,9 +503,13 @@ export async function applyWatchOp(op: WatchOp, ctx: WatchSyncContext): Promise<
       if (op.kind !== "addSet") {
         const stamp = ctx.setStamps.get(stampKey);
         if (stamp != null && stamp > op.at) return;
-        // An edit made on the phone after this was logged on the watch wins too.
+        // A set logged on the phone after this was done on the watch wins too
+        // — over a late clear as much as a late log: a set logged and undone
+        // on the watch out of range, then logged on the phone, keeps the
+        // phone's set when the two ops catch up.
         const current = workout.exercises.find((e) => e.id === op.exerciseId)?.sets.find((s) => s.id === op.setId);
-        if (op.kind === "logSet" && current?.completedAt && current.completedAt.getTime() > op.at) return;
+        const phoneDoneAt = millisOf(current?.completedAt);
+        if (phoneDoneAt != null && phoneDoneAt > op.at) return;
       }
 
       const result = applySetOp(workout, op, { unit: ctx.unit, now });
@@ -496,30 +595,56 @@ export async function applyWatchOp(op: WatchOp, ctx: WatchSyncContext): Promise<
     case "startCardio": {
       // Here already: a resend, or its finish arrived first and brought it in.
       if (sessionStartedBy(op.opId, ctx)) return;
-      // By kind and start only for a session the phone woke the watch for: one
-      // begun on the wrist just after a discard here is a new run, not that one.
-      const byKindAndStart = op.fromPhone === false ? {} : { session: op.session, startedAt: op.at };
-      if (isDiscarded({ workoutId: null, startOpId: op.opId, ...byKindAndStart })) {
+      // Woken by the phone, or a watch too old to say: it may be starting a
+      // session the phone has. One begun on the wrist is only ever matched to
+      // a session still running here — after a discard, or after the phone
+      // ended one, it's a new run.
+      const woken = op.fromPhone !== false;
+      // The phone's session the watch is now tracking: started there, no
+      // watch on it yet, the nearest in time. Looked for before any discard,
+      // so a run discarded and started again isn't lost to the old one.
+      const phoneStarted = nearestStart(
+        [...ctx.active, ...(woken ? ctx.completed : [])].filter(
+          (w) => w.cardio?.kind === op.session && !w.cardio.watchStartOpId && !measuredByWatch(sessionSet(w)?.tracked)
+        ),
+        op.at
+      );
+      const byKindAndStart = woken
+        ? { session: op.session, indoor: op.indoor, startedAt: op.at, rivalStartedAt: phoneStarted?.startedAt?.getTime() }
+        : {};
+      if (isDiscarded({ workoutId: null, startOpId: op.opId, userId: dataUserId, ...byKindAndStart })) {
         traceWatch("watch start: for a discarded session — ignored");
         return;
       }
-      // The watch is now tracking a session the phone started and woke it
-      // for: the same session, not a second one. Marked as tracked there only
-      // now, when the watch says so — the phone waking the app proves nothing.
-      const phoneStarted = [...ctx.active].find(
-        (w) =>
-          w.cardio?.kind === op.session &&
-          !w.cardio.watchStartOpId &&
-          !!w.startedAt &&
-          Math.abs(w.startedAt.getTime() - op.at) < SAME_START_MS
-      );
+      // The same session, not a second one. Marked as tracked there only now,
+      // when the watch says so — the phone waking the app proves nothing.
       if (phoneStarted) {
         const fresh = (await getWorkout(phoneStarted.id)) ?? phoneStarted;
-        if (!fresh.cardio || fresh.completedAt) return;
-        const cardio = { ...fresh.cardio, watch: true, watchStartOpId: op.opId };
+        if (!fresh.cardio || !fresh.startedAt) return;
+        if (fresh.completedAt && op.at >= fresh.completedAt.getTime()) {
+          // Ended on the phone before the watch even began: nothing it
+          // measures is the session's, so it stops and keeps nothing.
+          discardWatchStart(fresh, op.opId);
+          traceWatch(`watch start: after the phone ended its ${op.session} — told to stop`);
+          return;
+        }
+        // Running here, a pause left on ends where the watch began: the watch
+        // is moving, and pausing is done there now. Ended here while the watch
+        // already had it, the session lists as waiting on the watch, which
+        // then hears it ended and sends what it measured.
+        const base = fresh.completedAt ? fresh.cardio : resumed(fresh, opTime(op.at, now, fresh.startedAt.getTime()))!;
+        const cardio = { ...base, watch: true, watchStartOpId: op.opId };
         await updateWorkout(fresh.id, stripUndefined({ cardio }) as Partial<Workout>);
-        ctx.active = ctx.active.map((w) => (w.id === fresh.id ? { ...w, cardio } : w));
-        traceWatch(`watch start: tracking the phone's ${op.session}`);
+        const linked = (w: Workout) => (w.id === fresh.id ? { ...w, cardio } : w);
+        ctx.active = ctx.active.map(linked);
+        ctx.completed = ctx.completed.map(linked);
+        traceWatch(`watch start: tracking the phone's ${fresh.completedAt ? "ended " : ""}${op.session}`);
+        return;
+      }
+      // Begun before this account had the phone: someone else's run, still
+      // going on the wrist after they signed out.
+      if (op.at < ctx.accountSince()) {
+        traceWatch("watch start: from before this account signed in — ignored");
         return;
       }
       // At the limit, it waits for its finish, which brings it in regardless —
@@ -542,7 +667,7 @@ export async function applyWatchOp(op: WatchOp, ctx: WatchSyncContext): Promise<
     case "pauseCardio":
     case "resumeCardio": {
       const session = await findSession(op, ctx);
-      if (opDiscarded(op, session)) return;
+      if (opDiscarded(op, session, dataUserId)) return;
       if (!session?.cardio || session.completedAt || !session.startedAt) return;
       const at = opTime(op.at, now, session.startedAt.getTime());
       const cardio = op.kind === "pauseCardio" ? paused(session, at) : resumed(session, at);
@@ -553,7 +678,7 @@ export async function applyWatchOp(op: WatchOp, ctx: WatchSyncContext): Promise<
     case "finishCardio": {
       const session = await findSession(op, ctx);
       // Thrown away on the phone: whatever the watch measured goes with it.
-      if (opDiscarded(op, session)) {
+      if (opDiscarded(op, session, dataUserId)) {
         traceWatch("watch finish: for a discarded session — ignored");
         return;
       }
@@ -588,6 +713,12 @@ export async function applyWatchOp(op: WatchOp, ctx: WatchSyncContext): Promise<
         // worth bringing in on its own.
         if (op.duration < MIN_SESSION_SECONDS && !distance) {
           traceWatch("watch finish: a false start with no session — ignored");
+          return;
+        }
+        // Begun before this account had the phone: the last account's run,
+        // finished on the wrist after they signed out. Not this one's to keep.
+        if (op.startedAt < ctx.accountSince()) {
+          traceWatch("watch finish: a session from before this account signed in — ignored");
           return;
         }
         traceWatch(`watch finish: no session found — bringing in a new ${op.session}`);
@@ -691,13 +822,27 @@ const SAME_START_MS = 5 * 60 * 1000;
 /** A lead shorter than this isn't worth asking the step counter about. */
 const MIN_LEAD_FOR_STEPS_SECONDS = 20;
 
+/** Of these sessions, the one that started nearest `at`, within SAME_START_MS. */
+function nearestStart(sessions: Workout[], at: number): Workout | undefined {
+  let nearest: Workout | undefined;
+  let gap = SAME_START_MS;
+  for (const w of sessions) {
+    const started = w.startedAt?.getTime();
+    if (started == null || Math.abs(started - at) >= gap) continue;
+    nearest = w;
+    gap = Math.abs(started - at);
+  }
+  return nearest;
+}
+
 /**
  * Whether a cardio op is about a session thrown away here. By id and start op
  * always; by kind and start only for a session nothing more exact found — so
  * a run started on the watch, whose own start op found it, is never taken
- * for one discarded a minute earlier and lost.
+ * for one discarded a minute earlier and lost — and then only if the discard
+ * started nearer than the session found that way.
  */
-function opDiscarded(op: WatchCardioOp, session: Workout | null): boolean {
+function opDiscarded(op: WatchCardioOp, session: Workout | null, userId: string): boolean {
   const identified =
     !!session &&
     ((!!op.workoutId && session.id === op.workoutId) ||
@@ -706,7 +851,15 @@ function opDiscarded(op: WatchCardioOp, session: Workout | null): boolean {
     isDiscarded({
       workoutId: op.workoutId,
       startOpId: op.startOpId,
-      ...(identified ? {} : { session: op.session, startedAt: op.startedAt }),
+      ...(identified
+        ? {}
+        : {
+            userId,
+            session: op.session,
+            startedAt: op.startedAt,
+            ...(op.kind === "finishCardio" ? { indoor: op.indoor } : {}),
+            rivalStartedAt: session?.startedAt?.getTime(),
+          }),
     }) ||
     // A list as of the last render can still hold a session just discarded.
     (session != null && isDiscarded({ workoutId: session.id, startOpId: null }))
@@ -730,13 +883,9 @@ async function findSession(op: WatchCardioOp, ctx: WatchSyncContext): Promise<Wo
   const match =
     (op.startOpId ? sessions.find((w) => w.cardio!.watchStartOpId === op.startOpId) : undefined) ??
     (op.session != null && op.startedAt != null
-      ? sessions.find(
-          (w) =>
-            w.cardio!.kind === op.session &&
-            !w.cardio!.watchStartOpId &&
-            !w.exercises[0]?.sets[0]?.tracked &&
-            !!w.startedAt &&
-            Math.abs(w.startedAt.getTime() - op.startedAt!) < SAME_START_MS
+      ? nearestStart(
+          sessions.filter((w) => w.cardio!.kind === op.session && !w.cardio!.watchStartOpId && !sessionSet(w)?.tracked),
+          op.startedAt
         )
       : undefined);
   if (!match) return null;
