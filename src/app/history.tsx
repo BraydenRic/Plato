@@ -88,7 +88,8 @@ export default function HistoryScreen() {
           renderItem={({ item }) => (
             <HistoryRow
               workout={item}
-              onPress={() => router.push(`/workout/${item.id}`)}
+              // navigate, not push: a double tap reuses the screen it opened.
+              onPress={() => router.navigate(`/workout/${item.id}`)}
               onLongPress={() => confirmDelete(item)}
             />
           )}

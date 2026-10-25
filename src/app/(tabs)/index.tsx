@@ -534,7 +534,8 @@ export default function WorkoutsScreen() {
               <WorkoutRow
                 key={w.id}
                 workout={w}
-                onPress={() => router.push(`/workout/${w.id}`)}
+                // navigate, as the resume bar does: a double tap reuses the open screen.
+                onPress={() => router.navigate(`/workout/${w.id}`)}
                 onLongPress={() => confirmDelete(w)}
               />
             ))}
@@ -611,7 +612,7 @@ export default function WorkoutsScreen() {
               <Card key={t.id} style={styles.templateRow}>
                 <Pressable
                   style={styles.templateInfo}
-                  onPress={() => router.push(`/workout/${t.id}`)}
+                  onPress={() => router.navigate(`/workout/${t.id}`)}
                   onLongPress={() => confirmDelete(t)}>
                   <Text style={styles.rowTitle} maxFontSizeMultiplier={FontScaleCap.heading}>{t.name}</Text>
                   <Text style={styles.rowMeta}>

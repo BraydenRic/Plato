@@ -24,7 +24,7 @@ let mockPlan: (string | null)[] = [null, null, null, null, null, null, null];
 const NOW = new Date(2026, 7, 4, 12, 0);
 
 jest.mock("expo-router", () => ({
-  useRouter: () => ({ push: mockPush, back: jest.fn(), replace: jest.fn() }),
+  useRouter: () => ({ push: mockPush, navigate: mockPush, back: jest.fn(), replace: jest.fn() }),
   useFocusEffect: (cb: () => void | (() => void)) => {
     const { useEffect } = jest.requireActual("react");
     useEffect(cb, [cb]);

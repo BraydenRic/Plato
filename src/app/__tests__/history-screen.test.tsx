@@ -8,7 +8,7 @@ const mockBack = jest.fn();
 let mockCompleted: Workout[] = [];
 
 jest.mock("expo-router", () => ({
-  useRouter: () => ({ push: jest.fn(), back: mockBack, replace: jest.fn() }),
+  useRouter: () => ({ push: jest.fn(), navigate: jest.fn(), back: mockBack, replace: jest.fn() }),
 }));
 jest.mock("@/hooks/use-workouts", () => ({
   AWAITING_SYNC_MESSAGE: "",

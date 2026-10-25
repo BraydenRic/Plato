@@ -123,7 +123,7 @@ export default function BodyweightScreen() {
     <View style={styles.safe}>
       <ActiveWorkoutBar />
       <View style={styles.header}>
-        <Pressable onPress={() => router.back()} hitSlop={12} style={styles.backButton}>
+        <Pressable onPress={() => router.back()} hitSlop={12} style={styles.backButton} accessibilityRole="button" accessibilityLabel="Back">
           <Ionicons name="chevron-back" size={22} color={palette.textSecondary} />
         </Pressable>
         <View style={{ flex: 1, gap: 2 }}>

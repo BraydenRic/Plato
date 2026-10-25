@@ -46,7 +46,7 @@ const mockStartedWorkout: Workout = {
 };
 
 jest.mock("expo-router", () => ({
-  useRouter: () => ({ push: mockPush, back: jest.fn(), replace: jest.fn() }),
+  useRouter: () => ({ push: mockPush, navigate: mockPush, back: jest.fn(), replace: jest.fn() }),
   useFocusEffect: (cb: () => void | (() => void)) => {
     const { useEffect } = jest.requireActual("react");
     useEffect(cb, [cb]);
