@@ -1,5 +1,5 @@
 import { Text } from "react-native";
-import { router, Stack } from "expo-router";
+import { router, Stack, type Href } from "expo-router";
 import { act, renderRouter, screen } from "expo-router/testing-library";
 
 import * as RootLayoutModule from "../_layout";
@@ -109,7 +109,8 @@ describe("a link that matches no screen", () => {
   it("leaves someone already in the app where they were", async () => {
     renderRouter(routes(), { initialUrl: "/" });
     act(() => router.push("/workout/w1"));
-    act(() => router.navigate("/nowhere"));
+    // Not a route on purpose: the typed routes would refuse it otherwise.
+    act(() => router.navigate("/nowhere" as Href));
 
     expect(await screen.findByText("Workout")).toBeTruthy();
   });
