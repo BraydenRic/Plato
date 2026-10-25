@@ -500,7 +500,16 @@ export default function WorkoutsScreen() {
             ))}
 
             {selectedIsToday && (
-              <Button title="Start empty workout" onPress={quickStart} loading={starting} />
+              // Side by side, so cardio is one tap away without becoming a
+              // step in front of every lifting session.
+              <View style={styles.startRow}>
+                <View style={{ flex: 1 }}>
+                  <Button title="Start workout" onPress={quickStart} loading={starting} />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Button title="Start cardio" variant="secondary" onPress={() => router.push("/start-cardio")} />
+                </View>
+              </View>
             )}
             {selectedIsFuture && (
               <Button
@@ -695,7 +704,8 @@ function WorkoutRow({
   const isPlanned = !workout.startedAt && !workout.completedAt;
   // A finished run says how far and how long, not "1 exercise · 1/1 sets".
   const distance = workoutDistanceLabel(workout, unit);
-  const finishedCardio = !!workout.completedAt && isCardioWorkout(workout);
+  // A cardio session says nothing about exercises or sets, finished or not.
+  const finishedCardio = (!!workout.completedAt && isCardioWorkout(workout)) || !!workout.cardio;
   // Past the largest standard text size the volume on the right took the row's
   // width and squeezed the name to a letter per line. Stack it underneath
   // instead, so the name gets the whole row.
@@ -751,6 +761,10 @@ function defaultWorkoutName(): string {
 }
 
 const useStyles = makeStyles((c) => ({
+  startRow: {
+    flexDirection: "row",
+    gap: Spacing.two,
+  },
   safe: {
     flex: 1,
     backgroundColor: c.bg,

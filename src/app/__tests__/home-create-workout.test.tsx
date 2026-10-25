@@ -123,7 +123,7 @@ it("hides a workout being opened from every list, then brings it back", async ()
   // Async so the create promise settles inside act — it flips the button out of
   // its loading state and would otherwise land mid-assertion.
   await act(async () => {
-    fireEvent.press(screen.getByText("Start empty workout"));
+    fireEvent.press(screen.getByText("Start workout"));
   });
 
   expect(mockPush).toHaveBeenCalledWith(`/workout/${NEW_ID}`);

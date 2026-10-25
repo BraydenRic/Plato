@@ -63,6 +63,22 @@ export function workoutFromDoc(id: string, data: Record<string, unknown>): Worko
     durationMinutes: data.durationMinutes as number | undefined,
     totalVolume: data.totalVolume as number | undefined,
     orderIndex: data.orderIndex as number | undefined,
+    cardio: cardioFrom(data.cardio),
+  };
+}
+
+const SESSION_KINDS = new Set(["run", "walk", "hike", "bike", "swim", "row", "elliptical", "stairs"]);
+
+/** A session's `cardio` field, or nothing if it isn't one a session could hold. */
+function cardioFrom(raw: unknown): Workout["cardio"] {
+  if (!raw || typeof raw !== "object") return undefined;
+  const value = raw as Record<string, unknown>;
+  if (typeof value.kind !== "string" || !SESSION_KINDS.has(value.kind)) return undefined;
+  return {
+    kind: value.kind as NonNullable<Workout["cardio"]>["kind"],
+    indoor: value.indoor === true ? true : undefined,
+    pausedAtMs: typeof value.pausedAtMs === "number" ? value.pausedAtMs : undefined,
+    pausedSeconds: typeof value.pausedSeconds === "number" ? value.pausedSeconds : undefined,
   };
 }
 

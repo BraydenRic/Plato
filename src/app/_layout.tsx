@@ -9,7 +9,6 @@ import { BodyweightVolumeRepair } from "@/components/bodyweight-volume-repair";
 import { LiveActivitySync } from "@/components/live-activity-sync";
 import { WatchSync } from "@/components/watch-sync";
 import { AuthProvider, useAuth } from "@/context/AuthContext";
-import { HealthImportProvider } from "@/context/HealthImportContext";
 import { RestTimerProvider } from "@/context/RestTimerContext";
 import { SetTimerProvider } from "@/context/SetTimerContext";
 import { DefaultSetsProvider } from "@/context/DefaultSetsContext";
@@ -169,6 +168,7 @@ function RootNavigator() {
         <Stack.Screen name="history" />
         <Stack.Screen name="bodyweight" />
         <Stack.Screen name="add-exercise" options={{ presentation: "modal" }} />
+        <Stack.Screen name="start-cardio" options={{ presentation: "modal" }} />
         <Stack.Screen name="create-exercise" options={{ presentation: "modal" }} />
         <Stack.Screen name="reorder-templates" options={{ presentation: "modal" }} />
         <Stack.Screen name="reorder-day" options={{ presentation: "modal" }} />
@@ -231,14 +231,11 @@ export default function RootLayout() {
                     leaving the workout screen, which unmounts it. */}
                 <SetTimerProvider>
                   <DefaultSetsProvider>
-                    {/* Off unless turned on in Profile; renders nothing of its own. */}
-                    <HealthImportProvider>
-                      <ThemedStatusBar />
-                      <LiveActivitySync />
-                      <WatchSync />
-                      <BodyweightVolumeRepair />
-                      <RootNavigator />
-                    </HealthImportProvider>
+                    <ThemedStatusBar />
+                    <LiveActivitySync />
+                    <WatchSync />
+                    <BodyweightVolumeRepair />
+                    <RootNavigator />
                   </DefaultSetsProvider>
                 </SetTimerProvider>
               </RestTimerProvider>

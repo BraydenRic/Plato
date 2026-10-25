@@ -10,6 +10,7 @@ import { makeStyles, usePalette } from "@/context/AppearanceContext";
 import { useRestTimer } from "@/context/RestTimerContext";
 import { useTheme } from "@/context/ThemeContext";
 import { useActiveWorkout, useOtherLiveWorkouts } from "@/hooks/use-active-workout";
+import { isPaused, kindInfo, movingSeconds } from "@/lib/cardio-session";
 import { completedSetCount, formatClock, totalSetCount } from "@/lib/workout-utils";
 import type { Workout } from "@/types";
 
@@ -142,7 +143,14 @@ function BarRow({
   const { rest } = useRestTimer();
 
   const startedAtMs = workout.startedAt?.getTime();
-  const elapsed = startedAtMs ? Math.max(0, Math.floor((now - startedAtMs) / 1000)) : 0;
+  // A cardio session's clock is its moving time — the same number its own
+  // screen shows, pauses left out.
+  const session = workout.cardio;
+  const elapsed = session
+    ? movingSeconds(workout, now)
+    : startedAtMs
+      ? Math.max(0, Math.floor((now - startedAtMs) / 1000))
+      : 0;
 
   // Rest outlives the workout screen, so it can still be running while you're
   // over here — and it's the one number worth interrupting the elapsed clock
@@ -154,8 +162,10 @@ function BarRow({
 
   const done = completedSetCount(workout);
   const total = totalSetCount(workout);
-  // Same shorthand the Workouts list uses for an in-progress row.
-  const meta = total > 0 ? `${done}/${total} sets` : "No sets yet";
+  // Same shorthand the Workouts list uses for an in-progress row. A session
+  // has no sets to count; the only thing worth saying beside its name is
+  // that it's paused.
+  const meta = session ? (isPaused(workout) ? "Paused" : null) : total > 0 ? `${done}/${total} sets` : "No sets yet";
   // Past the largest standard text size there isn't room for the name, the
   // count and the clock on one 44pt line, and the name was what gave — "L…".
   // The ring already says how far through you are, so the count steps aside.
@@ -170,18 +180,24 @@ function BarRow({
     <Pressable
       testID={testID}
       accessibilityRole="button"
-      accessibilityLabel={`${workout.name}, ${meta}, ${
+      accessibilityLabel={`${workout.name}, ${meta ? `${meta}, ` : ""}${
         resting ? `resting, ${formatClock(restLeft)} left` : `${formatClock(elapsed)} elapsed`
       }. Back to workout.`}
       onPress={onPress}
       style={({ pressed }) => [styles.rowMain, pressed && styles.rowPressed]}>
-      <ProgressRing progress={total > 0 ? done / total : 0} color={theme.accent} trackColor={palette.borderStrong} />
+      {session ? (
+        // A run is no fraction of the way through anything; its icon says
+        // what it is instead.
+        <Ionicons name={kindInfo(session.kind).icon} size={18} color={theme.accent} />
+      ) : (
+        <ProgressRing progress={total > 0 ? done / total : 0} color={theme.accent} trackColor={palette.borderStrong} />
+      )}
       <Text style={styles.name} numberOfLines={1} maxFontSizeMultiplier={FontScaleCap.grid}>
         {workout.name}
       </Text>
       {/* Dim and small against the clock, so two numbers sharing a corner
           don't read as one. */}
-      {roomyText && (
+      {roomyText && meta && (
         <>
           <Text style={styles.meta} numberOfLines={1} maxFontSizeMultiplier={FontScaleCap.grid}>
             {meta}

@@ -1,4 +1,4 @@
-import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -23,27 +23,14 @@ import {
 } from "expo-router";
 import Ionicons from "@expo/vector-icons/Ionicons";
 
-import { FigureRow, SplitsChart, type Figure, type SplitRow } from "@/components/cardio-figures";
+import { CardioSession } from "@/components/cardio-session";
 import { Button, Card, EmptyState } from "@/components/ui";
 import { DRAG_LIFT_SCALE, DRAG_SPRING, FontScaleCap, Radius, Spacing } from "@/constants/theme";
 import { makeStyles, usePalette } from "@/context/AppearanceContext";
 import { getWorkout, getCompletedWorkouts, reopenWorkout, saveAsTemplate, stripUndefined, subscribeWorkout, updateWorkout, upsertUserStats, computeStats, deleteWorkout } from "@/lib/data";
 import { useWorkouts } from "@/hooks/use-workouts";
+import { isCardioSession } from "@/lib/cardio-session";
 import { isBodyweightExercise, isTimedExercise } from "@/lib/exercises";
-import {
-  cardioSetDone,
-  distanceKind,
-  distanceUnit,
-  formatDistanceValue,
-  formatRate,
-  fromMetres,
-  isCardioWorkout,
-  parseDistanceText,
-  workoutCardioSeconds,
-  workoutDistanceLabel,
-  workoutRate,
-  type DistanceKind,
-} from "@/lib/cardio";
 import { useRestTimer } from "@/context/RestTimerContext";
 import { useBodyweight } from "@/hooks/use-bodyweight";
 import { useSetTimer } from "@/context/SetTimerContext";
@@ -54,10 +41,7 @@ import { bodyweightOn, formatBodyweightLoad, convertWeight, displayVolume, forma
 import type { Workout, WorkoutExercise, WorkoutSet } from "@/types";
 
 
-const fieldKey = (setId: string, field: "weight" | "reps" | "duration" | "distance") => `${setId}:${field}`;
-
-/** Column heading over a cardio set's distance, in the unit it's typed in. */
-const DISTANCE_HEADING = { mi: "MILES", km: "KM", m: "METERS", yd: "YARDS" } as const;
+const fieldKey = (setId: string, field: "weight" | "reps" | "duration") => `${setId}:${field}`;
 
 /**
  * Width of the set-number column, shared by its "SET" heading and every row so
@@ -338,21 +322,11 @@ export default function WorkoutScreen() {
     );
   }
 
-  // Only once something's logged: an empty cardio workout still reads as its
-  // sets, so it doesn't open on a bare "0:00".
-  const cardioSeconds = workoutCardioSeconds(workout);
-  const cardioDistance = workoutDistanceLabel(workout, weightUnit);
-  const cardioSummary =
-    !isTemplate && isCardioWorkout(workout) && (cardioSeconds > 0 || cardioDistance)
-      ? { seconds: cardioSeconds, distance: cardioDistance, rate: workoutRate(workout, weightUnit) }
-      : null;
-  // With one timed distance in the workout, the hero's pace *is* that set's
-  // pace, so the set doesn't repeat it underneath.
-  const pacedSets = workout.exercises.reduce(
-    (n, ex) => n + ex.sets.filter((set) => set.isCompleted && set.distance && set.duration).length,
-    0
-  );
-  const heroHasPace = !!cardioSummary?.rate && pacedSets === 1;
+  // A run or a ride started with Start cardio isn't a list of exercises and
+  // sets to the person doing it, so it doesn't get one: it has its own screen.
+  if (isCardioSession(workout)) {
+    return <CardioSession workout={workout} onLocalChange={setWorkout} />;
+  }
 
   /**
    * Write the exercise list, and show it immediately.
@@ -401,9 +375,7 @@ export default function WorkoutScreen() {
   function inputOrder() {
     return workout!.exercises.flatMap((ex) =>
       isTimedExercise(ex.exercise)
-        ? distanceKind(ex.exercise)
-          ? ex.sets.flatMap((s) => [fieldKey(s.id, "duration"), fieldKey(s.id, "distance")])
-          : ex.sets.map((s) => fieldKey(s.id, "duration"))
+        ? ex.sets.map((s) => fieldKey(s.id, "duration"))
         : ex.sets.flatMap((s) => [fieldKey(s.id, "weight"), fieldKey(s.id, "reps")])
     );
   }
@@ -480,28 +452,15 @@ export default function WorkoutScreen() {
   // Sets complete themselves once a weight or reps value is entered (in the
   // SetRow's commit), so there's no checkbox — this just applies the patch and
   // kicks off the rest timer the moment a set first flips to done.
-  //
-  // `effortEnded` is a stopwatch being stopped: that's the end of the work
-  // whatever the set said before, so rest starts even on a set already done —
-  // one completed early by a distance typed before the run.
-  function patchSet(
-    exerciseId: string,
-    setId: string,
-    patch: Partial<WorkoutSet>,
-    options: { effortEnded?: boolean } = {}
-  ) {
+  function patchSet(exerciseId: string, setId: string, patch: Partial<WorkoutSet>) {
     const wasCompleted =
       workout!.exercises
         .find((ex) => ex.id === exerciseId)
         ?.sets.find((s) => s.id === setId)?.isCompleted ?? false;
     mutateSet(exerciseId, setId, patch);
-    // A distance typed in is bookkeeping, not the end of an effort: typed
-    // before or during a run, it would start the rest countdown mid-run.
-    const onlyDistance = "distance" in patch && !("duration" in patch) && !("reps" in patch) && !("weight" in patch);
-    const effortDone = options.effortEnded ? !!patch.isCompleted : !!patch.isCompleted && !wasCompleted && !onlyDistance;
     // No rest countdown while merely planning — only during a live session,
-    // and only if the timer is on.
-    if (effortDone && !isDone && !isPlanned && restSeconds > 0) {
+    // only on the incomplete→complete flip, and only if the timer is on.
+    if (patch.isCompleted && !wasCompleted && !isDone && !isPlanned && restSeconds > 0) {
       startRest(id);
     }
   }
@@ -514,21 +473,11 @@ export default function WorkoutScreen() {
 
   function commitTimer(t: { exerciseId: string; setId: string; startedAt: number }) {
     const secs = timedSeconds(t);
-    const distance = workout!.exercises
-      .find((ex) => ex.id === t.exerciseId)
-      ?.sets.find((s) => s.id === t.setId)?.distance;
-    // A distance typed before the clock was started still makes the set done.
-    const done = cardioSetDone({ duration: secs, distance });
-    patchSet(
-      t.exerciseId,
-      t.setId,
-      {
-        duration: secs > 0 ? secs : undefined,
-        isCompleted: done,
-        completedAt: done ? new Date() : undefined,
-      },
-      { effortEnded: secs > 0 }
-    );
+    patchSet(t.exerciseId, t.setId, {
+      duration: secs > 0 ? secs : undefined,
+      isCompleted: secs > 0,
+      completedAt: secs > 0 ? new Date() : undefined,
+    });
   }
 
   // Play/stop on a timed set. Stopping logs the elapsed seconds and completes
@@ -647,8 +596,8 @@ export default function WorkoutScreen() {
                   : {
                       ...s,
                       duration: secs > 0 ? secs : undefined,
-                      isCompleted: cardioSetDone({ duration: secs, distance: s.distance }),
-                      completedAt: cardioSetDone({ duration: secs, distance: s.distance }) ? new Date() : undefined,
+                      isCompleted: secs > 0,
+                      completedAt: secs > 0 ? new Date() : undefined,
                     }
               ),
             }
@@ -915,57 +864,21 @@ export default function WorkoutScreen() {
               editable={!isDone}
             />
 
-            {cardioSummary ? (
-              // A run reads as how far and how long, as one big number and the
-              // two that qualify it. "0 lbs · 1/1 sets" is true and says
-              // nothing about it.
-              <View style={styles.cardioHero}>
-                <Text style={styles.cardioHeroValue} maxFontSizeMultiplier={FontScaleCap.title}>
-                  {cardioSummary.distance ? (
-                    <>
-                      {cardioSummary.distance.split(" ")[0]}
-                      <Text style={styles.cardioHeroUnit} maxFontSizeMultiplier={FontScaleCap.title}>
-                        {" "}
-                        {cardioSummary.distance.split(" ")[1]}
-                      </Text>
-                    </>
-                  ) : (
-                    formatClock(cardioSummary.seconds)
-                  )}
-                </Text>
-                {cardioSummary.distance && (
-                  <View style={[styles.summaryRow, styles.cardioHeroMeta]}>
-                    {cardioSummary.seconds > 0 && (
-                      <Text style={styles.summaryText} maxFontSizeMultiplier={FontScaleCap.title}>
-                        {formatClock(cardioSummary.seconds)}
-                      </Text>
-                    )}
-                    {cardioSummary.seconds > 0 && cardioSummary.rate && <Text style={styles.summaryDot}>·</Text>}
-                    {cardioSummary.rate && (
-                      <Text style={styles.summaryText} maxFontSizeMultiplier={FontScaleCap.title}>
-                        {cardioSummary.rate}
-                      </Text>
-                    )}
-                  </View>
-                )}
-              </View>
-            ) : (
-              <View style={styles.summaryRow}>
-                <Text style={styles.summaryText} maxFontSizeMultiplier={FontScaleCap.title}>
-                  {displayVolume(workout.totalVolume ?? liveVolume, weightUnit)}
-                </Text>
-                <Text style={styles.summaryDot}>·</Text>
-                <Text style={styles.summaryText} maxFontSizeMultiplier={FontScaleCap.title}>
-                  {completedSetCount(workout)}/{totalSetCount(workout)} sets
-                </Text>
-                {isDone && workout.durationMinutes ? (
-                  <>
-                    <Text style={styles.summaryDot}>·</Text>
-                    <Text style={styles.summaryText} maxFontSizeMultiplier={FontScaleCap.title}>{workout.durationMinutes}m</Text>
-                  </>
-                ) : null}
-              </View>
-            )}
+            <View style={styles.summaryRow}>
+              <Text style={styles.summaryText} maxFontSizeMultiplier={FontScaleCap.title}>
+                {displayVolume(workout.totalVolume ?? liveVolume, weightUnit)}
+              </Text>
+              <Text style={styles.summaryDot}>·</Text>
+              <Text style={styles.summaryText} maxFontSizeMultiplier={FontScaleCap.title}>
+                {completedSetCount(workout)}/{totalSetCount(workout)} sets
+              </Text>
+              {isDone && workout.durationMinutes ? (
+                <>
+                  <Text style={styles.summaryDot}>·</Text>
+                  <Text style={styles.summaryText} maxFontSizeMultiplier={FontScaleCap.title}>{workout.durationMinutes}m</Text>
+                </>
+              ) : null}
+            </View>
 
             {workout.exercises.length === 0 && (
               <EmptyState title="No exercises yet" />
@@ -991,7 +904,6 @@ export default function WorkoutScreen() {
                 timingStartedAt={timing?.exerciseId === exercise.id ? timing.startedAt : undefined}
                 bodyweightLbs={bodyweightLbs}
                 onToggleTimer={(setId, duration) => toggleSetTimer(exercise.id, setId, duration)}
-                heroHasPace={heroHasPace}
               />
             ))}
 
@@ -1131,7 +1043,6 @@ function ExerciseCard({
   timingStartedAt,
   bodyweightLbs,
   onToggleTimer,
-  heroHasPace,
 }: {
   exercise: WorkoutExercise;
   /** Last session's numbers, indexed by set position — holes where it was skipped. */
@@ -1151,8 +1062,6 @@ function ExerciseCard({
   /** What the lifter weighed when this workout happened, for the BW baseline. */
   bodyweightLbs?: number;
   onToggleTimer?: (setId: string, currentDuration?: number) => void;
-  /** The workout's headline already shows this card's only pace. */
-  heroHasPace?: boolean;
 }) {
   const styles = useStyles();
   const palette = usePalette();
@@ -1160,10 +1069,6 @@ function ExerciseCard({
   const theme = useTheme();
   // Cardio and holds log a stopwatch per set instead of weight × reps.
   const timed = isTimedExercise(exercise.exercise);
-  // Cardio that covers ground logs how far beside how long.
-  const ground = timed ? distanceKind(exercise.exercise) : null;
-  const groundUnit = ground ? distanceUnit(ground, unit) : null;
-  const fromHealth = exercise.sets.some((set) => set.tracked);
   const setNumColWidth = useSetNumColWidth();
   const bodyweight = isBodyweightExercise(exercise.exercise);
   return (
@@ -1182,7 +1087,6 @@ function ExerciseCard({
                 ? ` · BW ${Math.round(convertWeight(bodyweightLbs, "lbs", unit))} ${unit}`
                 : " · BW not set"
               : ""}
-            {fromHealth ? " · from Apple Health" : ""}
           </Text>
         </View>
         {templateMode && (
@@ -1230,11 +1134,6 @@ function ExerciseCard({
                   TIME
                 </Text>
                 <View style={styles.timerCol} />
-                {groundUnit && (
-                  <Text style={[styles.setHeaderCell, styles.inputCol]} maxFontSizeMultiplier={FontScaleCap.grid}>
-                    {DISTANCE_HEADING[groundUnit]}
-                  </Text>
-                )}
               </>
             ) : (
               <>
@@ -1250,27 +1149,22 @@ function ExerciseCard({
           </View>
 
           {exercise.sets.map((set, i) => (
-            <Fragment key={set.id}>
-              <SetRow
-                index={i + 1}
-                set={set}
-                prev={prevSets?.[i]}
-                before={i > 0 ? exercise.sets[i - 1] : undefined}
-                readOnly={readOnly}
-                timed={timed}
-                ground={ground}
-                bodyweight={bodyweight}
-                runningStartedAt={timingSetId === set.id ? timingStartedAt : undefined}
-                onToggleTimer={() => onToggleTimer?.(set.id, set.duration)}
-                registerInput={registerInput}
-                onInputFocus={onInputFocus}
-                onPatch={(patch) => onPatchSet(set.id, patch)}
-                onRemove={() => onRemoveSet(set.id)}
-              />
-              {/* Outside the row, so swiping a set away doesn't drag its
-                  splits along half-hidden. */}
-              {timed && (ground || set.tracked) && <CardioDetail set={set} ground={ground} showPace={!heroHasPace} />}
-            </Fragment>
+            <SetRow
+              key={set.id}
+              index={i + 1}
+              set={set}
+              prev={prevSets?.[i]}
+              before={i > 0 ? exercise.sets[i - 1] : undefined}
+              readOnly={readOnly}
+              timed={timed}
+              bodyweight={bodyweight}
+              runningStartedAt={timingSetId === set.id ? timingStartedAt : undefined}
+              onToggleTimer={() => onToggleTimer?.(set.id, set.duration)}
+              registerInput={registerInput}
+              onInputFocus={onInputFocus}
+              onPatch={(patch) => onPatchSet(set.id, patch)}
+              onRemove={() => onRemoveSet(set.id)}
+            />
           ))}
 
           {!readOnly && (
@@ -1293,7 +1187,6 @@ function SetRow({
   before,
   readOnly,
   timed,
-  ground,
   bodyweight,
   runningStartedAt,
   onToggleTimer,
@@ -1309,8 +1202,6 @@ function SetRow({
   before?: WorkoutSet;
   readOnly: boolean;
   timed?: boolean;
-  /** Cardio that covers ground: the row takes a distance beside its time. */
-  ground?: DistanceKind | null;
   /** The weight field means *added* load, and blank reads as BW. */
   bodyweight: boolean;
   /** Set when this row's stopwatch is running (backdated by prior duration). */
@@ -1346,11 +1237,6 @@ function SetRow({
   const [weightText, setWeightText] = useState(shownWeight != null ? String(shownWeight) : "");
   const [repsText, setRepsText] = useState(set.reps != null ? String(set.reps) : "");
   const [durationText, setDurationText] = useState(set.duration != null ? formatClock(set.duration) : "");
-  // Stored in metres; typed and shown in miles or kilometres per the unit
-  // setting, so switching it re-reads old runs too.
-  const groundUnit = ground ? distanceUnit(ground, unit) : null;
-  const shownDistance = set.distance != null && groundUnit ? formatDistanceValue(set.distance, groundUnit) : "";
-  const [distanceText, setDistanceText] = useState(shownDistance);
   const editing = useRef(false);
 
   // Live readout while this row's stopwatch runs.
@@ -1399,8 +1285,7 @@ function SetRow({
     setWeightText(shownWeight != null ? String(shownWeight) : "");
     setRepsText(set.reps != null ? String(set.reps) : "");
     setDurationText(set.duration != null ? formatClock(set.duration) : "");
-    setDistanceText(shownDistance);
-  }, [shownWeight, set.reps, set.duration, shownDistance]);
+  }, [shownWeight, set.reps, set.duration]);
 
   function commit() {
     editing.current = false;
@@ -1441,8 +1326,7 @@ function SetRow({
 
   // Copy button: an untouched set right after a completed one repeats it in one
   // tap — same weight and reps (or time), marked done.
-  const untouched =
-    !set.isCompleted && set.weight == null && set.reps == null && set.duration == null && set.distance == null;
+  const untouched = !set.isCompleted && set.weight == null && set.reps == null && set.duration == null;
   const canCopyBefore = !readOnly && !running && untouched && !!before?.isCompleted;
   function copyBefore() {
     // Real guard, not a `!` assertion: the React Compiler turns unguarded
@@ -1453,12 +1337,7 @@ function SetRow({
     editing.current = false;
     onPatch(
       timed
-        ? {
-            duration: src.duration,
-            ...(ground ? { distance: src.distance } : {}),
-            isCompleted: true,
-            completedAt: new Date(),
-          }
+        ? { duration: src.duration, isCompleted: true, completedAt: new Date() }
         : {
             weight: src.weight,
             weightUnit: src.weightUnit,
@@ -1477,25 +1356,9 @@ function SetRow({
     if (durationText === baseline) return;
 
     const seconds = parseDurationText(durationText);
-    const timeLogged = seconds != null && seconds > 0;
-    // On cardio a distance already in the row keeps the set done with the
-    // time cleared; on a hold, time is all there is.
-    const done = cardioSetDone({ duration: timeLogged ? seconds : undefined, distance: ground ? set.distance : undefined });
+    const done = seconds != null && seconds > 0;
     onPatch({
-      duration: timeLogged ? seconds : undefined,
-      isCompleted: done,
-      completedAt: done ? new Date() : undefined,
-    });
-  }
-
-  // How far, typed after the fact — what the treadmill's screen said.
-  function commitDistance() {
-    editing.current = false;
-    if (!groundUnit || distanceText === shownDistance) return;
-    const metres = parseDistanceText(distanceText, groundUnit);
-    const done = cardioSetDone({ duration: set.duration, distance: metres });
-    onPatch({
-      distance: metres,
+      duration: done ? seconds : undefined,
       isCompleted: done,
       completedAt: done ? new Date() : undefined,
     });
@@ -1576,27 +1439,6 @@ function SetRow({
               />
             </Pressable>
           )}
-          {groundUnit && (
-            <TextInput
-              ref={(node) => registerInput?.(fieldKey(set.id, "distance"), node)}
-              style={[styles.setInput, styles.inputCol]}
-              maxFontSizeMultiplier={FontScaleCap.grid}
-              value={distanceText}
-              onPressIn={readOnly ? undefined : () => onInputFocus?.(fieldKey(set.id, "distance"))}
-              onFocus={() => {
-                editing.current = true;
-                onInputFocus?.(fieldKey(set.id, "distance"), true);
-              }}
-              onChangeText={setDistanceText}
-              onEndEditing={commitDistance}
-              // Metres and yards are whole; nobody rows 2,000.4 m.
-              keyboardType={groundUnit === "mi" || groundUnit === "km" ? "decimal-pad" : "number-pad"}
-              placeholder={prev?.distance != null ? formatDistanceValue(prev.distance, groundUnit) : "—"}
-              placeholderTextColor={palette.textTertiary}
-              editable={!readOnly}
-              accessibilityLabel={`Distance, ${DISTANCE_HEADING[groundUnit].toLowerCase()}`}
-            />
-          )}
         </>
       ) : (
         <>
@@ -1662,106 +1504,6 @@ function SetRow({
       </View>
       </Pressable>
     </ReanimatedSwipeable>
-  );
-}
-
-
-/** "8:28 /mi" → the number and its unit, set at two sizes. */
-function splitRate(rate: string): { value: string; unit: string } {
-  const space = rate.indexOf(" ");
-  return space < 0 ? { value: rate, unit: "" } : { value: rate.slice(0, space), unit: rate.slice(space + 1) };
-}
-
-/**
- * Beneath a cardio set: how fast it was, and — when a watch recorded it — the
- * heart rate, calories and splits that came with it from Apple Health.
- *
- * A typed-in set gets one quiet line of pace, indented under its time so it
- * reads as belonging to that row. A recorded one gets the full picture: this
- * is the part of the workout the watch measured and the lifter didn't, and
- * it's the reason a run is worth looking at again.
- */
-function CardioDetail({
-  set,
-  ground,
-  showPace,
-}: {
-  set: WorkoutSet;
-  ground: DistanceKind | null;
-  /** Off when the workout's headline already says it. */
-  showPace: boolean;
-}) {
-  const styles = useStyles();
-  const palette = usePalette();
-  const theme = useTheme();
-  const { unit } = useWeightUnit();
-  const setNumColWidth = useSetNumColWidth();
-  const rate = ground && showPace ? formatRate(set.distance, set.duration, ground, unit) : null;
-  const tracked = set.tracked;
-  const indent = { marginLeft: setNumColWidth + Spacing.two };
-
-  if (!tracked) {
-    if (!rate) return null;
-    return (
-      <Text style={[styles.cardioRate, indent]} maxFontSizeMultiplier={FontScaleCap.grid}>
-        {rate}
-      </Text>
-    );
-  }
-
-  const figures: Figure[] = [];
-  if (rate) {
-    const { value, unit: per } = splitRate(rate);
-    figures.push({
-      key: "rate",
-      value,
-      unit: per,
-      label: ground === "ride" ? "Avg speed" : "Avg pace",
-      icon: "speedometer-outline",
-      tint: theme.accent,
-    });
-  }
-  if (tracked.avgHeartRate) {
-    figures.push({
-      key: "hr",
-      value: String(tracked.avgHeartRate),
-      unit: "bpm",
-      label: tracked.maxHeartRate ? `Avg · max ${tracked.maxHeartRate}` : "Avg heart rate",
-      icon: "heart",
-      tint: palette.danger,
-    });
-  }
-  if (tracked.activeCalories) {
-    figures.push({
-      key: "cal",
-      value: String(tracked.activeCalories),
-      unit: "cal",
-      label: "Active",
-      icon: "flame",
-      tint: palette.amber,
-    });
-  }
-
-  // Splits in the unit the rest of the app is reading in. Bikes get them too:
-  // a mile at a time is how a ride is compared with the last one.
-  const groundUnit = ground ? distanceUnit(ground, unit) : null;
-  const whole = groundUnit === "mi" ? tracked.splitsMi : groundUnit === "km" ? tracked.splitsKm : undefined;
-  const rows: SplitRow[] = (whole ?? []).map((seconds, i) => ({ label: String(i + 1), seconds, units: 1 }));
-  // The bit past the last whole mile, so the splits add up to the run. Only
-  // when it's enough to mean something: a few metres over reads as noise.
-  if (whole && groundUnit && set.distance && set.duration) {
-    const leftUnits = fromMetres(set.distance, groundUnit) - whole.length;
-    const leftSeconds = set.duration - whole.reduce((sum, sec) => sum + sec, 0);
-    if (leftUnits >= 0.05 && leftSeconds > 0) {
-      rows.push({ label: leftUnits.toFixed(2), seconds: leftSeconds, units: leftUnits });
-    }
-  }
-
-  return (
-    <View style={[styles.cardioPanel, indent]}>
-      {figures.length > 0 && <FigureRow figures={figures} />}
-      {rows.length > 1 && groundUnit && <SplitsChart rows={rows} unitWord={groundUnit === "mi" ? "mile" : "km"} />}
-    </View>
   );
 }
 
@@ -1964,41 +1706,6 @@ const useStyles = makeStyles((c) => ({
     height: 30,
     alignItems: "center",
     justifyContent: "center",
-  },
-  cardioHero: {
-    gap: Spacing.one,
-    marginTop: -Spacing.two,
-  },
-  cardioHeroValue: {
-    fontSize: 48,
-    fontWeight: "800",
-    letterSpacing: -1.5,
-    color: c.text,
-    fontVariant: ["tabular-nums"],
-  },
-  // The summary row tucks up under the title; under the big number it sits
-  // at its own height instead.
-  cardioHeroMeta: {
-    marginTop: 0,
-  },
-  cardioHeroUnit: {
-    fontSize: 20,
-    fontWeight: "700",
-    letterSpacing: 0,
-    color: c.textTertiary,
-  },
-  cardioRate: {
-    fontSize: 12,
-    fontWeight: "600",
-    color: c.textSecondary,
-    fontVariant: ["tabular-nums"],
-    marginTop: -2,
-    marginBottom: 2,
-  },
-  cardioPanel: {
-    gap: Spacing.four,
-    paddingTop: Spacing.two,
-    paddingBottom: Spacing.two,
   },
   addSetButton: {
     alignItems: "center",

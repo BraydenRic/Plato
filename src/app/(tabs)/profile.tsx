@@ -15,7 +15,6 @@ import { useAuth } from "@/context/AuthContext";
 import { REST_OPTIONS, nearestRestIndex, useRestTimer } from "@/context/RestTimerContext";
 import { useThemePicker } from "@/context/ThemeContext";
 import { useDefaultSets, MIN_SETS, MAX_SETS } from "@/context/DefaultSetsContext";
-import { useHealthImport } from "@/context/HealthImportContext";
 import { useWeightUnit } from "@/context/UnitContext";
 
 // Short enough to type on a phone with one hand, long enough that you can't
@@ -54,19 +53,6 @@ export default function ProfileScreen() {
     if (next) setRestSeconds(next.seconds);
   }
   const { defaultSets, setDefaultSets } = useDefaultSets();
-  const health = useHealthImport();
-  // What the setting is doing, in the one line under its title. Passive on
-  // purpose: an import that found nothing says so here, where someone looking
-  // for their runs will look, rather than in an alert.
-  const healthHint = !health.enabled
-    ? "Bring in runs, walks and rides from your Apple Watch"
-    : health.importing
-      ? "Bringing in your workouts…"
-      : health.failed
-        ? "Couldn't read Apple Health. Plato tries again each time it opens."
-        : health.importedCount > 0
-          ? `${health.importedCount} workout${health.importedCount === 1 ? "" : "s"} from Apple Health`
-          : "None found yet. If you've recorded some, allow Plato in the Health app.";
   const { log: bodyweightLog, latest: latestWeight, record: recordWeight } = useBodyweight();
   const [sparkWidth, setSparkWidth] = useState(0);
 
@@ -544,36 +530,6 @@ export default function ProfileScreen() {
               style={stackPrefs ? { alignSelf: "flex-start" } : undefined}
             />
           </Card>
-          {/* Only where there's a Health to read — an iPhone build. Off and On
-              rather than a switch, to match Weight unit above it. */}
-          {health.available && (
-            <Card style={[styles.prefCard, stackPrefs && styles.prefCardStacked, styles.cardGap]}>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.prefTitle}>Apple Health</Text>
-                <Text style={styles.prefHint}>{healthHint}</Text>
-              </View>
-              <View style={styles.segment}>
-                {([false, true] as const).map((on) => {
-                  const selected = health.enabled === on;
-                  return (
-                    <Pressable
-                      key={String(on)}
-                      onPress={() => {
-                        if (!selected) void health.setEnabled(on);
-                      }}
-                      accessibilityRole="button"
-                      accessibilityLabel={`Apple Health import ${on ? "on" : "off"}`}
-                      accessibilityState={{ selected }}
-                      style={[styles.segmentItem, selected && { backgroundColor: theme.accent }]}>
-                      <Text style={[styles.segmentText, selected && { color: theme.onAccent }]}>
-                        {on ? "On" : "Off"}
-                      </Text>
-                    </Pressable>
-                  );
-                })}
-              </View>
-            </Card>
-          )}
         </View>
 
         {!isGuest && <Button title="Sign out" variant="danger" onPress={confirmSignOut} />}

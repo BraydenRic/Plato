@@ -89,6 +89,27 @@ export interface Workout {
   totalVolume?: number;
   /** Manual sort position for templates. Absent until the user reorders them. */
   orderIndex?: number;
+  /**
+   * Set on a cardio session — a run or a ride started with Start cardio —
+   * which has its own screen and holds exactly one exercise with one set.
+   * Absent on every ordinary workout.
+   */
+  cardio?: CardioSessionInfo;
+}
+
+export type CardioSessionKind = "run" | "walk" | "hike" | "bike" | "swim" | "row" | "elliptical" | "stairs";
+
+export interface CardioSessionInfo {
+  kind: CardioSessionKind;
+  indoor?: boolean;
+  /**
+   * While paused, when the pause began. Epoch milliseconds rather than a Date:
+   * nested Dates come back from Firestore as Timestamps and from the guest
+   * store as strings, and a number is the same everywhere.
+   */
+  pausedAtMs?: number;
+  /** Paused time already over and done with, in seconds. */
+  pausedSeconds?: number;
 }
 
 /** One weigh-in. Dated, so a set can be valued against the weight at the time. */

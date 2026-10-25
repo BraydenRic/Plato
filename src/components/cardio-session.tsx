@@ -1,0 +1,610 @@
+import Ionicons from "@expo/vector-icons/Ionicons";
+import { useEffect, useState } from "react";
+import { Alert, KeyboardAvoidingView, Platform, Pressable, ScrollView, Text, TextInput, View } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+import { useRouter } from "expo-router";
+
+import { FigureRow, SplitsChart, type Figure, type SplitRow } from "@/components/cardio-figures";
+import { Button } from "@/components/ui";
+import { FontScaleCap, Radius, Spacing } from "@/constants/theme";
+import { makeStyles, usePalette } from "@/context/AppearanceContext";
+import { useTheme } from "@/context/ThemeContext";
+import { useWeightUnit } from "@/context/UnitContext";
+import {
+  distanceKind,
+  distanceUnit,
+  formatDistance,
+  formatDistanceValue,
+  formatRate,
+  fromMetres,
+  parseDistanceText,
+} from "@/lib/cardio";
+import {
+  finishedSession,
+  isPaused,
+  movingSeconds,
+  paused,
+  resumed,
+  sessionSet,
+} from "@/lib/cardio-session";
+import { computeStats, deleteWorkout, getCompletedWorkouts, stripUndefined, updateWorkout, upsertUserStats } from "@/lib/data";
+import { formatClock } from "@/lib/workout-utils";
+import type { Workout } from "@/types";
+
+/** What a unit is called above the box you type it into. */
+const UNIT_NAME = { mi: "miles", km: "kilometers", m: "meters", yd: "yards" } as const;
+
+/**
+ * A cardio session's screen: a clock while it runs, and the run itself once
+ * it's done — how far, how fast, and what the watch measured on the way.
+ *
+ * No exercises, no sets, no keypad. Ending asks how far you went, inline, if
+ * nothing measured it; that's the only question it ever asks, and it can be
+ * skipped.
+ */
+export function CardioSession({
+  workout,
+  onLocalChange,
+}: {
+  workout: Workout;
+  /** Shows a change at once, ahead of the store's echo — as the workout screen does. */
+  onLocalChange: (next: Workout) => void;
+}) {
+  const styles = useStyles();
+  const palette = usePalette();
+  const theme = useTheme();
+  const router = useRouter();
+  const { unit } = useWeightUnit();
+  const [nowMs, setNowMs] = useState(() => Date.now());
+  const [saving, setSaving] = useState(false);
+  // "end": ending, asking how far. "edit": correcting a finished one.
+  const [askDistance, setAskDistance] = useState<"end" | "edit" | null>(null);
+  const [distanceText, setDistanceText] = useState("");
+
+  const set = sessionSet(workout);
+  const exercise = workout.exercises[0]?.exercise;
+  const ground = exercise ? distanceKind(exercise) : null;
+  const groundUnit = ground ? distanceUnit(ground, unit) : null;
+  const done = !!workout.completedAt;
+  const isPausedNow = isPaused(workout);
+
+  useEffect(() => {
+    if (done || isPausedNow) return;
+    setNowMs(Date.now());
+    const t = setInterval(() => setNowMs(Date.now()), 1000);
+    return () => clearInterval(t);
+  }, [done, isPausedNow]);
+
+  const seconds = done ? (set?.duration ?? 0) : movingSeconds(workout, nowMs);
+
+  async function write(patch: Partial<Workout>) {
+    onLocalChange({ ...workout, ...patch });
+    await updateWorkout(workout.id, stripUndefined(patch) as Partial<Workout>);
+  }
+
+  function togglePause() {
+    const now = Date.now();
+    setNowMs(now);
+    write({ cardio: isPausedNow ? resumed(workout, now) : paused(workout, now) }).catch(() =>
+      Alert.alert("Couldn't save", "Check your connection and try again.")
+    );
+  }
+
+  async function finish(distance?: number) {
+    setSaving(true);
+    try {
+      await write(finishedSession(workout, { distance, nowMs: Date.now() }));
+      // As finishing any workout does: the streak and plato-web's totals.
+      const all = await getCompletedWorkouts(workout.userId);
+      await upsertUserStats({ userId: workout.userId, ...computeStats(all) });
+      setAskDistance(null);
+    } catch {
+      Alert.alert("Couldn't save", "Check your connection and try again.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function saveEditedDistance() {
+    if (!set || !groundUnit) return;
+    const distance = parseDistanceText(distanceText, groundUnit);
+    setSaving(true);
+    try {
+      await write({
+        exercises: workout.exercises.map((ex, i) =>
+          i !== 0 ? ex : { ...ex, sets: ex.sets.map((s, j) => (j !== 0 ? s : { ...s, distance })) }
+        ),
+      });
+      setAskDistance(null);
+    } catch {
+      Alert.alert("Couldn't save", "Check your connection and try again.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  function end() {
+    // Nothing to ask on a stair stepper: there's no distance to give.
+    if (!groundUnit) {
+      void finish();
+      return;
+    }
+    setDistanceText("");
+    setAskDistance("end");
+  }
+
+  function openMenu() {
+    const noun = workout.name.toLowerCase();
+    Alert.alert(workout.name, undefined, [
+      { text: "Cancel", style: "cancel" },
+      ...(done && groundUnit
+        ? [
+            {
+              text: set?.distance ? "Edit distance" : "Add distance",
+              onPress: () => {
+                setDistanceText(set?.distance ? formatDistanceValue(set.distance, groundUnit) : "");
+                setAskDistance("edit");
+              },
+            },
+          ]
+        : []),
+      {
+        text: done ? `Delete ${noun}` : `Discard ${noun}`,
+        style: "destructive" as const,
+        onPress: () =>
+          Alert.alert(done ? `Delete this ${noun}?` : `Discard this ${noun}?`, "It can't be brought back.", [
+            { text: "Cancel", style: "cancel" },
+            {
+              text: done ? "Delete" : "Discard",
+              style: "destructive",
+              onPress: () => {
+                router.back();
+                deleteWorkout(workout).catch(() => Alert.alert("Couldn't delete", "Check your connection and try again."));
+              },
+            },
+          ]),
+      },
+    ]);
+  }
+
+  return (
+    <SafeAreaView style={styles.safe} edges={["top", "bottom"]}>
+      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : undefined}>
+        <View style={styles.topBar}>
+          <Pressable onPress={() => router.back()} hitSlop={12} accessibilityLabel="Close">
+            <Ionicons name="chevron-down" size={26} color={palette.textSecondary} />
+          </Pressable>
+          <View style={styles.topCenter}>
+            <Text
+              style={[styles.topLabel, { color: done ? palette.success : theme.accentText }]}
+              maxFontSizeMultiplier={FontScaleCap.title}>
+              {done ? "Completed" : workout.name}
+            </Text>
+          </View>
+          <Pressable onPress={openMenu} hitSlop={12} testID="session-menu" accessibilityLabel="More">
+            <Ionicons name="ellipsis-horizontal" size={24} color={palette.textSecondary} />
+          </Pressable>
+        </View>
+
+        {askDistance ? (
+          <DistancePanel
+            title={askDistance === "end" ? "How far did you go?" : "How far was it?"}
+            unitName={UNIT_NAME[groundUnit!]}
+            decimal={groundUnit === "mi" || groundUnit === "km"}
+            value={distanceText}
+            onChange={setDistanceText}
+            saving={saving}
+            primary={askDistance === "end" ? `Save ${workout.name.toLowerCase()}` : "Save"}
+            onPrimary={() =>
+              askDistance === "end" ? finish(parseDistanceText(distanceText, groundUnit!)) : saveEditedDistance()
+            }
+            secondary={askDistance === "end" ? "Skip" : "Cancel"}
+            onSecondary={() => (askDistance === "end" ? finish() : setAskDistance(null))}
+          />
+        ) : done ? (
+          <FinishedSession workout={workout} />
+        ) : (
+          <View style={styles.live}>
+            <View style={styles.clockWrap}>
+              <Text
+                style={[styles.clock, isPausedNow && { color: palette.textTertiary }]}
+                maxFontSizeMultiplier={FontScaleCap.title}
+                accessibilityLabel={`${isPausedNow ? "Paused at" : "Moving time"} ${formatClock(seconds)}`}>
+                {formatClock(seconds)}
+              </Text>
+              <View style={styles.clockLabelRow}>
+                <View
+                  style={[styles.liveDot, { backgroundColor: isPausedNow ? palette.textTertiary : theme.accent }]}
+                />
+                <Text style={styles.clockLabel} maxFontSizeMultiplier={FontScaleCap.grid}>
+                  {isPausedNow ? "Paused" : "Moving time"}
+                </Text>
+              </View>
+            </View>
+
+            <View style={styles.controls}>
+              <Pressable
+                onPress={togglePause}
+                accessibilityRole="button"
+                accessibilityLabel={isPausedNow ? "Resume" : "Pause"}
+                style={({ pressed }) => [
+                  styles.control,
+                  { backgroundColor: palette.surfaceRaised, borderColor: palette.border },
+                  pressed && { opacity: 0.8 },
+                ]}>
+                <Ionicons name={isPausedNow ? "play" : "pause"} size={22} color={palette.text} />
+                <Text style={styles.controlText} maxFontSizeMultiplier={FontScaleCap.keypad}>
+                  {isPausedNow ? "Resume" : "Pause"}
+                </Text>
+              </Pressable>
+              <Pressable
+                onPress={end}
+                disabled={saving}
+                accessibilityRole="button"
+                accessibilityLabel="End"
+                style={({ pressed }) => [
+                  styles.control,
+                  { backgroundColor: theme.accent, borderColor: theme.accent },
+                  pressed && { opacity: 0.85 },
+                ]}>
+                <Ionicons name="stop" size={20} color={theme.onAccent} />
+                <Text style={[styles.controlText, { color: theme.onAccent }]} maxFontSizeMultiplier={FontScaleCap.keypad}>
+                  End
+                </Text>
+              </Pressable>
+            </View>
+          </View>
+        )}
+      </KeyboardAvoidingView>
+    </SafeAreaView>
+  );
+}
+
+function DistancePanel({
+  title,
+  unitName,
+  decimal,
+  value,
+  onChange,
+  saving,
+  primary,
+  onPrimary,
+  secondary,
+  onSecondary,
+}: {
+  title: string;
+  unitName: string;
+  decimal: boolean;
+  value: string;
+  onChange: (text: string) => void;
+  saving: boolean;
+  primary: string;
+  onPrimary: () => void;
+  secondary: string;
+  onSecondary: () => void;
+}) {
+  const styles = useStyles();
+  const palette = usePalette();
+  return (
+    <View style={styles.panel}>
+      <Text style={styles.panelTitle} maxFontSizeMultiplier={FontScaleCap.title}>
+        {title}
+      </Text>
+      <View style={styles.distanceField}>
+        <TextInput
+          style={styles.distanceInput}
+          value={value}
+          onChangeText={onChange}
+          keyboardType={decimal ? "decimal-pad" : "number-pad"}
+          placeholder={decimal ? "0.00" : "0"}
+          placeholderTextColor={palette.textTertiary}
+          autoFocus
+          maxFontSizeMultiplier={FontScaleCap.title}
+          accessibilityLabel={`Distance in ${unitName}`}
+        />
+        <Text style={styles.distanceUnit} maxFontSizeMultiplier={FontScaleCap.title}>
+          {unitName}
+        </Text>
+      </View>
+      <View style={styles.panelActions}>
+        <Button title={primary} onPress={onPrimary} loading={saving} />
+        <Pressable onPress={onSecondary} disabled={saving} hitSlop={8} style={styles.panelSecondary}>
+          <Text style={styles.panelSecondaryText}>{secondary}</Text>
+        </Pressable>
+      </View>
+    </View>
+  );
+}
+
+/** "8:28 /mi" → the number and its unit, for two sizes of type. */
+function splitRate(rate: string): { value: string; unit: string } {
+  const space = rate.indexOf(" ");
+  return space < 0 ? { value: rate, unit: "" } : { value: rate.slice(0, space), unit: rate.slice(space + 1) };
+}
+
+/**
+ * A finished session: the distance as the headline, time and pace beneath
+ * it, then — if a watch recorded it — heart rate, calories and splits.
+ */
+function FinishedSession({ workout }: { workout: Workout }) {
+  const styles = useStyles();
+  const palette = usePalette();
+  const theme = useTheme();
+  const { unit } = useWeightUnit();
+  const set = sessionSet(workout);
+  const exercise = workout.exercises[0]?.exercise;
+  const ground = exercise ? distanceKind(exercise) : null;
+  const groundUnit = ground ? distanceUnit(ground, unit) : null;
+  const tracked = set?.tracked;
+  const seconds = set?.duration ?? 0;
+  const rate = ground ? formatRate(set?.distance, seconds, ground, unit) : null;
+  const distance = set?.distance && groundUnit ? formatDistance(set.distance, groundUnit) : null;
+  const when = workout.startedAt ?? workout.completedAt!;
+
+  const figures: Figure[] = [];
+  if (tracked?.avgHeartRate) {
+    figures.push({
+      key: "hr",
+      value: String(tracked.avgHeartRate),
+      unit: "bpm",
+      label: tracked.maxHeartRate ? `Avg · max ${tracked.maxHeartRate}` : "Avg heart rate",
+      icon: "heart",
+      tint: palette.danger,
+    });
+  }
+  if (tracked?.activeCalories) {
+    figures.push({
+      key: "cal",
+      value: String(tracked.activeCalories),
+      unit: "cal",
+      label: "Active",
+      icon: "flame",
+      tint: palette.amber,
+    });
+  }
+  // With no distance there's no pace to put under the headline, so the pace
+  // figure has nowhere to repeat — nothing to add here.
+
+  const whole = groundUnit === "mi" ? tracked?.splitsMi : groundUnit === "km" ? tracked?.splitsKm : undefined;
+  const rows: SplitRow[] = (whole ?? []).map((s, i) => ({ label: String(i + 1), seconds: s, units: 1 }));
+  // The part past the last whole mile, so the splits add up to the run.
+  if (whole && groundUnit && set?.distance && seconds) {
+    const leftUnits = fromMetres(set.distance, groundUnit) - whole.length;
+    const leftSeconds = seconds - whole.reduce((sum, s) => sum + s, 0);
+    if (leftUnits >= 0.05 && leftSeconds > 0) rows.push({ label: leftUnits.toFixed(2), seconds: leftSeconds, units: leftUnits });
+  }
+
+  return (
+    <ScrollView contentContainerStyle={styles.finished}>
+      <View style={styles.header}>
+        <Text style={styles.title} maxFontSizeMultiplier={FontScaleCap.title}>
+          {workout.name}
+        </Text>
+        <Text style={styles.when}>
+          {when.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" })} ·{" "}
+          {when.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })}
+          {tracked?.source ? ` · ${tracked.source}` : ""}
+        </Text>
+      </View>
+
+      <View style={styles.hero}>
+        <Text style={styles.heroValue} maxFontSizeMultiplier={FontScaleCap.title}>
+          {distance ? distance.split(" ")[0] : formatClock(seconds)}
+          {distance ? (
+            <Text style={styles.heroUnit} maxFontSizeMultiplier={FontScaleCap.title}>
+              {" "}
+              {distance.split(" ")[1]}
+            </Text>
+          ) : null}
+        </Text>
+        {distance && (
+          <View style={styles.heroMeta}>
+            <Ionicons name="stopwatch-outline" size={14} color={palette.textTertiary} />
+            <Text style={styles.heroMetaText} maxFontSizeMultiplier={FontScaleCap.title}>
+              {formatClock(seconds)}
+            </Text>
+            {rate && (
+              <>
+                <Ionicons name="speedometer-outline" size={14} color={theme.accent} style={{ marginLeft: Spacing.two }} />
+                <Text style={styles.heroMetaText} maxFontSizeMultiplier={FontScaleCap.title}>
+                  {splitRate(rate).value}
+                  <Text style={styles.heroMetaUnit}> {splitRate(rate).unit}</Text>
+                </Text>
+              </>
+            )}
+          </View>
+        )}
+      </View>
+
+      {(figures.length > 0 || rows.length > 1) && (
+        <View style={styles.detailCard}>
+          {figures.length > 0 && <FigureRow figures={figures} />}
+          {rows.length > 1 && groundUnit && <SplitsChart rows={rows} unitWord={groundUnit === "mi" ? "mile" : "km"} />}
+        </View>
+      )}
+    </ScrollView>
+  );
+}
+
+const useStyles = makeStyles((c) => ({
+  safe: {
+    flex: 1,
+    backgroundColor: c.bg,
+  },
+  topBar: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: Spacing.three,
+    paddingVertical: Spacing.two,
+  },
+  topCenter: {
+    flex: 1,
+    alignItems: "center",
+  },
+  topLabel: {
+    fontSize: 13,
+    fontWeight: "700",
+    letterSpacing: 1,
+    textTransform: "uppercase",
+  },
+  live: {
+    flex: 1,
+    justifyContent: "space-between",
+    padding: Spacing.three,
+    paddingBottom: Spacing.four,
+  },
+  clockWrap: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    gap: Spacing.two,
+  },
+  // The clock is the screen. Glanced at mid-run, it has to read from arm's
+  // length, so it's as big as the narrowest phone allows for "1:00:00".
+  clock: {
+    fontSize: 84,
+    fontWeight: "800",
+    letterSpacing: -3,
+    color: c.text,
+    fontVariant: ["tabular-nums"],
+  },
+  clockLabelRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  liveDot: {
+    width: 7,
+    height: 7,
+    borderRadius: 4,
+  },
+  clockLabel: {
+    fontSize: 12,
+    fontWeight: "700",
+    letterSpacing: 1.2,
+    textTransform: "uppercase",
+    color: c.textTertiary,
+  },
+  controls: {
+    flexDirection: "row",
+    gap: Spacing.three,
+  },
+  // Big enough to hit without looking, mid-stride.
+  control: {
+    flex: 1,
+    height: 64,
+    borderRadius: Radius.lg,
+    borderWidth: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: Spacing.two,
+  },
+  controlText: {
+    fontSize: 18,
+    fontWeight: "700",
+    color: c.text,
+  },
+  panel: {
+    flex: 1,
+    padding: Spacing.three,
+    gap: Spacing.four,
+    justifyContent: "center",
+  },
+  panelTitle: {
+    fontSize: 24,
+    fontWeight: "800",
+    letterSpacing: -0.5,
+    color: c.text,
+    textAlign: "center",
+  },
+  distanceField: {
+    alignItems: "center",
+    gap: 2,
+  },
+  distanceInput: {
+    minWidth: 160,
+    fontSize: 64,
+    fontWeight: "800",
+    letterSpacing: -2,
+    color: c.text,
+    textAlign: "center",
+    fontVariant: ["tabular-nums"],
+    padding: 0,
+  },
+  distanceUnit: {
+    fontSize: 15,
+    fontWeight: "600",
+    color: c.textTertiary,
+  },
+  panelActions: {
+    gap: Spacing.two,
+  },
+  panelSecondary: {
+    alignItems: "center",
+    paddingVertical: Spacing.two,
+  },
+  panelSecondaryText: {
+    fontSize: 15,
+    fontWeight: "600",
+    color: c.textSecondary,
+  },
+  finished: {
+    padding: Spacing.three,
+    paddingBottom: Spacing.six,
+    gap: Spacing.four,
+  },
+  header: {
+    gap: 2,
+  },
+  title: {
+    fontSize: 26,
+    fontWeight: "800",
+    color: c.text,
+    letterSpacing: -0.5,
+  },
+  when: {
+    fontSize: 13,
+    color: c.textTertiary,
+  },
+  hero: {
+    gap: Spacing.one,
+  },
+  heroValue: {
+    fontSize: 64,
+    fontWeight: "800",
+    letterSpacing: -2,
+    color: c.text,
+    fontVariant: ["tabular-nums"],
+  },
+  heroUnit: {
+    fontSize: 22,
+    fontWeight: "700",
+    letterSpacing: 0,
+    color: c.textTertiary,
+  },
+  heroMeta: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+  },
+  heroMetaText: {
+    fontSize: 17,
+    fontWeight: "700",
+    color: c.textSecondary,
+    fontVariant: ["tabular-nums"],
+  },
+  heroMetaUnit: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: c.textTertiary,
+  },
+  detailCard: {
+    gap: Spacing.four,
+    padding: Spacing.three,
+    borderRadius: Radius.lg,
+    borderWidth: 1,
+    borderColor: c.border,
+    backgroundColor: c.surface,
+  },
+}));

@@ -57,8 +57,6 @@ jest.mock("@/context/RestTimerContext", () => ({
   REST_OPTIONS: [{ seconds: 90, label: "1:30" }],
   nearestRestIndex: () => 0,
 }));
-// No Health outside a native iPhone build; the card simply isn't there.
-jest.mock("@/context/HealthImportContext", () => ({ useHealthImport: () => ({ available: false }) }));
 jest.mock("@/context/DefaultSetsContext", () => ({
   useDefaultSets: () => ({ defaultSets: 3, setDefaultSets: jest.fn() }),
   MIN_SETS: 1,
