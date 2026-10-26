@@ -45,6 +45,8 @@ gh workflow run ios-build.yml --ref main -f submit=true
 
 A build takes about 15–20 minutes, plus Apple's processing before it shows in TestFlight. Build numbers are managed remotely by EAS and increment automatically. The **version** is not: App Store Connect closes a version to new builds once it's approved, so bump `version` in `app.json` and `package.json` before building after a release.
 
+**Build sparingly once the repo is private.** It's public for now, and a public repo's Actions minutes aren't counted, so builds are free. It goes private after the next release (see [plans-for-later](docs/plans-for-later.md)). From then on, GitHub's free plan gives it 2,000 minutes a month, with each macOS minute counted as about ten. That's roughly 190 minutes on the macOS runner, or 12–14 builds. So build when there's something worth trying on a phone, with changes batched up, not after every commit, and it's worth getting used to that now. Run `npm test`, `npx tsc --noEmit` and the watch logic tests first, because a build that fails partway still spends its minutes. With no payment method on file, builds stop once the month's minutes are gone, until they reset at the start of the next month; with one, each extra build costs about a dollar. Usage is under GitHub → Settings → Billing.
+
 The App Store copy (description, What's New, review notes) lives in [docs/store-listing.md](docs/store-listing.md). Update it with the app.
 
 ## Firebase
@@ -100,7 +102,7 @@ modules/plato-watch/             # WatchConnectivity bridge on the phone (local 
 modules/plato-health/            # Health access and waking the watch for a session (local Expo module)
 plugins/                         # Config plugins: Live Activity widget patch, watch targets + Info.plist
 scripts/apple-transfer/          # One-off tool for an App Store team transfer
-docs/                            # Privacy policy (GitHub Pages) and store listing
+docs/                            # Store listing, plans for later, old privacy policy address
 ```
 
 ## Data model
@@ -165,4 +167,6 @@ Finishing a workout stores `totalVolume`, priced at that day's weigh-in, and rec
 
 ## Privacy
 
-The privacy policy is [docs/index.html](docs/index.html), served at <https://braydenric.github.io/Plato/> and linked from the App Store listing. Update it whenever what the app stores changes, including what it keeps on the device.
+The privacy policy is `privacy.html` in the public [plato-support](https://github.com/BraydenRic/plato-support) repo, served at <https://braydenric.github.io/plato-support/privacy.html>, next to the support page that links to it. Update it there whenever what the app stores changes, including what it keeps on the device. It lives outside this repo so that this one can go private: GitHub's free plan only serves Pages from public repos.
+
+The App Store listing still links <https://braydenric.github.io/Plato/>, and [docs/index.html](docs/index.html) forwards that address to the policy. The next release switches the listing to the new address (see [store-listing.md](docs/store-listing.md)). After that, see [plans-for-later](docs/plans-for-later.md).

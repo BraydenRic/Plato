@@ -98,7 +98,10 @@ own weight and to value bodyweight exercises. No HealthKit access.
 ## Checklist for the version page
 
 - Build: **1.2.0 (55)** — offline mode, the timer fix, mid-workout reorder, 600 exercises, and the tidier Home and resume bar
-- Privacy Policy URL: https://braydenric.github.io/Plato/
+- Privacy Policy URL: **https://braydenric.github.io/plato-support/privacy.html**, changed from
+  https://braydenric.github.io/Plato/, which only forwards there while the Plato repo is public.
+  Apple applies a URL change with the next version, so it goes live when this version is
+  released. After that, the repo can go private (see plans-for-later.md).
 - App Privacy → Data Types: **Health** added under Health & Fitness
   (App Functionality · linked to identity · not used for tracking)
 - Export compliance: answered automatically by `ITSAppUsesNonExemptEncryption: false`
@@ -125,6 +128,7 @@ Before submitting a build that has them:
   tracking). Sessions are saved to the account like typed workouts.
 - **Screenshots** — a watch screenshot is needed for the watch app anyway;
   the live run screen makes a good one.
-- **Privacy Policy** — already updated (Apple Health and Apple Watch, and Your iPhone's step counter).
+- **Privacy Policy** — already updated (Apple Health and Apple Watch, and Your iPhone's step counter),
+  at the plato-support address in the checklist above.
 - **Motion & Fitness** needs nothing more in App Privacy: the distance it gives is
   saved with the session, which is already Fitness data above.

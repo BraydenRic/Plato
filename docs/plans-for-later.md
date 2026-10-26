@@ -83,6 +83,29 @@ Found by the audit's rechecks, judged not worth the risk of fixing now:
 - The Firestore rules don't require a verified email; the verify-email gate is
   in the app only. An unverified account can only ever touch its own data.
 
+## Make the repo private, after the next release
+
+**Why it waits.** The App Store listing's Privacy Policy URL is still
+https://braydenric.github.io/Plato/, served from this repo's `docs/`, and on
+GitHub's free plan Pages only serves public repos. Apple changes that URL only
+with a new app version ("Any changes to the URLs releases with your next app
+version"), so going private sooner would break the listing's privacy link.
+The policy itself already lives in the public plato-support repo; `docs/` only
+forwards to it.
+
+**Steps.**
+
+1. When submitting the next version, set its Privacy Policy URL to
+   https://braydenric.github.io/plato-support/privacy.html (it's on the
+   `store-listing.md` checklist).
+2. Once that version is *released* on the App Store, not just approved, make
+   this repo private: GitHub → Settings → General → Danger Zone → Change
+   visibility.
+3. Delete `docs/index.html` (the forwarding page, dead once private) and the
+   README's mention of it, and turn off Pages for this repo if GitHub hasn't.
+4. From then on every build spends Actions minutes, about 12–14 builds a month:
+   see "Build sparingly" in the README.
+
 ## Before submitting to the App Store
 
 - `docs/store-listing.md`, "When a build with cardio sessions ships".

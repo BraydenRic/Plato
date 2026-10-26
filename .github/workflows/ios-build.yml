@@ -6,6 +6,10 @@
 # Trigger manually: Actions tab → "iOS build" → Run workflow.
 # Leave "Upload to TestFlight" checked and the build lands in TestFlight on its
 # own; uncheck it to just download the .ipa artifact.
+#
+# The repo goes private after the next release (docs/plans-for-later.md). From
+# then on, every run spends macOS minutes from a small monthly allowance (about
+# 12–14 builds), so build sparingly: see README, Builds and releases.
 name: iOS build
 
 on:
