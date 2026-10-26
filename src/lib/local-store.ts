@@ -66,6 +66,11 @@ let loading: Promise<GuestData> | null = null;
  * upload it all over again as duplicates.
  */
 let generation = 0;
+/**
+ * The last read of the disk failed and none has worked since. Whatever the
+ * screens were shown meanwhile was the empty stand-in, not the guest's data.
+ */
+let readFailed = false;
 const listeners = new Set<() => void>();
 
 function toDate(value: unknown): Date | undefined {
@@ -136,9 +141,21 @@ async function load(): Promise<GuestData> {
   // never end up mutating two different copies of the data.
   loading ??= (async () => {
     const gen = generation;
+    let stored: string | null;
+    try {
+      stored = await AsyncStorage.getItem(DATA_KEY);
+    } catch (e) {
+      if (gen !== generation) return cache ?? emptyData();
+      // A read that fails says nothing about what's stored. Answered with an
+      // empty store, the next change would save that emptiness over every
+      // workout the guest has. So it fails, nothing is cached, and the next
+      // call reads the disk again.
+      loading = null;
+      readFailed = true;
+      throw e;
+    }
     let data = emptyData();
     try {
-      const stored = await AsyncStorage.getItem(DATA_KEY);
       if (stored) {
         const parsed = JSON.parse(stored) as Partial<GuestData>;
         data = {
@@ -162,9 +179,29 @@ async function load(): Promise<GuestData> {
     if (gen !== generation) return cache ?? emptyData();
     cache = data;
     loading = null;
+    if (readFailed) {
+      readFailed = false;
+      // Screens whose own read failed were left on the stand-in. This is
+      // the real thing, so they hear about it now rather than at the next change.
+      notify();
+    }
     return data;
   })();
   return loading;
+}
+
+/**
+ * For a change that replaces a whole value the caller built from what it was
+ * shown: the exercise library or the weekly split. Shown after a failed read,
+ * that was the empty stand-in, and saving it would replace the real one. So
+ * it's refused, while the read it makes puts the real one on screen to try
+ * again from. Accounts refuse the same way (cloud-cache's LibraryNotLoadedError).
+ */
+async function loadToReplace(what: string): Promise<GuestData> {
+  const builtOnStandIn = readFailed;
+  const data = await load();
+  if (builtOnStandIn) throw new Error(`Your ${what} hadn't loaded yet. Try again.`);
+  return data;
 }
 
 async function persist(): Promise<void> {
@@ -312,7 +349,7 @@ export async function updateExerciseLibrary(
   _userId: string,
   library: ExerciseLibrary
 ): Promise<void> {
-  const data = await load();
+  const data = await loadToReplace("exercise library");
   data.library = library;
   await commit();
 }
@@ -332,7 +369,7 @@ export function subscribeWeeklyPlan(
 }
 
 export async function setWeeklyPlan(_userId: string, days: WeeklyPlan): Promise<void> {
-  const data = await load();
+  const data = await loadToReplace("weekly split");
   data.weeklyPlan = days;
   await commit();
 }
@@ -402,6 +439,8 @@ export async function clearGuestData(): Promise<void> {
   generation++;
   loading = null;
   cache = emptyData();
+  // Empty is now what's stored, so a change built on it replaces nothing.
+  readFailed = false;
   await AsyncStorage.removeItem(DATA_KEY);
   notify();
 }

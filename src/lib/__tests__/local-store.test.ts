@@ -1,6 +1,7 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
 import { emptySet, makeSet, makeWorkout, makeWorkoutExercise } from "./factories";
+import type { ExerciseLibrary } from "@/types";
 
 const DATA_KEY = "plato.guest.data.v1";
 const ACTIVE_KEY = "plato.guest.active.v1";
@@ -195,6 +196,105 @@ describe("reading corrupt storage", () => {
     expect(workout?.completedAt).toBeInstanceOf(Date);
     expect(workout?.startedAt).toBeInstanceOf(Date);
     expect(workout?.completedAt?.toISOString()).toBe("2026-02-02T10:00:00.000Z");
+  });
+});
+
+// A read can fail with nothing wrong in what's stored. Taken for an empty
+// store, the next change saved that emptiness over all of the guest's data.
+describe("a read of the disk that fails", () => {
+  const stored = () => ({
+    workouts: [1, 2, 3].map((n) => makeWorkout({ id: `local-${n}`, userId: "local-guest", name: `Lift ${n}` })),
+    library: { custom: [{ id: "custom-1", name: "My Lift" }], removedIds: [], overrides: [] },
+    weeklyPlan: ["local-1", null, null, null, null, null, null],
+  });
+
+  const failNextRead = () =>
+    jest.spyOn(AsyncStorage, "getItem").mockRejectedValueOnce(new Error("disk unavailable"));
+
+  /** Lets a subscription's first read run out. */
+  const flush = () => new Promise((r) => setImmediate(r));
+
+  afterEach(() => {
+    jest.restoreAllMocks();
+  });
+
+  it("fails the change instead of saving an empty store over the guest's workouts", async () => {
+    const store = await freshStore(stored());
+    failNextRead();
+
+    await expect(store.createWorkout(makeWorkout({ name: "New" }) as never)).rejects.toThrow("disk unavailable");
+    expect((await storedData()).workouts).toHaveLength(3);
+
+    // The next change reads the disk again and adds to what's there.
+    await store.createWorkout(makeWorkout({ name: "New" }) as never);
+    const names = ((await storedData()).workouts as { name: string }[]).map((w) => w.name);
+    expect(names.sort()).toEqual(["Lift 1", "Lift 2", "Lift 3", "New"]);
+  });
+
+  it("tells the guest move it failed, not that there's nothing to move", async () => {
+    const store = await freshStore(stored());
+    failNextRead();
+
+    await expect(store.readGuestData()).rejects.toThrow("disk unavailable");
+    expect(store.hasContent(await store.readGuestData())).toBe(true);
+  });
+
+  it("brings the guest's workouts to a screen whose read failed once a read works", async () => {
+    const store = await freshStore(stored());
+    failNextRead();
+    const seen: number[] = [];
+    const errors: string[] = [];
+    store.subscribeWorkouts(store.GUEST_USER_ID, (w) => seen.push(w.length), (e) => errors.push(e.message));
+    await flush();
+    expect(errors).toEqual(["disk unavailable"]);
+    expect(seen).toEqual([]);
+
+    await store.getWorkout("local-1");
+    expect(seen).toEqual([3]);
+  });
+
+  it("refuses a library built on the empty stand-in, and shows the real one to try again from", async () => {
+    const store = await freshStore(stored());
+    failNextRead();
+    const shown: ExerciseLibrary[] = [];
+    store.subscribeExerciseLibrary(store.GUEST_USER_ID, (lib) => shown.push(lib));
+    await flush();
+    const standIn = shown[shown.length - 1];
+    expect(standIn.custom).toEqual([]);
+
+    await expect(
+      store.updateExerciseLibrary(store.GUEST_USER_ID, { ...standIn, removedIds: ["bench-press"] })
+    ).rejects.toThrow("hadn't loaded");
+    expect((await storedData()).library).toEqual(stored().library);
+    expect(shown[shown.length - 1]).toEqual(stored().library);
+
+    // Built from what's on screen now, it saves.
+    await store.updateExerciseLibrary(store.GUEST_USER_ID, { ...shown[shown.length - 1], removedIds: ["bench-press"] });
+    expect((await storedData()).library).toEqual({ ...stored().library, removedIds: ["bench-press"] });
+  });
+
+  it("refuses a weekly split built on the empty stand-in", async () => {
+    const store = await freshStore(stored());
+    failNextRead();
+    const shown: (string | null)[][] = [];
+    store.subscribeWeeklyPlan(store.GUEST_USER_ID, (plan) => shown.push(plan));
+    await flush();
+    const tuesday = [...shown[shown.length - 1]];
+    tuesday[2] = "local-2";
+
+    await expect(store.setWeeklyPlan(store.GUEST_USER_ID, tuesday)).rejects.toThrow("hadn't loaded");
+    expect((await storedData()).weeklyPlan).toEqual(stored().weeklyPlan);
+    expect(shown[shown.length - 1]).toEqual(stored().weeklyPlan);
+  });
+
+  it("takes whole-value changes again once a wipe has made empty what's stored", async () => {
+    const store = await freshStore(stored());
+    failNextRead();
+    await expect(store.readGuestData()).rejects.toThrow();
+
+    await store.clearGuestData();
+    await store.setWeeklyPlan(store.GUEST_USER_ID, ["t1", null, null, null, null, null, null]);
+    expect((await storedData()).weeklyPlan).toEqual(["t1", null, null, null, null, null, null]);
   });
 });
 

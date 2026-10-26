@@ -262,9 +262,12 @@ function WatchSyncBridge() {
   // that — the watch woke the phone, and sign-in is still restoring — wait in
   // the native inbox rather than being applied to nobody. While a guest's data
   // is moving into the account, the ops about it wait too (see handle), but
-  // only those: a move stuck on a dead signal can last the whole launch, and
-  // holding every op would keep sets logged on the watch for the account's own
-  // workouts off the phone for all of it.
+  // not every op: a move stuck on a dead signal can last the whole launch, and
+  // holding them all would keep sets logged on the watch for the account's own
+  // workouts off the phone for all of it. The drain still stops at a held op,
+  // though, so what the watch sent after one waits behind it: a later op may
+  // build on it (a set logged into a set it added), and one about another
+  // workout still moves the rest countdown, which belongs to the newest set.
   const canApply = ready && !!dataUserId;
 
   useEffect(() => {
@@ -300,7 +303,14 @@ function WatchSyncBridge() {
       if ("workoutId" in op && op.workoutId && isLocalWorkoutId(op.workoutId)) return true;
       const startOpId = "startOpId" in op ? op.startOpId : null;
       if (!startOpId) return false;
-      const guest = await readGuestData();
+      let guest: Awaited<ReturnType<typeof readGuestData>>;
+      try {
+        guest = await readGuestData();
+      } catch {
+        // The guest store couldn't be read, so there's no telling. Held, it's
+        // asked again on the retry; applied, it could be lost.
+        return true;
+      }
       return guest.workouts.some((w) => w.cardio?.watchStartOpId === startOpId);
     }
 

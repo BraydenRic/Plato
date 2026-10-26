@@ -528,6 +528,34 @@ describe("while a guest's data moves into the account", () => {
     expect(mockBridge.inbox).toEqual([]);
   });
 
+  // Whether an op known only by its start op is the guest's needs the guest
+  // store. Unreadable, it's held and asked about again, not applied and lost.
+  it("holds an op it can't place while the guest store can't be read", async () => {
+    mockAuth = { dataUserId: "u1", loading: false, guestMoveUnderway: true };
+    const run = live({ id: "w-run", cardio: { kind: "run", watch: true, watchStartOpId: "start-1" } });
+    mockStore.set(run.id, run);
+    mockWorkouts = { ...mockWorkouts, active: [run] };
+    mockBridge.inbox = [entry({ opId: "op-pause", kind: "pauseCardio", at: Date.now() - 1000, workoutId: null, startOpId: "start-1" })];
+    const guestRead = jest.spyOn(localStore, "readGuestData").mockRejectedValue(new Error("disk unavailable"));
+    try {
+      render(<WatchSync />);
+      await settle();
+      expect(mockBridge.inbox).toHaveLength(1);
+      expect(mockUpdateWorkout).not.toHaveBeenCalled();
+    } finally {
+      guestRead.mockRestore();
+    }
+
+    // Readable again, and not the guest's: it lands on the retry.
+    await act(async () => {
+      jest.advanceTimersByTime(RETRY_MS);
+      await Promise.resolve();
+    });
+    await settle();
+    expect(mockUpdateWorkout.mock.calls.map(([id]) => id)).toEqual(["w-run"]);
+    expect(mockBridge.inbox).toEqual([]);
+  });
+
   it("goes to the moved copy over a guest copy the move hasn't let go of", async () => {
     mockStore.set("u1_local-w1", live({ id: "u1_local-w1" }));
     mockBridge.inbox = [guestSet("op-g1")];
