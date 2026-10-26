@@ -506,13 +506,17 @@ export default function WorkoutsScreen() {
                 <Pressable
                   style={[
                     styles.ghostRow,
+                    // Stacked past the largest standard size, as workout rows
+                    // are: beside the badge and "Start" the name had too little
+                    // width and split mid-word ("Hypertro/phy").
+                    fontScale > 1.36 && styles.ghostRowStacked,
                     { backgroundColor: theme.accentSoft, borderColor: theme.accent },
                   ]}
                   onPress={() => materializeSplit(daySuggestion)}>
                   <View style={styles.ghostBadge}>
                     <Ionicons name="repeat" size={15} color={theme.accentText} />
                   </View>
-                  <View style={{ flex: 1, gap: 2 }}>
+                  <View style={fontScale > 1.36 ? { gap: 2 } : { flex: 1, gap: 2 }}>
                     <Text style={styles.rowTitle} maxFontSizeMultiplier={FontScaleCap.heading}>
                       {daySuggestion.name}
                     </Text>
@@ -520,7 +524,7 @@ export default function WorkoutsScreen() {
                       From your weekly split · {totalSetCount(daySuggestion)} sets
                     </Text>
                   </View>
-                  <Text style={[styles.ghostAction, { color: theme.accentText }]}>
+                  <Text style={[styles.ghostAction, { color: theme.accentText }]} maxFontSizeMultiplier={FontScaleCap.heading}>
                     {selectedIsToday ? "Start" : selectedIsFuture ? "Plan" : "Log"}
                   </Text>
                 </Pressable>
@@ -997,6 +1001,11 @@ const useStyles = makeStyles((c) => ({
     borderStyle: "dashed",
     borderRadius: Radius.md,
     padding: Spacing.three,
+  },
+  ghostRowStacked: {
+    flexDirection: "column",
+    alignItems: "flex-start",
+    gap: Spacing.two,
   },
   ghostBadge: {
     width: 32,

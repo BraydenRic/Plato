@@ -322,6 +322,40 @@ describe("at larger text sizes", () => {
     expect(StyleSheet.flatten(screen.getByText("Wednesday").props.style).width).toBeCloseTo(88 * FontScaleCap.grid);
   });
 
+  // The weekly split's suggestion for an empty today: beside its badge and
+  // "Start" the name split mid-word at accessibility sizes.
+  describe("the weekly split's suggestion", () => {
+    // The name shows in Templates too; the suggestion's is in the dashed row.
+    const suggestionRow = () => {
+      for (const text of screen.getAllByText("Hypertrophy")) {
+        let node = text.parent;
+        while (node && StyleSheet.flatten(node.props.style)?.borderStyle !== "dashed") node = node.parent;
+        if (node) return StyleSheet.flatten(node.props.style);
+      }
+      throw new Error("no suggestion row");
+    };
+
+    beforeEach(() => {
+      mockTemplates = [workout("t1", "Hypertrophy", { isTemplate: true })];
+      // Tuesday, today.
+      mockPlan = [null, null, "t1", null, null, null, null];
+    });
+
+    it("stacks past the largest standard size, giving the name the row's width", async () => {
+      mockFontScale = 2.35;
+      await renderHome();
+      expect(suggestionRow().flexDirection).toBe("column");
+      // Its own "Start" among the templates' — none of them grows without a cap.
+      for (const start of screen.getAllByText("Start")) expect(start.props.maxFontSizeMultiplier).toBeDefined();
+    });
+
+    it("stays one row at standard sizes", async () => {
+      mockFontScale = 1;
+      await renderHome();
+      expect(suggestionRow().flexDirection).toBe("row");
+    });
+  });
+
   it("caps a template's name beside its button, as a workout's row does", async () => {
     mockTemplates = [workout("t1", "Hypertrophy", { isTemplate: true })];
     await renderHome();
