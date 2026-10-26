@@ -360,3 +360,15 @@ export function weeklyDistance(
   }
   return buckets;
 }
+
+/**
+ * A typical week of it: the average of the weeks with any distance in them.
+ * Weeks with none don't count, so a week off, or the weeks before someone
+ * started, never drag it toward zero. Null until two weeks have some: the
+ * average of one week is just that week again.
+ */
+export function averageActiveWeek(weeks: { metres: number }[]): number | null {
+  const active = weeks.filter((w) => w.metres > 0);
+  if (active.length < 2) return null;
+  return active.reduce((sum, w) => sum + w.metres, 0) / active.length;
+}

@@ -1,4 +1,5 @@
 import { act, fireEvent, render, screen } from "@testing-library/react-native";
+import { Text as SvgText } from "react-native-svg";
 
 import { CardioStats } from "../cardio-stats";
 import { EXERCISES } from "@/lib/exercises";
@@ -91,4 +92,29 @@ it("reads out the week whose bar was tapped", async () => {
   expect(screen.getByText(/^week of .* · 1 run · 33:20$/)).toBeTruthy();
   // The big number, and the longest run among the records.
   expect(screen.getAllByText("4.00 mi")).toHaveLength(2);
+});
+
+/** What the weekly chart says its average is, once it has a width to draw at. */
+function averageLabel(): string | undefined {
+  fireEvent(screen.getByTestId("week-chart"), "layout", { nativeEvent: { layout: { width: 320 } } });
+  return screen
+    .UNSAFE_getAllByType(SvgText)
+    .map((t) => t.props.children)
+    .find((text): text is string => typeof text === "string" && text.startsWith("avg"));
+}
+
+// Five miles this week and three, three weeks back: a typical week is four.
+// Counting the empty weeks too, it was one, a line along the bottom.
+it("puts the average at a typical week of cardio, not across empty weeks", () => {
+  render(
+    <CardioStats
+      completed={[session("running", 0, { distance: 5 * MILE, duration: 2400 }), session("running", 21, { distance: 3 * MILE, duration: 1500 })]}
+    />
+  );
+  expect(averageLabel()).toBe("avg 4.00");
+});
+
+it("draws no average with only one week of cardio to average", () => {
+  render(<CardioStats completed={[session("running", 0, { distance: 5 * MILE, duration: 2400 })]} />);
+  expect(averageLabel()).toBeUndefined();
 });

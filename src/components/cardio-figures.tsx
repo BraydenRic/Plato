@@ -6,6 +6,7 @@ import Svg, { Circle, Defs, Line, LinearGradient, Path, Stop, Text as SvgText } 
 import { FontScaleCap, Spacing } from "@/constants/theme";
 import { makeStyles, usePalette } from "@/context/AppearanceContext";
 import { useTheme } from "@/context/ThemeContext";
+import { averageActiveWeek } from "@/lib/cardio";
 import { formatClock } from "@/lib/workout-utils";
 
 /**
@@ -151,14 +152,15 @@ export function SplitsChart({ rows, unitWord }: { rows: SplitRow[]; unitWord: "m
 
 const WEEK_CHART_HEIGHT = 128;
 const WEEK_PAD = { top: 20, bottom: 2 };
-/** Room at the right for the average line's label, clear of this week's column. */
+/** Room at the right, clear of this week's column, when there's no average to label. */
 const WEEK_GUTTER = 26;
 
 /**
  * Distance per week as columns. The week being read stands at full strength
- * with its number on top; the others step back. The line across is the
- * average week of the ones shown, so a big week reads as big against your
- * own normal rather than against the tallest bar.
+ * with its number on top; the others step back. The line across is your
+ * typical week (averageActiveWeek), so a big week reads as big against your
+ * own normal rather than against the tallest bar. It sits behind the columns
+ * rather than cutting through them, and says its number.
  */
 export function WeekColumns({
   weeks,
@@ -183,9 +185,13 @@ export function WeekColumns({
   const theme = useTheme();
   const [width, setWidth] = useState(0);
   const peak = Math.max(...weeks.map((w) => w.metres), 1);
-  const average = weeks.reduce((sum, w) => sum + w.metres, 0) / weeks.length;
+  const average = averageActiveWeek(weeks);
+  const averageLabel = average == null ? null : `avg ${format(average)}`;
+  // Wide enough for the label's digits at the 10pt it's set in (SVG text
+  // doesn't grow with the text size setting), so it never reaches this week.
+  const gutter = averageLabel ? Math.max(WEEK_GUTTER, 8 + averageLabel.length * 6) : WEEK_GUTTER;
   const plotHeight = WEEK_CHART_HEIGHT - WEEK_PAD.top - WEEK_PAD.bottom;
-  const plotWidth = Math.max(0, width - WEEK_GUTTER);
+  const plotWidth = Math.max(0, width - gutter);
   const slot = plotWidth / weeks.length;
   const column = Math.min(24, slot * 0.58);
   const y = (metres: number) => WEEK_PAD.top + plotHeight * (1 - metres / peak);
@@ -207,7 +213,7 @@ export function WeekColumns({
 
   return (
     <View>
-      <View onLayout={(e) => setWidth(e.nativeEvent.layout.width)} style={{ height: WEEK_CHART_HEIGHT }}>
+      <View testID="week-chart" onLayout={(e) => setWidth(e.nativeEvent.layout.width)} style={{ height: WEEK_CHART_HEIGHT }}>
         {width > 0 && (
           <Svg width={width} height={WEEK_CHART_HEIGHT}>
             <Defs>
@@ -217,6 +223,10 @@ export function WeekColumns({
               </LinearGradient>
             </Defs>
             <Line x1={0} y1={base} x2={plotWidth} y2={base} stroke={palette.border} strokeWidth={1} />
+            {/* Before the columns, so they're drawn over it. */}
+            {average != null && (
+              <Line x1={0} y1={y(average)} x2={plotWidth} y2={y(average)} stroke={palette.textTertiary} strokeWidth={1} opacity={0.5} />
+            )}
             {weeks.map((w, i) => {
               if (w.metres <= 0) return null;
               const x = i * slot + (slot - column) / 2;
@@ -225,19 +235,16 @@ export function WeekColumns({
                 <Path key={i} d={columnPath(x, top)} fill="url(#weekFill)" opacity={i === selected ? 1 : 0.38} />
               );
             })}
-            {average > 0 && (
-              <>
-                <Line x1={0} y1={y(average)} x2={plotWidth} y2={y(average)} stroke={palette.textTertiary} strokeWidth={1} opacity={0.55} />
-                <SvgText
-                  x={width}
-                  y={y(average) + 3}
-                  fontSize={9}
-                  fontWeight="600"
-                  fill={palette.textTertiary}
-                  textAnchor="end">
-                  avg
-                </SvgText>
-              </>
+            {average != null && (
+              <SvgText
+                x={width}
+                y={y(average) + 3.5}
+                fontSize={10}
+                fontWeight="600"
+                fill={palette.textTertiary}
+                textAnchor="end">
+                {averageLabel}
+              </SvgText>
             )}
             {weeks[selected] && weeks[selected].metres > 0 && (
               <SvgText
@@ -254,7 +261,7 @@ export function WeekColumns({
         )}
         {/* Hit targets the full height of each slot: a short week is as easy to
             tap as a long one. */}
-        <View style={[styles.weekHits, { right: WEEK_GUTTER }]}>
+        <View style={[styles.weekHits, { right: gutter }]}>
           {weeks.map((w, i) => (
             <Pressable
               key={w.weekStart.getTime()}
@@ -267,7 +274,7 @@ export function WeekColumns({
           ))}
         </View>
       </View>
-      <View style={[styles.weekAxis, { paddingRight: WEEK_GUTTER }]}>
+      <View style={[styles.weekAxis, { paddingRight: gutter }]}>
         <Text style={styles.weekAxisLabel} maxFontSizeMultiplier={FontScaleCap.grid}>
           {firstLabel}
         </Text>

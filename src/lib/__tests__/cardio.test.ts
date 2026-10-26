@@ -1,5 +1,6 @@
 import {
   activitiesIn,
+  averageActiveWeek,
   cardioRecords,
   cardioSessions,
   cardioSetDone,
@@ -235,5 +236,19 @@ describe("cardio progress", () => {
     const weeks = weeklyDistance(sessions, 3, now);
     expect(weeks.map((w) => w.metres)).toEqual([4000, 0, 5000]);
     expect(weeks[2].weekStart).toEqual(at("2026-10-19T00:00:00"));
+  });
+});
+
+// The line across the weekly chart: a typical week of it, so weeks off and
+// the weeks before someone started don't pull it toward zero.
+describe("averageActiveWeek", () => {
+  it("averages only the weeks with some distance in them", () => {
+    expect(averageActiveWeek([{ metres: 0 }, { metres: 3000 }, { metres: 0 }, { metres: 5000 }])).toBe(4000);
+  });
+
+  it("is nothing until two weeks have some", () => {
+    expect(averageActiveWeek([])).toBeNull();
+    expect(averageActiveWeek([{ metres: 0 }, { metres: 0 }])).toBeNull();
+    expect(averageActiveWeek([{ metres: 0 }, { metres: 5000 }])).toBeNull();
   });
 });
