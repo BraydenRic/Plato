@@ -50,6 +50,11 @@ jest.mock("@/context/DefaultSetsContext", () => ({
   MAX_SETS: 10,
 }));
 jest.mock("@expo/vector-icons/Ionicons", () => "Ionicons");
+// An installed build: EAS's number in the app's Info.plist, app.json's "1" in the config.
+jest.mock("expo-constants", () => ({
+  __esModule: true,
+  default: { expoConfig: { version: "1.2.0", ios: { buildNumber: "1" } }, platform: { ios: { buildNumber: "73" } } },
+}));
 jest.mock("expo-image", () => ({ Image: () => null }));
 jest.mock("@/components/sparkline", () => ({ Sparkline: () => null }));
 
@@ -106,4 +111,14 @@ it("never cuts the rows' text off, at any text size or width", () => {
     expect(node.props.numberOfLines).toBeUndefined();
     expect(StyleSheet.flatten(node.parent!.parent!.props.style)).toMatchObject({ flex: 1 });
   }
+});
+
+// EAS hands the build number out at build time, so the config's copy stays at
+// app.json's "1". The installed app's own number is the one support needs.
+it("says which build this is by the installed app's number, not the config's", () => {
+  render(<ProfileScreen />);
+  expect(screen.getByText("Version 1.2.0 (73)")).toBeTruthy();
+
+  fireEvent.press(screen.getByRole("link", { name: "Contact support" }));
+  expect(decodeURIComponent(openURL.mock.calls[0][0].split("&body=")[1])).toContain("Plato 1.2.0 (73)");
 });

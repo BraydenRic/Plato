@@ -23,8 +23,12 @@ import { readWatchTrace } from "@/lib/watch-trace";
 // produce it by tapping through.
 const DELETE_WORD = "DELETE";
 
-// Which build this is: on the version line, and in a support email.
-const APP_VERSION = `${Constants.expoConfig?.version ?? "?"} (${Constants.expoConfig?.ios?.buildNumber ?? "?"})`;
+// Which build this is: on the version line, and in a support email. The build
+// number is read from the installed app's Info.plist: EAS hands it out at build
+// time, so the config's copy stays at app.json's "1". Expo Go has no number of
+// its own, hence the fallback.
+const BUILD_NUMBER = Constants.platform?.ios?.buildNumber ?? Constants.expoConfig?.ios?.buildNumber ?? "?";
+const APP_VERSION = `${Constants.expoConfig?.version ?? "?"} (${BUILD_NUMBER})`;
 
 /**
  * A new email to support. The support page asks for the iOS version with a
