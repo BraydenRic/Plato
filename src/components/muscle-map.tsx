@@ -51,6 +51,19 @@ const MUSCLE_NAME_TO_SLUGS: Record<string, Slug[]> = {
   cardio: [],
 };
 
+/**
+ * Every region the figure draws. The library's own data gives each one a grey
+ * of its own (#3f3f3f), and that beats `defaultFill`, so in light mode every
+ * muscle not worked came out charcoal under a light grey head. A region listed
+ * with no colour falls back to `defaultFill`, so the ones not coloured are listed
+ * that way, the head and hair included.
+ */
+const ALL_REGIONS: Slug[] = [
+  "abs", "adductors", "ankles", "biceps", "calves", "chest", "deltoids", "feet",
+  "forearm", "gluteal", "hair", "hamstring", "hands", "head", "knees", "lower-back",
+  "neck", "obliques", "quadriceps", "tibialis", "trapezius", "triceps", "upper-back",
+];
+
 export function muscleSlugsFor(musclesWorked: string[]): Slug[] {
   const slugs = new Set<Slug>();
   for (const name of musclesWorked) {
@@ -92,12 +105,12 @@ export function MuscleMap({ musclesWorked, secondaryMuscles }: MuscleMapProps) {
     (s) => !primarySlugs.includes(s)
   );
 
+  const coloured = new Set<Slug>([...primarySlugs, ...secondarySlugs]);
   const data: ExtendedBodyPart[] = [
     ...primarySlugs.map((slug) => ({ slug, intensity: 1 })),
     ...secondarySlugs.map((slug) => ({ slug, intensity: 2 })),
-    // The head ships with a hardcoded light color; listing it here with no
-    // color of its own resets it to the default body gray.
-    { slug: "head" as const },
+    // The rest in the body grey (see ALL_REGIONS).
+    ...ALL_REGIONS.filter((slug) => !coloured.has(slug)).map((slug) => ({ slug })),
   ];
 
   return (

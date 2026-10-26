@@ -141,11 +141,12 @@ export interface AccentSet {
 /**
  * The muscle map's unworked body, and the seam between its muscles.
  *
- * The highlighter library takes this as `defaultFill` and applies it to every
- * path that has no colour of its own, so the figure does follow the mode — an
- * earlier comment here claimed the library baked its grey into the SVG paths
- * and that the figure had to stay dark. That was wrong: there is no fill in the
- * asset data, and `#3f3f3f` is only the prop's default value.
+ * The highlighter library takes this as `defaultFill`, but only for a region
+ * that has no colour of its own, and its data gives every region a fixed
+ * #3f3f3f. So MuscleMap lists every region, the ones not worked with no
+ * colour, which is what makes them follow the mode (muscle-map-fills.test.tsx
+ * renders the real library to hold it). Without that, light mode drew them
+ * charcoal; dark mode only hid it because #3f3f3f is also its body grey.
  *
  * Both modes hold the silhouette at ~1.77:1 against the card it sits on, so it
  * reads with the same weight either way rather than as a slab on white. The
