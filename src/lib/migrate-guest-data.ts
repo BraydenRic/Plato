@@ -309,11 +309,18 @@ export async function migrateGuestDataTo(
     // Sent before, landed, and unchanged here since (see SENT_KEY): the
     // account's copy is the newer one, so it's left as it is.
     const landedUnchanged = inAccount && !unanswered.has(cloudId) && sent[cloudId] === contents;
+    let send = !landedUnchanged;
     if (waiting) {
       // Its guest copy stays until the server has it, as for a fresh send.
       await waiting.landed;
       checkpoint();
-    } else if (!landedUnchanged) {
+      // Changed here since that upload was queued — the session dropped
+      // mid-move, they carried on as a guest, then signed back in — so the
+      // guest copy is the newer one, the same rule as below. It goes up too,
+      // behind whatever was waiting, so it lands last.
+      send = sent[cloudId] !== undefined && sent[cloudId] !== contents;
+    }
+    if (send) {
       const { saved, landed } = writeAndConfirm(userId, { collection: "workouts", docId: cloudId, kind: "set", data });
       unanswered.set(cloudId, landed);
       const answered = () => {

@@ -24,7 +24,7 @@ import {
   updateWorkout,
   upsertUserStats,
 } from "@/lib/data";
-import { GUEST_USER_ID, isGuestUserId, isLocalWorkoutId, readGuestActive } from "@/lib/local-store";
+import { GUEST_USER_ID, isGuestUserId, isLocalWorkoutId, readGuestActive, readGuestData } from "@/lib/local-store";
 import {
   applySetOp,
   bankRunningTimer,
@@ -124,6 +124,8 @@ export type WatchSyncContext = {
    * else's, still running on the wrist when they signed out.
    */
   accountSince: () => number;
+  /** A guest's data is still moving into this account (AuthContext). */
+  guestMoveUnderway: boolean;
 };
 
 /**
@@ -187,6 +189,7 @@ function WatchSyncBridge() {
   useEffect(() => {
     latest.current = {
       dataUserId,
+      guestMoveUnderway: !!guestMoveUnderway,
       active,
       completed,
       templates,
@@ -257,12 +260,12 @@ function WatchSyncBridge() {
   // ── In: the watch's ops ────────────────────────────────────────────────────
   // Only with an account (or guest session) loaded. Ops that arrive before
   // that — the watch woke the phone, and sign-in is still restoring — wait in
-  // the native inbox rather than being applied to nobody. Nor while a guest's
-  // data is moving into the account, for as long as the move runs, not just
-  // while its screen is up: one about a session of theirs would find it half
-  // moved, still the guest's here and so turned away, and be lost. Once the
-  // move is done they're applied to the moved copy (see opWorkout).
-  const canApply = ready && !!dataUserId && !guestMoveUnderway;
+  // the native inbox rather than being applied to nobody. While a guest's data
+  // is moving into the account, the ops about it wait too (see handle), but
+  // only those: a move stuck on a dead signal can last the whole launch, and
+  // holding every op would keep sets logged on the watch for the account's own
+  // workouts off the phone for all of it.
+  const canApply = ready && !!dataUserId;
 
   useEffect(() => {
     const bridge = PlatoWatch;
@@ -285,6 +288,22 @@ function WatchSyncBridge() {
       await AsyncStorage.setItem(APPLIED_KEY, JSON.stringify(appliedRef.current)).catch(() => {});
     }
 
+    /**
+     * Whether an op is about something the guest move hasn't finished taking
+     * into the account: a workout still under its guest id, or a session of
+     * the guest's that the watch knows by its start op. Applied now, it would
+     * find that half moved, still the guest's here and so turned away, and be
+     * lost; held, it's applied to the moved copy once the move is done (see
+     * opWorkout).
+     */
+    async function namesGuestData(op: WatchOp): Promise<boolean> {
+      if ("workoutId" in op && op.workoutId && isLocalWorkoutId(op.workoutId)) return true;
+      const startOpId = "startOpId" in op ? op.startOpId : null;
+      if (!startOpId) return false;
+      const guest = await readGuestData();
+      return guest.workouts.some((w) => w.cardio?.watchStartOpId === startOpId);
+    }
+
     /** "later" leaves the op in the inbox and stops the drain there. */
     async function handle(entry: InboxEntry): Promise<"done" | "later"> {
       if (appliedRef.current.includes(entry.id)) {
@@ -302,6 +321,7 @@ function WatchSyncBridge() {
       if (!op) traceWatch("watch op: couldn't be read, or a number out of range — dropped");
       const ctx = latest.current;
       if (op && op.opId === entry.id && ctx) {
+        if (ctx.guestMoveUnderway && (await namesGuestData(op))) return "later";
         if (op.kind === "startTemplate") {
           // Not loaded yet on a phone that has just signed in.
           if (!ctx.templates.some((t) => t.id === op.templateId) && awaitingFirstSync(ctx.dataUserId!)) {
@@ -359,7 +379,9 @@ function WatchSyncBridge() {
     };
     // Again for a new account — a guest signing in goes straight from one to
     // the other — so the inbox is claimed for whoever's ops are applied.
-  }, [canApply, dataUserId]);
+    // Again when a guest move ends: ops it held are waiting in the inbox, and
+    // nothing new from the watch may come along to drain them.
+  }, [canApply, dataUserId, guestMoveUnderway]);
 
   // ── In: a tracked session's live numbers ───────────────────────────────────
   // Straight to the session screen. Not ops: nothing is written, and a reading

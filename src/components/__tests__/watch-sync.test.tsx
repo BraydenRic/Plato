@@ -4,6 +4,7 @@ import { act, render } from "@testing-library/react-native";
 import { APPLIED_KEY, INBOX_OWNER_KEY, PROMPT_START_MS, RETRY_MS, START_TTL_MS, WatchSync } from "../watch-sync";
 import { recordCardioDiscard, resetCardioDiscards } from "@/lib/cardio-discards";
 import { GUEST_USER_ID, writeGuestActive } from "@/lib/local-store";
+import * as localStore from "@/lib/local-store";
 import type { Workout } from "@/types";
 
 /**
@@ -487,6 +488,20 @@ describe("while a guest's data moves into the account", () => {
     mockStore.clear();
     mockStore.set("local-w1", live({ id: "local-w1", userId: GUEST_USER_ID }));
     mockWorkouts = { active: [], templates: [], completed: [], loading: false };
+  });
+
+  // A move stuck on a dead signal can last the whole launch; sets logged on
+  // the watch for the account's own workout mustn't wait behind it.
+  it("lets ops about the account's own workouts through while the move runs", async () => {
+    mockAuth = { dataUserId: "u1", loading: false, guestMoveUnderway: true };
+    const own = live({ id: "w-own", userId: "u1" });
+    mockStore.set(own.id, own);
+    mockWorkouts = { ...mockWorkouts, active: [own] };
+    mockBridge.inbox = [entry({ opId: "op-own", kind: "finish", at: Date.now(), workoutId: "w-own" })];
+    render(<WatchSync />);
+    await settle();
+    expect(mockStore.get("w-own")!.completedAt).toBeInstanceOf(Date);
+    expect(mockBridge.inbox).toEqual([]);
   });
 
   it("holds the watch's ops past the moving screen, then applies them to the moved copy", async () => {
@@ -1139,6 +1154,11 @@ describe("cardio sessions from the watch", () => {
     // the walk is the account's under its new id, its start op kept.
     it("holds the watch's ops while the guest's data moves in, then applies them to the moved copy", async () => {
       mockAuth = { dataUserId: "u1", loading: false, user: { ...unverified, emailVerified: true }, guestMoveUnderway: true };
+      // The walk is in the guest store until the move takes it, which is how
+      // its finish — naming it only by start op — is known to be the guest's.
+      const guestRead = jest
+        .spyOn(localStore, "readGuestData")
+        .mockResolvedValue({ workouts: [walk()], library: { custom: [], removedIds: [], overrides: [] }, weeklyPlan: [null, null, null, null, null, null, null] } as never);
       mockBridge.inbox = [walkFinish()];
       const view = render(<WatchSync />);
       await settle();
@@ -1148,6 +1168,7 @@ describe("cardio sessions from the watch", () => {
       const moved = { ...walk(), id: "u1_local-walk", userId: "u1" };
       mockStore.delete("local-walk");
       mockStore.set(moved.id, moved);
+      guestRead.mockRestore();
       mockWorkouts = { ...mockWorkouts, active: [moved] };
       mockAuth = { ...mockAuth, guestMoveUnderway: false };
       view.rerender(<WatchSync />);

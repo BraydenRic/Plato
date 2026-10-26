@@ -348,6 +348,25 @@ describe("a re-run that finds an earlier upload already in the account", () => {
       expect(store.hasContent(await store.readGuestData())).toBe(false);
     });
 
+    // The session dropped mid-move and they carried on as a guest before
+    // signing back in: the queued upload still goes first, then the guest
+    // copy, the newer one, behind it.
+    it("sends the guest copy after it when it changed since that upload", async () => {
+      const { store, migrate, ack } = await relaunchWithUploadWaiting();
+      await store.updateWorkout("local-1", { name: "Pull, carried on as a guest" });
+
+      const moving = migrate.migrateGuestDataTo(UID);
+      await until(() => accountCopy.whenPendingWorkoutLands.mock.calls.length > 0);
+      await ticks();
+      expect(accountCopy.writeAndConfirm).not.toHaveBeenCalled();
+
+      ack.resolve();
+      expect(await moving).toMatchObject({ workouts: 1 });
+      expect(accountCopy.writeAndConfirm).toHaveBeenCalledTimes(1);
+      expect(uploadedWorkouts().at(-1)!.name).toBe("Pull, carried on as a guest");
+      expect(store.hasContent(await store.readGuestData())).toBe(false);
+    });
+
     it("keeps the guest copy if the server refuses it", async () => {
       const { store, migrate, ack } = await relaunchWithUploadWaiting();
 
