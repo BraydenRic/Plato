@@ -4,7 +4,7 @@ Pod::Spec.new do |s|
   s.summary        = "The iPhone's step counter, for Plato's cardio sessions"
   s.description    = 'Distance on foot from CMPedometer: live while a session runs, and per minute when it ends, for splits.'
   s.author         = ''
-  s.homepage       = 'https://braydenric.github.io/plato'
+  s.homepage       = 'https://plato-workouts.web.app/'
   s.platforms      = { :ios => '15.1' }
   s.source         = { git: '' }
   s.static_framework = true

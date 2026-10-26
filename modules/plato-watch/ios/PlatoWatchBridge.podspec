@@ -6,7 +6,7 @@ Pod::Spec.new do |s|
   s.summary        = 'WatchConnectivity bridge between Plato and its Apple Watch app'
   s.description    = 'Sends the workout in progress to the watch and queues what the watch logs until JavaScript applies it.'
   s.author         = ''
-  s.homepage       = 'https://braydenric.github.io/plato'
+  s.homepage       = 'https://plato-workouts.web.app/'
   s.platforms      = { :ios => '15.1' }
   s.source         = { git: '' }
   s.static_framework = true

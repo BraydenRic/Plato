@@ -4,7 +4,7 @@ Pod::Spec.new do |s|
   s.summary        = 'Reads cardio workouts from Apple Health for Plato'
   s.description    = 'Read-only HealthKit access: lists cardio workouts and the distance readings their splits are worked out from.'
   s.author         = ''
-  s.homepage       = 'https://braydenric.github.io/plato'
+  s.homepage       = 'https://plato-workouts.web.app/'
   s.platforms      = { :ios => '15.1' }
   s.source         = { git: '' }
   s.static_framework = true

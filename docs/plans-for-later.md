@@ -83,31 +83,32 @@ Found by the audit's rechecks, judged not worth the risk of fixing now:
 - The Firestore rules don't require a verified email; the verify-email gate is
   in the app only. An unverified account can only ever touch its own data.
 
-## Make the repo private, after the next release
+## Make the repo private
 
-**Why it waits.** The App Store listing's Privacy Policy URL is still
-https://braydenric.github.io/Plato/, served from this repo's `docs/`, and on
-GitHub's free plan Pages only serves public repos. Apple changes that URL only
-with a new app version ("Any changes to the URLs releases with your next app
-version"), so going private sooner would break the listing's privacy link.
-The policy itself already lives in the public plato-support repo; `docs/` only
-forwards to it.
+**Nothing public depends on it any more.** The support page and the privacy
+policy are this repo's `site/`, published with Firebase Hosting at
+https://plato-workouts.web.app/, which doesn't care whether the repo is
+public, and the repo's GitHub Pages site is off. So it can go private whenever
+suits: GitHub → Settings → General → Danger Zone → Change visibility. That
+also takes the commit history, with its author names and email address, out of
+public view.
 
-**Steps.**
+**The one cost.** From then on every build spends Actions minutes, about 12–14
+a month (see "Build sparingly" in the README). Going private once the release
+builds are done is the cheaper order.
 
-1. When submitting the next version, set its Privacy Policy URL to
-   https://braydenric.github.io/plato-support/privacy.html (it's on the
-   `store-listing.md` checklist).
-2. Once that version is *released* on the App Store, not just approved, check
-   that plato-support still holds only what's meant to be public: `index.html`
-   (support) and `privacy.html`, linking nothing in this repo. Anything put
-   there is public. Then make this repo private: GitHub → Settings → General →
-   Danger Zone → Change visibility. Run the address check from
-   `store-listing.md` afterwards; both should still say 200.
-3. Delete `docs/index.html` (the forwarding page, dead once private) and the
-   README's mention of it, and turn off Pages for this repo if GitHub hasn't.
-4. From then on every build spends Actions minutes, about 12–14 builds a month:
-   see "Build sparingly" in the README.
+## Delete the plato-support repo, after the next release
+
+The live App Store listing (1.1.0) links https://braydenric.github.io/plato-support/
+for support and https://braydenric.github.io/plato-support/privacy.html for the
+privacy policy, and Apple changes those only with a new version. Until then the
+two pages there only forward to https://plato-workouts.web.app/. Once 1.2.0,
+which names the new site, is *released* (not just approved):
+
+1. Check that the App Store page's support and privacy links open
+   plato-workouts.web.app.
+2. Delete the repo: plato-support on GitHub → Settings → Danger Zone → Delete
+   this repository. Its site goes with it.
 
 ## Before submitting to the App Store
 

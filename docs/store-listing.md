@@ -185,23 +185,23 @@ The privacy policy and support contact are in the app under Profile → Help.
 
 ## Checklist for the version page
 
-- Build: **1.2.0 (74)**, once it's been checked on a phone and watch (next-release.md, step 1).
+- Build: **1.2.0 (75)**, once it's been checked on a phone and watch (next-release.md, step 2).
   Everything since 1.1.0: offline mode, 600 exercises, mid-workout reorder, the Apple Watch app,
   cardio sessions, the Start workout picker, and Help in Profile.
-- Privacy Policy URL: **https://braydenric.github.io/plato-support/privacy.html**, changed from
-  https://braydenric.github.io/Plato/, which only forwards there while the Plato repo is public.
-  Apple applies a URL change with the next version, so it goes live when this version is
-  released. After that, the repo can go private (see plans-for-later.md).
-- Support URL: **https://braydenric.github.io/plato-support/**, the page with the contact address
-  Apple wants (guideline 1.5).
-- Marketing URL: empty, or the support URL. Like the two above, never an address under
-  braydenric.github.io/Plato/, which goes when the repo goes private.
+- Privacy Policy URL: **https://plato-workouts.web.app/privacy**, changed from 1.1.0's
+  https://braydenric.github.io/plato-support/privacy.html. Apple applies a URL change with the
+  next version, so it goes live when this version is released; the old page forwards here until
+  then.
+- Support URL: **https://plato-workouts.web.app/**, the page with the contact address Apple wants
+  (guideline 1.5). Changed from https://braydenric.github.io/plato-support/ the same way.
+- Marketing URL: empty, or the support URL. Never a github.io address.
 - Check that the addresses load before submitting. Both should say 200:
   ```bash
-  for u in https://braydenric.github.io/plato-support/ https://braydenric.github.io/plato-support/privacy.html; do curl -s -o /dev/null -w "%{http_code} $u\n" "$u"; done
+  for u in https://plato-workouts.web.app/ https://plato-workouts.web.app/privacy; do curl -s -o /dev/null -w "%{http_code} $u\n" "$u"; done
   ```
-  The app's Help links open the same two (`src/constants/links.ts`), and `links.test.ts` fails if
-  this checklist and the app ever disagree.
+  The pages are this repo's `site/` folder, published with Firebase Hosting. The app's Help links
+  open the same two (`src/constants/links.ts`), and `links.test.ts` fails if this checklist, the
+  app and the site ever disagree.
 - App Privacy → Data Types: under Health & Fitness, **Health** and **Fitness**
   (App Functionality · linked to identity · not used for tracking). Sessions are saved to the
   account like typed workouts. Motion & Fitness needs nothing more: the distance it gives is

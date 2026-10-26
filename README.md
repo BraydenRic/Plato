@@ -45,7 +45,7 @@ gh workflow run ios-build.yml --ref main -f submit=true
 
 A build takes about 15–20 minutes, plus Apple's processing before it shows in TestFlight. Build numbers are managed remotely by EAS and increment automatically. The **version** is not: App Store Connect closes a version to new builds once it's approved, so bump `version` in `app.json` and `package.json` before building after a release.
 
-**Build sparingly once the repo is private.** It's public for now, and a public repo's Actions minutes aren't counted, so builds are free. It goes private after the next release (see [plans-for-later](docs/plans-for-later.md)). From then on, GitHub's free plan gives it 2,000 minutes a month, with each macOS minute counted as about ten. That's roughly 190 minutes on the macOS runner, or 12–14 builds. So build when there's something worth trying on a phone, with changes batched up, not after every commit, and it's worth getting used to that now. Run `npm test`, `npx tsc --noEmit` and the watch logic tests first, because a build that fails partway still spends its minutes. With no payment method on file, builds stop once the month's minutes are gone, until they reset at the start of the next month; with one, each extra build costs about a dollar. Usage is under GitHub → Settings → Billing.
+**Build sparingly once the repo is private.** It's public for now, and a public repo's Actions minutes aren't counted, so builds are free. Nothing public depends on it any more, so it can go private whenever suits (see [plans-for-later](docs/plans-for-later.md)). From then on, GitHub's free plan gives it 2,000 minutes a month, with each macOS minute counted as about ten. That's roughly 190 minutes on the macOS runner, or 12–14 builds. So build when there's something worth trying on a phone, with changes batched up, not after every commit, and it's worth getting used to that now. Run `npm test`, `npx tsc --noEmit` and the watch logic tests first, because a build that fails partway still spends its minutes. With no payment method on file, builds stop once the month's minutes are gone, until they reset at the start of the next month; with one, each extra build costs about a dollar. Usage is under GitHub → Settings → Billing.
 
 The App Store copy (description, What's New, review notes) lives in [docs/store-listing.md](docs/store-listing.md). Update it with the app. The next release's steps, in order, are in [docs/next-release.md](docs/next-release.md).
 
@@ -55,6 +55,7 @@ Project `workouttracker-4e0c8`. Security rules and indexes are in the repo:
 
 ```bash
 firebase deploy --only firestore:rules,firestore:indexes
+npx firebase-tools deploy --only hosting    # the support page and privacy policy (site/)
 ```
 
 Every collection is per-user: `workouts`, `userStats`, `exerciseLibrary`, `weeklyPlans`, `bodyweight`. A new collection needs a block in [firestore.rules](firestore.rules) and a line in `deleteAllUserData`. [account-data-coverage.test.ts](src/lib/__tests__/account-data-coverage.test.ts) fails if either is missing.
@@ -102,7 +103,8 @@ modules/plato-watch/             # WatchConnectivity bridge on the phone (local 
 modules/plato-health/            # Health access and waking the watch for a session (local Expo module)
 plugins/                         # Config plugins: Live Activity widget patch + Info.plist, watch targets + Info.plist
 scripts/apple-transfer/          # One-off tool for an App Store team transfer
-docs/                            # Store listing, plans for later, old privacy policy address
+docs/                            # Store listing, release steps, plans for later
+site/                            # Support page and privacy policy, published with Firebase Hosting
 ```
 
 ## Data model
@@ -167,6 +169,6 @@ Finishing a workout stores `totalVolume`, priced at that day's weigh-in, and rec
 
 ## Privacy
 
-The privacy policy is `privacy.html` in the public [plato-support](https://github.com/BraydenRic/plato-support) repo, served at <https://braydenric.github.io/plato-support/privacy.html>, next to the support page that links to it. Update it there whenever what the app stores changes, including what it keeps on the device. The app links it from Profile → Help, beside Contact support, as Apple requires (5.1.1). Every address the app and the listing use is in [links.ts](src/constants/links.ts). It lives outside this repo so that this one can go private: GitHub's free plan only serves Pages from public repos.
+The privacy policy and the support page are this repo's [site/](site) folder, published with Firebase Hosting at <https://plato-workouts.web.app/privacy> and <https://plato-workouts.web.app/>. Update the policy whenever what the app stores changes, including what it keeps on the device, then publish it with `npx firebase-tools deploy --only hosting`. The app links both from Profile → Help, as Apple requires (5.1.1), and every address the app and the listing use is in [links.ts](src/constants/links.ts). The pages name Full Stach LLC, as the App Store does.
 
-The App Store listing still links <https://braydenric.github.io/Plato/>, and [docs/index.html](docs/index.html) forwards that address to the policy. The next release switches the listing to the new address (see [store-listing.md](docs/store-listing.md)). After that, see [plans-for-later](docs/plans-for-later.md).
+The live listing (1.1.0) still links the old pages at braydenric.github.io/plato-support/, which forward to the new site. 1.2.0 switches the listing over, and after that the old repo can be deleted (see [plans-for-later](docs/plans-for-later.md)).

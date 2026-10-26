@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Plato — Support</title>
+  <meta name="description" content="Support for Plato: Workout Tracker for iPhone." />
+  <style>
+    :root {
+      --bg: #09090b;
+      --surface: #131316;
+      --border: #232329;
+      --text: #f4f4f5;
+      --muted: #9d9da8;
+      --accent: #8b5cf6;
+    }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html { -webkit-text-size-adjust: 100%; }
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font: 16px/1.65 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      min-height: 100vh;
+    }
+    .wrap { max-width: 640px; margin: 0 auto; padding: 72px 24px 96px; }
+    .brand {
+      display: flex; align-items: center; gap: 12px;
+      margin-bottom: 56px;
+    }
+    .mark {
+      width: 40px; height: 40px; border-radius: 10px;
+      background: linear-gradient(135deg, #7c3aed, #8b5cf6);
+      display: grid; place-items: center;
+      font-weight: 700; font-size: 20px; color: #fff;
+    }
+    .brand-name { font-weight: 600; letter-spacing: -0.01em; }
+    .brand-name small { display: block; font-weight: 400; font-size: 13px; color: var(--muted); }
+    h1 {
+      font-size: 34px; line-height: 1.2; letter-spacing: -0.02em;
+      margin-bottom: 12px;
+    }
+    .lede { color: var(--muted); margin-bottom: 48px; max-width: 46ch; }
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 24px;
+      margin-bottom: 16px;
+    }
+    .card h2 { font-size: 15px; letter-spacing: -0.01em; margin-bottom: 6px; }
+    .card p { color: var(--muted); font-size: 15px; }
+    a { color: var(--accent); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    .kbd {
+      color: var(--text); background: var(--bg);
+      border: 1px solid var(--border); border-radius: 6px;
+      padding: 1px 7px; font-size: 13px; white-space: nowrap;
+    }
+    footer {
+      margin-top: 64px; padding-top: 24px;
+      border-top: 1px solid var(--border);
+      color: var(--muted); font-size: 13px;
+      display: flex; justify-content: space-between; gap: 16px; flex-wrap: wrap;
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="brand">
+      <div class="mark">P</div>
+      <div class="brand-name">Plato<small>Workout Tracker for iPhone</small></div>
+    </div>
+
+    <h1>Support</h1>
+    <p class="lede">Questions, bug reports, or ideas for Plato — get in touch and you'll hear back, usually within a couple of days.</p>
+
+    <div class="card">
+      <h2>Email</h2>
+      <p>The fastest way to reach us: <a href="mailto:platoworkoutapp@gmail.com?subject=Plato%20support">platoworkoutapp@gmail.com</a>. Include your iPhone model and iOS version if you're reporting a bug.</p>
+    </div>
+
+    <div class="card">
+      <h2>Your data</h2>
+      <p>Workouts sync to your account automatically whenever you're online. You can permanently delete your account and every workout from inside the app: <span class="kbd">Profile</span> → <span class="kbd">Delete account</span>.</p>
+    </div>
+
+    <div class="card">
+      <h2>Privacy</h2>
+      <p>Plato has no ads, no pop-ups, and no tracking. Read the full <a href="/privacy">privacy policy</a>.</p>
+    </div>
+
+    <footer>
+      <span>© 2026 Full Stach LLC</span>
+      <span><a href="/privacy">Privacy Policy</a></span>
+    </footer>
+  </div>
+</body>
+</html>

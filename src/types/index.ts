@@ -52,7 +52,7 @@ export type BestEffortKey = "1k" | "1mi" | "5k" | "10k" | "half" | "marathon";
 export interface TrackedCardio {
   /** Apple Health's id for the workout the watch saved, when it saved one. */
   healthId?: string;
-  /** What recorded it, as Health names it: "Brayden's Apple Watch", "Strava". */
+  /** What recorded it, as Health names it: "Sam's Apple Watch", "Strava". */
   source?: string;
   indoor?: boolean;
   activeCalories?: number;
