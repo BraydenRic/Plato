@@ -3,52 +3,111 @@
 Copy from here into App Store Connect. Kept in the repo so the listing is
 versioned alongside the features it describes; update it when the app changes.
 
-## Description
+The pitch, everywhere it fits: Plato tracks workouts and cardio, and nothing
+pops up, ever. Every claim below is checked against the app: no ads, no
+rating, upgrade or notification prompts (Plato sends no notifications at all),
+no purchases, no analytics or tracking code, and no account needed. Keep it
+that way, or change the copy. Apple pulls apps whose listing promises what
+they don't do (guideline 2.3.1).
+
+"Pop-ups" means the ones people hate. iOS still asks for Health and Motion
+access the first time you start cardio, and a delete still asks "Delete
+workout?". Those are Apple's sheets or your own taps, so the copy promises
+no pop-ups *asking you to* rate, upgrade, subscribe or turn on notifications.
+
+## Subtitle
+
+30 characters at most. It only changes with a new version. "No BS" stays out
+of it: Apple reviews subtitles more strictly than the description (2.3.7).
 
 ```
-Plato is a fast, no-clutter workout tracker built for people who actually lift.
-Open it, log your sets, get back to training. No account needed to start.
+No ads. No pop-ups. Ever.
+```
+
+Or, to carry more search words: `Lifting & cardio. No pop-ups.`
+
+## Promotional Text
+
+170 characters at most. It shows above the description and can be changed
+any time, with no new version.
+
+```
+No ads. No pop-ups. No paywalls. No BS. Plato logs your lifts and your cardio, on your iPhone and your Apple Watch, then gets out of your way.
+```
+
+## Description
+
+Written for a build with cardio sessions and the Apple Watch app, so anything
+after build 55. For build 55 itself, leave out CARDIO and APPLE WATCH, and the
+watch from the promotional text.
+
+```
+No ads. No pop-ups. No paywalls. No BS.
+
+Plato tracks your workouts and your cardio, and that's all it does. Open it, log your sets, get back to training.
+
+Nothing will ever pop up asking you to rate the app, upgrade, start a trial or turn on notifications. Not on your first workout, not on your five hundredth.
+
+WHAT YOU WON'T FIND
+• Ads
+• Rate-us prompts, upgrade screens or "come back" nags
+• Notifications. Plato doesn't send any
+• Subscriptions or in-app purchases. Nothing is locked away
+• Tracking. Your workouts are never sold or used for ads
+• A sign-up wall. The whole app works without an account
 
 LOG WORKOUTS FAST
 • 600 built-in exercises — barbell staples, machines, cables, bands, calisthenics, sports and neck work — each with a guide to doing it right
-• Enter weight and reps with a keypad built for the gym — jump to the next field with one tap
-• Copy your previous set with a single tap
-• Timed exercises like planks, dead hangs, and cardio get a built-in start/stop timer
-• Rest timer between sets
-• Works with no signal — log a whole session in a dead zone and it syncs when you're back online
+• A keypad built for the gym: enter weight and reps, then jump to the next field in one tap
+• Copy your previous set in one tap
+• Built-in timers for planks, dead hangs and other timed sets
+• An optional rest timer between sets
+• Works with no signal: log a whole session in a dead zone and it syncs when you're back online
 
-START WITHOUT AN ACCOUNT
-• Use the whole app as a guest — no sign-up, no email, nothing to fill in
-• Everything stays on your phone until you decide otherwise
-• Create an account later and everything you already logged comes with you
+CARDIO
+• Start a run, walk, hike, ride, swim or row and track it on your Apple Watch: live distance, pace, heart rate and splits
+• No watch? Runs, walks and hikes get their distance, pace and splits from your iPhone's step counter
+• Sessions your watch tracks show heart rate and calories, and save to Apple Health so they count toward your rings
+• Weekly distance and your fastest mile, 5K and 10K on the Stats tab
+
+APPLE WATCH
+• Log the workout in progress from your wrist: the next set's weight and reps are ready, the Digital Crown adjusts them, and one tap logs it
+• The rest countdown, right on your wrist
+• Start a template from the watch
+• Put Plato on your watch face
 
 LIVE ACTIVITY
-• Your active workout lives on your Lock Screen and Dynamic Island with a running timer and set count — no need to unlock your phone to check
+• Your workout lives on your Lock Screen and in the Dynamic Island, with a running clock, your set count and the rest countdown
+
+START WITHOUT AN ACCOUNT
+• No sign-up, no email, nothing to fill in
+• Everything stays on your phone until you decide otherwise
+• Create an account later and everything you've logged comes with you
 
 PLAN YOUR TRAINING
-• Build reusable workout templates
-• Set a weekly split — assign templates to each day of the week
+• Reusable workout templates
+• A weekly split: a template for each day of the week
 • Plan workouts ahead on the calendar
 
 TRACK YOUR PROGRESS
 • Full workout history
 • Progress charts for every exercise
-• Muscle recap shows which muscle groups you've hit and which you've neglected
+• A muscle map of what you've hit this week, and what you've skipped
 
 BODY WEIGHT
-• Log weigh-ins and watch your weight trend over time
-• Pull ups, dips and other bodyweight moves are counted at what you actually weighed that day — so your volume is honest, and a weigh-in tomorrow never re-writes what you lifted today
+• Log weigh-ins and watch the trend
+• Pull-ups, dips and other bodyweight moves count at what you weighed that day, so a new weigh-in never rewrites what you've already lifted
 • Pounds or kilos, your call
 
 MAKE IT YOURS
 • Light or dark, or follow your phone
-• Seven accent colours — and your home screen icon changes to match
+• Seven accent colours, and your home screen icon changes to match
 
-YOUR DATA, EVERYWHERE
-• Sign in with Apple, Google, or email — your workouts sync automatically
-• Delete your account and data anytime, right from the app
+YOUR DATA
+• Sign in with Apple, Google or email to sync across devices
+• Delete your account and all your data anytime, right from the app
 
-No ads. No pop-ups. No clutter. Just training.
+Plato is for training. Everything else got cut.
 ```
 
 ## What's New in This Version
@@ -113,14 +172,8 @@ The 1.2.0 text above predates cardio sessions and the watch's HealthKit use.
 Before submitting a build that has them:
 
 - **Description** — Apple requires HealthKit apps to say so in the listing.
-  Add a section:
-  ```
-  CARDIO
-  • Start a run, walk, ride, swim or row and track it on your Apple Watch — live distance, pace, heart rate and splits
-  • No watch? Runs and walks get their distance, pace and splits from your iPhone's step counter
-  • Finished sessions show your splits, heart rate and calories, and save to Apple Health so they count toward your rings
-  • Weekly distance and your fastest mile, 5K and 10K on the Stats tab
-  ```
+  The description above already has the CARDIO section, and APPLE WATCH
+  beside it.
 - **Notes for App Review** — replace "No HealthKit access." with:
   `Apple Health is used only for cardio sessions started in Plato: on the Workouts tab, Start cardio → Run → Start. With an Apple Watch paired, the watch tracks the session (heart rate, energy, distance) and saves it to Health as a workout. Plato never reads workouts recorded by other apps. Without a watch, Health isn't used: a run, walk or hike gets its distance from the iPhone's step counter (Motion & Fitness), and other sessions run on the phone's clock.`
 - **App Privacy → Data Types** — under Health & Fitness, **Health** and
