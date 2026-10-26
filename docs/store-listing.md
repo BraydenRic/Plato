@@ -37,10 +37,6 @@ No ads. No pop-ups. No paywalls. No BS. Plato logs your lifts and your cardio, o
 
 ## Description
 
-Written for a build with cardio sessions and the Apple Watch app, so anything
-after build 55. For build 55 itself, leave out CARDIO and APPLE WATCH, and the
-watch from the promotional text.
-
 ```
 No ads. No pop-ups. No paywalls. No BS.
 
@@ -113,6 +109,21 @@ Plato is for training. Everything else got cut.
 ## What's New in This Version
 
 ```
+Plato is on Apple Watch. Log the workout you have going from your wrist: the
+next set's weight and reps are ready, the Digital Crown adjusts them, and one
+tap logs it. The rest countdown runs there too, and you can start a template
+from the watch. Put Plato on your watch face to get to it in one tap.
+
+Cardio sessions. Tap Start cardio for a run, walk, hike, ride, swim, row,
+elliptical or stair session. With an Apple Watch it tracks distance, pace,
+heart rate and splits live, and saves the session to Apple Health so it counts
+toward your rings. No watch? Runs, walks and hikes get their distance, pace and
+splits from your iPhone's step counter. Stats shows your weekly distance and
+your fastest mile, 5K and 10K.
+
+Start workout now opens a picker, the way Start cardio does: start blank or
+from any of your templates, with today's split already picked.
+
 Plato now works with no signal. Open it in a basement gym and your history,
 templates and exercises are all there. Log a whole session, finish it, and it
 syncs to your account when you're back online, even if you close the app
@@ -139,6 +150,8 @@ Search results no longer hide behind the keyboard. The bar for your
 workout in progress has a cleaner look, and if you have two going at once it
 lists both. Home is tidier too: History is one row near the top, and the
 weekly split folds away until you need it.
+
+Profile has a Help section, with support and the privacy policy a tap away.
 ```
 
 ## Notes for App Review
@@ -151,12 +164,30 @@ Sign in with Apple, Google and email/password are all supported for users who
 want cloud sync. Account deletion is in Profile → Delete account.
 
 Body weight is optional, entered by hand, and used only to chart the user's
-own weight and to value bodyweight exercises. No HealthKit access.
+own weight and to value bodyweight exercises.
+
+Apple Health is used only for cardio sessions started in Plato: on the
+Workouts tab, Start cardio → Run → Start. With an Apple Watch paired, the
+watch tracks the session (heart rate, energy, distance) and saves it to Health
+as a workout. Plato never reads workouts recorded by other apps. Without a
+watch, Health isn't used: a run, walk or hike gets its distance from the
+iPhone's step counter (Motion & Fitness), and other sessions run on the
+phone's clock.
+
+The Apple Watch app logs the workout in progress on the iPhone. Start one on
+the phone (Workouts → Start workout → Start blank workout, then add an
+exercise) and it appears on the watch, ready to log sets. With no workout
+going, the watch lists your templates to start one, and Start → Cardio starts
+a session from the wrist.
+
+The privacy policy and support contact are in the app under Profile → Help.
 ```
 
 ## Checklist for the version page
 
-- Build: **1.2.0 (55)** — offline mode, the timer fix, mid-workout reorder, 600 exercises, and the tidier Home and resume bar
+- Build: **1.2.0 (74)**, once it's been checked on a phone and watch (next-release.md, step 1).
+  Everything since 1.1.0: offline mode, 600 exercises, mid-workout reorder, the Apple Watch app,
+  cardio sessions, the Start workout picker, and Help in Profile.
 - Privacy Policy URL: **https://braydenric.github.io/plato-support/privacy.html**, changed from
   https://braydenric.github.io/Plato/, which only forwards there while the Plato repo is public.
   Apple applies a URL change with the next version, so it goes live when this version is
@@ -171,27 +202,12 @@ own weight and to value bodyweight exercises. No HealthKit access.
   ```
   The app's Help links open the same two (`src/constants/links.ts`), and `links.test.ts` fails if
   this checklist and the app ever disagree.
-- App Privacy → Data Types: **Health** added under Health & Fitness
-  (App Functionality · linked to identity · not used for tracking)
+- App Privacy → Data Types: under Health & Fitness, **Health** and **Fitness**
+  (App Functionality · linked to identity · not used for tracking). Sessions are saved to the
+  account like typed workouts. Motion & Fitness needs nothing more: the distance it gives is
+  saved with the session, which is Fitness data already.
+- Screenshots: the iPhone set in `store/screenshots/`, and **at least one Apple Watch
+  screenshot**, which Apple requires for an app with a watch app. One watch size for all of them;
+  the live run screen makes a good one.
 - Export compliance: answered automatically by `ITSAppUsesNonExemptEncryption: false`
 - Release: **automatic** on approval
-
-## When a build with cardio sessions ships
-
-The 1.2.0 text above predates cardio sessions and the watch's HealthKit use.
-Before submitting a build that has them:
-
-- **Description** — Apple requires HealthKit apps to say so in the listing.
-  The description above already has the CARDIO section, and APPLE WATCH
-  beside it.
-- **Notes for App Review** — replace "No HealthKit access." with:
-  `Apple Health is used only for cardio sessions started in Plato: on the Workouts tab, Start cardio → Run → Start. With an Apple Watch paired, the watch tracks the session (heart rate, energy, distance) and saves it to Health as a workout. Plato never reads workouts recorded by other apps. Without a watch, Health isn't used: a run, walk or hike gets its distance from the iPhone's step counter (Motion & Fitness), and other sessions run on the phone's clock.`
-- **App Privacy → Data Types** — under Health & Fitness, **Health** and
-  **Fitness** (App Functionality · linked to identity · not used for
-  tracking). Sessions are saved to the account like typed workouts.
-- **Screenshots** — a watch screenshot is needed for the watch app anyway;
-  the live run screen makes a good one.
-- **Privacy Policy** — already updated (Apple Health and Apple Watch, and Your iPhone's step counter),
-  at the plato-support address in the checklist above.
-- **Motion & Fitness** needs nothing more in App Privacy: the distance it gives is
-  saved with the session, which is already Fitness data above.

@@ -111,7 +111,8 @@ forwards to it.
 
 ## Before submitting to the App Store
 
-- `docs/store-listing.md`, "When a build with cardio sessions ships".
+- `docs/next-release.md`: the steps for the next release, in order, with the
+  App Store text in `docs/store-listing.md`.
 - Sign in with Apple token revocation is set up in Firebase (key "Plato Sign
   in with Apple", Services ID `com.plato.workouts.signin`). If the developer
   team changes, make a new key and Services ID under it and update Firebase.

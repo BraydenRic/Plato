@@ -47,7 +47,7 @@ A build takes about 15–20 minutes, plus Apple's processing before it shows in 
 
 **Build sparingly once the repo is private.** It's public for now, and a public repo's Actions minutes aren't counted, so builds are free. It goes private after the next release (see [plans-for-later](docs/plans-for-later.md)). From then on, GitHub's free plan gives it 2,000 minutes a month, with each macOS minute counted as about ten. That's roughly 190 minutes on the macOS runner, or 12–14 builds. So build when there's something worth trying on a phone, with changes batched up, not after every commit, and it's worth getting used to that now. Run `npm test`, `npx tsc --noEmit` and the watch logic tests first, because a build that fails partway still spends its minutes. With no payment method on file, builds stop once the month's minutes are gone, until they reset at the start of the next month; with one, each extra build costs about a dollar. Usage is under GitHub → Settings → Billing.
 
-The App Store copy (description, What's New, review notes) lives in [docs/store-listing.md](docs/store-listing.md). Update it with the app.
+The App Store copy (description, What's New, review notes) lives in [docs/store-listing.md](docs/store-listing.md). Update it with the app. The next release's steps, in order, are in [docs/next-release.md](docs/next-release.md).
 
 ## Firebase
 
