@@ -61,7 +61,7 @@ const mockBridge: FakeBridge = jest.requireMock("../../../modules/plato-watch").
 type MockAuth = {
   dataUserId: string | null;
   loading: boolean;
-  migrating?: boolean;
+  guestMoveUnderway?: boolean;
   user?: { uid: string; emailVerified: boolean; providerData: { providerId: string }[] };
 };
 let mockAuth: MockAuth = { dataUserId: "u1", loading: false };
@@ -134,6 +134,7 @@ jest.mock("@/lib/data", () => {
     computeStats: () => ({ totalCompletedWorkouts: 1 }),
     stripUndefined: (value: unknown) => mockStrip(value),
     getWorkout: async (id: string) => mockStore.get(id) ?? null,
+    movedGuestWorkoutId: (userId: string, localId: string) => `${userId}_${localId}`,
     updateWorkout: (id: string, updates: Partial<Workout>) => mockUpdateWorkout(id, updates),
     startFromTemplate: (t: Workout, u: string) => mockStartFromTemplate(t, u),
     createWorkoutLocalFirst: (w: Omit<Workout, "id">) => mockCreate(w),
@@ -471,6 +472,62 @@ describe("a phone that has only just signed in", () => {
     await settle();
     expect(mockUpdateWorkout).toHaveBeenCalledTimes(1);
     expect(mockBridge.inbox).toEqual([]);
+  });
+});
+
+// A guest signed in mid-workout. Their data moves into the account behind
+// the app once the moving screen steps aside, and the watch's ops wait for as
+// long as that runs, then land on the moved copy, which the watch may still
+// name by its guest id.
+describe("while a guest's data moves into the account", () => {
+  const guestSet = (opId: string) =>
+    entry({ opId, kind: "logSet", at: Date.now() - 1000, workoutId: "local-w1", exerciseId: "e1", setId: "s1", weight: 185, reps: 5, unit: "lbs" });
+
+  beforeEach(() => {
+    mockStore.clear();
+    mockStore.set("local-w1", live({ id: "local-w1", userId: GUEST_USER_ID }));
+    mockWorkouts = { active: [], templates: [], completed: [], loading: false };
+  });
+
+  it("holds the watch's ops past the moving screen, then applies them to the moved copy", async () => {
+    // The screen has stepped aside, so `migrating` is off; the move isn't done.
+    mockAuth = { dataUserId: "u1", loading: false, guestMoveUnderway: true };
+    mockBridge.inbox = [guestSet("op-g1"), entry({ opId: "op-gf", kind: "finish", at: Date.now(), workoutId: "local-w1" })];
+    const view = render(<WatchSync />);
+    await settle();
+    expect(mockBridge.inbox).toHaveLength(2);
+    expect(mockUpdateWorkout).not.toHaveBeenCalled();
+
+    // Moved: gone from the guest store, in the account under its new id.
+    mockStore.delete("local-w1");
+    const moved = live({ id: "u1_local-w1" });
+    mockStore.set(moved.id, moved);
+    mockWorkouts = { ...mockWorkouts, active: [moved] };
+    mockAuth = { ...mockAuth, guestMoveUnderway: false };
+    view.rerender(<WatchSync />);
+    await settle();
+
+    expect(mockUpdateWorkout.mock.calls.map(([id]) => id)).toEqual(["u1_local-w1", "u1_local-w1"]);
+    expect(mockStore.get("u1_local-w1")!.exercises[0].sets[0]).toMatchObject({ weight: 185, reps: 5, isCompleted: true });
+    expect(mockStore.get("u1_local-w1")!.completedAt).toBeInstanceOf(Date);
+    expect(mockBridge.inbox).toEqual([]);
+  });
+
+  it("goes to the moved copy over a guest copy the move hasn't let go of", async () => {
+    mockStore.set("u1_local-w1", live({ id: "u1_local-w1" }));
+    mockBridge.inbox = [guestSet("op-g1")];
+    render(<WatchSync />);
+    await settle();
+    expect(mockUpdateWorkout.mock.calls.map(([id]) => id)).toEqual(["u1_local-w1"]);
+    expect(mockStore.get("local-w1")!.exercises[0].sets[0].isCompleted).toBe(false);
+  });
+
+  it("still goes to the guest's own copy in guest mode", async () => {
+    mockAuth = { dataUserId: GUEST_USER_ID, loading: false };
+    mockBridge.inbox = [guestSet("op-g1")];
+    render(<WatchSync />);
+    await settle();
+    expect(mockUpdateWorkout.mock.calls.map(([id]) => id)).toEqual(["local-w1"]);
   });
 });
 
@@ -1081,7 +1138,7 @@ describe("cardio sessions from the watch", () => {
     // Verified: the move runs, and nothing is applied until it's done, when
     // the walk is the account's under its new id, its start op kept.
     it("holds the watch's ops while the guest's data moves in, then applies them to the moved copy", async () => {
-      mockAuth = { dataUserId: "u1", loading: false, user: { ...unverified, emailVerified: true }, migrating: true };
+      mockAuth = { dataUserId: "u1", loading: false, user: { ...unverified, emailVerified: true }, guestMoveUnderway: true };
       mockBridge.inbox = [walkFinish()];
       const view = render(<WatchSync />);
       await settle();
@@ -1092,7 +1149,7 @@ describe("cardio sessions from the watch", () => {
       mockStore.delete("local-walk");
       mockStore.set(moved.id, moved);
       mockWorkouts = { ...mockWorkouts, active: [moved] };
-      mockAuth = { ...mockAuth, migrating: false };
+      mockAuth = { ...mockAuth, guestMoveUnderway: false };
       view.rerender(<WatchSync />);
       await settle();
       expect(mockStore.get("u1_local-walk")!.completedAt).toBeInstanceOf(Date);

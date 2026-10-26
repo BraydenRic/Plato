@@ -1,14 +1,17 @@
-// Straight to Firestore, not through data.ts. data.ts resolves a write once
-// it's safe on the phone, but this deletes each workout from the guest store
-// as soon as its write resolves. It has to know the server has it first.
-// Reading what the account already holds is different: cloud-cache's copy is
-// complete once the server has answered, which the caller waits for.
+// Not through data.ts. data.ts resolves a write once it's safe on the phone,
+// but this deletes each workout from the guest store once its write resolves,
+// so it has to know the server has it first. Workouts go through cloud-cache's
+// outbox all the same (see writeAndConfirm), waiting for the server's ack:
+// Firestore's own queue is lost if the app is killed, and sets logged on a
+// moved workout meanwhile must not reach the server before the workout does.
+// The rest goes straight to Firestore. Reading what the account already holds
+// is different again: cloud-cache's copy is complete once the server has
+// answered, which the caller waits for.
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
 import {
   computeStats,
   getCompletedWorkouts,
-  sendWrite,
   stripUndefined,
   upsertUserStats,
   countActiveWorkouts,
@@ -23,7 +26,8 @@ import {
   type WeeklyPlan,
 } from "./firestore";
 import { announceBodyweight, writeCachedBodyweight } from "./bodyweight-cache";
-import { getWorkout as getFromAccountCopy } from "./cloud-cache";
+import { getWorkout as getFromAccountCopy, whenPendingWorkoutLands, writeAndConfirm } from "./cloud-cache";
+import { movedGuestWorkoutId } from "./data";
 import {
   MAX_CUSTOM_EXERCISES,
   MAX_MERGED_ACTIVE_WORKOUTS,
@@ -147,19 +151,17 @@ async function migrateBodyweight(userId: string, guest: GuestData, checkpoint: (
  * commits the write but the ack never arrives (signal gone, app killed), the
  * workout is still here on the next launch and goes up again. A fresh id from
  * addDoc would then show it twice in the history; a fixed one just writes the
- * same document again. The uid is part of it so the same guest data can never
- * land on a document another account already owns.
+ * same document again.
  */
-function cloudWorkoutId(userId: string, localId: string): string {
-  return `${userId}_${localId.replace(/\//g, "_")}`;
-}
+const cloudWorkoutId = movedGuestWorkoutId;
 
 /**
  * What each workout looked like when it was sent, by cloud id, until the move
  * finishes.
  *
  * A re-run can find a workout an earlier run sent and never heard back about,
- * because the app was killed. If the account has it, that send landed, and
+ * because the app was killed. If the account has it, and nothing for it is
+ * still in the outbox (see whenPendingWorkoutLands below), that send landed, and
  * the account's copy may have moved on since: the moving screen steps aside
  * mid-move, and they may have gone on logging sets on it. Sending the guest
  * copy again would wipe those out. But the guest copy can be the newer one
@@ -194,12 +196,13 @@ function digest(text: string): string {
 /**
  * Uploads sent this launch that the server hasn't answered yet, by cloud id.
  *
- * A sign-out mid-move leaves one waiting in Firestore's queue for that
- * account, and signing back in sends it. Meanwhile the account's copy already
- * shows the workout, since Firestore lays its unsent writes over what it
- * reports, yet the server may not have it, and that queue is lost if the app
- * is killed. So the copy only proves an earlier send landed once nothing for
- * that workout is still on its way. In memory on purpose: so is the queue.
+ * A sign-out mid-move wipes the account's outbox, but leaves the upload
+ * waiting in Firestore's queue for that account, and signing back in sends
+ * it. Meanwhile the account's copy already shows the workout, since Firestore
+ * lays its unsent writes over what it reports, yet the server may not have
+ * it, and that queue is lost if the app is killed. So the copy only proves an
+ * earlier send landed once nothing for that workout is still on its way. In
+ * memory on purpose: so is the queue.
  */
 const unanswered = new Map<string, Promise<void>>();
 
@@ -277,9 +280,16 @@ export async function migrateGuestDataTo(
     // The guest's own createdAt goes up with it, so the history keeps its dates.
     const data = stripUndefined({ ...fields, userId });
     const contents = digest(JSON.stringify(data));
+    // An earlier run's upload the app was killed on, still in the outbox
+    // with whatever was logged on the workout in the account queued behind
+    // it. It goes up first on its own, so sending the guest copy again
+    // would only land after those edits and wipe them out.
+    const waiting = await whenPendingWorkoutLands(userId, cloudId);
+    checkpoint();
     // Already in the account means an earlier run sent it. The room below
-    // already counts it, so it can't be what overflows it.
-    const inAccount = (await getFromAccountCopy(cloudId)) !== null;
+    // already counts it, so it can't be what overflows it. The same goes
+    // for one still waiting to go up, even if it was deleted there since.
+    const inAccount = waiting !== null || (await getFromAccountCopy(cloudId)) !== null;
     checkpoint();
     if (!inAccount && workout.isTemplate) {
       if (templateRoom <= 0) {
@@ -299,17 +309,21 @@ export async function migrateGuestDataTo(
     // Sent before, landed, and unchanged here since (see SENT_KEY): the
     // account's copy is the newer one, so it's left as it is.
     const landedUnchanged = inAccount && !unanswered.has(cloudId) && sent[cloudId] === contents;
-    if (!landedUnchanged) {
-      const write = sendWrite({ collection: "workouts", docId: cloudId, kind: "set", data });
-      unanswered.set(cloudId, write);
+    if (waiting) {
+      // Its guest copy stays until the server has it, as for a fresh send.
+      await waiting.landed;
+      checkpoint();
+    } else if (!landedUnchanged) {
+      const { saved, landed } = writeAndConfirm(userId, { collection: "workouts", docId: cloudId, kind: "set", data });
+      unanswered.set(cloudId, landed);
+      const answered = () => {
+        if (unanswered.get(cloudId) === landed) unanswered.delete(cloudId);
+      };
+      landed.then(answered, answered);
       // Noted once it's really on its way, never before, so the note can't
       // claim a send that a stop got in ahead of.
       sent[cloudId] = contents;
-      try {
-        await Promise.all([write, AsyncStorage.setItem(SENT_KEY, JSON.stringify(sent)).catch(() => {})]);
-      } finally {
-        if (unanswered.get(cloudId) === write) unanswered.delete(cloudId);
-      }
+      await Promise.all([saved, landed, AsyncStorage.setItem(SENT_KEY, JSON.stringify(sent)).catch(() => {})]);
       checkpoint();
     }
     // Record before removing: between these two writes the mapping is the only
@@ -339,6 +353,8 @@ export async function migrateGuestDataTo(
   await upsertUserStats({ userId, ...computeStats(completed) });
   checkpoint();
 
+  // Every workout still here now is one a ceiling above left behind. The
+  // rest have gone one at a time, each once the server had it.
   await clearGuestData();
   await writeGuestActive(false);
   await AsyncStorage.removeItem(SENT_KEY).catch(() => {});

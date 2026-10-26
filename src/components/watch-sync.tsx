@@ -18,12 +18,13 @@ import {
   getBodyweightLog,
   getCompletedWorkouts,
   getWorkout,
+  movedGuestWorkoutId,
   startFromTemplate,
   stripUndefined,
   updateWorkout,
   upsertUserStats,
 } from "@/lib/data";
-import { GUEST_USER_ID, isGuestUserId, readGuestActive } from "@/lib/local-store";
+import { GUEST_USER_ID, isGuestUserId, isLocalWorkoutId, readGuestActive } from "@/lib/local-store";
 import {
   applySetOp,
   bankRunningTimer,
@@ -143,7 +144,7 @@ export function WatchSync() {
 }
 
 function WatchSyncBridge() {
-  const { loading: authLoading, migrating } = useAuth();
+  const { loading: authLoading, guestMoveUnderway } = useAuth();
   const watchUserId = useWatchUserId();
   const dataUserId = watchUserId ?? null;
   const { active, templates, completed, loading } = useWorkouts(dataUserId);
@@ -257,9 +258,11 @@ function WatchSyncBridge() {
   // Only with an account (or guest session) loaded. Ops that arrive before
   // that — the watch woke the phone, and sign-in is still restoring — wait in
   // the native inbox rather than being applied to nobody. Nor while a guest's
-  // data is moving into the account: one about a session of theirs would
-  // find it half moved, here and not yet there.
-  const canApply = ready && !!dataUserId && !migrating;
+  // data is moving into the account, for as long as the move runs, not just
+  // while its screen is up: one about a session of theirs would find it half
+  // moved, still the guest's here and so turned away, and be lost. Once the
+  // move is done they're applied to the moved copy (see opWorkout).
+  const canApply = ready && !!dataUserId && !guestMoveUnderway;
 
   useEffect(() => {
     const bridge = PlatoWatch;
@@ -522,7 +525,7 @@ export async function applyWatchOp(op: WatchOp, ctx: WatchSyncContext): Promise<
     case "logSet":
     case "undoSet":
     case "addSet": {
-      const workout = await getWorkout(op.workoutId);
+      const workout = await opWorkout(op.workoutId, dataUserId);
       if (!workout) {
         // A phone that has only just signed in has no copy yet; the workout is
         // probably on its way down.
@@ -604,7 +607,7 @@ export async function applyWatchOp(op: WatchOp, ctx: WatchSyncContext): Promise<
     }
 
     case "finish": {
-      const workout = await getWorkout(op.workoutId);
+      const workout = await opWorkout(op.workoutId, dataUserId);
       if (!workout) {
         if (awaitingFirstSync(dataUserId)) throw new NotYet();
         return;
@@ -850,6 +853,22 @@ export async function applyWatchOp(op: WatchOp, ctx: WatchSyncContext): Promise<
   }
 }
 
+/**
+ * The workout an op names. A guest's workout that has moved into the account
+ * is there under a new id, and the watch goes on naming it by its guest id
+ * until the phone's next snapshot reaches it — or, for ops held while the
+ * move ran, it named it that way before the move. The moved copy comes first:
+ * a guest copy still on the phone is one the move hasn't let go of yet, and
+ * the account is where the workout goes on from here.
+ */
+async function opWorkout(id: string, dataUserId: string): Promise<Workout | null> {
+  if (isLocalWorkoutId(id) && !isGuestUserId(dataUserId)) {
+    const moved = await getWorkout(movedGuestWorkoutId(dataUserId, id));
+    if (moved) return moved;
+  }
+  return getWorkout(id);
+}
+
 /** The session a start op of this id created, if it's here yet. */
 function sessionStartedBy(startOpId: string, ctx: WatchSyncContext): Workout | undefined {
   return [...ctx.active, ...ctx.completed].find((w) => w.cardio?.watchStartOpId === startOpId);
@@ -927,7 +946,7 @@ const MIN_SESSION_SECONDS = 10;
  */
 async function findSession(op: WatchCardioOp, ctx: WatchSyncContext): Promise<Workout | null> {
   if (op.workoutId) {
-    const byId = await getWorkout(op.workoutId);
+    const byId = await opWorkout(op.workoutId, ctx.dataUserId!);
     if (byId) return byId;
   }
   const sessions = [...ctx.active, ...ctx.completed].filter((w) => w.cardio && w.userId === ctx.dataUserId);

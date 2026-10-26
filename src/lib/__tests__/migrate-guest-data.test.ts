@@ -8,11 +8,12 @@ const ACTIVE_KEY = "plato.guest.active.v1";
 const UID = "aB3xY7zQ1mN5pR8sT2vW4yZ6cD0e";
 
 /**
- * Migration talks to `./firestore` directly, never through `./data`, because
- * data.ts resolves writes once they're on the phone and migration has to know
- * they reached the server. That module is mocked; the on-device store
- * is real, because the whole point of these tests is what survives on the device
- * when a run fails partway.
+ * Migration never writes through `./data`, because data.ts resolves writes
+ * once they're on the phone and migration has to know they reached the
+ * server. It talks to `./firestore` directly, and sends workouts through
+ * cloud-cache's outbox, waiting for the ack. Both are mocked; the on-device
+ * store is real, because the whole point of these tests is what survives on
+ * the device when a run fails partway.
  */
 // Pinned to globalThis, like the AsyncStorage mock: jest.resetModules() re-runs
 // the factories below, and anything they close over must outlive that so the
@@ -54,13 +55,23 @@ jest.mock("../firestore", () => ({
 /**
  * cloud-cache's copy of the account's workouts, which says whether an earlier
  * run's upload is already there. Empty unless a test puts something in it.
+ *
+ * Workouts go up through its outbox: on the phone at once, landed when the
+ * server acks. Here that ack is the `sendWrite` above, so a test can hold it,
+ * refuse it or answer it, and what an earlier run left in the outbox is
+ * whatever a test has `whenPendingWorkoutLands` hand back.
  */
 const accountCopy = ((globalThis as Record<string, unknown>).__accountCopyMock ??= {
   getWorkout: jest.fn(),
+  writeAndConfirm: jest.fn(),
+  whenPendingWorkoutLands: jest.fn(),
 }) as Record<string, jest.Mock>;
 
 jest.mock("../cloud-cache", () => ({
   getWorkout: (...args: unknown[]) => (globalThis as any).__accountCopyMock.getWorkout(...args),
+  writeAndConfirm: (...args: unknown[]) => (globalThis as any).__accountCopyMock.writeAndConfirm(...args),
+  whenPendingWorkoutLands: (...args: unknown[]) =>
+    (globalThis as any).__accountCopyMock.whenPendingWorkoutLands(...args),
 }));
 
 /** The workouts that went up, in order, as the documents they were written as. */
@@ -118,6 +129,11 @@ beforeEach(() => {
   cloud.getBodyweightLog.mockResolvedValue([]);
   cloud.setBodyweightLog.mockResolvedValue(undefined);
   accountCopy.getWorkout.mockResolvedValue(null);
+  accountCopy.writeAndConfirm.mockImplementation((_uid: string, write: unknown) => {
+    const landed: Promise<void> = cloud.sendWrite(write);
+    return { saved: Promise.resolve(), landed };
+  });
+  accountCopy.whenPendingWorkoutLands.mockResolvedValue(null);
 });
 
 describe("nothing to migrate", () => {
@@ -252,7 +268,112 @@ describe("a re-run that finds an earlier upload already in the account", () => {
     void migrate.migrateGuestDataTo(UID);
     await until(async () => (await AsyncStorage.getItem("plato.guest.sent.v1")) !== null);
     cloud.sendWrite.mockClear();
+    accountCopy.writeAndConfirm.mockClear();
   }
+
+  /** An answer from the server that the test gives when it chooses. */
+  function deferred() {
+    let resolve: () => void = () => {};
+    let reject: (e: unknown) => void = () => {};
+    const promise = new Promise<void>((res, rej) => {
+      resolve = res;
+      reject = rej;
+    });
+    return { promise, resolve, reject };
+  }
+
+  /** Lets the move get as far as it can without an answer. */
+  async function ticks() {
+    for (let i = 0; i < 20; i++) await new Promise((resolve) => setTimeout(resolve, 0));
+  }
+
+  // Sets logged on the moved workout go into the outbox behind its upload,
+  // so the upload has to be in there too: Firestore's own queue is lost if
+  // the app is killed, and the sets would then reach the server first, as
+  // edits to a workout it doesn't have, and be refused.
+  it("sends the workout through the outbox, and keeps the guest copy until the server has it", async () => {
+    const { store, migrate } = await seed({ workouts: [midWorkout] });
+    const ack = deferred();
+    cloud.sendWrite.mockReturnValueOnce(ack.promise);
+
+    const moving = migrate.migrateGuestDataTo(UID);
+    await until(() => accountCopy.writeAndConfirm.mock.calls.length > 0);
+    await ticks();
+
+    expect(accountCopy.writeAndConfirm).toHaveBeenCalledWith(
+      UID,
+      expect.objectContaining({ collection: "workouts", docId: CLOUD_1, kind: "set" })
+    );
+    expect((await store.readGuestData()).workouts.map((w) => w.id)).toEqual(["local-1"]);
+
+    ack.resolve();
+    await moving;
+    expect(store.hasContent(await store.readGuestData())).toBe(false);
+  });
+
+  // Killed while that upload waited on the signal. The outbox sends it again
+  // on its own, ahead of the sets logged behind it, so the guest copy going
+  // up again would land after them and wipe them out.
+  describe("after a relaunch, with the upload still in the outbox", () => {
+    async function relaunchWithUploadWaiting() {
+      const { migrate: firstLaunch } = await seed({ workouts: [midWorkout] });
+      await firstRunNeverAnswered(firstLaunch);
+      const relaunched = relaunch();
+      const ack = deferred();
+      accountCopy.whenPendingWorkoutLands.mockImplementation(async (_uid: string, id: string) =>
+        id === CLOUD_1 ? { landed: ack.promise } : null
+      );
+      // The account's copy shows it, with the outbox laid over the server's answer.
+      accountCopy.getWorkout.mockImplementation(async (id: string) => (id === CLOUD_1 ? { id } : null));
+      return { ...relaunched, ack };
+    }
+
+    it("waits for it rather than sending the guest copy over it", async () => {
+      const { store, migrate, ack } = await relaunchWithUploadWaiting();
+
+      const moving = migrate.migrateGuestDataTo(UID);
+      await until(() => accountCopy.whenPendingWorkoutLands.mock.calls.length > 0);
+      await ticks();
+
+      expect(accountCopy.writeAndConfirm).not.toHaveBeenCalled();
+      expect(cloud.sendWrite).not.toHaveBeenCalled();
+      // Nor does the guest copy go before the server has the upload, whether
+      // on its own or with the rest of the guest data at the end.
+      expect((await store.readGuestData()).workouts.map((w) => w.id)).toEqual(["local-1"]);
+      expect(await AsyncStorage.getItem(ACTIVE_KEY)).toBe("1");
+
+      ack.resolve();
+      expect(await moving).toMatchObject({ workouts: 1 });
+      expect(accountCopy.writeAndConfirm).not.toHaveBeenCalled();
+      expect(store.hasContent(await store.readGuestData())).toBe(false);
+    });
+
+    it("keeps the guest copy if the server refuses it", async () => {
+      const { store, migrate, ack } = await relaunchWithUploadWaiting();
+
+      const moving = migrate.migrateGuestDataTo(UID);
+      ack.reject(new Error("permission-denied"));
+
+      await expect(moving).rejects.toThrow("permission-denied");
+      expect((await store.readGuestData()).workouts.map((w) => w.id)).toEqual(["local-1"]);
+      expect(await AsyncStorage.getItem(ACTIVE_KEY)).toBe("1");
+    });
+
+    it("keeps the guest copy if they sign out before it lands", async () => {
+      const { store, migrate, ack } = await relaunchWithUploadWaiting();
+      let gone = false;
+
+      const moving = migrate.migrateGuestDataTo(UID, undefined, () => gone);
+      await until(() => accountCopy.whenPendingWorkoutLands.mock.calls.length > 0);
+      await ticks();
+      // Signing out wipes the outbox; Firestore may still get it there.
+      gone = true;
+      ack.resolve();
+
+      await expect(moving).rejects.toThrow(migrate.MigrationStopped);
+      expect((await store.readGuestData()).workouts.map((w) => w.id)).toEqual(["local-1"]);
+    });
+  });
 
   it("leaves it alone after a relaunch, so what was logged on it in the account survives", async () => {
     const { migrate: firstLaunch } = await seed({ workouts: [midWorkout] });
@@ -287,9 +408,10 @@ describe("a re-run that finds an earlier upload already in the account", () => {
     expect(uploadedWorkouts()[0].name).toBe("Pull, carried on as a guest");
   });
 
-  // Same launch: the earlier send is still waiting in Firestore's queue,
-  // which lays it over what the account shows. The server may not have it,
-  // and that queue goes if the app is killed, so it isn't proof yet.
+  // Same launch, after a sign-out wiped the outbox: the earlier send is still
+  // waiting in Firestore's queue, which lays it over what the account shows.
+  // The server may not have it, and that queue goes if the app is killed, so
+  // it isn't proof yet.
   it("sends it again while the earlier upload is still waiting this launch", async () => {
     const { store, migrate } = await seed({ workouts: [midWorkout] });
     await firstRunNeverAnswered(migrate);

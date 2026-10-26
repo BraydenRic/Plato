@@ -1,6 +1,6 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
-import { makeWorkout } from "./factories";
+import { makeSet, makeWorkout, makeWorkoutExercise } from "./factories";
 import type { Workout } from "@/types";
 
 /**
@@ -80,6 +80,17 @@ jest.mock("../firestore", () => {
     computeStats: (workouts: Workout[]) => ({
       totalCompletedWorkouts: workouts.filter((w) => w.completedAt).length,
     }),
+    // What the guest move reads and writes straight to Firestore, for the
+    // test that runs it against the real outbox: an account with nothing.
+    getWorkouts: async () => [],
+    countActiveWorkouts: async () => 0,
+    getCompletedWorkouts: async () => [],
+    upsertUserStats: async () => {},
+    getExerciseLibrary: async () => ({ custom: [], removedIds: [], overrides: [] }),
+    updateExerciseLibrary: async () => {},
+    getWeeklyPlan: async () => Array(7).fill(null),
+    setWeeklyPlan: async () => {},
+    setBodyweightLog: async () => {},
   };
 });
 
@@ -895,6 +906,188 @@ describe("two accounts on one phone", () => {
     expect(shownToB.flat()).toEqual([]);
     expect(JSON.stringify(libraryForB)).not.toContain("Secret Curl");
     expect(await cc.getCompletedWorkouts(OTHER)).toEqual([]);
+  });
+});
+
+describe("waiting on the server's answer, for the guest move", () => {
+  const MOVED = `${UID}_local-1`;
+  const upload = () => ({
+    collection: "workouts" as const,
+    docId: MOVED,
+    kind: "set" as const,
+    data: { userId: UID, name: "Pull", isTemplate: false, createdAt: new Date("2026-02-03T10:00:00Z"), exercises: [] },
+  });
+
+  /** Whether a promise has settled yet, and how. */
+  function track(promise: Promise<void>) {
+    const state = { landed: false, refused: null as unknown };
+    promise.then(
+      () => (state.landed = true),
+      (e) => (state.refused = e)
+    );
+    return state;
+  }
+
+  it("lands when the server acks, not when the change is on the phone", async () => {
+    const { cc } = launch();
+    await openWithList(cc);
+    confirmAuth();
+
+    const { saved, landed } = cc.writeAndConfirm(UID, upload());
+    const state = track(landed);
+    await saved;
+    await settle();
+    expect(state.landed).toBe(false);
+    expect((await cc.getWorkout(MOVED))?.name).toBe("Pull");
+
+    fake.pending[0].resolve();
+    await settle();
+    expect(state.landed).toBe(true);
+  });
+
+  it("says so when the server refuses it", async () => {
+    const { cc } = launch();
+    await openWithList(cc);
+    confirmAuth();
+    jest.spyOn(console, "warn").mockImplementation(() => {});
+
+    const { saved, landed } = cc.writeAndConfirm(UID, upload());
+    const state = track(landed);
+    await saved;
+    fake.pending[0].reject({ code: "permission-denied" });
+    await settle();
+
+    expect(state.refused).toEqual({ code: "permission-denied" });
+  });
+
+  // Killed before the server answered: what was logged on the moved workout
+  // meanwhile reaches the server behind it, never as an edit to a workout
+  // the server doesn't have yet.
+  it("keeps what's logged on the moved workout behind it, through a restart", async () => {
+    let { cc } = launch();
+    await openWithList(cc);
+    confirmAuth();
+    await cc.writeAndConfirm(UID, upload()).saved;
+    await cc.updateWorkout(MOVED, { exercises: [] });
+
+    ({ cc } = launch());
+    await openWithList(cc);
+    expect(await cc.whenPendingWorkoutLands(UID, "someone-else_local-9")).toBeNull();
+    const waiting = await cc.whenPendingWorkoutLands(UID, MOVED);
+    expect(waiting).not.toBeNull();
+    const state = track(waiting!.landed);
+    fake.sendWrite.mockClear();
+    confirmAuth();
+
+    expect(fake.sendWrite.mock.calls.map(([w]) => [w.docId, w.kind])).toEqual([
+      [MOVED, "set"],
+      [MOVED, "update"],
+    ]);
+    fake.pending[0].resolve();
+    await settle();
+    expect(state.landed).toBe(true);
+  });
+
+  // Deleted in the account before the upload was ever sent: the delete takes
+  // its place in the outbox, and its answer is the one to wait for.
+  it("waits on what replaced it in the outbox", async () => {
+    const { cc } = launch();
+    await openWithList(cc);
+    const { saved, landed } = cc.writeAndConfirm(UID, upload());
+    const state = track(landed);
+    await saved;
+    await cc.deleteWorkout(makeWorkout({ id: MOVED, userId: UID }));
+
+    confirmAuth();
+    expect(fake.sendWrite.mock.calls.map(([w]) => w.kind)).toEqual(["delete"]);
+    expect(state.landed).toBe(false);
+
+    fake.pending[0].resolve();
+    await settle();
+    expect(state.landed).toBe(true);
+  });
+
+  // A sign-out wipes the outbox, but Firestore still has the write queued
+  // for the account. Until it answers, the account's copy proves nothing.
+  it("still lands once the session has ended, when Firestore answers", async () => {
+    const { cc } = launch();
+    await openWithList(cc);
+    confirmAuth();
+    const { saved, landed } = cc.writeAndConfirm(UID, upload());
+    const state = track(landed);
+    await saved;
+
+    await cc.forgetCloudData(UID);
+    fake.pending[0].resolve();
+    await settle();
+
+    expect(state.landed).toBe(true);
+  });
+});
+
+// The whole of it, against the real outbox and the real guest store: a guest
+// signs in mid-workout, the signal dies while the workout moves, they log a
+// set on it in the account, and iOS kills the app.
+describe("a guest's workout moved in on a dead signal, then the app killed", () => {
+  const MOVED = `${UID}_local-1`;
+  const midWorkout = {
+    id: "local-1",
+    userId: "local-guest",
+    name: "Pull",
+    isTemplate: false,
+    createdAt: "2026-02-03T10:00:00.000Z",
+    startedAt: "2026-02-03T10:00:00.000Z",
+    exercises: [],
+  };
+  const logged = [makeWorkoutExercise("deadlift", [makeSet({ weight: 315, reps: 5 })])];
+
+  async function until(condition: () => boolean) {
+    for (let i = 0; i < 100 && !condition(); i++) await settle();
+    if (!condition()) throw new Error("Never happened");
+  }
+
+  it("sends the upload ahead of the set, keeps the set, and doesn't send the guest copy over it", async () => {
+    await AsyncStorage.setItem("plato.guest.active.v1", "1");
+    await AsyncStorage.setItem(
+      "plato.guest.data.v1",
+      JSON.stringify({ workouts: [midWorkout], library: { custom: [], removedIds: [], overrides: [] }, weeklyPlan: Array(7).fill(null) })
+    );
+    let { cc } = launch();
+    await openWithList(cc);
+    confirmAuth();
+    serverSends([]);
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    void (require("../migrate-guest-data") as typeof import("../migrate-guest-data")).migrateGuestDataTo(UID);
+    await until(() => fake.pending.some((p) => p.write.docId === MOVED));
+    // In the account at once, where the set is logged on it.
+    expect((await cc.getWorkout(MOVED))?.name).toBe("Pull");
+    await cc.updateWorkout(MOVED, { exercises: logged });
+
+    ({ cc } = launch());
+    await openWithList(cc);
+    fake.sendWrite.mockClear();
+    confirmAuth();
+    expect(fake.sendWrite.mock.calls.map(([w]) => [w.docId, w.kind])).toEqual([
+      [MOVED, "set"],
+      [MOVED, "update"],
+    ]);
+    // The server never got the upload, but the copy keeps the workout, set and all.
+    serverSends([]);
+    expect((await cc.getWorkout(MOVED))?.exercises[0].sets[0]).toMatchObject({ weight: 315, reps: 5 });
+
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const store = require("../local-store") as typeof import("../local-store");
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const moving = (require("../migrate-guest-data") as typeof import("../migrate-guest-data")).migrateGuestDataTo(UID);
+    for (let i = 0; i < 20; i++) await settle();
+    expect(fake.sendWrite).toHaveBeenCalledTimes(2);
+    expect((await store.readGuestData()).workouts.map((w) => w.id)).toEqual(["local-1"]);
+
+    fake.pending.forEach((p) => p.resolve());
+    expect(await moving).toMatchObject({ workouts: 1 });
+    expect(fake.sendWrite).toHaveBeenCalledTimes(2);
+    expect(store.hasContent(await store.readGuestData())).toBe(false);
+    expect((await cc.getWorkout(MOVED))?.exercises[0].sets[0]).toMatchObject({ weight: 315, reps: 5 });
   });
 });
 

@@ -53,12 +53,23 @@ export function getWorkout(id: string): Promise<Workout | null> {
   return isLocalWorkoutId(id) ? local.getWorkout(id) : cloud.getWorkout(id);
 }
 
+/**
+ * Where a guest's workout lands when their data moves into an account: the
+ * same document every time, so an upload sent twice can't show up twice (see
+ * migrate-guest-data). The uid is part of it so the same guest data can never
+ * land on a document another account already owns. Exported for the watch,
+ * which can go on naming a moved workout by its guest id for a while.
+ */
+export function movedGuestWorkoutId(userId: string, localId: string): string {
+  return `${userId}_${localId.replace(/\//g, "_")}`;
+}
+
 export function getCompletedWorkouts(userId: string): Promise<Workout[]> {
   return isGuestUserId(userId) ? local.getCompletedWorkouts(userId) : cloud.getCompletedWorkouts(userId);
 }
 
 // Stamped now: saveAsTemplate, the only caller, makes a new template. (The
-// guest migration, which keeps old dates, writes through firestore.ts.)
+// guest migration, which keeps old dates, writes through cloud-cache itself.)
 export function createWorkout(workout: Omit<Workout, "id">): Promise<string> {
   return isGuestUserId(workout.userId)
     ? local.createWorkout(workout)

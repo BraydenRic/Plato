@@ -131,6 +131,12 @@ export interface PendingWrite extends CloudWrite {
   id: string;
 }
 
+/** Someone waiting to hear what the server made of an outbox entry. See writeAndConfirm. */
+interface Landing {
+  resolve: () => void;
+  reject: (e: unknown) => void;
+}
+
 function fieldsTouched(write: CloudWrite): string[] {
   return [...Object.keys(write.data ?? {}), ...(write.deleteFields ?? [])];
 }
@@ -323,6 +329,13 @@ class Session {
   private outbox: PendingWrite[] = [];
   /** Entries handed to Firestore this launch. Its queue is in memory, so after a restart this starts empty. */
   private sent = new Set<string>();
+  /**
+   * Who is waiting on the server's answer to an entry, by entry id. Only the
+   * guest move asks: it keeps the guest's copy of a workout until the server
+   * has the workout. In memory, like Firestore's queue: after a restart the
+   * move asks again (see whenLanded).
+   */
+  private landings = new Map<string, Landing[]>();
   readonly loaded: Promise<void>;
   private closed = false;
   private authConfirmed = false;
@@ -601,7 +614,10 @@ class Session {
     this.sent.add(write.id);
     const { id, ...cloudWrite } = write;
     sendWrite(cloudWrite as CloudWrite).then(
-      () => this.settle(id),
+      () => {
+        this.land(id, null);
+        this.settle(id);
+      },
       (e) => {
         // Firestore only rejects what the server refused for good. Retrying
         // would be refused forever, so drop it. Firestore has already rolled
@@ -617,9 +633,31 @@ class Session {
           write.collection,
           write.kind
         );
+        this.land(id, { refusal: e });
         this.settle(id);
       }
     );
+  }
+
+  /**
+   * Tells whoever waits on an entry what the server said. Even once this
+   * session has ended: a sign-out leaves the write in Firestore's queue for
+   * the account, which sends it if they sign back in, and until then the
+   * guest move mustn't take the account's copy as proof the server has it.
+   */
+  private land(id: string, outcome: { refusal: unknown } | null): void {
+    const waiting = this.landings.get(id);
+    if (!waiting) return;
+    this.landings.delete(id);
+    for (const landing of waiting) {
+      if (outcome) landing.reject(outcome.refusal);
+      else landing.resolve();
+    }
+  }
+
+  /** Adds someone waiting on an entry's answer. */
+  private addLanding(id: string, landing: Landing): void {
+    this.landings.set(id, [...(this.landings.get(id) ?? []), landing]);
   }
 
   private settle(id: string): void {
@@ -635,8 +673,12 @@ class Session {
    * Records a change. Resolves once it's safe on the phone, not on the server:
    * with no signal the server may be hours away, and nobody should wait that
    * long at the gym.
+   *
+   * `landing` is for the rare caller that also needs the server's answer
+   * (see writeAndConfirm). It's told before the change is sent, so no
+   * answer can come back unheard.
    */
-  async write(change: CloudWrite): Promise<void> {
+  async write(change: CloudWrite, landing?: Landing): Promise<void> {
     await this.loaded;
     if (this.closed) throw new Error("Signed out before the change could be saved.");
     if (change.collection === "exerciseLibrary" && !this.state.library) {
@@ -652,8 +694,20 @@ class Session {
       data: change.data ? (stripUndefined(change.data) as Record<string, unknown>) : undefined,
       id: newId(),
     };
+    if (landing) this.addLanding(entry.id, landing);
     this.markTouched(applyWrite(this.state, entry));
-    this.outbox = this.outbox.filter((earlier) => !supersedes(entry, earlier));
+    this.outbox = this.outbox.filter((earlier) => {
+      if (!supersedes(entry, earlier)) return true;
+      // Whoever waits on the entry this replaces now waits on this one, as
+      // it carries the change on to the server. Unless Firestore already has
+      // the earlier one: it still answers that.
+      const waiting = this.sent.has(earlier.id) ? undefined : this.landings.get(earlier.id);
+      if (waiting) {
+        this.landings.delete(earlier.id);
+        waiting.forEach((w) => this.addLanding(entry.id, w));
+      }
+      return false;
+    });
     this.outbox.push(entry);
     this.changed();
     this.send(entry);
@@ -769,6 +823,17 @@ class Session {
   whenSynced(): Promise<void> {
     if (this.workoutsServerSynced) return Promise.resolve();
     return new Promise((resolve) => this.syncWaiters.push(resolve));
+  }
+
+  /**
+   * Settles with the server's answer to the oldest change to this document
+   * still in the outbox, or null when none is. Oldest, because it's what put
+   * the document where the outbox has it: anything after it builds on it.
+   */
+  whenLanded(collection: CloudCollection, docId: string): Promise<void> | null {
+    const entry = this.outbox.find((w) => w.collection === collection && w.docId === docId);
+    if (!entry) return null;
+    return new Promise((resolve, reject) => this.addLanding(entry.id, { resolve, reject }));
   }
 
   subscribe(listener: Listener): () => void {
@@ -1062,6 +1127,41 @@ export function whenCloudSynced(uid: string): Promise<void> {
 function writeFor(uid: string, change: CloudWrite): Promise<void> {
   const session = sessionFor(uid);
   return session ? session.write(change) : Promise.reject(new Error("Signed out."));
+}
+
+/**
+ * Records a change like any other, and also says when the server has it.
+ * For the guest move, which keeps the guest's copy of a workout until then.
+ *
+ * Through the outbox rather than straight to Firestore, whose queue is lost
+ * if the app is killed. What's logged on the moved workout meanwhile is
+ * queued behind this, so after a restart the two still reach the server in
+ * order, and never as an edit to a workout the server doesn't have.
+ *
+ * `saved` resolves once it's on the phone. `landed` resolves once the server
+ * has acked it, or the change that replaced it in the outbox (a delete, say),
+ * and rejects if the server refuses it for good.
+ */
+export function writeAndConfirm(uid: string, change: CloudWrite): { saved: Promise<void>; landed: Promise<void> } {
+  let landing: Landing = { resolve: () => {}, reject: () => {} };
+  const landed = new Promise<void>((resolve, reject) => (landing = { resolve, reject }));
+  const session = sessionFor(uid);
+  const saved = session ? session.write(change, landing) : Promise.reject(new Error("Signed out."));
+  // Never saved, never sent: there will be no answer to wait for.
+  saved.catch((e) => landing.reject(e));
+  return { saved, landed };
+}
+
+/**
+ * For a guest move run again after a restart: the server's answer to the
+ * oldest change to this workout still in the outbox, which an earlier run's
+ * upload leads, or null when nothing for it is waiting.
+ */
+export async function whenPendingWorkoutLands(uid: string, docId: string): Promise<{ landed: Promise<void> } | null> {
+  const session = activeSession(uid);
+  await session.loaded;
+  const landed = session.whenLanded("workouts", docId);
+  return landed ? { landed } : null;
 }
 
 /** For async entry points: the session, or a rejection once signed out. */

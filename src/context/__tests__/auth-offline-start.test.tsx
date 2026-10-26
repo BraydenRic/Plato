@@ -414,6 +414,110 @@ describe("a new email account that hasn't been verified", () => {
 describe("moving guest data into the account", () => {
   afterEach(() => jest.useRealTimers());
 
+  // The watch link waits on this. An op about a guest's workout applied
+  // while it's half moved finds the guest's copy, is turned away by the
+  // account, and is lost — so it has to cover every render of the move.
+  describe("holding the watch's ops for it", () => {
+    /** Every render's view of the move, in order. */
+    let seen: { uid: string | null; underway: boolean; migrating: boolean }[] = [];
+    function Watch() {
+      const { user, guestMoveUnderway, migrating } = useAuth();
+      seen.push({ uid: user?.uid ?? null, underway: guestMoveUnderway, migrating });
+      return null;
+    }
+    async function mountWatched() {
+      seen = [];
+      render(
+        <AuthProvider>
+          <Capture />
+          <Watch />
+        </AuthProvider>
+      );
+      await act(async () => {});
+    }
+
+    it("holds from the render the account arrives until the move is done, past the moving screen", async () => {
+      jest.useFakeTimers();
+      mockGuestHasData = true;
+      let finish: (result: unknown) => void = () => {};
+      mockMigrate.mockImplementationOnce(() => new Promise((resolve) => (finish = resolve)));
+      await mountWatched();
+      await act(async () => mockEmitAuth(realUser));
+      await act(async () => {});
+      await act(async () => {
+        jest.advanceTimersByTime(5_000);
+      });
+      await act(async () => mockSynced!());
+      await act(async () => {});
+      expect(mockMigrate).toHaveBeenCalled();
+
+      // Every render with the account in it so far, the first included,
+      // which comes before the move has even started.
+      const signedIn = seen.filter((s) => s.uid === "u1");
+      expect(signedIn[0].migrating).toBe(false);
+      expect(signedIn.every((s) => s.underway)).toBe(true);
+      // The moving screen has stepped aside; the move hasn't finished.
+      expect(auth.migrating).toBe(false);
+      expect(auth.guestMoveUnderway).toBe(true);
+
+      await act(async () => finish({ workouts: 1, customExercisesDropped: 0, templatesDropped: 0, activeWorkoutsDropped: 0 }));
+      expect(auth.guestMoveUnderway).toBe(false);
+    });
+
+    it("lets go once a failed move gives up, rather than holding the watch until the next launch", async () => {
+      jest.spyOn(console, "warn").mockImplementation(() => {});
+      jest.spyOn(Alert, "alert").mockImplementation(() => {});
+      mockGuestHasData = true;
+      mockMigrate.mockRejectedValueOnce(new Error("failed-precondition"));
+      await mountWatched();
+      await act(async () => mockEmitAuth(realUser));
+      await waitFor(() => expect(mockSynced).not.toBeNull());
+      expect(auth.guestMoveUnderway).toBe(true);
+
+      await act(async () => mockSynced!());
+
+      await waitFor(() => expect(auth.guestMoveUnderway).toBe(false));
+    });
+
+    it("holds only for the moment it takes to see there's nothing to move", async () => {
+      await mountWatched();
+      await act(async () => mockEmitAuth(realUser));
+      await act(async () => {});
+      expect(auth.guestMoveUnderway).toBe(false);
+      expect(mockMigrate).not.toHaveBeenCalled();
+    });
+
+    // The guest's data stays the guest's until the link is tapped, and the
+    // watch with it (see watch-sync's useWatchUserId), so there's no move to wait on.
+    it("doesn't hold for an account still waiting on its verification link", async () => {
+      mockGuestHasData = true;
+      const user = { ...realUser, emailVerified: false, providerData: [{ providerId: "password" }], reload: async () => {} };
+      mockCurrentUser = user;
+      await mountWatched();
+      await act(async () => mockEmitAuth(user));
+      expect(seen.filter((s) => s.uid === "u1").some((s) => s.underway)).toBe(false);
+    });
+
+    it("holds again when they sign back in to the same account", async () => {
+      mockCurrentUser = realUser;
+      await mountWatched();
+      await act(async () => mockEmitAuth(realUser));
+      await act(async () => {});
+      expect(auth.guestMoveUnderway).toBe(false);
+      await act(async () => {
+        await auth.signOut();
+      });
+
+      mockGuestHasData = true;
+      seen = [];
+      mockCurrentUser = realUser;
+      await act(async () => mockEmitAuth(realUser));
+
+      expect(seen.find((s) => s.uid === "u1")?.underway).toBe(true);
+      expect(auth.guestMoveUnderway).toBe(true);
+    });
+  });
+
   it("shows the moving screen at once, as it always has, and moves once the server answers", async () => {
     mockGuestHasData = true;
     await mount();

@@ -72,6 +72,14 @@ interface AuthContextType {
   /** True while guest data is being uploaded into a freshly signed-in account. */
   migrating: boolean;
   /**
+   * True from the moment an account can take in a guest's data until the move
+   * has run its course: finished, found nothing to move, or given up until
+   * the next launch. Unlike `migrating`, it outlasts the moving screen, which
+   * steps aside while the move carries on behind the app. For the watch link,
+   * whose ops about a guest's workout would otherwise find it half moved.
+   */
+  guestMoveUnderway: boolean;
+  /**
    * What moving the guest's data in had to leave behind at the account's
    * limits ("2 custom exercises"), when the move finished behind the app and
    * couldn't say so then. Null when there's nothing to tell.
@@ -122,6 +130,7 @@ const AuthContext = createContext<AuthContextType>({
   dataUserId: null,
   continueAsGuest: async () => {},
   migrating: false,
+  guestMoveUnderway: false,
   leftBehind: null,
   dismissLeftBehind: () => {},
   discardGuestData: async () => {},
@@ -196,6 +205,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [guestActive, setGuestActive] = useState(false);
   const [guestChecked, setGuestChecked] = useState(false);
   const [migrating, setMigrating] = useState(false);
+  /**
+   * The account whose guest move has run its course this launch, finished or
+   * not. Cleared when that account goes, so signing back in to it moves
+   * afresh. See guestMoveUnderway.
+   */
+  const [moveSettledFor, setMoveSettledFor] = useState<string | null>(null);
   /** Tagged with its account, so one can't show while another is signed in. */
   const [leftBehind, setLeftBehind] = useState<{ uid: string; text: string } | null>(null);
 
@@ -323,6 +338,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     user.providerData.some((p) => p.providerId === "password") &&
     !user.emailVerified;
 
+  // Derived, not set by the move: true in the very render the account
+  // arrives or is verified, before the move below has even started, so the
+  // watch can't slip an op in ahead of it. Until the move has looked, it
+  // can't be known there's nothing to move; that look takes a moment.
+  const guestMoveUnderway = !!uid && !needsVerification && moveSettledFor !== uid;
+
   /**
    * The guest move under way, if any. Signing out or deleting the account
    * marks it stopped before anything is wiped, and its effect ending lets go
@@ -430,6 +451,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         if (migrationRun.current === run) {
           migrationRun.current = null;
           setMigrating(false);
+          // Done one way or another, so the watch can stop waiting on it,
+          // even when it failed: what didn't move is left for the next launch,
+          // and holding the watch's ops until then would hold every one.
+          setMoveSettledFor(uid);
         }
       }
     })();
@@ -442,6 +467,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       // and keep the next sign-in from moving anything.
       if (migrationRun.current === run) migrationRun.current = null;
       setMigrating(false);
+      // Whatever comes next starts a move of its own, even on this account.
+      setMoveSettledFor(null);
     };
   }, [uid, needsVerification]);
 
@@ -631,6 +658,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         dataUserId: user?.uid ?? (guestActive ? GUEST_USER_ID : null),
         continueAsGuest,
         migrating,
+        guestMoveUnderway,
         leftBehind: leftBehind?.uid === uid ? leftBehind.text : null,
         dismissLeftBehind,
         discardGuestData,
