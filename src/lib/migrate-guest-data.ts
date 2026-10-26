@@ -1,6 +1,10 @@
 // Straight to Firestore, not through data.ts. data.ts resolves a write once
 // it's safe on the phone, but this deletes each workout from the guest store
 // as soon as its write resolves. It has to know the server has it first.
+// Reading what the account already holds is different: cloud-cache's copy is
+// complete once the server has answered, which the caller waits for.
+import AsyncStorage from "@react-native-async-storage/async-storage";
+
 import {
   computeStats,
   getCompletedWorkouts,
@@ -19,6 +23,7 @@ import {
   type WeeklyPlan,
 } from "./firestore";
 import { announceBodyweight, writeCachedBodyweight } from "./bodyweight-cache";
+import { getWorkout as getFromAccountCopy } from "./cloud-cache";
 import {
   MAX_CUSTOM_EXERCISES,
   MAX_MERGED_ACTIVE_WORKOUTS,
@@ -46,6 +51,18 @@ import {
  *  2. Never clobber. Someone may be signing into an account that already has
  *     data, so the library and weekly split merge rather than overwrite.
  */
+
+/**
+ * Thrown once the account being moved into is gone: signed out of, deleted, or
+ * no longer wanted (see migrateGuestDataTo's `shouldStop`). Whatever hadn't
+ * moved is still on the phone, and nothing more was written anywhere.
+ */
+export class MigrationStopped extends Error {
+  constructor() {
+    super("The account being moved into is gone.");
+    this.name = "MigrationStopped";
+  }
+}
 
 export interface MigrationResult {
   workouts: number;
@@ -104,18 +121,23 @@ function mergeLibraries(
  * reading wins a collision — it is the more recent of the two by definition,
  * since the account was dormant while they were using guest mode.
  */
-async function migrateBodyweight(userId: string, guest: GuestData): Promise<void> {
+async function migrateBodyweight(userId: string, guest: GuestData, checkpoint: () => void): Promise<void> {
   const entries = guest.bodyweight ?? [];
   if (entries.length === 0) return;
   let merged = await getBodyweightLog(userId);
+  checkpoint();
   for (const entry of entries) merged = withBodyweightEntry(merged, entry);
-  await setBodyweightLog(userId, merged);
   // The weigh-in screens may already have cached the account's log from
   // before this merge — on the device for an offline start, and in memory for
   // the rest of this launch. Left stale, the next weigh-in there would write
-  // it back over the merged log.
-  await writeCachedBodyweight(userId, merged);
+  // it back over the merged log. So they get the merged log as soon as it's
+  // sent, not once the server has it: the moving screen may have stepped
+  // aside by then, and a weigh-in logged while this waits would be built on
+  // the old log and land after this one. If the write fails, the guest's
+  // entries are still on the phone and the retry merges them in again.
+  const saving = setBodyweightLog(userId, merged);
   announceBodyweight(userId, merged);
+  await Promise.all([saving, writeCachedBodyweight(userId, merged)]);
 }
 
 /**
@@ -132,11 +154,61 @@ function cloudWorkoutId(userId: string, localId: string): string {
   return `${userId}_${localId.replace(/\//g, "_")}`;
 }
 
+/**
+ * What each workout looked like when it was sent, by cloud id, until the move
+ * finishes.
+ *
+ * A re-run can find a workout an earlier run sent and never heard back about,
+ * because the app was killed. If the account has it, that send landed, and
+ * the account's copy may have moved on since: the moving screen steps aside
+ * mid-move, and they may have gone on logging sets on it. Sending the guest
+ * copy again would wipe those out. But the guest copy can be the newer one
+ * too, when a sign-out mid-move put them back in guest mode and they carried
+ * on there. Comparing it with what was sent tells the two apart.
+ *
+ * A digest rather than the workout itself, so this never holds a second copy
+ * of anyone's history.
+ */
+const SENT_KEY = "plato.guest.sent.v1";
+
+async function readSent(): Promise<Record<string, string>> {
+  try {
+    const parsed = JSON.parse((await AsyncStorage.getItem(SENT_KEY)) ?? "{}") as unknown;
+    return parsed && typeof parsed === "object" ? (parsed as Record<string, string>) : {};
+  } catch {
+    // Without it every workout simply goes up again, as it always used to.
+    return {};
+  }
+}
+
+/** A short stand-in for a workout's contents, only ever compared with another (FNV-1a). */
+function digest(text: string): string {
+  let hash = 0x811c9dc5;
+  for (let i = 0; i < text.length; i++) {
+    hash ^= text.charCodeAt(i);
+    hash = Math.imul(hash, 0x01000193);
+  }
+  return `${text.length}.${(hash >>> 0).toString(36)}`;
+}
+
+/**
+ * Uploads sent this launch that the server hasn't answered yet, by cloud id.
+ *
+ * A sign-out mid-move leaves one waiting in Firestore's queue for that
+ * account, and signing back in sends it. Meanwhile the account's copy already
+ * shows the workout, since Firestore lays its unsent writes over what it
+ * reports, yet the server may not have it, and that queue is lost if the app
+ * is killed. So the copy only proves an earlier send landed once nothing for
+ * that workout is still on its way. In memory on purpose: so is the queue.
+ */
+const unanswered = new Map<string, Promise<void>>();
+
 /** Returns how many custom exercises the cap forced out. */
-async function migrateLibrary(userId: string, guest: GuestData): Promise<number> {
+async function migrateLibrary(userId: string, guest: GuestData, checkpoint: () => void): Promise<number> {
   const { custom, removedIds, overrides } = guest.library;
   if (custom.length === 0 && removedIds.length === 0 && overrides.length === 0) return 0;
   const account = await getExerciseLibrary(userId);
+  checkpoint();
   const { library, dropped } = mergeLibraries(account, guest.library);
   await updateExerciseLibrary(userId, library);
   return dropped;
@@ -148,12 +220,23 @@ async function migrateLibrary(userId: string, guest: GuestData): Promise<number>
  *
  * `onProgress` is called each time the server answers a step, so the caller
  * can tell a long history that is still moving from a connection that died.
+ *
+ * `shouldStop` is asked after every wait, because any of them can outlast the
+ * account: the move carries on behind a usable app once the moving screen
+ * steps aside, and a write can hang on a dead signal for as long as it likes.
+ * Once it says stop, nothing more is written, to the account or to the phone,
+ * and this rejects with MigrationStopped.
  */
 export async function migrateGuestDataTo(
   userId: string,
-  onProgress?: () => void
+  onProgress?: () => void,
+  shouldStop?: () => boolean
 ): Promise<MigrationResult | null> {
+  const checkpoint = () => {
+    if (shouldStop?.()) throw new MigrationStopped();
+  };
   const guest = await readGuestData();
+  checkpoint();
   if (!hasContent(guest)) {
     await writeGuestActive(false);
     return null;
@@ -180,14 +263,25 @@ export async function migrateGuestDataTo(
   // long gone from the device, but the weekly split below still needs to know
   // where they landed.
   const templateIdMap = new Map<string, string>(Object.entries(guest.migratedTemplateIds));
+  const sent = await readSent();
   let templateRoom = MAX_MERGED_TEMPLATES - (await getWorkouts(userId, true)).length;
   let activeRoom = MAX_MERGED_ACTIVE_WORKOUTS - (await countActiveWorkouts(userId));
+  checkpoint();
   onProgress?.();
   let templatesDropped = 0;
   let activeWorkoutsDropped = 0;
   let migrated = 0;
   for (const workout of [...guest.workouts]) {
-    if (workout.isTemplate) {
+    const { id, ...fields } = workout;
+    const cloudId = cloudWorkoutId(userId, id);
+    // The guest's own createdAt goes up with it, so the history keeps its dates.
+    const data = stripUndefined({ ...fields, userId });
+    const contents = digest(JSON.stringify(data));
+    // Already in the account means an earlier run sent it. The room below
+    // already counts it, so it can't be what overflows it.
+    const inAccount = (await getFromAccountCopy(cloudId)) !== null;
+    checkpoint();
+    if (!inAccount && workout.isTemplate) {
       if (templateRoom <= 0) {
         // Left on the device only until clearGuestData below; counted so the
         // caller can say so rather than let it go unremarked.
@@ -195,22 +289,29 @@ export async function migrateGuestDataTo(
         continue;
       }
       templateRoom--;
-    } else if (isActiveWorkout(workout)) {
+    } else if (!inAccount && isActiveWorkout(workout)) {
       if (activeRoom <= 0) {
         activeWorkoutsDropped++;
         continue;
       }
       activeRoom--;
     }
-    const { id, ...fields } = workout;
-    const cloudId = cloudWorkoutId(userId, id);
-    // The guest's own createdAt goes up with it, so the history keeps its dates.
-    await sendWrite({
-      collection: "workouts",
-      docId: cloudId,
-      kind: "set",
-      data: stripUndefined({ ...fields, userId }),
-    });
+    // Sent before, landed, and unchanged here since (see SENT_KEY): the
+    // account's copy is the newer one, so it's left as it is.
+    const landedUnchanged = inAccount && !unanswered.has(cloudId) && sent[cloudId] === contents;
+    if (!landedUnchanged) {
+      const write = sendWrite({ collection: "workouts", docId: cloudId, kind: "set", data });
+      unanswered.set(cloudId, write);
+      // Noted once it's really on its way, never before, so the note can't
+      // claim a send that a stop got in ahead of.
+      sent[cloudId] = contents;
+      try {
+        await Promise.all([write, AsyncStorage.setItem(SENT_KEY, JSON.stringify(sent)).catch(() => {})]);
+      } finally {
+        if (unanswered.get(cloudId) === write) unanswered.delete(cloudId);
+      }
+      checkpoint();
+    }
     // Record before removing: between these two writes the mapping is the only
     // thing tying the split to the uploaded template.
     if (workout.isTemplate) {
@@ -222,18 +323,25 @@ export async function migrateGuestDataTo(
     onProgress?.();
   }
 
-  await migrateBodyweight(userId, guest);
+  await migrateBodyweight(userId, guest, checkpoint);
+  checkpoint();
   onProgress?.();
-  const customExercisesDropped = await migrateLibrary(userId, guest);
+  const customExercisesDropped = await migrateLibrary(userId, guest, checkpoint);
+  checkpoint();
   onProgress?.();
-  await migrateWeeklyPlanWithIds(userId, guest.weeklyPlan, templateIdMap);
+  await migrateWeeklyPlanWithIds(userId, guest.weeklyPlan, templateIdMap, checkpoint);
+  checkpoint();
   onProgress?.();
 
   // Totals and streaks are derived, so recompute from what actually landed.
-  await upsertUserStats({ userId, ...computeStats(await getCompletedWorkouts(userId)) });
+  const completed = await getCompletedWorkouts(userId);
+  checkpoint();
+  await upsertUserStats({ userId, ...computeStats(completed) });
+  checkpoint();
 
   await clearGuestData();
   await writeGuestActive(false);
+  await AsyncStorage.removeItem(SENT_KEY).catch(() => {});
   return { workouts: migrated, customExercisesDropped, templatesDropped, activeWorkoutsDropped };
 }
 
@@ -242,10 +350,12 @@ export async function migrateGuestDataTo(
 async function migrateWeeklyPlanWithIds(
   userId: string,
   guestPlan: WeeklyPlan,
-  templateIdMap: Map<string, string>
+  templateIdMap: Map<string, string>,
+  checkpoint: () => void
 ): Promise<void> {
   if (!guestPlan.some((day) => day !== null)) return;
   const account = await getWeeklyPlan(userId);
+  checkpoint();
   const merged = account.map((day, i) => {
     if (day !== null) return day;
     const guestDay = guestPlan[i];

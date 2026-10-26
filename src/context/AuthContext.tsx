@@ -1,3 +1,4 @@
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { createContext, useContext, useEffect, useRef, useState } from "react";
 import { Alert } from "react-native";
 import {
@@ -38,7 +39,7 @@ import {
   readGuestData,
   writeGuestActive,
 } from "@/lib/local-store";
-import { migrateGuestDataTo } from "@/lib/migrate-guest-data";
+import { migrateGuestDataTo, type MigrationResult } from "@/lib/migrate-guest-data";
 import {
   clearUnfinishedSignOut,
   forgetRememberedUser,
@@ -70,6 +71,14 @@ interface AuthContextType {
   continueAsGuest: () => Promise<void>;
   /** True while guest data is being uploaded into a freshly signed-in account. */
   migrating: boolean;
+  /**
+   * What moving the guest's data in had to leave behind at the account's
+   * limits ("2 custom exercises"), when the move finished behind the app and
+   * couldn't say so then. Null when there's nothing to tell.
+   */
+  leftBehind: string | null;
+  /** The note about `leftBehind` has been read. */
+  dismissLeftBehind: () => void;
   /** Wipes on-device guest data and leaves guest mode. */
   discardGuestData: () => Promise<void>;
   signIn: (email: string, password: string) => Promise<void>;
@@ -113,6 +122,8 @@ const AuthContext = createContext<AuthContextType>({
   dataUserId: null,
   continueAsGuest: async () => {},
   migrating: false,
+  leftBehind: null,
+  dismissLeftBehind: () => {},
   discardGuestData: async () => {},
   signIn: async () => {},
   signUp: async () => {},
@@ -134,6 +145,39 @@ const AuthContext = createContext<AuthContextType>({
 const MIGRATION_PATIENCE_MS = 5_000;
 
 /**
+ * What a move left behind, per account, when it finished behind the app.
+ * Nothing may pop up then, since they may be mid-workout, so it waits here
+ * for a quiet note on Profile until that's dismissed.
+ */
+const leftBehindKey = (uid: string) => `plato.leftBehind.v1:${uid}`;
+
+async function readLeftBehind(uid: string): Promise<string | null> {
+  try {
+    return await AsyncStorage.getItem(leftBehindKey(uid));
+  } catch {
+    return null;
+  }
+}
+
+/** "2 custom exercises and 1 template", or null when everything came across. */
+function describeLeftBehind(result: MigrationResult): string | null {
+  const missing: string[] = [];
+  if (result.customExercisesDropped > 0) {
+    const n = result.customExercisesDropped;
+    missing.push(`${n} custom exercise${n === 1 ? "" : "s"}`);
+  }
+  if (result.templatesDropped > 0) {
+    const n = result.templatesDropped;
+    missing.push(`${n} template${n === 1 ? "" : "s"}`);
+  }
+  if (result.activeWorkoutsDropped > 0) {
+    const n = result.activeWorkoutsDropped;
+    missing.push(`${n} unfinished workout${n === 1 ? "" : "s"}`);
+  }
+  return missing.length > 0 ? missing.join(" and ") : null;
+}
+
+/**
  * Hands a sign-out to Firebase and waits for it to land, then lifts the guard
  * that was ignoring that account meanwhile. Lifted here as well as when
  * Firebase reports no user, because Firebase reports only changes: signing
@@ -152,6 +196,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [guestActive, setGuestActive] = useState(false);
   const [guestChecked, setGuestChecked] = useState(false);
   const [migrating, setMigrating] = useState(false);
+  /** Tagged with its account, so one can't show while another is signed in. */
+  const [leftBehind, setLeftBehind] = useState<{ uid: string; text: string } | null>(null);
 
   /**
    * An account always outranks the guest flag. The flag can legitimately still
@@ -184,6 +230,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const unfinishedSignOut = readUnfinishedSignOut().then((uid) => {
       if (!uid || cancelled) return;
       signedOutUid.current ??= uid;
+      // Nothing will open on an account this launch: readRememberedUser skips
+      // the one signed out of, and Firebase's report of it is turned away
+      // below. So finish loading signed out now, rather than on the splash
+      // until that queued sign-out lands, up to a minute on a dead signal.
+      setAuthLoading(false);
       void finishSignOut(signedOutUid, uid);
     });
     readRememberedUser().then((remembered) => {
@@ -236,8 +287,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   // Keyed on the uid (and whether it still needs verifying), not the user
   // object: refreshUser() hands React a new object every few seconds while the
   // verify-email screen polls, and re-running on those would start a second
-  // upload of the same workouts. The ref closes the same door for any other
-  // path that remounts mid-migration.
+  // upload of the same workouts. A run whose effect has ended writes nothing
+  // more (see stillWanted below), so a re-run can start straight away.
   const uid = user?.uid ?? null;
 
   // One offline copy per account, open while that account is. Opened where
@@ -254,13 +305,30 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (user && !isProvisional(user)) void rememberUser(user);
   }, [user]);
 
+  // A note left by a move that finished behind the app, maybe last launch.
+  useEffect(() => {
+    if (!uid) return;
+    let current = true;
+    void readLeftBehind(uid).then((text) => {
+      if (current && text) setLeftBehind({ uid, text });
+    });
+    return () => {
+      current = false;
+    };
+  }, [uid]);
+
   // The same rule as the verify-email gate in the root layout.
   const needsVerification =
     !!user &&
     user.providerData.some((p) => p.providerId === "password") &&
     !user.emailVerified;
 
-  const migrationRunning = useRef(false);
+  /**
+   * The guest move under way, if any. Signing out or deleting the account
+   * marks it stopped before anything is wiped, and its effect ending lets go
+   * of it, so a write hung on a dead signal can't hold up the next sign-in.
+   */
+  const migrationRun = useRef<{ stopped: boolean } | null>(null);
   useEffect(() => {
     // An address nobody has proven yet could be a typo, or someone else's.
     // Moving the guest's history in now would strand it there, or hand it to
@@ -268,9 +336,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // until the link is tapped, and "Wrong email? Sign out" leaves them in
     // guest mode with everything where it was. Verifying flips this and runs
     // the move.
-    if (!uid || needsVerification || migrationRunning.current) return;
+    if (!uid || needsVerification) return;
     let cancelled = false;
-    migrationRunning.current = true;
+    const run = { stopped: false };
+    migrationRun.current = run;
+    /**
+     * Whether to carry on. Once the moving screen steps aside the move runs
+     * behind a usable app, where the account can be signed out of or deleted
+     * at any point, so this is asked after every wait, here and inside
+     * migrateGuestDataTo. Signing out releases waits before it lets go of
+     * the account, hence signedOutUid as well as `cancelled`.
+     */
+    const stillWanted = () => !cancelled && !run.stopped && signedOutUid.current !== uid;
     /** "Moving your workouts" is up. Once it steps aside it stays down. */
     let blocking = false;
     let patience: ReturnType<typeof setTimeout> | undefined;
@@ -282,6 +359,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           if (!cancelled) setGuestActive(false);
           return;
         }
+        if (!stillWanted()) return;
         // Moving data needs the server. With no signal every upload would
         // hang, and with it the full-screen "Moving your workouts" that
         // blocks the app. The screen goes up at once as it always has, since
@@ -294,7 +372,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         // them out of the workout screen. The guest data is safe on the
         // phone meanwhile: each workout leaves it only once the server has it.
         blocking = true;
-        if (!cancelled) setMigrating(true);
+        setMigrating(true);
         const stepAsideIfQuiet = () => {
           clearTimeout(patience);
           if (!blocking) return;
@@ -305,47 +383,41 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         };
         stepAsideIfQuiet();
         await whenCloudSynced(uid);
-        // Signing out releases this wait before it lets go of the account,
-        // so `cancelled` alone can't be trusted yet. Moving into an account
-        // on its way out would fail, or half succeed.
-        if (cancelled || signedOutUid.current === uid) return;
+        // Moving into an account on its way out would fail, or half succeed.
+        if (!stillWanted()) return;
         stepAsideIfQuiet();
-        const result = await migrateGuestDataTo(uid, stepAsideIfQuiet);
-        if (!cancelled) setGuestActive(false);
+        const result = await migrateGuestDataTo(uid, stepAsideIfQuiet, () => !stillWanted());
+        // It finished, so the guest data is gone and the flag is off on disk,
+        // whether or not the account is still here.
+        setGuestActive(false);
         // Two things have ceilings a merge can run into: the exercise library is
         // a single document with a hard size limit, and templates are capped so
         // repeated guest sessions can't climb past the per-screen limit. Logged
         // workouts are never affected, which is what the closing line promises.
-        // Say so — the alternative is someone noticing weeks later. But only
-        // to someone still watching the moving screen, who just signed in.
-        // Once it has stepped aside they're using the app, perhaps mid-set,
-        // and nothing may interrupt a workout; there the drop goes unsaid.
-        if (result && blocking && !cancelled) {
-          const missing: string[] = [];
-          if (result.customExercisesDropped > 0) {
-            const n = result.customExercisesDropped;
-            missing.push(`${n} custom exercise${n === 1 ? "" : "s"}`);
-          }
-          if (result.templatesDropped > 0) {
-            const n = result.templatesDropped;
-            missing.push(`${n} template${n === 1 ? "" : "s"}`);
-          }
-          if (result.activeWorkoutsDropped > 0) {
-            const n = result.activeWorkoutsDropped;
-            missing.push(`${n} unfinished workout${n === 1 ? "" : "s"}`);
-          }
-          if (missing.length > 0) {
-            Alert.alert(
-              "Your workouts moved over",
-              `${missing.join(" and ")} couldn't come with them — your account was already at the limit. Every workout you logged is safe.`
-            );
-          }
+        // Say so — the alternative is someone noticing weeks later. Out loud
+        // only to someone still watching the moving screen, who just signed
+        // in. Once it has stepped aside they're using the app, perhaps
+        // mid-set, and nothing may interrupt a workout, so it's kept for a
+        // quiet note on Profile instead.
+        const missing = result ? describeLeftBehind(result) : null;
+        if (!missing || !stillWanted()) return;
+        if (blocking) {
+          Alert.alert(
+            "Your workouts moved over",
+            `${missing} couldn't come with them — your account was already at the limit. Every workout you logged is safe.`
+          );
+        } else {
+          setLeftBehind({ uid, text: missing });
+          await AsyncStorage.setItem(leftBehindKey(uid), missing).catch(() => {});
         }
       } catch (e) {
+        // Stopped because the account went. Whatever hadn't moved is still
+        // on the phone, and there's no one left to tell.
+        if (!stillWanted()) return;
         console.warn("Couldn't move guest data into the account", e);
         // Same rule as above. Behind the app, the next launch simply tries
         // again; nothing needs saying.
-        if (blocking && !cancelled) {
+        if (blocking) {
           Alert.alert(
             "Some workouts are still on this device",
             "We couldn't finish moving them into your account. They're safe here and we'll try again next time you open Plato."
@@ -353,18 +425,36 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
       } finally {
         clearTimeout(patience);
-        migrationRunning.current = false;
-        setMigrating(false);
+        // Only while it's still the run in charge: a newer one may have the
+        // moving screen up by the time a hung write lets this one finish.
+        if (migrationRun.current === run) {
+          migrationRun.current = null;
+          setMigrating(false);
+        }
       }
     })();
     return () => {
       cancelled = true;
+      clearTimeout(patience);
       // The account it was moving into is gone. Take the screen down now,
       // not when the upload gives up: one stuck on a refused write would
-      // otherwise hold "Moving your workouts" up over the sign-in screen.
+      // otherwise hold "Moving your workouts" up over the sign-in screen,
+      // and keep the next sign-in from moving anything.
+      if (migrationRun.current === run) migrationRun.current = null;
       setMigrating(false);
     };
   }, [uid, needsVerification]);
+
+  /** Stops the guest move, if one is under way, before its account is wiped or let go of. */
+  function stopMigration() {
+    if (migrationRun.current) migrationRun.current.stopped = true;
+  }
+
+  function dismissLeftBehind() {
+    if (!uid) return;
+    setLeftBehind(null);
+    AsyncStorage.removeItem(leftBehindKey(uid)).catch(() => {});
+  }
 
   async function continueAsGuest() {
     await writeGuestActive(true);
@@ -434,6 +524,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       // remembered-account). The diagnostics trace goes too: its lines are
       // the times and distances of this person's sessions.
       signedOutUid.current = signedInUid;
+      stopMigration();
       await recordUnfinishedSignOut(signedInUid);
       await forgetCloudData(signedInUid);
       await forgetCachedBodyweight(signedInUid);
@@ -502,12 +593,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     } else if (providers.includes("google.com")) {
       if (!(await reauthenticateWithGoogle(current))) return false;
     }
+    // A guest move still running behind the app would go on writing into the
+    // account after the wipe below had looked, leaving data behind under a
+    // uid nobody can sign in as. Whatever it already sent is queued ahead of
+    // the wipe, so the wipe takes that too.
+    stopMigration();
     await deleteAllUserData(current.uid);
     // The device keeps copies for offline starts: the weigh-in log and the
     // offline copy of everything else. They go with the account, the same as
     // they go on sign-out.
     await forgetCloudData(current.uid);
     await forgetCachedBodyweight(current.uid);
+    await AsyncStorage.removeItem(leftBehindKey(current.uid)).catch(() => {});
     await clearWatchTrace();
     await forgetRememberedUser();
     // Apple asks apps to revoke Sign in with Apple when the account goes. It
@@ -534,6 +631,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         dataUserId: user?.uid ?? (guestActive ? GUEST_USER_ID : null),
         continueAsGuest,
         migrating,
+        leftBehind: leftBehind?.uid === uid ? leftBehind.text : null,
+        dismissLeftBehind,
         discardGuestData,
         signIn,
         signUp,

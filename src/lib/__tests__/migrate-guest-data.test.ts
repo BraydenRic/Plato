@@ -51,6 +51,18 @@ jest.mock("../firestore", () => ({
   setBodyweightLog: (...args: unknown[]) => (globalThis as any).__cloudMock.setBodyweightLog(...args),
 }));
 
+/**
+ * cloud-cache's copy of the account's workouts, which says whether an earlier
+ * run's upload is already there. Empty unless a test puts something in it.
+ */
+const accountCopy = ((globalThis as Record<string, unknown>).__accountCopyMock ??= {
+  getWorkout: jest.fn(),
+}) as Record<string, jest.Mock>;
+
+jest.mock("../cloud-cache", () => ({
+  getWorkout: (...args: unknown[]) => (globalThis as any).__accountCopyMock.getWorkout(...args),
+}));
+
 /** The workouts that went up, in order, as the documents they were written as. */
 function uploadedWorkouts(): Record<string, any>[] {
   return cloud.sendWrite.mock.calls
@@ -73,6 +85,21 @@ async function seed(data: Record<string, unknown>): Promise<{ store: LocalStore;
   return { store: require("../local-store"), migrate: require("../migrate-guest-data") };
 }
 
+/** The app killed and opened again: fresh modules, same device storage. */
+function relaunch(): { store: LocalStore; migrate: Migrator } {
+  jest.resetModules();
+  return { store: require("../local-store"), migrate: require("../migrate-guest-data") };
+}
+
+/** Lets pending promises and storage calls run until `condition` holds. */
+async function until(condition: () => boolean | Promise<boolean>): Promise<void> {
+  for (let i = 0; i < 100; i++) {
+    if (await condition()) return;
+    await new Promise((resolve) => setTimeout(resolve, 0));
+  }
+  throw new Error("Never happened");
+}
+
 const emptyLibrary = { custom: [], removedIds: [], overrides: [] };
 
 beforeEach(() => {
@@ -90,6 +117,7 @@ beforeEach(() => {
   cloud.countActiveWorkouts.mockResolvedValue(0);
   cloud.getBodyweightLog.mockResolvedValue([]);
   cloud.setBodyweightLog.mockResolvedValue(undefined);
+  accountCopy.getWorkout.mockResolvedValue(null);
 });
 
 describe("nothing to migrate", () => {
@@ -211,6 +239,125 @@ describe("partial failure", () => {
   });
 });
 
+describe("a re-run that finds an earlier upload already in the account", () => {
+  // Mid-workout when they signed in. The moving screen stepped aside while
+  // this workout's upload waited on the signal, and they carried on logging
+  // sets on it in the account.
+  const midWorkout = makeWorkout({ id: "local-1", name: "Pull", startedAt: new Date("2026-02-03T10:00:00Z") });
+  const CLOUD_1 = `${UID}_local-1`;
+
+  /** A first run whose upload never hears back, as when the app is killed. */
+  async function firstRunNeverAnswered(migrate: Migrator) {
+    cloud.sendWrite.mockReturnValueOnce(new Promise(() => {}));
+    void migrate.migrateGuestDataTo(UID);
+    await until(async () => (await AsyncStorage.getItem("plato.guest.sent.v1")) !== null);
+    cloud.sendWrite.mockClear();
+  }
+
+  it("leaves it alone after a relaunch, so what was logged on it in the account survives", async () => {
+    const { migrate: firstLaunch } = await seed({ workouts: [midWorkout] });
+    await firstRunNeverAnswered(firstLaunch);
+
+    const { store, migrate } = relaunch();
+    // The send had landed: the account has it, edits and all.
+    accountCopy.getWorkout.mockImplementation(async (id: string) => (id === CLOUD_1 ? { id } : null));
+    // And it already counts toward the account's in-progress ceiling, so it
+    // mustn't be turned away as though it were one too many.
+    cloud.countActiveWorkouts.mockResolvedValue(require("../workout-utils").MAX_MERGED_ACTIVE_WORKOUTS);
+    const result = await migrate.migrateGuestDataTo(UID);
+
+    expect(cloud.sendWrite).not.toHaveBeenCalled();
+    expect(result).toMatchObject({ workouts: 1, activeWorkoutsDropped: 0 });
+    expect(store.hasContent(await store.readGuestData())).toBe(false);
+  });
+
+  // Signed out mid-move, which put them back in guest mode with this workout,
+  // and they carried on there. Now the guest copy is the newer one.
+  it("still sends it when the guest copy changed after it was sent", async () => {
+    const { migrate: firstLaunch } = await seed({ workouts: [midWorkout] });
+    await firstRunNeverAnswered(firstLaunch);
+
+    const { store, migrate } = relaunch();
+    await store.updateWorkout("local-1", { name: "Pull, carried on as a guest" });
+    accountCopy.getWorkout.mockImplementation(async (id: string) => (id === CLOUD_1 ? { id } : null));
+    await migrate.migrateGuestDataTo(UID);
+
+    expect(cloud.sendWrite).toHaveBeenCalledTimes(1);
+    expect(cloud.sendWrite.mock.calls[0][0].docId).toBe(CLOUD_1);
+    expect(uploadedWorkouts()[0].name).toBe("Pull, carried on as a guest");
+  });
+
+  // Same launch: the earlier send is still waiting in Firestore's queue,
+  // which lays it over what the account shows. The server may not have it,
+  // and that queue goes if the app is killed, so it isn't proof yet.
+  it("sends it again while the earlier upload is still waiting this launch", async () => {
+    const { store, migrate } = await seed({ workouts: [midWorkout] });
+    await firstRunNeverAnswered(migrate);
+    accountCopy.getWorkout.mockImplementation(async (id: string) => (id === CLOUD_1 ? { id } : null));
+
+    await migrate.migrateGuestDataTo(UID);
+
+    expect(cloud.sendWrite).toHaveBeenCalledTimes(1);
+    expect(cloud.sendWrite.mock.calls[0][0].docId).toBe(CLOUD_1);
+    expect(store.hasContent(await store.readGuestData())).toBe(false);
+  });
+
+  it("forgets what it sent once the move is done", async () => {
+    const { migrate } = await seed({ workouts: [midWorkout] });
+    await migrate.migrateGuestDataTo(UID);
+    expect(await AsyncStorage.getItem("plato.guest.sent.v1")).toBeNull();
+  });
+});
+
+describe("the account going mid-move", () => {
+  // The move runs behind a usable app once the moving screen steps aside, so
+  // the account can be signed out of or deleted while an upload waits.
+  const three = [
+    makeWorkout({ id: "local-1", name: "one" }),
+    makeWorkout({ id: "local-2", name: "two" }),
+    makeWorkout({ id: "local-3", name: "three" }),
+  ];
+  const weighIns = [{ date: "2026-02-01T08:00:00.000Z", lbs: 181 }];
+
+  it("writes nothing more, anywhere, once told to stop", async () => {
+    const { store, migrate } = await seed({ workouts: three, bodyweight: weighIns });
+    let gone = false;
+    // Signed out while the first upload waited for its answer.
+    cloud.sendWrite.mockImplementationOnce(async () => {
+      gone = true;
+    });
+
+    await expect(migrate.migrateGuestDataTo(UID, undefined, () => gone)).rejects.toThrow(migrate.MigrationStopped);
+
+    expect(cloud.sendWrite).toHaveBeenCalledTimes(1);
+    expect(cloud.setBodyweightLog).not.toHaveBeenCalled();
+    // Nothing left the phone either: not the workout that was answered after
+    // the sign-out, not the weigh-ins, not the guest flag.
+    expect((await store.readGuestData()).workouts.map((w) => w.name)).toEqual(["one", "two", "three"]);
+    expect(await readCachedBodyweight(UID)).toBeNull();
+    expect(await AsyncStorage.getItem(ACTIVE_KEY)).toBe("1");
+  });
+
+  it("doesn't merge weigh-ins into an account that went while its log was read", async () => {
+    const { store, migrate } = await seed({ bodyweight: weighIns });
+    const announced = jest.fn();
+    require("../bodyweight-cache").onBodyweightAdopted(announced);
+    let gone = false;
+    cloud.getBodyweightLog.mockImplementationOnce(async () => {
+      gone = true;
+      return [];
+    });
+
+    await expect(migrate.migrateGuestDataTo(UID, undefined, () => gone)).rejects.toThrow(migrate.MigrationStopped);
+
+    expect(cloud.setBodyweightLog).not.toHaveBeenCalled();
+    expect(announced).not.toHaveBeenCalled();
+    // Written back after sign-out had removed it, this would outstay them.
+    expect(await readCachedBodyweight(UID)).toBeNull();
+    expect(store.hasContent(await store.readGuestData())).toBe(true);
+  });
+});
+
 describe("weigh-ins", () => {
   const weighIns = [
     { date: "2026-02-01T08:00:00.000Z", lbs: 181 },
@@ -248,6 +395,32 @@ describe("weigh-ins", () => {
     await migrate.migrateGuestDataTo(UID);
 
     expect((await readCachedBodyweight(UID))?.map((e) => e.lbs)).toEqual([185, 181, 180]);
+  });
+
+  // The moving screen may have stepped aside while this write waits on the
+  // signal. A weigh-in logged meanwhile is built on whatever the screens
+  // hold, and has to be built on the merged log, or it lands after it and
+  // takes the guest's weigh-ins back out.
+  it("hands the merged log to the screens before the server has it", async () => {
+    const { store, migrate } = await seed({ bodyweight: weighIns });
+    cloud.getBodyweightLog.mockResolvedValue([{ date: new Date("2026-01-20T08:00:00.000Z"), lbs: 185 }]);
+    let acked: () => void = () => {};
+    cloud.setBodyweightLog.mockReturnValueOnce(new Promise<void>((resolve) => (acked = resolve)));
+    const announced = jest.fn();
+    require("../bodyweight-cache").onBodyweightAdopted(announced);
+
+    const moving = migrate.migrateGuestDataTo(UID);
+    await until(async () => (await readCachedBodyweight(UID)) !== null);
+
+    expect(announced).toHaveBeenCalledWith(UID, expect.anything());
+    expect(announced.mock.calls[0][1].map((e: { lbs: number }) => e.lbs)).toEqual([185, 181, 180]);
+    expect((await readCachedBodyweight(UID))?.map((e) => e.lbs)).toEqual([185, 181, 180]);
+    // The guest's own copy stays until the server has the merge.
+    expect(store.hasContent(await store.readGuestData())).toBe(true);
+
+    acked();
+    await moving;
+    expect(store.hasContent(await store.readGuestData())).toBe(false);
   });
 });
 

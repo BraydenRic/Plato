@@ -37,6 +37,8 @@ export default function ProfileScreen() {
     deleteAccount,
     refreshUser,
     resendVerificationEmail,
+    leftBehind,
+    dismissLeftBehind,
   } = useAuth();
   const router = useRouter();
   const { theme, themeId, setThemeId } = useThemePicker();
@@ -342,6 +344,31 @@ export default function ProfileScreen() {
           </Pressable>
         )}
 
+        {/* The guest move hit the account's limits after its screen had
+            stepped aside, when it couldn't say so: they may have been
+            mid-workout. So it's said here, quietly, until dismissed. */}
+        {leftBehind && (
+          <View style={styles.noteRow}>
+            <Ionicons
+              name="information-circle-outline"
+              size={16}
+              color={palette.textTertiary}
+              style={styles.noteIcon}
+            />
+            <Text style={styles.noteText}>
+              {leftBehind} from guest mode couldn&apos;t come over — your account was already at
+              the limit. Every workout you logged is safe.
+            </Text>
+            <Pressable
+              onPress={dismissLeftBehind}
+              hitSlop={10}
+              accessibilityRole="button"
+              accessibilityLabel="Dismiss">
+              <Ionicons name="close" size={16} color={palette.textTertiary} style={styles.noteIcon} />
+            </Pressable>
+          </View>
+        )}
+
         <Card style={styles.bodyweightCard}>
           {/*
             The card navigates; only the + logs.
@@ -644,6 +671,25 @@ const useStyles = makeStyles((c) => ({
   verifyText: {
     fontSize: 13,
     fontWeight: "600",
+  },
+  // Same quiet inline row as the verify line, top-aligned because this one
+  // runs to a few lines.
+  noteRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: Spacing.two,
+    marginTop: -Spacing.two,
+    paddingHorizontal: Spacing.one,
+  },
+  // Centres a 16pt icon on the first 19pt line.
+  noteIcon: {
+    marginTop: 2,
+  },
+  noteText: {
+    flex: 1,
+    fontSize: 13,
+    lineHeight: 19,
+    color: c.textSecondary,
   },
   avatar: {
     width: 52,

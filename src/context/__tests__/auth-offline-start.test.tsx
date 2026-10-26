@@ -17,8 +17,12 @@ const mockCalls: string[] = [];
 let mockEmitAuth: (user: unknown) => void = () => {};
 let mockCurrentUser: unknown = null;
 let mockSynced: (() => void) | null = null;
-const mockMigrate = jest.fn(async (_uid: string, _onProgress?: () => void): Promise<unknown> => null);
+const mockMigrate = jest.fn(
+  async (_uid: string, _onProgress?: () => void, _shouldStop?: () => boolean): Promise<unknown> => null
+);
 let mockGuestHasData = false;
+/** Runs as account deletion starts wiping the account's data. */
+let mockOnDeleteData: () => void = () => {};
 /**
  * Firebase runs its sign-out in a queue, behind a session restore still
  * under way. Set this to hold it there until the test calls mockReleaseSignOut.
@@ -75,7 +79,7 @@ jest.mock("@/lib/cloud-cache", () => ({
     mockSynced?.();
   },
 }));
-jest.mock("@/lib/firestore", () => ({ deleteAllUserData: async () => {} }));
+jest.mock("@/lib/firestore", () => ({ deleteAllUserData: async () => mockOnDeleteData() }));
 jest.mock("@/lib/local-store", () => ({
   GUEST_USER_ID: "local-guest",
   readGuestActive: async () => mockGuestHasData,
@@ -87,7 +91,8 @@ jest.mock("@/lib/local-store", () => ({
   clearGuestData: async () => {},
 }));
 jest.mock("@/lib/migrate-guest-data", () => ({
-  migrateGuestDataTo: (uid: string, onProgress?: () => void) => mockMigrate(uid, onProgress),
+  migrateGuestDataTo: (uid: string, onProgress?: () => void, shouldStop?: () => boolean) =>
+    mockMigrate(uid, onProgress, shouldStop),
 }));
 jest.mock("@/lib/apple-signin", () => ({
   appleSignInSupported: false,
@@ -116,12 +121,13 @@ function Capture() {
 }
 
 async function mount() {
-  render(
+  const view = render(
     <AuthProvider>
       <Capture />
     </AuthProvider>
   );
   await act(async () => {});
+  return view;
 }
 
 beforeEach(async () => {
@@ -132,6 +138,7 @@ beforeEach(async () => {
   mockMigrate.mockResolvedValue(null);
   mockSynced = null;
   mockGuestHasData = false;
+  mockOnDeleteData = () => {};
   mockHoldSignOut = false;
   mockReleaseSignOut = () => {};
   await AsyncStorage.clear();
@@ -268,6 +275,26 @@ describe("a sign-out Firebase hadn't finished when the app closed", () => {
     await act(async () => mockEmitAuth(realUser));
     expect(auth.user?.uid).toBe("u1");
   });
+
+  // The account it would have opened on is skipped, so nothing else will
+  // end the splash but Firebase, whose restore and the sign-out queued
+  // behind it can take a minute on a dead signal.
+  it("opens signed out straight away rather than waiting for Firebase", async () => {
+    process.env.EXPO_PUBLIC_FIREBASE_API_KEY = "key";
+    await AsyncStorage.setItem("firebase:authUser:key:[DEFAULT]", JSON.stringify(realUser));
+    await AsyncStorage.setItem("plato.signedOut.v1", "u1");
+    mockHoldSignOut = true;
+
+    await mount();
+
+    expect(auth.loading).toBe(false);
+    expect(auth.user).toBeNull();
+
+    // Firebase gets round to reporting the session it restored. Still out.
+    await act(async () => mockEmitAuth(realUser));
+    expect(auth.loading).toBe(false);
+    expect(auth.user).toBeNull();
+  });
 });
 
 describe("an account signed out of while a request for it was still out", () => {
@@ -380,7 +407,7 @@ describe("a new email account that hasn't been verified", () => {
     await waitFor(() => expect(mockSynced).not.toBeNull());
     await act(async () => mockSynced!());
 
-    await waitFor(() => expect(mockMigrate).toHaveBeenCalledWith("u2", expect.any(Function)));
+    await waitFor(() => expect(mockMigrate).toHaveBeenCalledWith("u2", expect.any(Function), expect.any(Function)));
   });
 });
 
@@ -398,7 +425,7 @@ describe("moving guest data into the account", () => {
 
     await act(async () => mockSynced!());
 
-    await waitFor(() => expect(mockMigrate).toHaveBeenCalledWith("u1", expect.any(Function)));
+    await waitFor(() => expect(mockMigrate).toHaveBeenCalledWith("u1", expect.any(Function), expect.any(Function)));
   });
 
   // The app's rule: nothing may interrupt a workout. Once the screen has
@@ -424,7 +451,7 @@ describe("moving guest data into the account", () => {
     await act(async () => mockSynced!());
     await act(async () => {});
 
-    expect(mockMigrate).toHaveBeenCalledWith("u1", expect.any(Function));
+    expect(mockMigrate).toHaveBeenCalledWith("u1", expect.any(Function), expect.any(Function));
     expect(auth.migrating).toBe(false);
     expect(alert).not.toHaveBeenCalled();
   });
@@ -478,6 +505,39 @@ describe("moving guest data into the account", () => {
     await waitFor(() =>
       expect(alert).toHaveBeenCalledWith("Your workouts moved over", expect.stringContaining("2 custom exercises"))
     );
+    // Said once is enough: no note on Profile as well.
+    expect(auth.leftBehind).toBeNull();
+  });
+
+  // Finished behind the app, it can't say so out loud: they may be mid-set.
+  // But the exercises are gone from the phone, so it can't go unsaid either.
+  it("keeps what couldn't come across for Profile when the move finished behind the app", async () => {
+    jest.useFakeTimers();
+    const alert = jest.spyOn(Alert, "alert").mockImplementation(() => {});
+    mockGuestHasData = true;
+    mockMigrate.mockResolvedValue({ workouts: 3, customExercisesDropped: 2, templatesDropped: 1, activeWorkoutsDropped: 0 });
+    const firstLaunch = await mount();
+    await act(async () => mockEmitAuth(realUser));
+    await act(async () => {});
+    await act(async () => {
+      jest.advanceTimersByTime(5_000);
+    });
+    await act(async () => mockSynced!());
+    await act(async () => {});
+
+    expect(alert).not.toHaveBeenCalled();
+    expect(auth.leftBehind).toBe("2 custom exercises and 1 template");
+
+    // Still there next launch, until it's dismissed.
+    firstLaunch.unmount();
+    mockGuestHasData = false;
+    await mount();
+    await act(async () => mockEmitAuth(realUser));
+    expect(auth.leftBehind).toBe("2 custom exercises and 1 template");
+
+    await act(async () => auth.dismissLeftBehind());
+    expect(auth.leftBehind).toBeNull();
+    expect(await AsyncStorage.getItem("plato.leftBehind.v1:u1")).toBeNull();
   });
 
   // Signing out releases the wait for the server before it lets go of the
@@ -521,5 +581,70 @@ describe("moving guest data into the account", () => {
 
     expect(auth.user).toBeNull();
     expect(auth.migrating).toBe(false);
+  });
+
+  // With the screen stepped aside, Sign out is in reach while an upload waits
+  // on a dead signal. Firestore keeps that write for the account and sends it
+  // when they sign back in, so the old run would wake up then and carry on
+  // with what it read before, while it held the door shut on a fresh run.
+  it("stops a move stuck on a write when its account signs out, and moves afresh on the next sign-in", async () => {
+    jest.useFakeTimers();
+    mockGuestHasData = true;
+    mockCurrentUser = realUser;
+    let shouldStop: () => boolean = () => false;
+    mockMigrate.mockImplementationOnce((_uid, _onProgress, stop) => {
+      shouldStop = stop!;
+      return new Promise(() => {});
+    });
+    await mount();
+    await act(async () => mockEmitAuth(realUser));
+    await act(async () => {});
+    await act(async () => mockSynced!());
+    await act(async () => {});
+    expect(shouldStop()).toBe(false);
+
+    await act(async () => {
+      await auth.signOut();
+    });
+    expect(shouldStop()).toBe(true);
+
+    mockCurrentUser = realUser;
+    await act(async () => mockEmitAuth(realUser));
+    await act(async () => {});
+    await act(async () => mockSynced!());
+    await act(async () => {});
+
+    expect(mockMigrate).toHaveBeenCalledTimes(2);
+    // Signing back in doesn't wake the old one either.
+    expect(shouldStop()).toBe(true);
+  });
+
+  // Deleting the account wipes what the server holds, from one look at it.
+  // A move still writing behind the app would put data back after that look,
+  // under a uid nobody can sign in as.
+  it("stops the move before the account's data is wiped", async () => {
+    jest.useFakeTimers();
+    mockGuestHasData = true;
+    mockCurrentUser = realUser;
+    let shouldStop: () => boolean = () => false;
+    mockMigrate.mockImplementationOnce((_uid, _onProgress, stop) => {
+      shouldStop = stop!;
+      return new Promise(() => {});
+    });
+    let stoppedBeforeWipe: boolean | null = null;
+    mockOnDeleteData = () => {
+      stoppedBeforeWipe = shouldStop();
+    };
+    await mount();
+    await act(async () => mockEmitAuth(realUser));
+    await act(async () => {});
+    await act(async () => mockSynced!());
+    await act(async () => {});
+
+    await act(async () => {
+      await auth.deleteAccount();
+    });
+
+    expect(stoppedBeforeWipe).toBe(true);
   });
 });
