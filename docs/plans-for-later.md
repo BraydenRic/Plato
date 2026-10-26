@@ -98,9 +98,12 @@ forwards to it.
 1. When submitting the next version, set its Privacy Policy URL to
    https://braydenric.github.io/plato-support/privacy.html (it's on the
    `store-listing.md` checklist).
-2. Once that version is *released* on the App Store, not just approved, make
-   this repo private: GitHub → Settings → General → Danger Zone → Change
-   visibility.
+2. Once that version is *released* on the App Store, not just approved, check
+   that plato-support still holds only what's meant to be public: `index.html`
+   (support) and `privacy.html`, linking nothing in this repo. Anything put
+   there is public. Then make this repo private: GitHub → Settings → General →
+   Danger Zone → Change visibility. Run the address check from
+   `store-listing.md` afterwards; both should still say 200.
 3. Delete `docs/index.html` (the forwarding page, dead once private) and the
    README's mention of it, and turn off Pages for this repo if GitHub hasn't.
 4. From then on every build spends Actions minutes, about 12–14 builds a month:

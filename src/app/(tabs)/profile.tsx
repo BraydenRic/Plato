@@ -1,6 +1,6 @@
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { useEffect, useState } from "react";
-import { Alert, Pressable, ScrollView, Text, View, useWindowDimensions } from "react-native";
+import { Alert, Linking, Platform, Pressable, ScrollView, Text, View, useWindowDimensions } from "react-native";
 import { Image } from "expo-image";
 import Constants from "expo-constants";
 import { useRouter } from "expo-router";
@@ -9,6 +9,7 @@ import { Button, Card, SectionLabel, Stepper } from "@/components/ui";
 import { Sparkline } from "@/components/sparkline";
 import { useBodyweight } from "@/hooks/use-bodyweight";
 import { convertWeight, relativeDay, sameDay } from "@/lib/workout-utils";
+import { PRIVACY_POLICY_URL, SUPPORT_EMAIL } from "@/constants/links";
 import { APPEARANCE_LABELS, APPEARANCE_PREFS, FontScaleCap, Radius, Spacing, THEME_LIST } from "@/constants/theme";
 import { makeStyles, useAppearance, usePalette } from "@/context/AppearanceContext";
 import { useAuth } from "@/context/AuthContext";
@@ -21,6 +22,28 @@ import { readWatchTrace } from "@/lib/watch-trace";
 // Short enough to type on a phone with one hand, long enough that you can't
 // produce it by tapping through.
 const DELETE_WORD = "DELETE";
+
+// Which build this is: on the version line, and in a support email.
+const APP_VERSION = `${Constants.expoConfig?.version ?? "?"} (${Constants.expoConfig?.ios?.buildNumber ?? "?"})`;
+
+/**
+ * A new email to support. The support page asks for the iOS version with a
+ * bug report, so it's filled in with the build, under room to write.
+ */
+function emailSupport() {
+  const subject = encodeURIComponent("Plato support");
+  const body = encodeURIComponent(`\n\n\nPlato ${APP_VERSION} · iOS ${Platform.Version}`);
+  Linking.openURL(`mailto:${SUPPORT_EMAIL}?subject=${subject}&body=${body}`).catch(() =>
+    // No mail account set up, or Mail deleted: say where to write instead.
+    Alert.alert("Couldn't open Mail", `Email us at ${SUPPORT_EMAIL}.`)
+  );
+}
+
+function openPrivacyPolicy() {
+  Linking.openURL(PRIVACY_POLICY_URL).catch(() =>
+    Alert.alert("Couldn't open the privacy policy", `It's at ${PRIVACY_POLICY_URL}.`)
+  );
+}
 
 export default function ProfileScreen() {
   const styles = useStyles();
@@ -579,6 +602,33 @@ export default function ProfileScreen() {
           </Card>
         </View>
 
+        {/* Apple wants the privacy policy reachable from inside the app, not
+            only from the listing (5.1.1), and a way to get in touch (1.5).
+            Both leave Plato, so they end on the open-outside glyph rather than
+            the chevron of rows that stay in the app. */}
+        <View>
+          <SectionLabel>Help</SectionLabel>
+          <Card style={styles.helpCard}>
+            <HelpRow
+              icon="mail-outline"
+              iconColor={theme.accentText}
+              title="Contact support"
+              detail={SUPPORT_EMAIL}
+              hint="Opens Mail"
+              onPress={emailSupport}
+            />
+            <View style={styles.helpDivider} />
+            <HelpRow
+              icon="shield-checkmark-outline"
+              iconColor={theme.accentText}
+              title="Privacy policy"
+              detail="What Plato keeps, and where"
+              hint="Opens in your browser"
+              onPress={openPrivacyPolicy}
+            />
+          </Card>
+        </View>
+
         {!isGuest && <Button title="Sign out" variant="danger" onPress={confirmSignOut} />}
 
         <Pressable onPress={isGuest ? confirmDiscardGuestData : confirmDeleteAccount} hitSlop={8}>
@@ -600,12 +650,45 @@ export default function ProfileScreen() {
             );
           }}
           delayLongPress={600}>
-          <Text style={styles.version}>
-            Version {Constants.expoConfig?.version ?? "?"} ({Constants.expoConfig?.ios?.buildNumber ?? "?"})
-          </Text>
+          <Text style={styles.version}>Version {APP_VERSION}</Text>
         </Pressable>
       </ScrollView>
     </View>
+  );
+}
+
+/** A row of the Help card: a link out of the app. */
+function HelpRow({
+  icon,
+  iconColor,
+  title,
+  detail,
+  hint,
+  onPress,
+}: {
+  icon: React.ComponentProps<typeof Ionicons>["name"];
+  iconColor: string;
+  title: string;
+  detail: string;
+  hint: string;
+  onPress: () => void;
+}) {
+  const styles = useStyles();
+  const palette = usePalette();
+  return (
+    <Pressable
+      onPress={onPress}
+      accessibilityRole="link"
+      accessibilityLabel={title}
+      accessibilityHint={hint}
+      style={({ pressed }) => [styles.helpRow, pressed && { backgroundColor: palette.surfaceRaised }]}>
+      <Ionicons name={icon} size={20} color={iconColor} />
+      <View style={styles.helpText}>
+        <Text style={styles.prefTitle}>{title}</Text>
+        <Text style={styles.prefHint}>{detail}</Text>
+      </View>
+      <Ionicons name="open-outline" size={16} color={palette.textTertiary} />
+    </Pressable>
   );
 }
 
@@ -813,6 +896,30 @@ const useStyles = makeStyles((c) => ({
     flexDirection: "column",
     alignItems: "stretch",
     gap: Spacing.two,
+  },
+  // Rows run edge to edge, so a pressed row lights up its whole width; the
+  // card clips that to its corners.
+  helpCard: {
+    padding: 0,
+    overflow: "hidden",
+  },
+  helpRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.three,
+    paddingHorizontal: Spacing.three,
+    paddingVertical: 14,
+  },
+  // Takes the width between the two icons and wraps there, so at the largest
+  // text sizes the rows grow taller instead of pushing the glyph off the card.
+  helpText: {
+    flex: 1,
+  },
+  // Starts under the text, past the 20pt icon, as iOS's grouped lists do.
+  helpDivider: {
+    height: 1,
+    backgroundColor: c.border,
+    marginLeft: Spacing.three + 20 + Spacing.three,
   },
   deleteAccount: {
     fontSize: 13,

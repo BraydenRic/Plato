@@ -167,6 +167,6 @@ Finishing a workout stores `totalVolume`, priced at that day's weigh-in, and rec
 
 ## Privacy
 
-The privacy policy is `privacy.html` in the public [plato-support](https://github.com/BraydenRic/plato-support) repo, served at <https://braydenric.github.io/plato-support/privacy.html>, next to the support page that links to it. Update it there whenever what the app stores changes, including what it keeps on the device. It lives outside this repo so that this one can go private: GitHub's free plan only serves Pages from public repos.
+The privacy policy is `privacy.html` in the public [plato-support](https://github.com/BraydenRic/plato-support) repo, served at <https://braydenric.github.io/plato-support/privacy.html>, next to the support page that links to it. Update it there whenever what the app stores changes, including what it keeps on the device. The app links it from Profile → Help, beside Contact support, as Apple requires (5.1.1). Every address the app and the listing use is in [links.ts](src/constants/links.ts). It lives outside this repo so that this one can go private: GitHub's free plan only serves Pages from public repos.
 
 The App Store listing still links <https://braydenric.github.io/Plato/>, and [docs/index.html](docs/index.html) forwards that address to the policy. The next release switches the listing to the new address (see [store-listing.md](docs/store-listing.md)). After that, see [plans-for-later](docs/plans-for-later.md).

@@ -161,6 +161,16 @@ own weight and to value bodyweight exercises. No HealthKit access.
   https://braydenric.github.io/Plato/, which only forwards there while the Plato repo is public.
   Apple applies a URL change with the next version, so it goes live when this version is
   released. After that, the repo can go private (see plans-for-later.md).
+- Support URL: **https://braydenric.github.io/plato-support/**, the page with the contact address
+  Apple wants (guideline 1.5).
+- Marketing URL: empty, or the support URL. Like the two above, never an address under
+  braydenric.github.io/Plato/, which goes when the repo goes private.
+- Check that the addresses load before submitting. Both should say 200:
+  ```bash
+  for u in https://braydenric.github.io/plato-support/ https://braydenric.github.io/plato-support/privacy.html; do curl -s -o /dev/null -w "%{http_code} $u\n" "$u"; done
+  ```
+  The app's Help links open the same two (`src/constants/links.ts`), and `links.test.ts` fails if
+  this checklist and the app ever disagree.
 - App Privacy → Data Types: **Health** added under Health & Fitness
   (App Functionality · linked to identity · not used for tracking)
 - Export compliance: answered automatically by `ITSAppUsesNonExemptEncryption: false`
