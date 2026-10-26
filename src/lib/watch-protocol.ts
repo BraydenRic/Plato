@@ -119,6 +119,12 @@ export interface EndedCardio {
   startedAt: number;
   /** Thrown away on the phone: the watch keeps nothing, Health included. */
   discard: boolean;
+  /**
+   * When it was ended or thrown away, ms since epoch. A watch the phone woke
+   * after that can't be tracking it, so doesn't take it for its own by kind
+   * and start (CardioMatch.ended). Absent to watches from older phones.
+   */
+  at: number;
 }
 
 const SESSION_KINDS: CardioSessionKind[] = ["run", "walk", "hike", "bike", "swim", "row", "elliptical", "stairs"];
@@ -143,6 +149,7 @@ export function endedCardio(completed: Workout[], now: number): EndedCardio[] {
       kind: w.cardio.kind,
       startedAt: (w.startedAt ?? w.createdAt).getTime(),
       discard: false,
+      at: w.completedAt.getTime(),
     });
   }
   return ended;

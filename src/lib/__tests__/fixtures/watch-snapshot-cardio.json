@@ -47,14 +47,16 @@
       "startOpId": "start-0",
       "kind": "walk",
       "startedAt": 1792770000000,
-      "discard": false
+      "discard": false,
+      "at": 1792771800000
     },
     {
       "id": "w-gone",
       "startOpId": null,
       "kind": "run",
       "startedAt": 1792775000000,
-      "discard": true
+      "discard": true,
+      "at": 1792775010000
     }
   ]
 }

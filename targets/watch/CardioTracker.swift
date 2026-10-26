@@ -74,6 +74,9 @@ final class CardioTracker: NSObject, ObservableObject, HKWorkoutSessionDelegate,
   private(set) var startOpId: String?
   /// Started by the phone waking the app, not from the watch's own picker.
   private(set) var fromPhone = false
+  /// When it was asked to start: tracking itself waits on Health access,
+  /// which can mean a sheet on the wrist first. Nil after a relaunch.
+  private(set) var beganAt: Date?
 
   var onEvent: ((Event) -> Void)?
 
@@ -128,6 +131,7 @@ final class CardioTracker: NSObject, ObservableObject, HKWorkoutSessionDelegate,
     self.startOpId = nil
     self.workoutId = nil
     self.fromPhone = fromPhone
+    beganAt = Date()
     confirmed = false
     finishing = false
     discarding = false
@@ -373,6 +377,7 @@ final class CardioTracker: NSObject, ObservableObject, HKWorkoutSessionDelegate,
     workoutId = nil
     startOpId = nil
     fromPhone = false
+    beganAt = nil
     state = .idle
     UserDefaults.standard.removeObject(forKey: identityKey)
   }

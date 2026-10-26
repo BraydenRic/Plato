@@ -23,7 +23,7 @@ import {
   updateWorkout,
   upsertUserStats,
 } from "@/lib/data";
-import { isGuestUserId } from "@/lib/local-store";
+import { GUEST_USER_ID, isGuestUserId, readGuestActive } from "@/lib/local-store";
 import {
   applySetOp,
   bankRunningTimer,
@@ -47,6 +47,7 @@ import { setWatchLive } from "@/lib/watch-live";
 import { traceWatch } from "@/lib/watch-trace";
 import {
   cardioDiscards,
+  discardStartFor,
   discardWatchStart,
   isDiscarded,
   loadCardioDiscards,
@@ -142,8 +143,10 @@ export function WatchSync() {
 }
 
 function WatchSyncBridge() {
-  const { dataUserId, loading: authLoading } = useAuth();
-  const { active, templates, completed, loading } = useWorkouts();
+  const { loading: authLoading, migrating } = useAuth();
+  const watchUserId = useWatchUserId();
+  const dataUserId = watchUserId ?? null;
+  const { active, templates, completed, loading } = useWorkouts(dataUserId);
   const currentId = useCurrentWorkoutId();
   const { unit, loaded: unitLoaded } = useWeightUnit();
   const { restSeconds, rest, startRest, extendRest, endRest, loaded: restLoaded } = useRestTimer();
@@ -215,7 +218,7 @@ function WatchSyncBridge() {
   // snapshot sent mid-launch would blank the watch for a moment, call a
   // running workout "none", or show it in the wrong unit — and on a background
   // launch (the watch woke the phone) that's exactly when this first runs.
-  const ready = !authLoading && !loading && unitLoaded && restLoaded && applied !== null;
+  const ready = !authLoading && watchUserId !== undefined && !loading && unitLoaded && restLoaded && applied !== null;
   const accentSet = THEMES[themeId].dark;
   const snapshotKey = ready
     ? snapshotKeyOrNull({
@@ -253,8 +256,10 @@ function WatchSyncBridge() {
   // ── In: the watch's ops ────────────────────────────────────────────────────
   // Only with an account (or guest session) loaded. Ops that arrive before
   // that — the watch woke the phone, and sign-in is still restoring — wait in
-  // the native inbox rather than being applied to nobody.
-  const canApply = ready && !!dataUserId;
+  // the native inbox rather than being applied to nobody. Nor while a guest's
+  // data is moving into the account: one about a session of theirs would
+  // find it half moved, here and not yet there.
+  const canApply = ready && !!dataUserId && !migrating;
 
   useEffect(() => {
     const bridge = PlatoWatch;
@@ -380,6 +385,37 @@ function WatchSyncBridge() {
   }, []);
 
   return null;
+}
+
+/**
+ * Whose the watch is: the account's, as for the rest of the app — except
+ * while a new email account waits on its verification link with a guest's
+ * data still on this phone, guest flag and all (see AuthContext). That data
+ * moves in only once the address is verified, and "Wrong email? Sign out"
+ * leaves it the guest's, so until then the watch stays the guest's too: a
+ * walk it's tracking finishes in the guest's copy and moves in with the
+ * rest, rather than being turned away by an account that doesn't have it.
+ * Undefined while the guest flag is still being read.
+ */
+function useWatchUserId(): string | null | undefined {
+  const { user, dataUserId } = useAuth();
+  // The same rule as the verify-email gate.
+  const unverifiedUid =
+    user && !user.emailVerified && user.providerData.some((p) => p.providerId === "password") ? user.uid : null;
+  const [guestFlag, setGuestFlag] = useState<{ uid: string; set: boolean } | null>(null);
+  useEffect(() => {
+    if (!unverifiedUid) return;
+    let cancelled = false;
+    void readGuestActive().then((set) => {
+      if (!cancelled) setGuestFlag({ uid: unverifiedUid, set });
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [unverifiedUid]);
+  if (!unverifiedUid) return dataUserId;
+  if (guestFlag?.uid !== unverifiedUid) return undefined;
+  return guestFlag.set ? GUEST_USER_ID : dataUserId;
 }
 
 /**
@@ -612,7 +648,10 @@ export async function applyWatchOp(op: WatchOp, ctx: WatchSyncContext): Promise<
       const byKindAndStart = woken
         ? { session: op.session, indoor: op.indoor, startedAt: op.at, rivalStartedAt: phoneStarted?.startedAt?.getTime() }
         : {};
-      if (isDiscarded({ workoutId: null, startOpId: op.opId, userId: dataUserId, ...byKindAndStart })) {
+      const discardRef = { workoutId: null, startOpId: op.opId, userId: dataUserId, ...byKindAndStart };
+      if (isDiscarded(discardRef)) {
+        // And told so by its own start op, which it's sure to know itself.
+        discardStartFor(discardRef, op.opId);
         traceWatch("watch start: for a discarded session — ignored");
         return;
       }
@@ -621,25 +660,31 @@ export async function applyWatchOp(op: WatchOp, ctx: WatchSyncContext): Promise<
       if (phoneStarted) {
         const fresh = (await getWorkout(phoneStarted.id)) ?? phoneStarted;
         if (!fresh.cardio || !fresh.startedAt) return;
-        if (fresh.completedAt && op.at >= fresh.completedAt.getTime()) {
-          // Ended on the phone before the watch even began: nothing it
-          // measures is the session's, so it stops and keeps nothing.
+        if (!fresh.completedAt || op.at < fresh.completedAt.getTime()) {
+          // Running here, a pause left on ends where the watch began: the
+          // watch is moving, and pausing is done there now. Ended here while
+          // the watch already had it, the session lists as waiting on the
+          // watch, which then hears it ended and sends what it measured.
+          const base = fresh.completedAt ? fresh.cardio : resumed(fresh, opTime(op.at, now, fresh.startedAt.getTime()))!;
+          const cardio = { ...base, watch: true, watchStartOpId: op.opId };
+          await updateWorkout(fresh.id, stripUndefined({ cardio }) as Partial<Workout>);
+          const linked = (w: Workout) => (w.id === fresh.id ? { ...w, cardio } : w);
+          ctx.active = ctx.active.map(linked);
+          ctx.completed = ctx.completed.map(linked);
+          traceWatch(`watch start: tracking the phone's ${fresh.completedAt ? "ended " : ""}${op.session}`);
+          return;
+        }
+        // Ended on the phone before the watch even began: nothing it
+        // measures is the session's. Heard at once, the watch is in reach
+        // and has measured next to nothing, so it stops and keeps nothing.
+        if (now - op.at < PROMPT_START_MS) {
           discardWatchStart(fresh, op.opId);
           traceWatch(`watch start: after the phone ended its ${op.session} — told to stop`);
           return;
         }
-        // Running here, a pause left on ends where the watch began: the watch
-        // is moving, and pausing is done there now. Ended here while the watch
-        // already had it, the session lists as waiting on the watch, which
-        // then hears it ended and sends what it measured.
-        const base = fresh.completedAt ? fresh.cardio : resumed(fresh, opTime(op.at, now, fresh.startedAt.getTime()))!;
-        const cardio = { ...base, watch: true, watchStartOpId: op.opId };
-        await updateWorkout(fresh.id, stripUndefined({ cardio }) as Partial<Workout>);
-        const linked = (w: Workout) => (w.id === fresh.id ? { ...w, cardio } : w);
-        ctx.active = ctx.active.map(linked);
-        ctx.completed = ctx.completed.map(linked);
-        traceWatch(`watch start: tracking the phone's ${fresh.completedAt ? "ended " : ""}${op.session}`);
-        return;
+        // Heard only now, it went on without the phone: a run done on the
+        // watch alone, its own session as one picked on the wrist would be.
+        traceWatch(`watch start: after the phone ended its ${op.session}, heard late — a run of its own`);
       }
       // Begun before this account had the phone: someone else's run, still
       // going on the wrist after they signed out.
@@ -819,6 +864,12 @@ function sessionStartedBy(startOpId: string, ctx: WatchSyncContext): Workout | u
  * mistaken for an earlier one.
  */
 const SAME_START_MS = 5 * 60 * 1000;
+/**
+ * A woken watch's start applied within this of when it began tracking came
+ * from a watch in reach, one that stops the moment it's told. Later than
+ * this, it went on tracking out of range: a run away from the phone.
+ */
+export const PROMPT_START_MS = 30 * 1000;
 /** A lead shorter than this isn't worth asking the step counter about. */
 const MIN_LEAD_FOR_STEPS_SECONDS = 20;
 
@@ -880,12 +931,20 @@ async function findSession(op: WatchCardioOp, ctx: WatchSyncContext): Promise<Wo
     if (byId) return byId;
   }
   const sessions = [...ctx.active, ...ctx.completed].filter((w) => w.cardio && w.userId === ctx.dataUserId);
+  const startedAt = op.startedAt;
   const match =
     (op.startOpId ? sessions.find((w) => w.cardio!.watchStartOpId === op.startOpId) : undefined) ??
-    (op.session != null && op.startedAt != null
+    (op.session != null && startedAt != null
       ? nearestStart(
-          sessions.filter((w) => w.cardio!.kind === op.session && !w.cardio!.watchStartOpId && !sessionSet(w)?.tracked),
-          op.startedAt
+          sessions.filter(
+            (w) =>
+              w.cardio!.kind === op.session &&
+              !w.cardio!.watchStartOpId &&
+              !sessionSet(w)?.tracked &&
+              // Ended here before the watch began: whatever it tracked, not this.
+              !(w.completedAt && w.completedAt.getTime() <= startedAt)
+          ),
+          startedAt
         )
       : undefined);
   if (!match) return null;

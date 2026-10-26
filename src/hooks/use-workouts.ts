@@ -9,9 +9,12 @@ export const AWAITING_SYNC_MESSAGE =
   "Your workouts will appear once you're online. After that, this phone keeps a copy for when there's no signal.";
 
 // Single live subscription to the user's workouts (templates included),
-// shared by the Workouts and Stats tabs.
-export function useWorkouts() {
-  const { dataUserId } = useAuth();
+// shared by the Workouts and Stats tabs. `userId` reads someone else's than
+// the app's: the watch link's, which stays the guest's while their data
+// waits on the phone for a new account's email to be verified.
+export function useWorkouts(userId?: string | null) {
+  const auth = useAuth();
+  const dataUserId = userId === undefined ? auth.dataUserId : userId;
   const [workouts, setWorkouts] = useState<Workout[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);

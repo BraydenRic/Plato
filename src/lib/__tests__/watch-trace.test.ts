@@ -72,8 +72,10 @@ describe("a discard while the watch is still starting", () => {
   // into a run nobody wants once it got going.
   it("is remembered when a watch was woken for the session", () => {
     setWatchStart("woken", { state: "woken", at: 1000 });
-    recordCardioDiscard(run("woken"));
-    expect(cardioDiscards()).toEqual([{ id: "woken", startOpId: null, kind: "run", startedAt: 1000, discard: true }]);
+    const now = Date.now();
+    recordCardioDiscard(run("woken"), now);
+    // When, too: a watch the phone woke after that can't be tracking it.
+    expect(cardioDiscards()).toEqual([{ id: "woken", startOpId: null, kind: "run", startedAt: 1000, discard: true, at: now }]);
   });
 
   it("isn't needed when no watch was involved", () => {

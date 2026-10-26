@@ -135,9 +135,13 @@ if let cardioSnapshot = try? JSONDecoder().decode(WatchSnapshot.self, from: card
   check(ended.count == 2 && ended[0].id == "w-old" && ended[0].startOpId == "start-0" && ended[0].kind == "walk" && !ended[0].discard,
         "decodes a session ended on the phone")
   check(ended[1].startOpId == nil && ended[1].startedAt == 1792775000000 && ended[1].discard, "decodes one thrown away, with no start op")
+  check(ended[0].at == 1792771800000 && ended[1].at == 1792775010000, "decodes when each was ended")
 } else {
   check(false, "decodes the cardio snapshot")
 }
+let olderPhone = #"{"id":"w","startOpId":null,"kind":"run","startedAt":1,"discard":true}"#
+check((try? JSONDecoder().decode(EndedCardio.self, from: Data(olderPhone.utf8)))?.at == nil,
+      "an older phone's entry, with no time, still decodes")
 check(snapshot.workout?.cardio == nil && snapshot.endedCardio == [], "an ordinary workout has no cardio")
 
 // ── Cardio ───────────────────────────────────────────────────────────────────
@@ -187,19 +191,45 @@ let t0 = 1792779000000.0
 // An outdoor run discarded on the phone at t0 before the watch's start landed,
 // then an indoor one started at t0+20 s that woke the watch, tracking from t0+26 s.
 let gone = EndedCardio(id: "s1", startOpId: nil, kind: "run", startedAt: t0, discard: true)
-let restarted = CardioMatch.Tracked(kind: "run", startedAt: t0 + 26_000, fromPhone: true, workoutId: nil, startOpId: "start-2")
+let restarted = CardioMatch.Tracked(kind: "run", startedAt: t0 + 26_000, beganAt: t0 + 20_500, fromPhone: true, workoutId: nil,
+                                    startOpId: "start-2")
 let staleSnapshot = cardioSnapshot(sentAt: t0 + 5_000, workout: nil, ended: [gone])
-check(CardioMatch.ended(restarted, in: staleSnapshot) == nil, "a discard sent before this tracking began doesn't end it")
+check(CardioMatch.ended(restarted, in: staleSnapshot) == nil, "a discard sent before the phone woke this watch doesn't end it")
 let freshSnapshot = cardioSnapshot(sentAt: t0 + 21_000, workout: phoneRun("s2", startedAt: t0 + 20_000), ended: [gone])
 check(CardioMatch.link(restarted, in: freshSnapshot) == "s2", "links to the restarted run, which started nearer than the discard")
 check(CardioMatch.ended(restarted, in: freshSnapshot) == nil, "and isn't ended by the discarded one")
 // The discarded run's own slow start: tracking from t0+3 s.
-let slowFirst = CardioMatch.Tracked(kind: "run", startedAt: t0 + 3_000, fromPhone: true, workoutId: nil, startOpId: "start-1")
+let slowFirst = CardioMatch.Tracked(kind: "run", startedAt: t0 + 3_000, beganAt: t0 + 1_000, fromPhone: true, workoutId: nil,
+                                    startOpId: "start-1")
 let afterIgnored = cardioSnapshot(sentAt: t0 + 22_000, workout: phoneRun("s2", startedAt: t0 + 20_000), ended: [gone])
 check(CardioMatch.link(slowFirst, in: afterIgnored) == nil, "a start nearer the discard isn't taken for the new run")
 check(CardioMatch.ended(slowFirst, in: afterIgnored)?.discard == true, "and is ended, keeping nothing")
 check(CardioMatch.ended(slowFirst, in: cardioSnapshot(sentAt: t0 + 9_000, workout: nil, ended: [gone]))?.discard == true,
       "a discard sent after the tracking began still ends it")
+// Woken for a run that was then thrown away while the Health sheet sat on the
+// wrist; approved a minute later, out of range. The discard came after the
+// wake, so it's this run's, though its snapshot came before tracking began —
+// and nothing newer will come until the phone is back in reach.
+let onSheet = CardioMatch.Tracked(kind: "run", startedAt: t0 + 60_000, beganAt: t0 + 1_000, fromPhone: true, workoutId: nil,
+                                  startOpId: "start-s")
+let thrownOnSheet = EndedCardio(id: "s4", startOpId: nil, kind: "run", startedAt: t0, discard: true, at: t0 + 10_000)
+check(CardioMatch.ended(onSheet, in: cardioSnapshot(sentAt: t0 + 10_250, workout: nil, ended: [thrownOnSheet]))?.discard == true,
+      "a discard made after the phone woke the watch ends it, though sent before tracking began")
+check(CardioMatch.ended(onSheet, in: cardioSnapshot(sentAt: t0 + 10_250, workout: nil, ended: [gone]))?.discard == true,
+      "from an older phone, a snapshot sent after the wake stands in for the discard's time")
+// The restarted run's watch, woken at t0+20 s, began once that run had been
+// ended on the phone too: the old run's discard is still listed, by a
+// snapshot sent after the wake, with no running session to say it's not this.
+let thrownFirst = EndedCardio(id: "s1", startOpId: nil, kind: "run", startedAt: t0, discard: true, at: t0 + 5_000)
+let afterBoth = CardioMatch.Tracked(kind: "run", startedAt: t0 + 50_000, beganAt: t0 + 20_500, fromPhone: true, workoutId: nil,
+                                    startOpId: "start-3")
+check(CardioMatch.ended(afterBoth, in: cardioSnapshot(sentAt: t0 + 40_000, workout: nil, ended: [thrownFirst])) == nil,
+      "a discard made before the phone woke the watch never ends it, whenever it's sent")
+let recovered = CardioMatch.Tracked(kind: "run", startedAt: t0 + 3_000, fromPhone: true, workoutId: nil, startOpId: nil)
+let thrownAtOnce = EndedCardio(id: "s5", startOpId: nil, kind: "run", startedAt: t0, discard: true, at: t0 + 2_000)
+check(CardioMatch.ended(recovered, in: cardioSnapshot(sentAt: t0 + 9_000, workout: nil, ended: [thrownAtOnce])) == nil
+        && CardioMatch.ended(recovered, in: cardioSnapshot(sentAt: t0 + 9_000, workout: nil, ended: [thrownOnSheet]))?.discard == true,
+      "picked back up after a relaunch, tracking's own start stands in for the wake")
 let picked = CardioMatch.Tracked(kind: "run", startedAt: t0 + 60_000, fromPhone: false, workoutId: nil, startOpId: "start-w")
 check(CardioMatch.ended(picked, in: cardioSnapshot(sentAt: t0 + 61_000, workout: nil, ended: [gone])) == nil,
       "never ends a run started on the wrist by kind and start")

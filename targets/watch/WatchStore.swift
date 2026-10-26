@@ -282,9 +282,14 @@ final class WatchStore: ObservableObject {
       op.indoor = tracker.indoor
       op.fromPhone = tracker.fromPhone
       tracker.assignStartOpId(op.opId)
+      // Unless the phone threw the session away while this was starting —
+      // the Health sheet up on the wrist, say. Then it stops at once, and
+      // the phone never hears of it: nothing of it is kept, and a start
+      // reaching the phone late, from out of range, could be taken there for
+      // a run of its own that nothing would ever finish.
+      if let snapshot, reconcileCardio(with: snapshot) { return }
       enqueue(op)
       startLiveUpdates()
-      if let snapshot { reconcileCardio(with: snapshot) }
     case .recovered:
       cardioError = nil
       startLiveUpdates()
@@ -362,12 +367,14 @@ final class WatchStore: ObservableObject {
 
   /// What a snapshot says about the session this watch is tracking: which of
   /// the phone's sessions it is, and whether it was ended over there. The
-  /// rules are CardioMatch's.
-  private func reconcileCardio(with next: WatchSnapshot) {
-    guard tracker.isActive else { return }
+  /// rules are CardioMatch's. True if it was thrown away.
+  @discardableResult
+  private func reconcileCardio(with next: WatchSnapshot) -> Bool {
+    guard tracker.isActive else { return false }
     var tracked = CardioMatch.Tracked(
       kind: tracker.kind.rawValue,
       startedAt: tracker.startedAt?.ms,
+      beganAt: tracker.beganAt?.ms,
       fromPhone: tracker.fromPhone,
       workoutId: tracker.workoutId,
       startOpId: tracker.startOpId
@@ -376,9 +383,9 @@ final class WatchStore: ObservableObject {
       tracker.link(to: id)
       tracked.workoutId = id
     }
-    if let ended = CardioMatch.ended(tracked, in: next) {
-      tracker.end(discard: ended.discard)
-    }
+    guard let ended = CardioMatch.ended(tracked, in: next) else { return false }
+    tracker.end(discard: ended.discard)
+    return ended.discard
   }
 
   /// The app came back to the screen: catch up on anything missed meanwhile.

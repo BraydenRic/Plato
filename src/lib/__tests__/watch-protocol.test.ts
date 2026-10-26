@@ -150,8 +150,8 @@ describe("buildWatchSnapshot", () => {
       rest: null,
       applied: [],
       endedCardio: [
-        { id: "w-old", startOpId: "start-0", kind: "walk", startedAt: 1792770000000, discard: false },
-        { id: "w-gone", startOpId: null, kind: "run", startedAt: 1792775000000, discard: true },
+        { id: "w-old", startOpId: "start-0", kind: "walk", startedAt: 1792770000000, discard: false, at: 1792771800000 },
+        { id: "w-gone", startOpId: null, kind: "run", startedAt: 1792775000000, discard: true, at: 1792775010000 },
       ],
     });
     expect(JSON.parse(JSON.stringify(built))).toEqual(cardioSnapshotFixture);
@@ -580,7 +580,7 @@ describe("sessions ended on the phone", () => {
 
   it("lists a watch-tracked session still waiting for what the watch measured", () => {
     expect(endedCardio([ended({})], NOW)).toEqual([
-      { id: "w-live", startOpId: "s-1", kind: "run", startedAt: START.getTime(), discard: false },
+      { id: "w-live", startOpId: "s-1", kind: "run", startedAt: START.getTime(), discard: false, at: NOW - 60_000 },
     ]);
   });
 

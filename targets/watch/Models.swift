@@ -103,6 +103,9 @@ struct EndedCardio: Codable, Equatable {
   let startedAt: Double
   /// Thrown away: keep nothing, Health included.
   let discard: Bool
+  /// When it was ended or thrown away, ms since epoch. Absent from older
+  /// phones.
+  var at: Double? = nil
 }
 
 /// One change made on the watch, sent to the phone to apply.

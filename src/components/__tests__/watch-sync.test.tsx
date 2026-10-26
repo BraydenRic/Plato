@@ -1,9 +1,9 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { act, render } from "@testing-library/react-native";
 
-import { APPLIED_KEY, INBOX_OWNER_KEY, RETRY_MS, START_TTL_MS, WatchSync } from "../watch-sync";
+import { APPLIED_KEY, INBOX_OWNER_KEY, PROMPT_START_MS, RETRY_MS, START_TTL_MS, WatchSync } from "../watch-sync";
 import { recordCardioDiscard, resetCardioDiscards } from "@/lib/cardio-discards";
-import { GUEST_USER_ID } from "@/lib/local-store";
+import { GUEST_USER_ID, writeGuestActive } from "@/lib/local-store";
 import type { Workout } from "@/types";
 
 /**
@@ -58,11 +58,21 @@ jest.mock("../../../modules/plato-watch", () => {
 
 const mockBridge: FakeBridge = jest.requireMock("../../../modules/plato-watch").default;
 
-let mockAuth = { dataUserId: "u1" as string | null, loading: false };
+type MockAuth = {
+  dataUserId: string | null;
+  loading: boolean;
+  migrating?: boolean;
+  user?: { uid: string; emailVerified: boolean; providerData: { providerId: string }[] };
+};
+let mockAuth: MockAuth = { dataUserId: "u1", loading: false };
 jest.mock("@/context/AuthContext", () => ({ useAuth: () => mockAuth }));
 
 let mockWorkouts = { active: [] as Workout[], templates: [] as Workout[], completed: [] as Workout[], loading: false };
-jest.mock("@/hooks/use-workouts", () => ({ useWorkouts: () => mockWorkouts }));
+// The guest's, for when the watch link asks for theirs rather than the account's.
+let mockGuestWorkouts: typeof mockWorkouts | null = null;
+jest.mock("@/hooks/use-workouts", () => ({
+  useWorkouts: (userId?: string | null) => (userId === "local-guest" && mockGuestWorkouts ? mockGuestWorkouts : mockWorkouts),
+}));
 
 const mockMarkCurrent = jest.fn();
 jest.mock("@/lib/current-workout", () => ({
@@ -195,6 +205,7 @@ beforeEach(async () => {
   jest.clearAllMocks();
   mockStore.clear();
   mockAuth = { dataUserId: "u1", loading: false };
+  mockGuestWorkouts = null;
   mockRest = null;
   mockSettingsLoaded = true;
   mockAwaitingSync = false;
@@ -550,6 +561,21 @@ describe("ops another account left behind", () => {
     expect(mockCreate).toHaveBeenCalledTimes(1);
     expect(lastSnapshot().endedCardio).toEqual([]);
   });
+
+  // A guest's discards are still theirs once they sign in, as their ops are.
+  // Discarded at once on the phone, before the woken watch heard: the
+  // account's snapshot has to say so, and its start is turned away.
+  it("carries a guest's discard into the account they sign in to", async () => {
+    recordCardioDiscard({ ...live({ id: "local-gone", userId: GUEST_USER_ID }), cardio: { kind: "run", watch: true } });
+    mockWorkouts = { active: [], templates: [], completed: [], loading: false };
+    mockBridge.inbox = [
+      entry({ opId: "start-woken", kind: "startCardio", at: START.getTime() + 8_000, session: "run", indoor: false, fromPhone: true }),
+    ];
+    render(<WatchSync />);
+    await settle();
+    expect(mockCreate).not.toHaveBeenCalled();
+    expect(lastSnapshot().endedCardio).toContainEqual(expect.objectContaining({ id: "local-gone", startOpId: null, discard: true }));
+  });
 });
 
 describe("starting from the watch", () => {
@@ -775,7 +801,14 @@ describe("cardio sessions from the watch", () => {
     mockBridge.inbox = [finish()];
     render(<WatchSync />);
     await settle();
-    expect(lastSnapshot().endedCardio).toContainEqual({ id: "gone", startOpId: "start-1", kind: "run", startedAt: START.getTime(), discard: true });
+    expect(lastSnapshot().endedCardio).toContainEqual({
+      id: "gone",
+      startOpId: "start-1",
+      kind: "run",
+      startedAt: START.getTime(),
+      discard: true,
+      at: expect.any(Number),
+    });
     expect(mockCreate).not.toHaveBeenCalled();
   });
 
@@ -803,6 +836,9 @@ describe("cardio sessions from the watch", () => {
       render(<WatchSync />);
       await settle();
       expect(mockCreate).not.toHaveBeenCalled();
+      // And tells the watch by its own start op: woken in the seconds before
+      // the discard, it doesn't take a discard by kind and start for its own.
+      expect(lastSnapshot().endedCardio).toContainEqual(expect.objectContaining({ id: "gone", startOpId: "start-late", discard: true }));
     });
 
     it("finishes a watch-started run its own start op finds, though it's the same kind and minute", async () => {
@@ -917,16 +953,70 @@ describe("cardio sessions from the watch", () => {
       mockWorkouts = { ...mockWorkouts, completed: [mockStore.get("run1")!] };
       view.rerender(<WatchSync />);
       await settle();
-      expect(lastSnapshot().endedCardio).toContainEqual({ id: "run1", startOpId: "start-w", kind: "run", startedAt: t0, discard: false });
+      expect(lastSnapshot().endedCardio).toContainEqual({
+        id: "run1",
+        startOpId: "start-w",
+        kind: "run",
+        startedAt: t0,
+        discard: false,
+        at: endedAt,
+      });
     });
 
-    it("tells a watch that only began once it was over to stop and keep nothing", async () => {
-      mockBridge.inbox = [entry({ opId: "start-late", kind: "startCardio", at: endedAt + 10_000, session: "run", indoor: false, fromPhone: true })];
+    // Began a minute after End, and heard at once: a watch in reach.
+    it("tells a watch that only began once it was over, heard at once, to stop and keep nothing", async () => {
+      const began = Date.now() - 5_000;
+      mockBridge.inbox = [entry({ opId: "start-late", kind: "startCardio", at: began, session: "run", indoor: false, fromPhone: true })];
       render(<WatchSync />);
       await settle();
       expect(mockCreate).not.toHaveBeenCalled();
       expect(mockStore.get("run1")!.cardio).toEqual({ kind: "run", indoor: false });
-      expect(lastSnapshot().endedCardio).toContainEqual({ id: "run1", startOpId: "start-late", kind: "run", startedAt: t0, discard: true });
+      expect(lastSnapshot().endedCardio).toContainEqual({
+        id: "run1",
+        startOpId: "start-late",
+        kind: "run",
+        startedAt: t0,
+        discard: true,
+        at: expect.any(Number),
+      });
+    });
+
+    // End tapped while the watch sat on its Health sheet, the phone left
+    // behind, and the sheet approved out of range: the run was done with the
+    // watch alone, and its start and finish arrive together, long after.
+    it("keeps a run the watch began after End and tracked away from the phone", async () => {
+      const began = endedAt + 10_000;
+      mockBridge.inbox = [
+        entry({ opId: "start-away", kind: "startCardio", at: began, session: "run", indoor: false, fromPhone: true }),
+        finish({ opId: "fin-away", startOpId: "start-away", startedAt: began, at: began + 1500_000 }),
+      ];
+      // Heard once back in range, half an hour on.
+      jest.setSystemTime(began + 1500_000 + PROMPT_START_MS);
+      render(<WatchSync />);
+      await settle();
+      expect(mockCreate).toHaveBeenCalledTimes(1);
+      expect(mockStore.get("created-1")).toMatchObject({ startedAt: new Date(began), cardio: { watch: true, watchStartOpId: "start-away" } });
+      expect(mockStore.get("created-1")!.exercises[0].sets[0]).toMatchObject({ duration: 1500, distance: 5000, isCompleted: true });
+      // The phone's run is left as it was, and the watch isn't told to throw anything away.
+      expect(mockStore.get("run1")!.cardio).toEqual({ kind: "run", indoor: false });
+      expect(lastSnapshot().endedCardio.filter((e: { discard: boolean }) => e.discard)).toEqual([]);
+    });
+
+    // Its start never landed (refused at the limit, say), so the finish comes
+    // alone — and mustn't be taken for the run the phone ended before it began.
+    it("doesn't hand such a run's finish to the session ended before it began", async () => {
+      const typed = { ...mockStore.get("run1")! };
+      typed.exercises = [{ ...typed.exercises[0], sets: [{ id: "s1", weightUnit: "lbs", isCompleted: true, duration: 50, distance: 150 }] }];
+      mockStore.set("run1", typed);
+      mockWorkouts.completed = [typed];
+      const began = endedAt + 10_000;
+      mockBridge.inbox = [finish({ opId: "fin-away", startOpId: null, startedAt: began, at: began + 1500_000 })];
+      jest.setSystemTime(began + 1500_000 + PROMPT_START_MS);
+      render(<WatchSync />);
+      await settle();
+      expect(mockStore.get("run1")!.exercises[0].sets[0]).toMatchObject({ duration: 50, distance: 150 });
+      expect(mockCreate).toHaveBeenCalledTimes(1);
+      expect(mockStore.get("created-1")!.exercises[0].sets[0]).toMatchObject({ duration: 1500, distance: 5000 });
     });
 
     it("still takes a run begun on the wrist afterwards as a new run", async () => {
@@ -934,6 +1024,80 @@ describe("cardio sessions from the watch", () => {
       render(<WatchSync />);
       await settle();
       expect(mockCreate).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  // A guest signed up with email mid-walk. Until the address is verified,
+  // their data stays on the phone, guest flag and all — and the watch with it.
+  describe("while a new email account waits on its link", () => {
+    const unverified = { uid: "u1", emailVerified: false, providerData: [{ providerId: "password" }] };
+    const walk = () =>
+      session({
+        id: "local-walk",
+        userId: GUEST_USER_ID,
+        name: "Outdoor Walk",
+        cardio: { kind: "walk", indoor: false, watch: true, watchStartOpId: "start-g" },
+      });
+    const walkFinish = (overrides: Record<string, unknown> = {}) =>
+      finish({ opId: "fin-g", startOpId: "start-g", session: "walk", ...overrides });
+
+    beforeEach(async () => {
+      await writeGuestActive(true);
+      mockAuth = { dataUserId: "u1", loading: false, user: unverified };
+      mockStore.set("local-walk", walk());
+      mockGuestWorkouts = { active: [walk()], templates: [], completed: [], loading: false };
+    });
+
+    it("finishes the guest's walk in their copy, which moves in with the rest", async () => {
+      mockBridge.inbox = [walkFinish({ workoutId: "local-walk" })];
+      render(<WatchSync />);
+      await settle();
+      expect(mockStore.get("local-walk")).toMatchObject({ completedAt: new Date(START.getTime() + 1500_000) });
+      expect(mockStore.get("local-walk")!.exercises[0].sets[0]).toMatchObject({ distance: 5000, isCompleted: true });
+      expect(mockCreate).not.toHaveBeenCalled();
+    });
+
+    it("finds it by its start op when the watch hadn't heard its id", async () => {
+      mockBridge.inbox = [walkFinish()];
+      render(<WatchSync />);
+      await settle();
+      expect(mockStore.get("local-walk")!.completedAt).toBeInstanceOf(Date);
+      expect(mockCreate).not.toHaveBeenCalled();
+    });
+
+    it("keeps showing the watch the guest's walk", async () => {
+      render(<WatchSync />);
+      await settle();
+      expect(lastSnapshot().workout).toMatchObject({ id: "local-walk" });
+    });
+
+    it("is the account's for someone who was never a guest here", async () => {
+      await writeGuestActive(false);
+      render(<WatchSync />);
+      await settle();
+      expect(lastSnapshot().workout).toBeNull();
+    });
+
+    // Verified: the move runs, and nothing is applied until it's done, when
+    // the walk is the account's under its new id, its start op kept.
+    it("holds the watch's ops while the guest's data moves in, then applies them to the moved copy", async () => {
+      mockAuth = { dataUserId: "u1", loading: false, user: { ...unverified, emailVerified: true }, migrating: true };
+      mockBridge.inbox = [walkFinish()];
+      const view = render(<WatchSync />);
+      await settle();
+      expect(mockBridge.inbox).toHaveLength(1);
+      expect(mockUpdateWorkout).not.toHaveBeenCalled();
+
+      const moved = { ...walk(), id: "u1_local-walk", userId: "u1" };
+      mockStore.delete("local-walk");
+      mockStore.set(moved.id, moved);
+      mockWorkouts = { ...mockWorkouts, active: [moved] };
+      mockAuth = { ...mockAuth, migrating: false };
+      view.rerender(<WatchSync />);
+      await settle();
+      expect(mockStore.get("u1_local-walk")!.completedAt).toBeInstanceOf(Date);
+      expect(mockCreate).not.toHaveBeenCalled();
+      expect(mockBridge.inbox).toEqual([]);
     });
   });
 
@@ -1020,16 +1184,17 @@ describe("cardio sessions from the watch", () => {
 
   it("tells the watch about a session it's tracking, and one the phone has ended", async () => {
     const running = session();
+    const endedAt = new Date(Date.now() - 60_000);
     mockWorkouts.active = [running];
     mockWorkouts.completed = [
-      session({ id: "ended", completedAt: new Date(Date.now() - 60_000), cardio: { kind: "walk", watch: true, watchStartOpId: "start-2" } }),
+      session({ id: "ended", completedAt: endedAt, cardio: { kind: "walk", watch: true, watchStartOpId: "start-2" } }),
     ];
     render(<WatchSync />);
     await settle();
     const snapshot = lastSnapshot();
     expect(snapshot.workout.cardio).toEqual({ kind: "run", indoor: false, pausedAtMs: null, pausedSeconds: 0, watch: true, startOpId: "start-1" });
     expect(snapshot.endedCardio).toEqual([
-      { id: "ended", startOpId: "start-2", kind: "walk", startedAt: START.getTime(), discard: false },
+      { id: "ended", startOpId: "start-2", kind: "walk", startedAt: START.getTime(), discard: false, at: endedAt.getTime() },
     ]);
   });
 

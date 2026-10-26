@@ -2,6 +2,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useSyncExternalStore } from "react";
 
 import { measuredByWatch } from "./cardio-tracking";
+import { isGuestUserId } from "./local-store";
 import type { EndedCardio } from "./watch-protocol";
 import { watchWasWoken } from "./watch-trace";
 import type { Workout } from "@/types";
@@ -26,7 +27,16 @@ const LIMIT = 50;
  * carries only the EndedCardio part — and are absent from entries written
  * before they were kept, which match whoever and wherever.
  */
-type Discard = EndedCardio & { at: number; userId?: string; indoor?: boolean };
+type Discard = EndedCardio & { userId?: string; indoor?: boolean };
+
+/**
+ * Whether a discard made by `owner` is `userId`'s: their own, or a guest's
+ * carried into the account they signed in to — the rule claimInbox keeps for
+ * the watch's ops, which move across with them.
+ */
+function discardBelongsTo(owner: string | undefined, userId: string | null | undefined): boolean {
+  return userId == null || owner == null || owner === userId || (isGuestUserId(owner) && !isGuestUserId(userId));
+}
 
 let discards: Discard[] = [];
 let loaded: Promise<void> | null = null;
@@ -72,6 +82,10 @@ function remember(workout: Workout, startOpId: string | null, now: number) {
     ],
     now
   );
+  persist();
+}
+
+function persist() {
   changed();
   AsyncStorage.setItem(KEY, JSON.stringify(discards)).catch(() => {});
 }
@@ -103,8 +117,8 @@ export function discardWatchStart(workout: Workout, startOpId: string, now = Dat
 /** The discards to put in this account's snapshot. */
 export function cardioDiscards(userId?: string | null): EndedCardio[] {
   return discards
-    .filter((d) => userId == null || d.userId == null || d.userId === userId)
-    .map(({ at: _at, userId: _userId, indoor: _indoor, ...ended }) => ended);
+    .filter((d) => discardBelongsTo(d.userId, userId))
+    .map(({ userId: _userId, indoor: _indoor, ...ended }) => ended);
 }
 
 function subscribe(listener: () => void) {
@@ -122,8 +136,7 @@ export function useCardioDiscards(): readonly Discard[] {
 /** A session discarded before the watch's start reached the phone is matched this close to it. */
 const SAME_START_MS = 5 * 60 * 1000;
 
-/** Whether an op from the watch is about a session thrown away here. */
-export function isDiscarded(ref: {
+type DiscardRef = {
   workoutId: string | null;
   startOpId: string | null;
   /** Who the op is being applied to: another account's discards never match by kind and start. */
@@ -138,17 +151,38 @@ export function isDiscarded(ref: {
    * new one, and that start mustn't be taken for the old one's.
    */
   rivalStartedAt?: number;
-}): boolean {
-  return discards.some((d) => {
+};
+
+function findDiscard(ref: DiscardRef): Discard | undefined {
+  return discards.find((d) => {
     if (ref.workoutId != null && d.id === ref.workoutId) return true;
     if (ref.startOpId != null && d.startOpId === ref.startOpId) return true;
     // Thrown away before the watch's start had linked it: by kind and start.
     if (d.startOpId != null || ref.session !== d.kind || ref.startedAt == null) return false;
-    if (ref.userId != null && d.userId != null && d.userId !== ref.userId) return false;
+    if (!discardBelongsTo(d.userId, ref.userId)) return false;
     if (ref.indoor != null && d.indoor != null && ref.indoor !== d.indoor) return false;
     const gap = Math.abs(ref.startedAt - d.startedAt);
     return gap < SAME_START_MS && (ref.rivalStartedAt == null || gap < Math.abs(ref.startedAt - ref.rivalStartedAt));
   });
+}
+
+/** Whether an op from the watch is about a session thrown away here. */
+export function isDiscarded(ref: DiscardRef): boolean {
+  return findDiscard(ref) != null;
+}
+
+/**
+ * A woken watch's start turned away as being for a session thrown away here
+ * before that start arrived: the watch is told by its own start op as well.
+ * It takes a discard by kind and start only if it was made after the phone
+ * woke it (CardioMatch.ended), so one made in the seconds the wake took to
+ * reach it would otherwise leave it tracking a run nobody keeps.
+ */
+export function discardStartFor(ref: DiscardRef, startOpId: string, now = Date.now()): void {
+  const found = findDiscard(ref);
+  if (!found || found.startOpId != null) return;
+  discards = prune([...discards, { ...found, startOpId, at: now }], now);
+  persist();
 }
 
 /** For tests: forget everything, on disk and off. */

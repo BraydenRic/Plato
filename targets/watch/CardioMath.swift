@@ -237,6 +237,10 @@ enum CardioMatch {
     var kind: String
     /// ms since epoch
     var startedAt: Double?
+    /// When the watch was asked to track it — woken by the phone, or the
+    /// picker — ms since epoch. Before `startedAt`: the Health sheet can sit
+    /// on the wrist in between. Nil for one picked back up after a relaunch.
+    var beganAt: Double? = nil
     /// The phone woke the watch for it, rather than its own picker.
     var fromPhone: Bool
     var workoutId: String?
@@ -276,11 +280,15 @@ enum CardioMatch {
       if let mine = tracked.startOpId, entry.startOpId == mine { return true }
       guard tracked.fromPhone, tracked.workoutId == nil, entry.startOpId == nil, entry.kind == tracked.kind,
             let started = tracked.startedAt,
-            // Sent before this tracking began, a snapshot can't have meant it:
-            // a run discarded and started again wakes the watch for the new
-            // one, often before the snapshot naming it arrives. A discard that
-            // did mean it comes again once the phone has the watch's start.
-            snapshot.sentAt >= started else { return false }
+            // Ended before the phone woke this watch, it isn't what the watch
+            // was woken for: a run discarded and started again wakes it for
+            // the new one, with the old one's discard still listed. One thrown
+            // away after — while the Health sheet was up, say — is, though
+            // the snapshot saying so came before tracking began. (One thrown
+            // away while the wake was on its way is named by start op once the
+            // phone has the start. An older phone doesn't say when; the
+            // snapshot's own time stands in.)
+            (entry.at ?? snapshot.sentAt) >= (tracked.beganAt ?? started) else { return false }
       let gap = abs(entry.startedAt - started)
       guard gap < sameStartMs else { return false }
       // A session still running on the phone that started nearer is the one
