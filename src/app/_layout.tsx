@@ -22,6 +22,7 @@ import {
   usePalette,
   useMode,
 } from "@/context/AppearanceContext";
+import { useNavigationForLinks } from "./+native-intent";
 
 SplashScreen.preventAutoHideAsync();
 
@@ -250,6 +251,7 @@ export function ThemedStatusBar() {
 }
 
 export default function RootLayout() {
+  useNavigationForLinks();
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       {/* Outermost of the providers: light/dark and the accent are properties of

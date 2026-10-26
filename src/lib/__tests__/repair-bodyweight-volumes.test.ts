@@ -16,11 +16,22 @@ import type { BodyweightEntry, Workout, WorkoutSet } from "@/types";
 const AUG_4 = new Date(2026, 7, 4);
 const AUG_5 = new Date(2026, 7, 5);
 
-// The reported case: 195 lbs on the 4th, 190 on the 5th.
+// The reported case: 195 lbs on the 4th, 190 on the 5th. Weighed in each
+// morning, and kept with the time of day, as Profile records them.
 const log: BodyweightEntry[] = [
-  { date: AUG_4, lbs: 195 },
-  { date: AUG_5, lbs: 190 },
+  { date: new Date(2026, 7, 4, 7), lbs: 195 },
+  { date: new Date(2026, 7, 5, 7), lbs: 190 },
 ];
+
+/**
+ * A plan for `day` logged straight onto it from `typed`, as the app writes one:
+ * never started, and finishWith stamps completedAt at noon on the scheduled
+ * day. The old path froze its volume before that stamp existed, so it went by
+ * createdAt.
+ */
+function backfilled(day: Date, typed: Date): Pick<Workout, "scheduledFor" | "createdAt" | "completedAt"> {
+  return { scheduledFor: day, createdAt: typed, completedAt: new Date(day.getTime() + 12 * 3_600_000) };
+}
 
 function bwSet(reps: number, added?: number): WorkoutSet {
   return { id: `s${reps}-${added ?? 0}`, reps, weight: added, weightUnit: "bodyweight", isCompleted: true };
@@ -37,10 +48,9 @@ function workout(overrides: Partial<Workout> & { sets: WorkoutSet[] }): Workout 
     userId: "u1",
     name: "Pull Day",
     isTemplate: false,
-    createdAt: AUG_5,
-    // Typed up on the 5th, filed under the 4th — the case that broke.
-    scheduledFor: AUG_4,
-    completedAt: AUG_5,
+    // Typed up on the morning of the 5th, filed under the 4th — the case
+    // that broke.
+    ...backfilled(AUG_4, new Date(2026, 7, 5, 9)),
     exercises: [
       {
         id: "e1",
@@ -127,11 +137,10 @@ it("skips sets that were never completed, exactly as the live valuation does", (
 });
 
 it("values each workout against its own day, not one shared weight", () => {
-  const AUG_6 = new Date(2026, 7, 6);
-  const threeDays: BodyweightEntry[] = [...log, { date: AUG_6, lbs: 185 }];
-  // Each typed up the day after it happened, and frozen at that day's weight.
-  const onThe4th = workout({ id: "a", sets: [bwSet(10)], scheduledFor: AUG_4, completedAt: AUG_5, totalVolume: 1900 });
-  const onThe5th = workout({ id: "b", sets: [bwSet(10)], scheduledFor: AUG_5, completedAt: AUG_6, totalVolume: 1850 });
+  const threeDays: BodyweightEntry[] = [...log, { date: new Date(2026, 7, 6, 7), lbs: 185 }];
+  // Each typed up the morning after it happened, and frozen at that day's weight.
+  const onThe4th = workout({ id: "a", sets: [bwSet(10)], ...backfilled(AUG_4, new Date(2026, 7, 5, 9)), totalVolume: 1900 });
+  const onThe5th = workout({ id: "b", sets: [bwSet(10)], ...backfilled(AUG_5, new Date(2026, 7, 6, 9)), totalVolume: 1850 });
 
   expect(staleBodyweightVolumes([onThe4th, onThe5th], threeDays)).toEqual([
     { id: "a", totalVolume: 1950 },
@@ -150,8 +159,7 @@ describe("running again on a new phone", () => {
     const early = workout({
       sets: [bwSet(10)],
       totalVolume: 0,
-      scheduledFor: new Date(2026, 7, 1),
-      completedAt: new Date(2026, 7, 1),
+      ...backfilled(new Date(2026, 7, 1), new Date(2026, 7, 2, 9)),
     });
 
     expect(staleBodyweightVolumes([early], log)).toEqual([]);
@@ -160,8 +168,7 @@ describe("running again on a new phone", () => {
   it("doesn't invent a volume for a session from before the first weigh-in", () => {
     const { totalVolume, ...early } = workout({
       sets: [bwSet(10)],
-      scheduledFor: new Date(2026, 7, 1),
-      completedAt: new Date(2026, 7, 1),
+      ...backfilled(new Date(2026, 7, 1), new Date(2026, 7, 2, 9)),
     });
     expect(totalVolume).toBeUndefined();
 
@@ -169,17 +176,43 @@ describe("running again on a new phone", () => {
   });
 
   it("leaves a session priced at the weigh-in it had, though a nearer one was logged later", () => {
-    // Pull-ups on the 5th, priced at the 1st's 200 because that was all there
-    // was. The 6th's 190 came the next day.
+    // Pull-ups on the 5th, typed up early on the 6th and priced at the 1st's
+    // 200 because that was all there was. The 6th's 190 came half an hour later.
     const OCT_1 = new Date(2026, 9, 1);
     const OCT_5 = new Date(2026, 9, 5);
     const later: BodyweightEntry[] = [
       { date: OCT_1, lbs: 200 },
-      { date: new Date(2026, 9, 6), lbs: 190 },
+      { date: new Date(2026, 9, 6, 7), lbs: 190 },
     ];
-    const priced = workout({ sets: [bwSet(10)], scheduledFor: OCT_5, completedAt: OCT_5, totalVolume: 2000 });
+    const priced = workout({ sets: [bwSet(10)], ...backfilled(OCT_5, new Date(2026, 9, 6, 6, 30)), totalVolume: 2000 });
 
     expect(staleBodyweightVolumes([priced], later)).toEqual([]);
+  });
+
+  // Weighed in at night, the old lookup could price a morning on the evening
+  // before. That was the lookup, not the day being skipped: a different
+  // mistake from the one this repairs, and not its to rewrite.
+  it("leaves alone anything the old path priced from its own day", () => {
+    const evenings: BodyweightEntry[] = [
+      { date: new Date(2026, 7, 4, 18, 30), lbs: 195 },
+      { date: new Date(2026, 7, 5, 18, 30), lbs: 190 },
+    ];
+    const SIX_AM = new Date(2026, 7, 5, 6);
+    // Lifted live at 6am on the 5th, and priced at the 4th's evening 195.
+    const lifted = workout({
+      id: "lifted",
+      sets: [bwSet(10)],
+      scheduledFor: undefined,
+      createdAt: SIX_AM,
+      startedAt: SIX_AM,
+      completedAt: new Date(2026, 7, 5, 7),
+      durationMinutes: 60,
+      totalVolume: 1950,
+    });
+    // Planned at 6am for that day, logged a day late, and priced the same way.
+    const plannedThatDay = workout({ id: "planned", sets: [bwSet(10)], ...backfilled(AUG_5, SIX_AM), totalVolume: 1950 });
+
+    expect(staleBodyweightVolumes([lifted, plannedThatDay], evenings)).toEqual([]);
   });
 
   it("corrects a session once, and leaves the corrected number alone after", () => {
@@ -242,7 +275,7 @@ describe("re-pricing a single day after its weigh-in is fixed", () => {
   it("re-prices a session the one-time repair would leave alone", () => {
     // Priced at a weigh-in that was then corrected: nothing like the old
     // path's figure, but the user just said the number behind it was wrong.
-    const inflated = workout({ sets: [bwSet(10)], scheduledFor: AUG_4, completedAt: AUG_4, totalVolume: 2500 });
+    const inflated = workout({ sets: [bwSet(10)], totalVolume: 2500 });
 
     expect(staleBodyweightVolumes([inflated], log)).toEqual([]);
     expect(staleVolumesOnDay([inflated], log, AUG_4)).toEqual([{ id: "w1", totalVolume: 1950 }]);

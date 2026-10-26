@@ -108,7 +108,7 @@ function offFromTheirDay(
  * nothing to fix.
  *
  * Only a volume that is exactly what the old path froze — the weigh-in nearest
- * to when the workout was finished, rather than to the day it is filed under —
+ * to when the plan was typed in, rather than to the day it is filed under —
  * and only on or after the first weigh-in. Anything else that disagrees with
  * the log was priced against the log as it stood then, and was right: a
  * session priced at the 1st's weigh-in before the 6th's existed, or one from
@@ -141,8 +141,22 @@ export function staleBodyweightVolumes(
       const stored = workout.totalVolume;
       if (stored == null) return true;
 
-      const finished = workout.completedAt ?? workout.startedAt ?? workout.createdAt;
-      const frozen = workoutVolumeLbs(workout, nearestInTime(log, finished).lbs);
+      // Only a plan logged straight onto another day can carry the mistake:
+      // never started, and typed on a day other than the one it is filed
+      // under. A started session was priced from when it was lifted, and a
+      // plan typed on its own day from that day, so neither skipped past the
+      // day it belongs to. Whatever else disagrees with the log isn't this
+      // repair's to change.
+      const { scheduledFor, startedAt, createdAt } = workout;
+      if (startedAt || !scheduledFor || sameDay(createdAt, scheduledFor)) return false;
+
+      // What the old path actually read when it froze the volume. It walked
+      // completedAt → startedAt → createdAt, but completedAt is written by
+      // that same save — at noon on the scheduled day — and a plan has no
+      // startedAt, so it fell through to createdAt: the day it was typed.
+      // Rebuilt from completedAt, the figure came out at the right day's
+      // weight and never matched, so nothing was repaired.
+      const frozen = workoutVolumeLbs(workout, nearestInTime(log, createdAt).lbs);
       return Math.abs(frozen - stored) < 0.5;
     })
     .map(({ workout, totalVolume }) => ({ id: workout.id, totalVolume }));

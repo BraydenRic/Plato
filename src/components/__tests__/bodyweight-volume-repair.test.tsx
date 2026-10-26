@@ -45,12 +45,15 @@ jest.mock("@/lib/data", () => ({
 }));
 
 const AUG_4 = new Date(2026, 7, 4);
-const AUG_5 = new Date(2026, 7, 5);
 
+// Morning weigh-ins, kept with the time of day as Profile records them.
 const log: BodyweightEntry[] = [
-  { date: AUG_4, lbs: 195 },
-  { date: AUG_5, lbs: 190 },
+  { date: new Date(2026, 7, 4, 7), lbs: 195 },
+  { date: new Date(2026, 7, 5, 7), lbs: 190 },
 ];
+
+/** Noon on `day`: what finishWith stamps on a plan logged onto another day. */
+const noonOn = (day: Date) => new Date(day.getTime() + 12 * 3_600_000);
 
 function staleWorkout(): Workout {
   return {
@@ -58,9 +61,11 @@ function staleWorkout(): Workout {
     userId: "u1",
     name: "Pull Day",
     isTemplate: false,
-    createdAt: AUG_5,
+    // Planned for the 4th and logged onto it the next morning: never started,
+    // and stamped at noon on the 4th by the same save that froze the volume.
+    createdAt: new Date(2026, 7, 5, 9),
     scheduledFor: AUG_4,
-    completedAt: AUG_5,
+    completedAt: noonOn(AUG_4),
     // Frozen at the 5th's weight; belongs to the 4th.
     totalVolume: 1900,
     exercises: [
@@ -178,7 +183,7 @@ it("leaves already-right history alone on a new phone, where its marker is missi
     ...staleWorkout(),
     id: "w0",
     scheduledFor: new Date(2026, 7, 1),
-    completedAt: new Date(2026, 7, 1),
+    completedAt: noonOn(new Date(2026, 7, 1)),
     totalVolume: 0,
   };
   mockCompleted = [corrected, early];

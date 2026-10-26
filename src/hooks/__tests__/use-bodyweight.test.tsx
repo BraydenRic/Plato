@@ -380,6 +380,36 @@ describe("with no signal", () => {
     expect(result.current.log.map((e) => e.lbs)).toEqual([250, 191, 198]);
   });
 
+  // The same new phone on a slow signal. Profile's read is still out when the
+  // weigh-in is held, and Bodyweight opens and sends its own. Both come back
+  // from the snapshot taken before the held write, and the later one used to
+  // put that log on every screen — the next weigh-in then wrote it back over
+  // the server's copy, and the held one was gone for good.
+  it("keeps a held weigh-in when a second screen's older read lands after it is saved", async () => {
+    const releases: ((entries: BodyweightEntry[]) => void)[] = [];
+    mockRead = () => new Promise((resolve) => releases.push(resolve));
+    const beforeTheWrite = [...mockStored];
+
+    const profile = renderHook(() => useBodyweight());
+    await act(async () => {
+      await profile.result.current.record(200, new Date(2026, 8, 20));
+    });
+    const bodyweight = renderHook(() => useBodyweight());
+    expect(releases).toHaveLength(2);
+
+    await act(async () => releases[0](beforeTheWrite));
+    await act(async () => releases[1](beforeTheWrite));
+
+    expect(profile.result.current.log.map((e) => e.lbs)).toEqual([250, 191, 200]);
+    expect(bodyweight.result.current.log.map((e) => e.lbs)).toEqual([250, 191, 200]);
+
+    await act(async () => {
+      await bodyweight.result.current.record(199, new Date(2026, 8, 21));
+    });
+    const [, written] = mockSetLog.mock.calls.at(-1) as unknown as [string, BodyweightEntry[]];
+    expect(written.map((e) => e.lbs)).toEqual([250, 191, 200, 199]);
+  });
+
   it("writes straight away when the device copy has been seen", async () => {
     await AsyncStorage.setItem(
       `bodyweight_log_cache_v1:${mockUserId}`,

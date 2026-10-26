@@ -3,6 +3,7 @@ import { router, Stack, type Href } from "expo-router";
 import { act, renderRouter, screen } from "expo-router/testing-library";
 
 import * as RootLayoutModule from "../_layout";
+import * as NativeIntent from "../+native-intent";
 import NotFound from "../+not-found";
 import Sitemap from "../_sitemap";
 
@@ -36,6 +37,26 @@ jest.mock("@/components/bodyweight-volume-repair", () => ({ BodyweightVolumeRepa
 jest.mock("@/components/live-activity-sync", () => ({ LiveActivitySync: () => null }));
 jest.mock("@/components/watch-sync", () => ({ WatchSync: () => null }));
 
+// Where links arriving while the app is open come in. The router subscribes
+// here, so a test can deliver one the way iOS does.
+const mockUrlListeners = new Set<(event: { url: string }) => unknown>();
+jest.mock("expo-linking", () => ({
+  ...jest.requireActual("expo-linking"),
+  createURL: (path: string) => `plato://${path}`,
+  resolveScheme: () => "plato",
+  addEventListener: (_type: string, listener: (event: { url: string }) => unknown) => {
+    mockUrlListeners.add(listener);
+    return { remove: () => mockUrlListeners.delete(listener) };
+  },
+}));
+
+/** A tap on the Live Activity with Plato already running. */
+async function openLink(url: string) {
+  await act(async () => {
+    await Promise.all([...mockUrlListeners].map((listener) => listener({ url })));
+  });
+}
+
 // Every other screen the real layout names, as a blank, so the router has all
 // of them to place.
 const OTHER_SCREENS = [
@@ -53,6 +74,7 @@ const OTHER_SCREENS = [
 function routes() {
   return {
     _layout: RootLayoutModule,
+    "+native-intent": NativeIntent,
     "(tabs)/_layout": () => <Stack screenOptions={{ headerShown: false }} />,
     "(tabs)/index": () => <Text>Home</Text>,
     "workout/[id]": () => <Text>Workout</Text>,
@@ -66,6 +88,11 @@ function routes() {
 /** The screens on the root stack, bottom to top. */
 function rootStack(result: ReturnType<typeof renderRouter>): string[] {
   return result.getRouterState()?.routes[0]?.state?.routes.map((route) => route.name) ?? [];
+}
+
+/** Which screen instance each root stack entry is, so a fresh copy shows up. */
+function rootKeys(result: ReturnType<typeof renderRouter>): (string | undefined)[] {
+  return result.getRouterState()?.routes[0]?.state?.routes.map((route) => route.key) ?? [];
 }
 
 beforeEach(() => {
@@ -88,6 +115,44 @@ describe("a cold start from the Live Activity", () => {
     mockAuth = { ...mockAuth, isGuest: false };
     renderRouter(routes(), { initialUrl: "/workout/w1" });
     expect(await screen.findByText("Sign in")).toBeTruthy();
+  });
+});
+
+describe("a tap on the Live Activity with Plato already open", () => {
+  // The router reuses only the screen on top, so this used to push a second
+  // copy of the workout inside the picker's sheet. Finishing there went back
+  // to the picker, which then added sets to a finished workout.
+  it("goes back to the workout under the add-exercise picker, not a second copy of it", async () => {
+    const result = renderRouter(routes(), { initialUrl: "/" });
+    act(() => router.push("/workout/w1"));
+    act(() => router.push("/add-exercise"));
+    expect(rootStack(result)).toEqual(["(tabs)", "workout/[id]", "add-exercise"]);
+    const [, workout] = rootKeys(result);
+
+    await openLink("plato:///workout/w1");
+
+    expect(rootStack(result)).toEqual(["(tabs)", "workout/[id]"]);
+    expect(rootKeys(result)[1]).toBe(workout);
+  });
+
+  it("opens the workout as before when it isn't open yet", async () => {
+    const result = renderRouter(routes(), { initialUrl: "/" });
+
+    await openLink("plato:///workout/w1");
+
+    expect(await screen.findByText("Workout")).toBeTruthy();
+    expect(rootStack(result)).toEqual(["(tabs)", "workout/[id]"]);
+  });
+
+  it("leaves the workout where it is when it is already in front", async () => {
+    const result = renderRouter(routes(), { initialUrl: "/" });
+    act(() => router.push("/workout/w1"));
+    const [, workout] = rootKeys(result);
+
+    await openLink("plato:///workout/w1");
+
+    expect(rootStack(result)).toEqual(["(tabs)", "workout/[id]"]);
+    expect(rootKeys(result)[1]).toBe(workout);
   });
 });
 

@@ -166,6 +166,11 @@ export function useBodyweight() {
             heldEdits.delete(userId);
             entries = held.reduce((log, edit) => edit(log), fetched);
             setBodyweightLog(userId, entries).catch((e) => console.warn("Couldn't save held weigh-ins", e));
+            // An edit like any other. Another screen's read, sent after the
+            // weigh-in was held, can come back from the same pre-write
+            // snapshot after this — and it would publish the log without
+            // them to every screen, for the next weigh-in to write back.
+            editSeq += 1;
             publish(userId, entries);
             if (cancelled) return;
             if (cacheable) writeCachedBodyweight(userId, entries);
