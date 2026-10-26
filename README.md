@@ -1,6 +1,6 @@
 # Plato Mobile
 
-iOS workout tracker built with Expo (React Native), live on the App Store. It shares its Firebase backend with [plato-web](../plato-web), so the same account sees the same workouts on both.
+iOS workout tracker built with Expo (React Native), live on the App Store, with an Apple Watch app. Firebase backs accounts; things planned but not done yet are in [docs/plans-for-later.md](docs/plans-for-later.md).
 
 ## Features
 
@@ -14,8 +14,8 @@ iOS workout tracker built with Expo (React Native), live on the App Store. It sh
 - **Progress.** Full history, per-exercise progress charts (weight, reps, estimated 1RM), weekly sets per muscle group, and a muscle map.
 - **Body weight.** Dated weigh-ins, a trend chart, and bodyweight exercises valued at what you weighed *on the day you trained*. A finished workout's volume is frozen, so a later weigh-in never rewrites it.
 - **Works offline.** With or without an account: history, templates and the library open with no signal, and changes sync when it's back. See [Offline](#offline).
-- **Guest mode.** The whole app works with no account, stored on the device. Signing up later moves everything into the account.
-- **Accounts.** Sign in with Apple, Google, or email and password (email must be verified). Account deletion is in the app.
+- **Guest mode.** The whole app works with no account, stored on the device. Signing up later moves everything into the account — for an email account, once the address is verified.
+- **Accounts.** Sign in with Apple, Google, or email and password (email must be verified). Account deletion is in the app, and revokes a Sign in with Apple account's tokens, as Apple requires.
 - **Appearance.** Light, dark or system, seven accent colours, and a matching home-screen icon.
 
 Stats are always **derived from workout history**, never incremented counters. History is kept forever.
@@ -30,7 +30,7 @@ npx expo start --tunnel    # tunnel, because LAN mode can't cross the WSL2 bound
 Copy `.env.example` to `.env.local` and fill in the Firebase config. Expo Go runs most of the app, but **Apple and Google sign-in, the Live Activity and alternate icons need a real build**, because they're native code. In Expo Go, use email/password or guest mode.
 
 ```bash
-npm test                   # jest, ~1,100 tests
+npm test                   # jest, ~1,350 tests
 npx tsc --noEmit           # type-check
 npm run lint
 ```
@@ -57,7 +57,7 @@ firebase deploy --only firestore:rules,firestore:indexes
 
 Every collection is per-user: `workouts`, `userStats`, `exerciseLibrary`, `weeklyPlans`, `bodyweight`. A new collection needs a block in [firestore.rules](firestore.rules) and a line in `deleteAllUserData`. [account-data-coverage.test.ts](src/lib/__tests__/account-data-coverage.test.ts) fails if either is missing.
 
-Auth providers enabled: Email/Password, Google and Apple. The Google client IDs go in `.env.local` (see `.env.example`). The reversed iOS client ID is already set in `app.json`.
+Auth providers enabled: Email/Password, Google and Apple. The Google client IDs go in `.env.local` (see `.env.example`). The reversed iOS client ID is already set in `app.json`. Revoking Apple tokens on account deletion needs the Apple provider's OAuth code flow configuration in the Firebase console: a Services ID (`com.plato.workouts.signin`), the Team ID, and a Sign in with Apple key's ID and `.p8` private key — never commit the key.
 
 ## Project structure
 
@@ -93,7 +93,7 @@ src/
 │   ├── watch-live.ts            # The watch's live numbers, for the session screen
 │   └── live-activity.ts
 ├── constants/theme.ts           # Palettes (light/dark) and the seven accents
-└── types/index.ts               # Domain types, shared with plato-web
+└── types/index.ts               # Domain types
 targets/watch/                   # The Apple Watch app (SwiftUI), built by @bacons/apple-targets
 targets/watch-complication/      # Its watch face complication (a WidgetKit extension inside it)
 modules/plato-watch/             # WatchConnectivity bridge on the phone (local Expo module)
@@ -137,7 +137,7 @@ To take the watch app out: delete `targets/watch`, `targets/watch-complication`,
 
 ### Cardio sessions
 
-A session (`workout.cardio` set) is stored as an ordinary workout holding one exercise with one set, so History, Stats, the streak and plato-web count it without knowing sessions exist; it just has its own screen ([cardio-session.tsx](src/components/cardio-session.tsx)) instead of exercises and sets. The clock is moving time, read from the stored start and pauses ([cardio-session.ts](src/lib/cardio-session.ts)), so it survives the app being closed. Cardio added *inside* a workout is the plain timer, as it always was.
+A session (`workout.cardio` set) is stored as an ordinary workout holding one exercise with one set, so History, Stats and the streak count it without knowing sessions exist; it just has its own screen ([cardio-session.tsx](src/components/cardio-session.tsx)) instead of exercises and sets. The clock is moving time, read from the stored start and pauses ([cardio-session.ts](src/lib/cardio-session.ts)), so it survives the app being closed. Cardio added *inside* a workout is the plain timer, as it always was.
 
 With an Apple Watch, the watch tracks it:
 
@@ -161,7 +161,7 @@ The first build with HealthKit needs the capability on both App IDs: run `eas cr
 
 To take sessions out: delete `src/app/start-cardio.tsx`, `src/components/cardio-session.tsx`, `src/lib/cardio-session.ts`, `src/lib/cardio-tracking.ts`, `src/lib/watch-live.ts`, `src/lib/phone-distance.ts`, `src/hooks/use-phone-distance.ts`, `modules/plato-health`, `modules/plato-motion`, and on the watch `CardioTracker.swift`, `CardioViews.swift`, `CardioMath.swift` (plus their uses in WatchStore, PlatoWatchApp, TemplatesView, Models and Logbook, the cardio ops in watch-protocol.ts and watch-sync.tsx); drop the HealthKit entitlements and the `NSHealth…` and `NSMotionUsageDescription` strings from app.json and the watch target; put Home's single start button back. Saved sessions stay, as plain cardio workouts.
 
-Finishing a workout stores `totalVolume`, priced at that day's weigh-in, and recomputes `userStats/{uid}`, which plato-web reads.
+Finishing a workout stores `totalVolume`, priced at that day's weigh-in, and recomputes `userStats/{uid}`. Nothing reads that any more — it was for plato-web, a web version that was never deployed — and removing the writes is in [docs/plans-for-later.md](docs/plans-for-later.md).
 
 ## Privacy
 
