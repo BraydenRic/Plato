@@ -1,5 +1,5 @@
 import { act, fireEvent, render, screen } from "@testing-library/react-native";
-import { StyleSheet } from "react-native";
+import { Alert, StyleSheet } from "react-native";
 
 import WorkoutsScreen from "../(tabs)/index";
 import { FontScaleCap } from "@/constants/theme";
@@ -360,5 +360,27 @@ describe("at larger text sizes", () => {
     mockTemplates = [workout("t1", "Hypertrophy", { isTemplate: true })];
     await renderHome();
     expect(screen.getByText("Hypertrophy").props.maxFontSizeMultiplier).toBe(FontScaleCap.heading);
+  });
+});
+
+// The workout and cardio screens said when a delete failed; long-pressing a
+// row on Home dropped the failure without a word.
+describe("deleting from Home", () => {
+  it("says when a workout couldn't be deleted", async () => {
+    const alert = jest.spyOn(Alert, "alert").mockImplementation(() => {});
+    const { deleteWorkout } = jest.requireMock("@/lib/data");
+    deleteWorkout.mockRejectedValueOnce(new Error("disk unavailable"));
+    mockCompleted = [workout("a", "Push", { completedAt: NOW })];
+    await renderHome();
+
+    fireEvent(screen.getByText("Push"), "longPress");
+    const [, , buttons] = alert.mock.calls.find(([title]) => title === "Delete workout?")!;
+    await act(async () => {
+      buttons!.find((b) => b.text === "Delete")!.onPress!();
+    });
+
+    expect(deleteWorkout).toHaveBeenCalledWith(expect.objectContaining({ id: "a" }));
+    expect(alert).toHaveBeenCalledWith("Couldn't delete", "Something went wrong. Try again.");
+    alert.mockRestore();
   });
 });

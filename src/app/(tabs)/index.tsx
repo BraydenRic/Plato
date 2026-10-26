@@ -361,7 +361,9 @@ export default function WorkoutsScreen() {
           onPress: () => {
             // A watch still tracking it stops, and keeps nothing.
             recordCardioDiscard(workout);
-            deleteWorkout(workout);
+            // Deletes save to the phone first, so a failure here is never the
+            // signal: the phone's storage, or the account signed out under it.
+            deleteWorkout(workout).catch(() => Alert.alert("Couldn't delete", "Something went wrong. Try again."));
           },
         },
       ]

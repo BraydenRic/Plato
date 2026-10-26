@@ -1,4 +1,5 @@
-import { fireEvent, render, screen } from "@testing-library/react-native";
+import { act, fireEvent, render, screen } from "@testing-library/react-native";
+import { Alert } from "react-native";
 
 import HistoryScreen from "../history";
 import { EXERCISES } from "@/lib/exercises";
@@ -15,7 +16,7 @@ jest.mock("@/hooks/use-workouts", () => ({
   useWorkouts: () => ({ completed: mockCompleted, loading: false, awaitingSync: false }),
 }));
 jest.mock("@/components/active-workout-bar", () => ({ ActiveWorkoutBar: () => null }));
-jest.mock("@/lib/data", () => ({ deleteWorkout: jest.fn() }));
+jest.mock("@/lib/data", () => ({ deleteWorkout: jest.fn(async () => {}) }));
 jest.mock("@/lib/cardio-discards", () => ({ recordCardioDiscard: jest.fn() }));
 jest.mock("@/context/UnitContext", () => ({ useWeightUnit: () => ({ unit: "lbs", setUnit: jest.fn() }) }));
 jest.mock("@/context/ThemeContext", () => ({
@@ -77,4 +78,24 @@ it("drops it for a workout that covered ground, which says how far instead", () 
   render(<HistoryScreen />);
   expect(screen.queryByText(/sets/)).toBeNull();
   expect(screen.getByText("3.11 mi")).toBeTruthy();
+});
+
+// The workout and cardio screens said when a delete failed; long-pressing a
+// row here dropped the failure without a word.
+it("says when a workout couldn't be deleted", async () => {
+  const alert = jest.spyOn(Alert, "alert").mockImplementation(() => {});
+  const { deleteWorkout } = jest.requireMock("@/lib/data");
+  deleteWorkout.mockRejectedValueOnce(new Error("disk unavailable"));
+  mockCompleted = [finished("legs", "Leg Day", [["squat", [{ weight: 225, reps: 5 }]]])];
+  render(<HistoryScreen />);
+
+  fireEvent(screen.getByText("Leg Day"), "longPress");
+  const [, , buttons] = alert.mock.calls.find(([title]) => title === "Delete workout?")!;
+  await act(async () => {
+    buttons!.find((b) => b.text === "Delete")!.onPress!();
+  });
+
+  expect(deleteWorkout).toHaveBeenCalledWith(expect.objectContaining({ id: "legs" }));
+  expect(alert).toHaveBeenCalledWith("Couldn't delete", "Something went wrong. Try again.");
+  alert.mockRestore();
 });

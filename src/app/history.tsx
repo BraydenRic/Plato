@@ -42,7 +42,8 @@ export default function HistoryScreen() {
         onPress: () => {
           // A watch still finishing it stops, and keeps nothing.
           recordCardioDiscard(workout);
-          deleteWorkout(workout);
+          // Saved to the phone first, so a failure is never the signal (see Home).
+          deleteWorkout(workout).catch(() => Alert.alert("Couldn't delete", "Something went wrong. Try again."));
         },
       },
     ]);
