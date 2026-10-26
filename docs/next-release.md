@@ -20,10 +20,12 @@ npx firebase-tools deploy --only hosting --project workouttracker-4e0c8
 
 - [ ] https://plato-workouts.web.app/ shows the support page, and
       https://plato-workouts.web.app/privacy the privacy policy.
-- [ ] **Tell Claude it's up.** Claude then turns the old pages at
+- [ ] **Tell Claude it's up.** Claude then merges plato-support's
+      `forward-to-new-site` branch into its `main`, which turns the old pages at
       braydenric.github.io/plato-support/ into forwarders to the new site (the
       live 1.1.0 listing links those until 1.2.0 is out), and starts build 75,
-      the one with the new site in the app's Help links.
+      the one with the new site in the app's Help links. Not before the site
+      is up: merged early, the live listing's links would lead nowhere.
 
 If `plato-workouts` turns out to be taken, pick another name and say so: it's
 in `firebase.json`, `src/constants/links.ts` and these docs.
