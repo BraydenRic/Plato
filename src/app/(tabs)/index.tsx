@@ -192,25 +192,6 @@ export default function WorkoutsScreen() {
     return false;
   }
 
-  function quickStart() {
-    if (!dataUserId || starting || atActiveLimit()) return;
-    setStarting(true);
-    const { id, saved } = createWorkoutLocalFirst(
-      stripUndefined({
-        userId: dataUserId,
-        name: defaultWorkoutName(),
-        isTemplate: false,
-        exercises: [],
-        createdAt: new Date(),
-        startedAt: new Date(),
-      })
-    );
-    openNewWorkout(id);
-    saved
-      .catch(() => Alert.alert("Couldn't start workout", "Check your connection and try again."))
-      .finally(() => setStarting(false));
-  }
-
   /**
    * Whether creating a workout for this day should open it.
    *
@@ -554,7 +535,7 @@ export default function WorkoutsScreen() {
                     "Start workout" a few points short of one line, and on the
                     narrowest phones it shrinks a little rather than wrap. */}
                 <View style={{ flex: 1 }}>
-                  <Button title="Start workout" onPress={quickStart} loading={starting} style={styles.startButton} fit />
+                  <Button title="Start workout" onPress={() => router.push("/start-workout")} style={styles.startButton} fit />
                 </View>
                 <View style={{ flex: 1 }}>
                   <Button
@@ -855,13 +836,6 @@ function dayCellLabel(
   ]
     .filter(Boolean)
     .join(", ");
-}
-
-function defaultWorkoutName(): string {
-  const hour = new Date().getHours();
-  if (hour < 11) return "Morning Workout";
-  if (hour < 17) return "Afternoon Workout";
-  return "Evening Workout";
 }
 
 const useStyles = makeStyles((c) => ({

@@ -199,6 +199,7 @@ function RootNavigator() {
         <Stack.Screen name="bodyweight" />
         <Stack.Screen name="add-exercise" options={{ presentation: "modal" }} />
         <Stack.Screen name="start-cardio" options={{ presentation: "modal" }} />
+        <Stack.Screen name="start-workout" options={{ presentation: "modal" }} />
         <Stack.Screen name="create-exercise" options={{ presentation: "modal" }} />
         <Stack.Screen name="reorder-templates" options={{ presentation: "modal" }} />
         <Stack.Screen name="reorder-day" options={{ presentation: "modal" }} />

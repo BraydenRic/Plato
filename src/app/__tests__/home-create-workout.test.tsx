@@ -45,6 +45,17 @@ const mockStartedWorkout: Workout = {
   startedAt: new Date(2026, 7, 4, 9, 0),
 };
 
+const mockTemplate: Workout = {
+  id: "t-push",
+  userId: "u1",
+  name: "Push Day",
+  isTemplate: true,
+  exercises: [],
+  createdAt: new Date(2026, 7, 1, 9, 0),
+};
+
+let mockTemplates: Workout[] = [];
+
 jest.mock("expo-router", () => ({
   useRouter: () => ({ push: mockPush, navigate: mockPush, back: jest.fn(), replace: jest.fn() }),
   useFocusEffect: (cb: () => void | (() => void)) => {
@@ -62,7 +73,7 @@ jest.mock("@/hooks/use-workouts", () => ({
     active: [mockStartedWorkout],
     planned: [],
     completed: [],
-    templates: [],
+    templates: mockTemplates,
   }),
 }));
 
@@ -105,6 +116,7 @@ beforeEach(() => {
   jest.useFakeTimers();
   jest.setSystemTime(NOW);
   mockPush.mockClear();
+  mockTemplates = [];
 });
 
 afterEach(() => {
@@ -115,15 +127,17 @@ afterEach(() => {
 const rowsForNewWorkout = () => screen.queryAllByText(mockStartedWorkout.name);
 
 it("hides a workout being opened from every list, then brings it back", async () => {
+  mockTemplates = [mockTemplate];
   render(<WorkoutsScreen />);
 
   // Visible to begin with: it's a normal in-progress workout.
   expect(rowsForNewWorkout().length).toBeGreaterThan(0);
 
-  // Async so the create promise settles inside act — it flips the button out of
-  // its loading state and would otherwise land mid-assertion.
+  // A template's own Start: it creates the workout here and opens it. Async so
+  // the create promise settles inside act — it flips the button out of its
+  // loading state and would otherwise land mid-assertion.
   await act(async () => {
-    fireEvent.press(screen.getByText("Start workout"));
+    fireEvent.press(screen.getByText("Start"));
   });
 
   expect(mockPush).toHaveBeenCalledWith(`/workout/${NEW_ID}`);
@@ -174,4 +188,14 @@ it("still opens a workout logged for a past day", async () => {
   });
 
   expect(mockPush).toHaveBeenCalledWith(`/workout/${NEW_ID}`);
+});
+
+// Start workout makes nothing here any more: it opens the sheet that starts a
+// blank workout or a template, as Start cardio's does for sessions.
+it("opens the start sheet from Start workout", async () => {
+  render(<WorkoutsScreen />);
+  await act(async () => {
+    fireEvent.press(screen.getByText("Start workout"));
+  });
+  expect(mockPush).toHaveBeenCalledWith("/start-workout");
 });

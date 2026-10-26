@@ -204,6 +204,14 @@ export function totalSetCount(workout: Workout): number {
   return workout.exercises.reduce((sum, ex) => sum + ex.sets.length, 0);
 }
 
+/** What a blank workout is called until it's renamed: by the time of day it's started. */
+export function defaultWorkoutName(now: Date = new Date()): string {
+  const hour = now.getHours();
+  if (hour < 11) return "Morning Workout";
+  if (hour < 17) return "Afternoon Workout";
+  return "Evening Workout";
+}
+
 export function formatVolume(lbs: number): string {
   if (lbs >= 1_000_000) return `${(lbs / 1_000_000).toFixed(1)}M`;
   if (lbs >= 10_000) return `${Math.round(lbs / 1000)}k`;
