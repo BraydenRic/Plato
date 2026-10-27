@@ -36,6 +36,9 @@ yarn-error.*
 service-account*.json
 apple-transfer-map.json
 
+# Firebase CLI's hosting deploy cache
+.firebase/
+
 # local env files
 .env*.local
 
