@@ -8,6 +8,11 @@ and Restore original. The App Store text is written and lives in
 
 ## Pick up here (as of October 27, 2026)
 
+**Submitted:** 1.2.0 (77) went to App Review on October 27, 2026, set to
+release automatically once approved. Everything below is done; what's left
+is step 6 (wait, and answer a rejection if one comes) and, once it's on the
+App Store, step 7.
+
 **Done:**
 - Build 1.2.0 (77) is on TestFlight and checked on a phone (step 2).
 - The site is live at https://plato-workouts.web.app/, and the old
@@ -24,8 +29,18 @@ and Restore original. The App Store text is written and lives in
   `store/screenshots/header-and-search/` (step 5).
 - Version 1.2.0 is created in App Store Connect (it hadn't been, so build 55
   was never in review: skip step 4).
+- The version page is filled in from store-listing.md (screenshots, header
+  and search images, text, keywords, build 77, review notes, subtitle, App
+  Privacy) and submitted (step 5).
 
-**Next, in order:**
+**Next:**
+1. Step 6: wait for review. A rejection gets answered in App Store Connect,
+   or fixed in a new build chosen on the same 1.2.0 page.
+2. Step 7, once it's out.
+
+**For 1.2.1, if wanted** (none of these block 1.2.0): the header and search
+images and promotional text can change without a new version; screenshots
+and everything else wait for the next one.
 1. *Optional:* assign templates to a few days in the weekly split, retake the
    Home screen scrolled to Templates and Weekly split, and save it over
    `store/screenshots/raw-1.2.0/home-templates.png`. Screenshot 8's caption
@@ -37,10 +52,10 @@ and Restore original. The App Store text is written and lives in
    `raw-1.2.0/cardio-live-run.png` and the watch's over
    `watch/originals-42mm/02-run.png`, then run `render.py 03 watch` (the
    watch one is in both sets).
-3. Step 4 below: check whether 1.2.0 is with Apple with build 55.
-4. Step 5: fill in the version page and submit build 77. All the text is in
-   store-listing.md.
-5. Once it's out, step 7.
+3. The small things the build 76/77 review found: Profile's email doesn't
+   hide again when you leave the tab, the privacy policy doesn't mention
+   that Watch a demo opens a YouTube search, and Diagnostics (a long press on
+   the logo) can't be reached with VoiceOver.
 
 **Re-rendering the screenshots on another computer:** change the words in
 `store/screenshots/captions.json` (each screenshot's headline, the words in
