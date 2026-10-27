@@ -38,6 +38,7 @@
   {
     "out": "07-lock-screen.png",
     "raw": "lock-screen.png",
+    "statusBar": "lock",
     "headline": "Rest timer on your Lock Screen",
     "subline": "And in the Dynamic Island."
   },

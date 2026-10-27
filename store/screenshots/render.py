@@ -8,6 +8,12 @@ smaller iPhone, so it's the only set to upload, whatever phone took the raws.
     python3 store/screenshots/render.py          # every screenshot
     python3 store/screenshots/render.py 01 07    # just these
 
+Each screenshot's own status bar (the time it was taken, the carrier, the
+battery left) is painted out and a clean one drawn in its place: 9:41, full
+signal, Wi-Fi and battery, as Apple shows its own. On the lock screen, where
+the bar sits on a photo, the old one is blended into the sky around it and
+the time left off, as a lock screen's status bar has none.
+
 Change the words in captions.json and run it again; a "\n" in a headline
 breaks the line there, for a phrase that mustn't split. Needs a headless Chrome:
 CHROME=/path/to/chrome, or Playwright's chrome-headless-shell, which is
@@ -23,7 +29,7 @@ import subprocess
 import sys
 import tempfile
 
-from PIL import Image
+from PIL import Image, ImageDraw, ImageFilter
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 RAW = os.path.join(HERE, "raw-1.2.0")
@@ -32,6 +38,32 @@ OUT = os.path.join(HERE, "1.2.0")
 # that can be served to Chrome here, set heavy and tight as the app's titles.
 FONT = os.path.join(HERE, "..", "..", "site", "fonts", "inter.woff2")
 WIDTH, HEIGHT = 1290, 2796
+
+# Where an iPhone with a Dynamic Island draws its status bar, in a 1179 x 2556
+# screenshot: the band it sits in, and on the lock screen the patches to blend
+# away: the carrier, then the icons, leaving the swipe-down line under them.
+RAW_SIZE = (1179, 2556)
+STATUS_BAND = (0, 40, 1179, 150)
+LOCK_PATCHES = [(90, 50, 340, 130), (830, 50, 1095, 120)]
+
+# The clean status bar, in the screenshot's own pixels: an SVG with the same
+# viewBox laid over the image scales with it.
+STATUS_BAR = """<svg class="status" viewBox="0 0 1179 2556" aria-hidden="true">
+{time}
+<g fill="#fff">
+  <rect x="845" y="93" width="11" height="14" rx="3"/>
+  <rect x="861" y="85" width="11" height="22" rx="3"/>
+  <rect x="877" y="77" width="11" height="30" rx="3"/>
+  <rect x="893" y="69" width="11" height="38" rx="3"/>
+  <path d="M948 107 L936 93 A17 17 0 0 1 960 93 Z"/>
+  <path d="M928 84 A28 28 0 0 1 968 84 L963 89 A21 21 0 0 0 933 89 Z"/>
+  <path d="M920 75 A40 40 0 0 1 976 75 L971 80 A33 33 0 0 0 925 80 Z"/>
+  <rect x="1003" y="74" width="60" height="26" rx="6"/>
+  <rect x="1073" y="81" width="5" height="12" rx="2.5" opacity="0.4"/>
+</g>
+<rect x="998" y="69" width="70" height="36" rx="11" fill="none" stroke="#fff" stroke-opacity="0.4" stroke-width="3"/>
+</svg>"""
+STATUS_TIME = '<text x="214" y="107" text-anchor="middle" font-family="Inter" font-weight="600" font-size="56" fill="#fff">9:41</text>'
 
 PAGE = """<!doctype html>
 <html><head><meta charset="utf-8"><style>
@@ -55,9 +87,10 @@ p {{ margin: 34px 0 0; max-width: 980px; font-size: 46px; font-weight: 500; line
   box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.09);
 }}
 .phone img {{ display: block; height: 1964px; width: auto; border-radius: 134px; }}
+.status {{ position: absolute; top: 16px; left: 16px; width: calc(100% - 32px); height: calc(100% - 32px); }}
 </style></head><body>
 <div class="caption"><h1>{headline}</h1><p>{subline}</p></div>
-<div class="phone"><img src="{raw}" alt=""></div>
+<div class="phone"><img src="{raw}" alt="">{status}</div>
 </body></html>
 """
 
@@ -72,12 +105,36 @@ def chrome() -> str:
     return found[-1]
 
 
+def clean_status_bar(shot: dict, work: str) -> str:
+    """A copy of the raw screenshot with its status bar painted out."""
+    image = Image.open(os.path.join(RAW, shot["raw"])).convert("RGB")
+    if image.size != RAW_SIZE:
+        sys.exit(f"{shot['raw']} is {image.size}; the status bar is placed for {RAW_SIZE}")
+    if shot.get("statusBar") == "lock":
+        # Each patch becomes a blur of the photo around it, feathered in.
+        for left, top, right, bottom in LOCK_PATCHES:
+            pad = 60
+            box = (max(0, left - pad), max(0, top - pad), min(RAW_SIZE[0], right + pad), bottom + pad)
+            blurred = image.crop(box).filter(ImageFilter.GaussianBlur(30))
+            mask = Image.new("L", blurred.size, 0)
+            ImageDraw.Draw(mask).rectangle((left - box[0], top - box[1], right - box[0], bottom - box[1]), fill=255)
+            image.paste(blurred, box, mask.filter(ImageFilter.GaussianBlur(10)))
+    else:
+        # The app's own background, plain behind the status bar.
+        ImageDraw.Draw(image).rectangle(STATUS_BAND, fill=image.getpixel((600, 20)))
+    path = os.path.join(work, shot["raw"])
+    image.save(path)
+    return path
+
+
 def render(shot: dict, browser: str, work: str) -> str:
     page = os.path.join(work, shot["out"] + ".html")
+    lock = shot.get("statusBar") == "lock"
     with open(page, "w") as f:
         f.write(PAGE.format(
             font="file://" + os.path.abspath(FONT),
-            raw="file://" + os.path.join(RAW, shot["raw"]),
+            raw="file://" + clean_status_bar(shot, work),
+            status=STATUS_BAR.format(time="" if lock else STATUS_TIME),
             headline=html.escape(shot["headline"]).replace("\n", "<br>"),
             subline=html.escape(shot["subline"]),
             width=WIDTH,

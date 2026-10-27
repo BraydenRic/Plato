@@ -6,6 +6,45 @@ picker, Help in Profile, Watch a demo, the week strip's icons, shorter rests
 and Restore original. The App Store text is written and lives in
 [store-listing.md](store-listing.md); this is the order to do things in.
 
+## Pick up here (as of the night of October 26, 2026)
+
+**Done:**
+- Build 1.2.0 (77) is on TestFlight and checked on a phone (step 2).
+- The site is live at https://plato-workouts.web.app/, and the old
+  braydenric.github.io/plato-support pages forward to it (step 1).
+- The Apple Watch screenshots are taken and sized (step 3).
+- The iPhone screenshots are captioned: ten in `store/screenshots/1.2.0/`, in
+  App Store order, with a clean status bar (9:41, full battery, no carrier).
+  Review them side by side on the canvas,
+  https://claude.ai/artifact/BksRe2nabgYN3WRCspRdTH (bottom row).
+
+**Next, in order:**
+1. *Optional:* assign templates to a few days in the weekly split, retake the
+   Home screen scrolled to Templates and Weekly split, and save it over
+   `store/screenshots/raw-1.2.0/home-templates.png`. Screenshot 8's caption
+   says "Templates and a weekly split", and the current one shows the split
+   as "Not set". Then run `python3 store/screenshots/render.py 08`.
+2. *Optional:* screenshot 3 is a run 10 seconds in (0.00 mi). A run or walk
+   a few minutes in, with distance and pace, would be stronger: save it over
+   `raw-1.2.0/cardio-live-run.png` and run `render.py 03`.
+3. Step 4 below: check whether 1.2.0 is with Apple with build 55.
+4. Step 5: fill in the version page and submit build 77. All the text is in
+   store-listing.md.
+5. Once it's out, step 7.
+
+**Re-rendering the screenshots on another computer:** change the words in
+`store/screenshots/captions.json`, or replace a raw screenshot (taken on a
+6.1-inch iPhone with a Dynamic Island, 1179 × 2556; the status bar placement
+assumes that size), then `python3 store/screenshots/render.py` (or name the
+numbers, e.g. `render.py 03 08`). It needs Pillow (`pip install pillow`) and a
+headless Chrome: `npx playwright install chromium-headless-shell`, or
+`CHROME=/path/to/chrome`.
+
+**A new build** is only needed if the app changes before submitting:
+`gh workflow run ios-build.yml --ref main -f submit=true`. It comes out as
+1.2.0 (78); change the build number in this doc and store-listing.md to
+match.
+
 ## 1. Put the new site up (once)
 
 The support page and the privacy policy now live in this repo's `site/`
