@@ -36,6 +36,7 @@ it("has the pages those addresses lead to, with the same contact address", () =>
   expect(support).toContain(SUPPORT_EMAIL);
   expect(support).toContain('href="/privacy"');
   expect(privacy).toContain(SUPPORT_EMAIL);
+  expect(privacy).toContain('href="/"');
   // Who runs Plato, as the App Store names the seller.
   expect(privacy).toContain("Full Stach LLC");
 });

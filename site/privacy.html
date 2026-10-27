@@ -46,10 +46,17 @@
     background: var(--surface); border: 1px solid var(--border); border-radius: 12px;
     padding: 16px 20px; margin: 16px 0; font-size: 14px;
   }
+  .back { display: inline-block; font-size: 14px; margin-bottom: 32px; }
+  footer {
+    margin-top: 64px; padding-top: 24px; border-top: 1px solid var(--border);
+    color: var(--text-tertiary); font-size: 13px;
+    display: flex; justify-content: space-between; gap: 16px; flex-wrap: wrap;
+  }
 </style>
 </head>
 <body>
 <main>
+  <a class="back" href="/">← Support</a>
   <div class="brand"><h1>Plato</h1><span>Privacy Policy</span></div>
   <p class="updated">Last updated October 25, 2026</p>
 
@@ -226,6 +233,11 @@
   <h2>Contact</h2>
   <p>Plato is made by Full Stach LLC. Questions or requests about your data:
   <a href="mailto:platoworkoutapp@gmail.com">platoworkoutapp@gmail.com</a></p>
+
+  <footer>
+    <span>© 2026 Full Stach LLC</span>
+    <span><a href="/">Support</a></span>
+  </footer>
 </main>
 </body>
 </html>
