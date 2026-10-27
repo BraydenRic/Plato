@@ -121,62 +121,35 @@ Plato is for training. Everything else got cut.
 ## What's New in This Version
 
 ```
-Plato is on Apple Watch. Log the workout you have going from your wrist: the
-next set's weight and reps are ready, the Digital Crown adjusts them, and one
-tap logs it. The rest countdown runs there too, and you can start a template
-from the watch. Put Plato on your watch face to get to it in one tap.
+Plato is on Apple Watch. Log the workout you have going from your wrist: the next set's weight and reps are ready, the Digital Crown adjusts them, and one tap logs it. The rest countdown runs there too, and you can start a template from the watch. Put Plato on your watch face to get to it in one tap.
 
-Cardio sessions. Tap Start cardio for a run, walk, hike, ride, swim, row,
-elliptical or stair session. With an Apple Watch it tracks your heart rate
-live, plus distance and pace on runs, walks, hikes, rides and swims, with
-splits on all but swims, and saves the session to Apple Health so it counts
-toward your rings. No watch? Runs, walks and hikes get their distance, pace and
-splits from your iPhone's step counter. Stats shows your weekly distance and
-your fastest mile, 5K and 10K.
+Cardio sessions. Tap Start cardio for a run, walk, hike, ride, swim, row, elliptical or stair session. With an Apple Watch it tracks your heart rate live, plus distance and pace on runs, walks, hikes, rides and swims, with splits on all but swims, and saves the session to Apple Health so it counts toward your rings. No watch? Runs, walks and hikes get their distance, pace and splits from your iPhone's step counter. Stats shows your weekly distance and your fastest mile, 5K and 10K.
 
-Start workout now opens a picker, the way Start cardio does: start blank or
-from any of your templates, with today's split already picked.
+Start workout now opens a picker, the way Start cardio does: start blank or from any of your templates, with today's split already picked.
 
-Plato now works with no signal. Open it in a basement gym and your history,
-templates and exercises are all there. Log a whole session, finish it, and it
-syncs to your account when you're back online, even if you close the app
-first.
+Plato now works with no signal. Open it in a basement gym and your history, templates and exercises are all there. Log a whole session, finish it, and it syncs to your account when you're back online, even if you close the app first.
 
-600 exercises — the library has grown from under 200 to 600, each with a
-form guide. New: a Neck category, including the 4-way neck machine, plus
-the standing calf machine, V-squat and reverse hack machines, the reverse
-wrist roller and more grip work, band and cable variations, Olympic lifts,
-calisthenics progressions, and sports and classes for cardio.
+600 exercises — the library has grown from under 200 to 600, each with a form guide. New: a Neck category, including the 4-way neck machine, plus the standing calf machine, V-squat and reverse hack machines, the reverse wrist roller and more grip work, band and cable variations, Olympic lifts, calisthenics progressions, and sports and classes for cardio.
 
-Reorder the exercises in a workout you've already started: tap ⋯, then
-Reorder exercises. Sets you've logged move with their exercise.
+Reorder the exercises in a workout you've already started: tap ⋯, then Reorder exercises. Sets you've logged move with their exercise.
 
-Your body weight now counts even when you open Plato with no signal, and in
-templates — and workouts that missed it are corrected.
+Your body weight now counts even when you open Plato with no signal, and in templates — and workouts that missed it are corrected.
 
 Back and Next on the keypad move exactly one field, every time.
 
-A running timer on a plank or cardio set, and the rest countdown, now keep
-going even if you swipe Plato closed.
+A running timer on a plank or cardio set, and the rest countdown, now keep going even if you swipe Plato closed.
 
-Search results no longer hide behind the keyboard. The bar for your
-workout in progress has a cleaner look, and if you have two going at once it
-lists both. Home is tidier too: History is one row under your templates, and
-the weekly split folds away until you need it.
+Search results no longer hide behind the keyboard. The bar for your workout in progress has a cleaner look, and if you have two going at once it lists both. Home is tidier too: History is one row under your templates, and the weekly split folds away until you need it.
 
 Profile has a Help section, with support and the privacy policy a tap away.
 
-Every exercise page has Watch a demo: one tap searches YouTube for that
-exercise.
+Every exercise page has Watch a demo: one tap searches YouTube for that exercise.
 
-The week on Home shows what you did each day: a barbell for a workout, and a
-run, ride or swim's own icon for cardio.
+The week on Home shows what you did each day: a barbell for a workout, and a run, ride or swim's own icon for cardio.
 
-The rest timer now goes as short as 30 seconds, and new exercises can start
-with up to 10 sets.
+The rest timer now goes as short as 30 seconds, and new exercises can start with up to 10 sets.
 
-Edited a built-in exercise? Restore original puts it back. And restoring the
-default exercises no longer deletes the ones you made.
+Edited a built-in exercise? Restore original puts it back. And restoring the default exercises no longer deletes the ones you made.
 ```
 
 ## Notes for App Review
