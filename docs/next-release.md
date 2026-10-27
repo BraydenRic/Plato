@@ -20,8 +20,8 @@ and Restore original. The App Store text is written and lives in
   on one of the app's accents, the key words in amber, and gym gear that
   straddles the join between one screenshot and the next. Compare them with
   the earlier black set at https://claude.ai/artifact/AD5KoZ5whSpLg3AMS7GZqS.
-- The header and search results image is done: `store/screenshots/header/universal.png`
-  (step 5).
+- The header and search results images are done, in
+  `store/screenshots/header-and-search/` (step 5).
 - Version 1.2.0 is created in App Store Connect (it hadn't been, so build 55
   was never in review: skip step 4).
 
@@ -187,11 +187,12 @@ Everything to paste is in [store-listing.md](store-listing.md).
       **Apple Watch** tab the three in `store/screenshots/watch/` (not the
       `originals-42mm` ones, which Apple refuses).
 - [ ] **Header and search results** (Product Page Information → Header and
-      Search Results → Header): `store/screenshots/header/universal.png`, then
-      tick "Use header asset in search results", and check it with Preview.
-      Optional, shown on iOS 27 and later; without it the search card shows
-      the first three screenshots. It can also be added after release, from
-      Asset Library, without a new version.
+      Search Results), from `store/screenshots/header-and-search/`:
+      `header.png` under **Header** and `search-results.png` under **Search
+      Results**, with "Use header asset in search results" unticked. Check
+      both with Preview. Optional, shown on iOS 27 and later; without them
+      the search card shows the first three screenshots. They can also be
+      added after release, from Asset Library, without a new version.
 - [ ] **Build**: 1.2.0 (77).
 - [ ] **App Review Information → Notes**: the Notes for App Review block. It
       says how Health and the watch are used; leaving the old "No HealthKit

@@ -12,15 +12,17 @@ captions.json:
 - Apple Watch: each screenshot in watch/originals-42mm/, drawn in a watch
   under its caption, at 416 x 496, into watch/. A 42 mm Series 10 or 11 takes
   374 x 446, which App Store Connect refuses; 416 x 496 is the same shape.
-- The product page header and search results image, into header/: one
-  "universal" 5244 x 2950 PNG that Apple crops for both places, shown on
-  iOS 27 and later. The words sit in the safe area of Apple's template, the
-  part every crop keeps; the phones either side show where there's room.
+- The product page header and the search results image, shown on iOS 27
+  and later, into header-and-search/. The header, 3840 x 1646, is just the
+  words, filling the safe area of Apple's header template (a band through the
+  middle, which is about what an iPhone shows) with gym gear round them. The
+  search results image is 5244 x 2950, Apple's "universal" size: the words in
+  the safe area of its template, a phone either side where there's room.
 
     python3 store/screenshots/render.py           # everything
     python3 store/screenshots/render.py 01 07     # just these iPhone ones
     python3 store/screenshots/render.py watch     # just the watch set
-    python3 store/screenshots/render.py header    # just the header image
+    python3 store/screenshots/render.py header    # just the header and search images
     python3 store/screenshots/render.py --plain   # the first 1.2.0 look
 
 Each screenshot sits on one of the app's accents (the "accent" in
@@ -63,17 +65,20 @@ OUT = os.path.join(HERE, "1.2.0")
 MEDIUM_OUT = os.path.join(HERE, "1.2.0-medium")
 WATCH_RAW = os.path.join(HERE, "watch", "originals-42mm")
 WATCH_OUT = os.path.join(HERE, "watch")
-HEADER_OUT = os.path.join(HERE, "header")
+CREATIVE_OUT = os.path.join(HERE, "header-and-search")
 # The site's copy of Inter: the closest match to the app's San Francisco
 # that can be served to Chrome here, set heavy and tight as the app's titles.
 FONT = os.path.join(HERE, "..", "..", "site", "fonts", "inter.woff2")
 WIDTH, HEIGHT = 1290, 2796
 MEDIUM_SIZE = (1179, 2556)
 WATCH_SIZE = (416, 496)
-HEADER_SIZE = (5244, 2950)
-# The "Art Safe Area" layer of Apple's universal template
-# (creative_assets-universal_asset_template-static.psd).
-HEADER_SAFE = (1921, 660, 3323, 1622)
+# Each image's "Art Safe Area", the part every crop keeps, from the layer of
+# that name in Apple's templates: creative_assets-product_page_header_template-
+# static.psd and creative_assets-universal_asset_template-static.psd.
+HEADER_SIZE = (3840, 1646)
+HEADER_SAFE = (1097, 493, 2743, 1154)
+SEARCH_SIZE = (5244, 2950)
+SEARCH_SAFE = (1921, 660, 3323, 1622)
 
 # Tailwind's 800 of each of the app's accents (theme.ts uses the 500s): deep
 # enough that white text clears 7:1 on every one. Graphite is zinc.
@@ -341,6 +346,31 @@ html, body {{ margin: 0; width: {width}px; height: {height}px; overflow: hidden;
 body {{ position: relative; font-family: "Inter", sans-serif; color: #fff; -webkit-font-smoothing: antialiased; }}
 .gear {{ position: absolute; inset: 0; width: 100%; height: 100%; }}
 .words {{ position: absolute; left: {safe_x}px; top: {safe_y}px; width: {safe_w}px; height: {safe_h}px;
+          display: flex; align-items: center; justify-content: center; text-align: center; }}
+h1 {{ margin: 0; font-size: 232px; font-weight: 800; line-height: 0.95; letter-spacing: -0.045em; }}
+.highlight {{ color: {highlight}; }}
+</style></head><body>
+{gear}
+<div class="words"><h1>{headline}</h1></div>
+</body></html>
+"""
+
+# Round the words, never under them: the header is the words, at 92% of the
+# safe band's height, as big as they go and still show whole everywhere.
+HEADER_GEAR = [
+    (560, 1220, 1.5, 0, lambda: plate("45")), (720, 380, 1.25, -18, dumbbell), (170, 640, 1.0, 0, kettlebell),
+    (3300, 400, 1.35, 0, lambda: plate("25")), (3330, 1260, 1.25, 0, kettlebell), (3720, 760, 1.0, 14, dumbbell),
+    (1920, 1840, 2.2, 0, track_lanes),
+]
+
+
+SEARCH_PAGE = """<!doctype html>
+<html><head><meta charset="utf-8"><style>
+@font-face {{ font-family: "Inter"; src: url("{font}") format("woff2"); font-weight: 400 800; }}
+html, body {{ margin: 0; width: {width}px; height: {height}px; overflow: hidden; background: {bg}; }}
+body {{ position: relative; font-family: "Inter", sans-serif; color: #fff; -webkit-font-smoothing: antialiased; }}
+.gear {{ position: absolute; inset: 0; width: 100%; height: 100%; }}
+.words {{ position: absolute; left: {safe_x}px; top: {safe_y}px; width: {safe_w}px; height: {safe_h}px;
           display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; }}
 h1 {{ margin: 0; font-size: 214px; font-weight: 800; line-height: 1.0; letter-spacing: -0.045em; }}
 .highlight {{ color: {highlight}; }}
@@ -359,18 +389,19 @@ p {{ margin: 52px 0 0; font-size: 68px; font-weight: 500; line-height: 1.3; colo
 """
 
 # (x, y, scale, rotation, drawing), scattered round the edges. Two thirds as
-# strong as on the screenshots: here the gear fills a far bigger canvas.
-HEADER_GEAR = [
+# strong as on the screenshots, here and in the header: the gear fills a far
+# bigger canvas.
+SEARCH_GEAR = [
     (330, 2480, 2.2, 0, lambda: plate("45")), (900, 330, 1.7, -18, dumbbell),
     (4880, 520, 1.9, 0, lambda: plate("25")), (4950, 2420, 1.8, 0, kettlebell),
     (2622, 2560, 2.6, 0, track_lanes), (2350, 300, 1.2, 0, kettlebell),
     (3150, 2350, 1.5, 0, lambda: plate("45")),
 ]
-HEADER_GEAR_OPACITY = 0.67
-# Whole phones, inside the 21:9 header crop, 300 px either side of the words.
-HEADER_PHONE_H = 2000
-HEADER_PHONE_GAP = 300
-HEADER_WATCH_SCALE = 1.45
+CREATIVE_GEAR_OPACITY = 0.67
+# Whole phones, inside the 21:9 crop, 300 px either side of the words.
+SEARCH_PHONE_H = 2000
+SEARCH_PHONE_GAP = 300
+SEARCH_WATCH_SCALE = 1.45
 
 
 # On the cardio screenshot, the phone moves left to make room for the watch.
@@ -506,13 +537,13 @@ def render_watch(shot: dict, index: int, plain: bool, browser: str, work: str) -
     return screenshot(page, out, WATCH_SIZE, browser, scale=2)
 
 
-def render_header(header: dict, phones: dict, browser: str, work: str) -> str:
+def render_search(search: dict, phones: dict, browser: str, work: str) -> str:
     """The words in the safe area, a phone either side mirrored about the
     middle and centred top to bottom, the watch in front of the right one."""
-    width, height = HEADER_SIZE
-    safe_x, safe_y, safe_x2, safe_y2 = HEADER_SAFE
-    phone_w = HEADER_PHONE_H * RAW_SIZE[0] / RAW_SIZE[1]
-    top = (height - HEADER_PHONE_H - 40) / 2
+    width, height = SEARCH_SIZE
+    safe_x, safe_y, safe_x2, safe_y2 = SEARCH_SAFE
+    phone_w = SEARCH_PHONE_H * RAW_SIZE[0] / RAW_SIZE[1]
+    top = (height - SEARCH_PHONE_H - 40) / 2
 
     def phone(out: str, left: float) -> str:
         shot = phones[out]
@@ -521,25 +552,45 @@ def render_header(header: dict, phones: dict, browser: str, work: str) -> str:
         return (f'<div class="phone" style="left:{left:.0f}px;top:{top:.0f}px"><img src="{raw}" alt="">'
                 f'{STATUS_BAR.format(time="" if lock else STATUS_TIME)}</div>')
 
-    left_phone, right_phone = header["phones"]
-    gear = "".join(
-        f'<g transform="translate({x} {y}) rotate({rotation}) scale({scale})" fill="{GEAR}" opacity="{HEADER_GEAR_OPACITY}">{draw()}</g>'
-        for x, y, scale, rotation, draw in HEADER_GEAR)
+    left_phone, right_phone = search["phones"]
+    page_html = SEARCH_PAGE.format(
+        font="file://" + os.path.abspath(FONT), width=width, height=height, bg=ACCENT[search["accent"]],
+        highlight=HIGHLIGHT, safe_x=safe_x, safe_y=safe_y, safe_w=safe_x2 - safe_x, safe_h=safe_y2 - safe_y,
+        phone_h=SEARCH_PHONE_H, watch_css=watch_css(SEARCH_WATCH_SCALE),
+        gear=creative_gear(SEARCH_GEAR, SEARCH_SIZE),
+        phones=phone(left_phone, safe_x - SEARCH_PHONE_GAP - phone_w - 40) + phone(right_phone, safe_x2 + SEARCH_PHONE_GAP),
+        watch=watch_html("file://" + clean_watch_clock(search["watch"], work),
+                         f"left:{safe_x2 + 60:.0f}px;top:{top + SEARCH_PHONE_H + 40 - 760:.0f}px"),
+        headline=headline_html(search, True), subline=html.escape(search["subline"]),
+    )
+    page = os.path.join(work, "search.html")
+    with open(page, "w") as f:
+        f.write(page_html)
+    os.makedirs(CREATIVE_OUT, exist_ok=True)
+    return screenshot(page, os.path.join(CREATIVE_OUT, search["out"]), SEARCH_SIZE, browser)
+
+
+def creative_gear(gear: list, size: tuple) -> str:
+    width, height = size
+    return (f'<svg class="gear" viewBox="0 0 {width} {height}" aria-hidden="true">' + "".join(
+        f'<g transform="translate({x} {y}) rotate({rotation}) scale({scale})" fill="{GEAR}" opacity="{CREATIVE_GEAR_OPACITY}">{draw()}</g>'
+        for x, y, scale, rotation, draw in gear) + "</svg>")
+
+
+def render_header(header: dict, browser: str, work: str) -> str:
+    """The words in the header template's safe band, gear round them."""
+    width, height = HEADER_SIZE
+    safe_x, safe_y, safe_x2, safe_y2 = HEADER_SAFE
     page_html = HEADER_PAGE.format(
         font="file://" + os.path.abspath(FONT), width=width, height=height, bg=ACCENT[header["accent"]],
         highlight=HIGHLIGHT, safe_x=safe_x, safe_y=safe_y, safe_w=safe_x2 - safe_x, safe_h=safe_y2 - safe_y,
-        phone_h=HEADER_PHONE_H, watch_css=watch_css(HEADER_WATCH_SCALE),
-        gear=f'<svg class="gear" viewBox="0 0 {width} {height}" aria-hidden="true">{gear}</svg>',
-        phones=phone(left_phone, safe_x - HEADER_PHONE_GAP - phone_w - 40) + phone(right_phone, safe_x2 + HEADER_PHONE_GAP),
-        watch=watch_html("file://" + clean_watch_clock(header["watch"], work),
-                         f"left:{safe_x2 + 60:.0f}px;top:{top + HEADER_PHONE_H + 40 - 760:.0f}px"),
-        headline=headline_html(header, True), subline=html.escape(header["subline"]),
+        gear=creative_gear(HEADER_GEAR, HEADER_SIZE), headline=headline_html(header, True),
     )
     page = os.path.join(work, "header.html")
     with open(page, "w") as f:
         f.write(page_html)
-    os.makedirs(HEADER_OUT, exist_ok=True)
-    return screenshot(page, os.path.join(HEADER_OUT, header["out"]), HEADER_SIZE, browser)
+    os.makedirs(CREATIVE_OUT, exist_ok=True)
+    return screenshot(page, os.path.join(CREATIVE_OUT, header["out"]), HEADER_SIZE, browser)
 
 
 def main() -> None:
@@ -552,8 +603,8 @@ def main() -> None:
     phones = [(i, s) for i, s in enumerate(captions["iphone"])
               if not wanted or any(s["out"].startswith(w) for w in wanted)]
     watches = list(enumerate(captions["watch"])) if not wanted or "watch" in wanted else []
-    # The header is new with this style; --plain leaves it as it is.
-    header = not plain and (not wanted or "header" in wanted)
+    # The header and search images are new with this style; --plain leaves them be.
+    creative = not plain and (not wanted or "header" in wanted)
     os.makedirs(OUT, exist_ok=True)
     browser = chrome()
     with tempfile.TemporaryDirectory() as work:
@@ -561,9 +612,10 @@ def main() -> None:
             print(render(shot, index, plain, browser, work))
         for index, shot in watches:
             print(render_watch(shot, index, plain, browser, work))
-        if header:
+        if creative:
             by_out = {shot["out"]: shot for shot in captions["iphone"]}
-            print(render_header(captions["header"], by_out, browser, work))
+            print(render_header(captions["header"], browser, work))
+            print(render_search(captions["search"], by_out, browser, work))
 
 
 if __name__ == "__main__":

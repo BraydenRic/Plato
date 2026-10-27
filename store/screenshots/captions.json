@@ -107,7 +107,13 @@
     }
   ],
   "header": {
-    "out": "universal.png",
+    "out": "header.png",
+    "headline": "No ads.\nNo pop-ups.\nEver.",
+    "highlight": "Ever.",
+    "accent": "violet"
+  },
+  "search": {
+    "out": "search-results.png",
     "headline": "No ads.\nNo pop-ups.\nEver.",
     "highlight": "Ever.",
     "subline": "Lifts and cardio, on your iPhone and Apple\u00a0Watch.",
