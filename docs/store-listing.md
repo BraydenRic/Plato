@@ -26,21 +26,31 @@ No ads. No pop-ups. Ever.
 
 Or, to carry more search words: `Lifting & cardio. No pop-ups.`
 
+## Keywords
+
+100 characters at most, commas and no spaces. Words already in the name or
+subtitle count without being repeated here, and pricing words like "free" are
+out (2.3.7). Changes only with a new version.
+
+```
+workout,tracker,gym,lifting,weightlifting,strength,cardio,running,watch,1rm,sets,reps,split,fitness
+```
+
 ## Promotional Text
 
 170 characters at most. It shows above the description and can be changed
 any time, with no new version.
 
 ```
-No ads. No pop-ups. No paywalls. No BS. Plato logs your lifts and your cardio, on your iPhone and your Apple Watch, then gets out of your way.
+Free. No ads, no pop-ups, no paywalls. Plato logs your lifts and your cardio on iPhone and Apple Watch, shows you what's working, then gets out of your way.
 ```
 
 ## Description
 
 ```
-No ads. No pop-ups. No paywalls. No BS.
+Free. No ads. No pop-ups. No paywalls. No BS.
 
-Plato tracks your workouts and your cardio, and that's all it does. Open it, log your sets, get back to training.
+Plato is a workout tracker for lifting and cardio, and that's all it is. Open it, log your sets, see what's working, get back to training.
 
 Nothing will ever pop up asking you to rate the app, upgrade, start a trial or turn on notifications. Not on your first workout, not on your five hundredth.
 
@@ -48,11 +58,11 @@ WHAT YOU WON'T FIND
 • Ads
 • Rate-us prompts, upgrade screens or "come back" nags
 • Notifications. Plato doesn't send any
-• Subscriptions or in-app purchases. Nothing is locked away
+• Subscriptions or in-app purchases. Every feature is free
 • Tracking. Your workouts are never sold or used for ads
 • A sign-up wall. The whole app works without an account
 
-LOG WORKOUTS FAST
+LOG LIFTS FAST
 • 600 built-in exercises — barbell staples, machines, cables, bands, calisthenics, sports and neck work — each with a guide to doing it right, and one tap to find a video demo
 • A keypad built for the gym: enter weight and reps, then jump to the next field in one tap
 • Copy your previous set in one tap
@@ -60,11 +70,18 @@ LOG WORKOUTS FAST
 • An optional rest timer between sets, from 30 seconds to 5 minutes
 • Works with no signal: log a whole session in a dead zone and it syncs when you're back online
 
+TRAIN SMARTER
+• Every lift shows your best set, your estimated one-rep max and a chart of where it's heading
+• A muscle map of what you've hit this week, and what you've skipped
+• Streaks, total volume, sets and time on the Stats tab
+• Your fastest mile, 5K and 10K, and your distance week by week
+• Full workout history, a tap away
+
 CARDIO
-• Start a run, walk, hike, ride, swim or row and track it on your Apple Watch: live distance, pace, heart rate and splits
+• Runs, walks, hikes, rides, swims, rows, ellipticals and stair sessions
+• On Apple Watch: live heart rate and calories, plus distance and pace on runs, walks, hikes, rides and swims, and mile or kilometre splits on runs, walks, hikes and rides
 • No watch? Runs, walks and hikes get their distance, pace and splits from your iPhone's step counter
-• Sessions your watch tracks show heart rate and calories, and save to Apple Health so they count toward your rings
-• Weekly distance and your fastest mile, 5K and 10K on the Stats tab
+• Sessions your watch tracks save to Apple Health, so they count toward your rings
 
 APPLE WATCH
 • Log the workout in progress from your wrist: the next set's weight and reps are ready, the Digital Crown adjusts them, and one tap logs it
@@ -81,14 +98,9 @@ START WITHOUT AN ACCOUNT
 • Create an account later and everything you've logged comes with you
 
 PLAN YOUR TRAINING
-• Reusable workout templates
-• A weekly split: a template for each day of the week
+• Reusable workout templates, started in one tap
+• A weekly split: a template for each day, already picked when you tap Start workout
 • Plan workouts ahead on the calendar
-
-TRACK YOUR PROGRESS
-• Full workout history
-• Progress charts for every exercise
-• A muscle map of what you've hit this week, and what you've skipped
 
 BODY WEIGHT
 • Log weigh-ins and watch the trend
@@ -115,8 +127,9 @@ tap logs it. The rest countdown runs there too, and you can start a template
 from the watch. Put Plato on your watch face to get to it in one tap.
 
 Cardio sessions. Tap Start cardio for a run, walk, hike, ride, swim, row,
-elliptical or stair session. With an Apple Watch it tracks distance, pace,
-heart rate and splits live, and saves the session to Apple Health so it counts
+elliptical or stair session. With an Apple Watch it tracks your heart rate
+live, plus distance and pace on runs, walks, hikes, rides and swims, with
+splits on all but swims, and saves the session to Apple Health so it counts
 toward your rings. No watch? Runs, walks and hikes get their distance, pace and
 splits from your iPhone's step counter. Stats shows your weekly distance and
 your fastest mile, 5K and 10K.
@@ -148,13 +161,13 @@ going even if you swipe Plato closed.
 
 Search results no longer hide behind the keyboard. The bar for your
 workout in progress has a cleaner look, and if you have two going at once it
-lists both. Home is tidier too: History is one row near the top, and the
-weekly split folds away until you need it.
+lists both. Home is tidier too: History is one row under your templates, and
+the weekly split folds away until you need it.
 
 Profile has a Help section, with support and the privacy policy a tap away.
 
-Every exercise page has Watch a demo, under the form guide: one tap searches
-YouTube for that exercise.
+Every exercise page has Watch a demo: one tap searches YouTube for that
+exercise.
 
 The week on Home shows what you did each day: a barbell for a workout, and a
 run, ride or swim's own icon for cardio.
