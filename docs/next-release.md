@@ -125,7 +125,9 @@ Everything to paste is in [store-listing.md](store-listing.md).
 
 - [ ] **Subtitle**, **Promotional Text**, **Description**, **What's New in This
       Version**.
-- [ ] **Screenshots**: the iPhone set in `store/screenshots/`, and on the
+- [ ] **Screenshots**: on the iPhone tab the ten in `store/screenshots/1.2.0/`,
+      in their numbered order (they replace 1.1.0's, now in
+      `store/screenshots/1.1.0/`), and on the
       **Apple Watch** tab the three in `store/screenshots/watch/` (not the
       `originals-42mm` ones, which Apple refuses).
 - [ ] **Build**: 1.2.0 (77).

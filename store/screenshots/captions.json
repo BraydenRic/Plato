@@ -1,0 +1,62 @@
+[
+  {
+    "out": "01-no-ads.png",
+    "raw": "workout.png",
+    "headline": "No ads.\nNo pop-ups. Ever.",
+    "subline": "Open it, log your sets, get back to training."
+  },
+  {
+    "out": "02-log-fast.png",
+    "raw": "keypad.png",
+    "headline": "Log a set in seconds",
+    "subline": "Big keys, Next jumps to reps, and one tap copies last time."
+  },
+  {
+    "out": "03-cardio-watch.png",
+    "raw": "cardio-live-run.png",
+    "headline": "Track runs on your Apple Watch",
+    "subline": "Distance, pace and heart rate, live."
+  },
+  {
+    "out": "04-progress.png",
+    "raw": "exercise-progress.png",
+    "headline": "Watch your lifts climb",
+    "subline": "A chart and personal bests for every exercise."
+  },
+  {
+    "out": "05-week.png",
+    "raw": "home-week.png",
+    "headline": "Your week at a glance",
+    "subline": "Every lift and run, day by day."
+  },
+  {
+    "out": "06-muscles.png",
+    "raw": "stats.png",
+    "headline": "See what you've trained",
+    "subline": "What you've hit this week, and what you've skipped."
+  },
+  {
+    "out": "07-lock-screen.png",
+    "raw": "lock-screen.png",
+    "headline": "Rest timer on your Lock Screen",
+    "subline": "And in the Dynamic Island."
+  },
+  {
+    "out": "08-templates.png",
+    "raw": "home-templates.png",
+    "headline": "Templates and a weekly split",
+    "subline": "Build your routine once, start it with one tap."
+  },
+  {
+    "out": "09-library.png",
+    "raw": "exercise-library.png",
+    "headline": "600 exercises",
+    "subline": "Each with a form guide, and one tap to find a video demo."
+  },
+  {
+    "out": "10-make-it-yours.png",
+    "raw": "profile.png",
+    "headline": "Make it yours",
+    "subline": "Light or dark, seven accents, pounds or kilos."
+  }
+]
