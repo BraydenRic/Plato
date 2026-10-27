@@ -6,17 +6,19 @@ picker, Help in Profile, Watch a demo, the week strip's icons, shorter rests
 and Restore original. The App Store text is written and lives in
 [store-listing.md](store-listing.md); this is the order to do things in.
 
-## Pick up here (as of the night of October 26, 2026)
+## Pick up here (as of October 27, 2026)
 
 **Done:**
 - Build 1.2.0 (77) is on TestFlight and checked on a phone (step 2).
 - The site is live at https://plato-workouts.web.app/, and the old
   braydenric.github.io/plato-support pages forward to it (step 1).
 - The Apple Watch screenshots are taken and sized (step 3).
-- The iPhone screenshots are captioned: ten in `store/screenshots/1.2.0/`, in
-  App Store order, with a clean status bar (9:41, full battery, no carrier).
-  Review them side by side on the canvas,
-  https://claude.ai/artifact/BksRe2nabgYN3WRCspRdTH (bottom row).
+- The screenshots are done: ten iPhone ones in `store/screenshots/1.2.0/` and
+  three watch ones in `store/screenshots/watch/`, in App Store order, with a
+  clean status bar (9:41, full battery, no carrier). Restyled October 27: each
+  on one of the app's accents, the key words in amber, and gym gear that
+  straddles the join between one screenshot and the next. Compare them with
+  the earlier black set at https://claude.ai/artifact/AD5KoZ5whSpLg3AMS7GZqS.
 
 **Next, in order:**
 1. *Optional:* assign templates to a few days in the weekly split, retake the
@@ -24,21 +26,27 @@ and Restore original. The App Store text is written and lives in
    `store/screenshots/raw-1.2.0/home-templates.png`. Screenshot 8's caption
    says "Templates and a weekly split", and the current one shows the split
    as "Not set". Then run `python3 store/screenshots/render.py 08`.
-2. *Optional:* screenshot 3 is a run 10 seconds in (0.00 mi). A run or walk
-   a few minutes in, with distance and pace, would be stronger: save it over
-   `raw-1.2.0/cardio-live-run.png` and run `render.py 03`.
+2. *Optional:* screenshot 3 is a run 10 seconds in (0.00 mi), with the watch
+   4 seconds in beside it. A run or walk a few minutes in, with distance and
+   pace, would be stronger: save the phone's over
+   `raw-1.2.0/cardio-live-run.png` and the watch's over
+   `watch/originals-42mm/02-run.png`, then run `render.py 03 watch` (the
+   watch one is in both sets).
 3. Step 4 below: check whether 1.2.0 is with Apple with build 55.
 4. Step 5: fill in the version page and submit build 77. All the text is in
    store-listing.md.
 5. Once it's out, step 7.
 
 **Re-rendering the screenshots on another computer:** change the words in
-`store/screenshots/captions.json`, or replace a raw screenshot (taken on a
-6.1-inch iPhone with a Dynamic Island, 1179 × 2556; the status bar placement
-assumes that size), then `python3 store/screenshots/render.py` (or name the
-numbers, e.g. `render.py 03 08`). It needs Pillow (`pip install pillow`) and a
-headless Chrome: `npx playwright install chromium-headless-shell`, or
-`CHROME=/path/to/chrome`.
+`store/screenshots/captions.json` (each screenshot's headline, the words in
+amber, and its accent), or replace a raw screenshot (iPhone ones taken on a
+6.1-inch iPhone with a Dynamic Island, 1179 × 2556; watch ones on a 42 mm
+Series 10 or 11, 374 × 446; the status bar and the watch's clock are placed
+for those sizes), then `python3 store/screenshots/render.py`. Name the ones
+to redo with `render.py 03 08` or `render.py watch`. `render.py --plain`
+renders the earlier black look instead. It needs Pillow (`pip install
+pillow`) and a headless Chrome: `npx playwright install
+chromium-headless-shell`, or `CHROME=/path/to/chrome`.
 
 **A new build** is only needed if the app changes before submitting:
 `gh workflow run ios-build.yml --ref main -f submit=true`. It comes out as
@@ -138,14 +146,15 @@ Apple requires at least one for an app with a watch app.
 
 Not every watch's screenshots are a size Apple accepts. A 42 mm Series 10 or 11
 takes 374 × 446, which App Store Connect refuses; it wants 416 × 496 for that
-family (the 46 mm size). The two are the same shape, so the uploads are the
-originals scaled up, nothing stretched; the originals are in
-`store/screenshots/watch/originals-42mm/`. Apple's list:
+family (the 46 mm size). The originals are in
+`store/screenshots/watch/originals-42mm/`, and `render.py` draws each one in a
+watch under a caption at 416 × 496 (`render.py --plain` gives the bare
+screens, scaled up). Apple's list:
 https://developer.apple.com/help/app-store-connect/reference/app-information/screenshot-specifications/
 
 The run screenshot was taken 4 seconds in (0.00 mi, no pace or heart rate yet).
 One a few minutes into a walk, with real numbers, would show it off better:
-replace `02-run.png` (scaled to 416 × 496) if you take one.
+save it over `originals-42mm/02-run.png` and run `render.py 03 watch`.
 
 ## 4. Check whether 1.2.0 is already with Apple
 

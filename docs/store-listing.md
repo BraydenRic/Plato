@@ -223,7 +223,8 @@ The privacy policy and support contact are in the app under Profile → Help.
   6.9-inch size Apple scales down for smaller iPhones; made from `raw-1.2.0/` by `render.py`,
   with the words in `captions.json`), and the Apple Watch set in
   `store/screenshots/watch/` (416 × 496: Apple requires at least one for an app with a watch
-  app). A 42 mm Series 10/11 screenshot is 374 × 446, which Apple refuses; the same shape scaled
-  to 416 × 496 is accepted (next-release.md, step 3).
+  app). A 42 mm Series 10/11 screenshot is 374 × 446, which Apple refuses, so `render.py` draws
+  the originals in `watch/originals-42mm/` into captioned 416 × 496 ones (next-release.md,
+  step 3).
 - Export compliance: answered automatically by `ITSAppUsesNonExemptEncryption: false`
 - Release: **automatic** on approval
