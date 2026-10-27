@@ -82,12 +82,22 @@ it gets fixed and built again before going on.
 
 Apple requires at least one for an app with a watch app.
 
-- [ ] On the iPhone: Watch app → General → turn on **Enable Screenshots**.
-- [ ] On the watch: press the **side button and the Digital Crown together**.
-      Screenshots land in the iPhone's Photos at a size Apple accepts.
-- [ ] Two or three is plenty: the live run screen, logging a set, the template
-      list. Take them all on the same watch, since every one has to be the same
-      size.
+- [x] On the iPhone: Watch app → General → turn on **Enable Screenshots**.
+- [x] On the watch: press the **side button and the Digital Crown together**,
+      at the same moment, and let go. Screenshots land in the iPhone's Photos.
+- [x] Done October 26, 2026: three, in `store/screenshots/watch/` (logging a
+      set, a run, the Start list), ready to upload at **416 × 496**.
+
+Not every watch's screenshots are a size Apple accepts. A 42 mm Series 10 or 11
+takes 374 × 446, which App Store Connect refuses; it wants 416 × 496 for that
+family (the 46 mm size). The two are the same shape, so the uploads are the
+originals scaled up, nothing stretched; the originals are in
+`store/screenshots/watch/originals-42mm/`. Apple's list:
+https://developer.apple.com/help/app-store-connect/reference/app-information/screenshot-specifications/
+
+The run screenshot was taken 4 seconds in (0.00 mi, no pace or heart rate yet).
+One a few minutes into a walk, with real numbers, would show it off better:
+replace `02-run.png` (scaled to 416 × 496) if you take one.
 
 ## 4. Check whether 1.2.0 is already with Apple
 
@@ -106,8 +116,9 @@ Everything to paste is in [store-listing.md](store-listing.md).
 
 - [ ] **Subtitle**, **Promotional Text**, **Description**, **What's New in This
       Version**.
-- [ ] **Screenshots**: the iPhone set in `store/screenshots/`, plus the watch
-      ones from step 3.
+- [ ] **Screenshots**: the iPhone set in `store/screenshots/`, and on the
+      **Apple Watch** tab the three in `store/screenshots/watch/` (not the
+      `originals-42mm` ones, which Apple refuses).
 - [ ] **Build**: 1.2.0 (76).
 - [ ] **App Review Information → Notes**: the Notes for App Review block. It
       says how Health and the watch are used; leaving the old "No HealthKit

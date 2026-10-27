@@ -219,8 +219,9 @@ The privacy policy and support contact are in the app under Profile → Help.
   (App Functionality · linked to identity · not used for tracking). Sessions are saved to the
   account like typed workouts. Motion & Fitness needs nothing more: the distance it gives is
   saved with the session, which is Fitness data already.
-- Screenshots: the iPhone set in `store/screenshots/`, and **at least one Apple Watch
-  screenshot**, which Apple requires for an app with a watch app. One watch size for all of them;
-  the live run screen makes a good one.
+- Screenshots: the iPhone set in `store/screenshots/`, and the Apple Watch set in
+  `store/screenshots/watch/` (416 × 496: Apple requires at least one for an app with a watch
+  app). A 42 mm Series 10/11 screenshot is 374 × 446, which Apple refuses; the same shape scaled
+  to 416 × 496 is accepted (next-release.md, step 3).
 - Export compliance: answered automatically by `ITSAppUsesNonExemptEncryption: false`
 - Release: **automatic** on approval
