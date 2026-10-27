@@ -10,10 +10,15 @@ captions.json:
 - Apple Watch: each screenshot in watch/originals-42mm/, drawn in a watch
   under its caption, at 416 x 496, into watch/. A 42 mm Series 10 or 11 takes
   374 x 446, which App Store Connect refuses; 416 x 496 is the same shape.
+- The product page header and search results image, into header/: one
+  "universal" 5244 x 2950 PNG that Apple crops for both places, shown on
+  iOS 27 and later. The words sit in the safe area of Apple's template, the
+  part every crop keeps; the phones either side show where there's room.
 
     python3 store/screenshots/render.py           # everything
     python3 store/screenshots/render.py 01 07     # just these iPhone ones
     python3 store/screenshots/render.py watch     # just the watch set
+    python3 store/screenshots/render.py header    # just the header image
     python3 store/screenshots/render.py --plain   # the first 1.2.0 look
 
 Each screenshot sits on one of the app's accents (the "accent" in
@@ -40,7 +45,9 @@ have one.
 
 import glob
 import html
+import itertools
 import json
+import math
 import os
 import subprocess
 import sys
@@ -53,11 +60,16 @@ RAW = os.path.join(HERE, "raw-1.2.0")
 OUT = os.path.join(HERE, "1.2.0")
 WATCH_RAW = os.path.join(HERE, "watch", "originals-42mm")
 WATCH_OUT = os.path.join(HERE, "watch")
+HEADER_OUT = os.path.join(HERE, "header")
 # The site's copy of Inter: the closest match to the app's San Francisco
 # that can be served to Chrome here, set heavy and tight as the app's titles.
 FONT = os.path.join(HERE, "..", "..", "site", "fonts", "inter.woff2")
 WIDTH, HEIGHT = 1290, 2796
 WATCH_SIZE = (416, 496)
+HEADER_SIZE = (5244, 2950)
+# The "Art Safe Area" layer of Apple's universal template
+# (creative_assets-universal_asset_template-static.psd).
+HEADER_SAFE = (1921, 660, 3323, 1622)
 
 # Tailwind's 800 of each of the app's accents (theme.ts uses the 500s): deep
 # enough that white text clears 7:1 on every one. Graphite is zinc.
@@ -67,8 +79,10 @@ ACCENT = {
 }
 # theme.ts's personal-best amber, for the highlighted words.
 HIGHLIGHT = "#fbbf24"
+# The gear's see-through whites: the shapes, their raised parts, a plate's weight.
 GEAR = "rgba(255,255,255,.15)"
-GEAR_TEXT = "rgba(255,255,255,.24)"
+GEAR_LIFT = "rgba(255,255,255,.07)"
+GEAR_TEXT = "rgba(255,255,255,.12)"
 
 # Where an iPhone with a Dynamic Island draws its status bar, in a 1179 x 2556
 # screenshot: the band it sits in, and on the lock screen the patches to blend
@@ -107,43 +121,80 @@ STATUS_TIME = '<text x="214" y="107" text-anchor="middle" font-family="Inter" fo
 # Flat shapes in see-through white, each drawn about (0, 0) and centred on a
 # join between two screenshots, so half lands in each. The phone covers the
 # middle of every screenshot, which leaves 176 px either side of a join to
-# show them in.
+# show them in. Each shape is one masked fill, so holes are real holes and
+# nothing turns brighter where its parts overlap; raised parts (a rim, a hub,
+# a plate's lip) are a second, fainter layer on top.
+
+_mask_ids = itertools.count()
+
+
+def masked(box: tuple, show: str, cut: str = "", fill: str = "") -> str:
+    """A fill over box, seen where `show` paints and `cut` doesn't."""
+    x, y, w, h = box
+    mask_id = f"gear{next(_mask_ids)}"
+    return (f'<defs><mask id="{mask_id}" maskUnits="userSpaceOnUse" x="{x}" y="{y}" width="{w}" height="{h}">'
+            f'<g fill="#fff">{show}</g><g fill="#000">{cut}</g></mask></defs>'
+            f'<rect x="{x}" y="{y}" width="{w}" height="{h}" fill="{fill or GEAR}" mask="url(#{mask_id})"/>')
+
+
+def plate(pounds: str, r: float = 170) -> str:
+    """An iron Olympic plate face on: three grip slots, a raised rim and hub."""
+    slots = "".join(
+        f'<rect x="{-r * 0.23:.1f}" y="{-r * 0.1:.1f}" width="{r * 0.46:.1f}" height="{r * 0.2:.1f}" rx="{r * 0.1:.1f}" '
+        f'transform="translate({math.cos(math.radians(a)) * r * 0.6:.1f} {math.sin(math.radians(a)) * r * 0.6:.1f}) rotate({a + 90})"/>'
+        for a in (-90, 30, 150))
+    hole = f'<circle r="{r * 0.17:.1f}"/>'
+    box = (-r, -r, 2 * r, 2 * r)
+    return (masked(box, f'<circle r="{r}"/>', slots + hole)
+            + masked(box, f'<circle r="{r}"/>', f'<circle r="{r * 0.86:.1f}"/>', GEAR_LIFT)
+            + masked(box, f'<circle r="{r * 0.33:.1f}"/>', hole, GEAR_LIFT)
+            + f'<text y="{r * 0.6:.1f}" text-anchor="middle" dominant-baseline="middle" font-family="Inter" '
+              f'font-weight="800" font-size="{r * 0.2:.1f}" letter-spacing="{r * 0.01:.1f}" fill="{GEAR_TEXT}">{pounds} LB</text>')
 
 
 def dumbbell() -> str:
-    # Head, collar, handle, collar, head: 340 wide, a head in each margin.
-    parts = [(-170, 90, 200, 26), (-80, 22, 124, 8), (-58, 116, 36, 10), (58, 22, 124, 8), (80, 90, 200, 26)]
-    return "".join(f'<rect x="{x}" y="{-h / 2}" width="{w}" height="{h}" rx="{r}"/>' for x, w, h, r in parts)
-
-
-def plate(pounds: str) -> str:
-    r = 170
-    return (f'<path fill-rule="evenodd" d="M{-r} 0a{r} {r} 0 1 0 {2 * r} 0a{r} {r} 0 1 0 {-2 * r} 0z'
-            f'M-26 0a26 26 0 1 0 52 0a26 26 0 1 0 -52 0z"/>'
-            f'<circle r="{r * 0.8:.0f}" fill="none" stroke="{GEAR}" stroke-width="10"/>'
-            f'<circle r="54" fill="none" stroke="{GEAR}" stroke-width="10"/>'
-            f'<text y="{-r * 0.47:.0f}" text-anchor="middle" dominant-baseline="middle" font-family="Inter" '
-            f'font-weight="800" font-size="{r * 0.3:.0f}" fill="{GEAR_TEXT}">{pounds}</text>'
-            f'<text y="{r * 0.5:.0f}" text-anchor="middle" dominant-baseline="middle" font-family="Inter" '
-            f'font-weight="700" font-size="{r * 0.17:.0f}" letter-spacing="4" fill="{GEAR_TEXT}">LB</text>')
-
-
-def barbell_end() -> str:
-    # The bar comes in from the left, behind the phone; two 45s, a 25 and a 10
-    # sit just left of the join, and the collar and bare sleeve cross it.
-    shapes = ['<rect x="-1500" y="-14" width="1400" height="28" rx="6"/>']
-    x = -150
-    for w, h in [(46, 460), (46, 460), (38, 340), (30, 240)]:
-        shapes.append(f'<rect x="{x}" y="{-h / 2}" width="{w}" height="{h}" rx="12"/>')
-        x += w + 6
-    shapes.append(f'<rect x="{x}" y="-40" width="26" height="80" rx="6"/>')
-    shapes.append(f'<rect x="{x + 26}" y="-24" width="190" height="48" rx="10"/>')
-    return "".join(shapes)
+    """A hex dumbbell side on: faceted heads, collars, a knurled handle. 340
+    wide, a head in each margin."""
+    heads = '<rect x="-170" y="-105" width="92" height="210" rx="18"/><rect x="78" y="-105" width="92" height="210" rx="18"/>'
+    collars = '<rect x="-80" y="-58" width="20" height="116" rx="5"/><rect x="60" y="-58" width="20" height="116" rx="5"/>'
+    handle = '<rect x="-62" y="-19" width="124" height="38" rx="8"/>'
+    facets = "".join(f'<rect x="{x}" y="{y}" width="92" height="8"/>' for x in (-170, 78) for y in (-56, 48))
+    knurl = "".join(f'<rect x="{x}" y="-15" width="5" height="30" transform="skewX(-25)"/>' for x in range(-46, 54, 13))
+    box = (-180, -115, 360, 230)
+    return masked(box, heads + collars + handle, facets + knurl) + masked(box, collars, "", GEAR_LIFT)
 
 
 def kettlebell() -> str:
-    return (f'<path d="M-78 -40 C -78 -190, 78 -190, 78 -40" fill="none" stroke="{GEAR}" stroke-width="36" stroke-linecap="round"/>'
-            '<path d="M-128 40 a128 128 0 1 1 256 0 a128 128 0 0 1 -40 92 h-176 a128 128 0 0 1 -40 -92z"/>')
+    """Front on: a thick handle whose horns run into the bell, a window
+    through it, and a flat base."""
+    handle = '<path d="M-104 10 C -120 -96, -112 -214, 0 -214 C 112 -214, 120 -96, 104 10 Z"/>'
+    window = '<path d="M-56 -40 C -66 -110, -58 -166, 0 -166 C 58 -166, 66 -110, 56 -40 Z"/>'
+    bell = '<path d="M-68 150 A 130 130 0 1 1 68 150 Z"/>'
+    # The window is cut through the handle, then the bell painted back over its foot.
+    mask_id = f"gear{next(_mask_ids)}"
+    return (f'<defs><mask id="{mask_id}" maskUnits="userSpaceOnUse" x="-140" y="-224" width="280" height="384">'
+            f'<g fill="#fff">{handle}</g><g fill="#000">{window}</g><g fill="#fff">{bell}</g></mask></defs>'
+            f'<rect x="-140" y="-224" width="280" height="384" fill="{GEAR}" mask="url(#{mask_id})"/>')
+
+
+def barbell_end() -> str:
+    """Side on: the bar comes in from the left, behind the phone; two 45s, a
+    25 and a 10 with lipped edges sit just left of the join, and the collar
+    and the grooved bare sleeve cross it."""
+    plates, lips = [], []
+    x = -150
+    for w, h in [(46, 460), (46, 460), (38, 340), (30, 240)]:
+        lip = round(h * 0.09)
+        plates.append(f'<rect x="{x}" y="{-h / 2}" width="{w}" height="{h}" rx="10"/>')
+        lips.append(f'<rect x="{x}" y="{-h / 2}" width="{w}" height="{lip}" rx="10"/>'
+                    f'<rect x="{x}" y="{h / 2 - lip}" width="{w}" height="{lip}" rx="10"/>')
+        x += w + 6
+    collar = f'<rect x="{x}" y="-44" width="34" height="88" rx="8"/><rect x="{x + 8}" y="-74" width="14" height="34" rx="6"/>'
+    sleeve = f'<rect x="{x + 34}" y="-24" width="190" height="48" rx="10"/>'
+    grooves = "".join(f'<rect x="{x + 70 + i * 34}" y="-24" width="5" height="48"/>' for i in range(4))
+    bar = '<rect x="-1500" y="-14" width="1400" height="28" rx="6"/>'
+    box = (-1510, -240, 1510 + x + 240, 480)
+    return masked(box, bar + "".join(plates) + collar + sleeve, grooves) + masked(box, "".join(lips), "", GEAR_LIFT)
 
 
 def track_lanes() -> str:
@@ -279,6 +330,45 @@ h1 {{ position: absolute; top: 0; left: 0; right: 0; height: 92px; margin: 0; li
 </body></html>
 """
 
+HEADER_PAGE = """<!doctype html>
+<html><head><meta charset="utf-8"><style>
+@font-face {{ font-family: "Inter"; src: url("{font}") format("woff2"); font-weight: 400 800; }}
+html, body {{ margin: 0; width: {width}px; height: {height}px; overflow: hidden; background: {bg}; }}
+body {{ position: relative; font-family: "Inter", sans-serif; color: #fff; -webkit-font-smoothing: antialiased; }}
+.gear {{ position: absolute; inset: 0; width: 100%; height: 100%; }}
+.words {{ position: absolute; left: {safe_x}px; top: {safe_y}px; width: {safe_w}px; height: {safe_h}px;
+          display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; }}
+h1 {{ margin: 0; font-size: 214px; font-weight: 800; line-height: 1.0; letter-spacing: -0.045em; }}
+.highlight {{ color: {highlight}; }}
+p {{ margin: 52px 0 0; font-size: 68px; font-weight: 500; line-height: 1.3; color: rgba(255,255,255,.9); text-wrap: balance; }}
+.phone {{ position: absolute; padding: 20px; background: #1c1c21; border-radius: 156px;
+          box-shadow: inset 0 0 0 4px rgba(255,255,255,.08), 0 120px 220px -60px rgba(0,0,0,.6); }}
+.phone img {{ display: block; height: {phone_h}px; width: auto; border-radius: 136px; }}
+.phone .status {{ position: absolute; top: 20px; left: 20px; width: calc(100% - 40px); height: calc(100% - 40px); }}
+{watch_css}
+</style></head><body>
+{gear}
+{phones}
+{watch}
+<div class="words"><h1>{headline}</h1><p>{subline}</p></div>
+</body></html>
+"""
+
+# (x, y, scale, rotation, drawing), scattered round the edges. Two thirds as
+# strong as on the screenshots: here the gear fills a far bigger canvas.
+HEADER_GEAR = [
+    (330, 2480, 2.2, 0, lambda: plate("45")), (900, 330, 1.7, -18, dumbbell),
+    (4880, 520, 1.9, 0, lambda: plate("25")), (4950, 2420, 1.8, 0, kettlebell),
+    (2622, 2560, 2.6, 0, track_lanes), (2350, 300, 1.2, 0, kettlebell),
+    (3150, 2350, 1.5, 0, lambda: plate("45")),
+]
+HEADER_GEAR_OPACITY = 0.67
+# Whole phones, inside the 21:9 header crop, 300 px either side of the words.
+HEADER_PHONE_H = 2000
+HEADER_PHONE_GAP = 300
+HEADER_WATCH_SCALE = 1.45
+
+
 # On the cardio screenshot, the phone moves left to make room for the watch.
 CARDIO_WATCH = "02-run.png"
 CARDIO_PHONE_SHIFT = 110
@@ -409,6 +499,42 @@ def render_watch(shot: dict, index: int, plain: bool, browser: str, work: str) -
     return screenshot(page, out, WATCH_SIZE, browser, scale=2)
 
 
+def render_header(header: dict, phones: dict, browser: str, work: str) -> str:
+    """The words in the safe area, a phone either side mirrored about the
+    middle and centred top to bottom, the watch in front of the right one."""
+    width, height = HEADER_SIZE
+    safe_x, safe_y, safe_x2, safe_y2 = HEADER_SAFE
+    phone_w = HEADER_PHONE_H * RAW_SIZE[0] / RAW_SIZE[1]
+    top = (height - HEADER_PHONE_H - 40) / 2
+
+    def phone(out: str, left: float) -> str:
+        shot = phones[out]
+        raw = "file://" + clean_status_bar(shot, work)
+        lock = shot.get("statusBar") == "lock"
+        return (f'<div class="phone" style="left:{left:.0f}px;top:{top:.0f}px"><img src="{raw}" alt="">'
+                f'{STATUS_BAR.format(time="" if lock else STATUS_TIME)}</div>')
+
+    left_phone, right_phone = header["phones"]
+    gear = "".join(
+        f'<g transform="translate({x} {y}) rotate({rotation}) scale({scale})" fill="{GEAR}" opacity="{HEADER_GEAR_OPACITY}">{draw()}</g>'
+        for x, y, scale, rotation, draw in HEADER_GEAR)
+    page_html = HEADER_PAGE.format(
+        font="file://" + os.path.abspath(FONT), width=width, height=height, bg=ACCENT[header["accent"]],
+        highlight=HIGHLIGHT, safe_x=safe_x, safe_y=safe_y, safe_w=safe_x2 - safe_x, safe_h=safe_y2 - safe_y,
+        phone_h=HEADER_PHONE_H, watch_css=watch_css(HEADER_WATCH_SCALE),
+        gear=f'<svg class="gear" viewBox="0 0 {width} {height}" aria-hidden="true">{gear}</svg>',
+        phones=phone(left_phone, safe_x - HEADER_PHONE_GAP - phone_w - 40) + phone(right_phone, safe_x2 + HEADER_PHONE_GAP),
+        watch=watch_html("file://" + clean_watch_clock(header["watch"], work),
+                         f"left:{safe_x2 + 60:.0f}px;top:{top + HEADER_PHONE_H + 40 - 760:.0f}px"),
+        headline=headline_html(header, True), subline=html.escape(header["subline"]),
+    )
+    page = os.path.join(work, "header.html")
+    with open(page, "w") as f:
+        f.write(page_html)
+    os.makedirs(HEADER_OUT, exist_ok=True)
+    return screenshot(page, os.path.join(HEADER_OUT, header["out"]), HEADER_SIZE, browser)
+
+
 def main() -> None:
     args = sys.argv[1:]
     plain = "--plain" in args
@@ -419,6 +545,8 @@ def main() -> None:
     phones = [(i, s) for i, s in enumerate(captions["iphone"])
               if not wanted or any(s["out"].startswith(w) for w in wanted)]
     watches = list(enumerate(captions["watch"])) if not wanted or "watch" in wanted else []
+    # The header is new with this style; --plain leaves it as it is.
+    header = not plain and (not wanted or "header" in wanted)
     os.makedirs(OUT, exist_ok=True)
     browser = chrome()
     with tempfile.TemporaryDirectory() as work:
@@ -426,6 +554,9 @@ def main() -> None:
             print(render(shot, index, plain, browser, work))
         for index, shot in watches:
             print(render_watch(shot, index, plain, browser, work))
+        if header:
+            by_out = {shot["out"]: shot for shot in captions["iphone"]}
+            print(render_header(captions["header"], by_out, browser, work))
 
 
 if __name__ == "__main__":

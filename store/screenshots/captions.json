@@ -105,5 +105,14 @@
       "highlight": "one tap",
       "accent": "magenta"
     }
-  ]
+  ],
+  "header": {
+    "out": "universal.png",
+    "headline": "No ads.\nNo pop-ups.\nEver.",
+    "highlight": "Ever.",
+    "subline": "Lifts and cardio, on your iPhone and Apple\u00a0Watch.",
+    "accent": "violet",
+    "phones": ["01-no-ads.png", "04-progress.png"],
+    "watch": "01-log-a-set.png"
+  }
 }

@@ -226,5 +226,10 @@ The privacy policy and support contact are in the app under Profile → Help.
   app). A 42 mm Series 10/11 screenshot is 374 × 446, which Apple refuses, so `render.py` draws
   the originals in `watch/originals-42mm/` into captioned 416 × 496 ones (next-release.md,
   step 3).
+- Header and search results: `store/screenshots/header/universal.png`, one 5244 × 2950 PNG
+  that Apple crops for the product page header and the search card (iOS 27 and later), with
+  "Use header asset in search results" ticked. Its words are in `captions.json` under
+  "header", and they keep to Apple's rules for these: no prices, web addresses, © or other
+  platforms' logos.
 - Export compliance: answered automatically by `ITSAppUsesNonExemptEncryption: false`
 - Release: **automatic** on approval

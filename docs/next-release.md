@@ -19,6 +19,10 @@ and Restore original. The App Store text is written and lives in
   on one of the app's accents, the key words in amber, and gym gear that
   straddles the join between one screenshot and the next. Compare them with
   the earlier black set at https://claude.ai/artifact/AD5KoZ5whSpLg3AMS7GZqS.
+- The header and search results image is done: `store/screenshots/header/universal.png`
+  (step 5).
+- Version 1.2.0 is created in App Store Connect (it hadn't been, so build 55
+  was never in review: skip step 4).
 
 **Next, in order:**
 1. *Optional:* assign templates to a few days in the weekly split, retake the
@@ -43,7 +47,7 @@ amber, and its accent), or replace a raw screenshot (iPhone ones taken on a
 6.1-inch iPhone with a Dynamic Island, 1179 × 2556; watch ones on a 42 mm
 Series 10 or 11, 374 × 446; the status bar and the watch's clock are placed
 for those sizes), then `python3 store/screenshots/render.py`. Name the ones
-to redo with `render.py 03 08` or `render.py watch`. `render.py --plain`
+to redo with `render.py 03 08`, `render.py watch` or `render.py header`. `render.py --plain`
 renders the earlier black look instead. It needs Pillow (`pip install
 pillow`) and a headless Chrome: `npx playwright install
 chromium-headless-shell`, or `CHROME=/path/to/chrome`.
@@ -178,6 +182,12 @@ Everything to paste is in [store-listing.md](store-listing.md).
       `store/screenshots/1.1.0/`), and on the
       **Apple Watch** tab the three in `store/screenshots/watch/` (not the
       `originals-42mm` ones, which Apple refuses).
+- [ ] **Header and search results** (Product Page Information → Header and
+      Search Results → Header): `store/screenshots/header/universal.png`, then
+      tick "Use header asset in search results", and check it with Preview.
+      Optional, shown on iOS 27 and later; without it the search card shows
+      the first three screenshots. It can also be added after release, from
+      Asset Library, without a new version.
 - [ ] **Build**: 1.2.0 (77).
 - [ ] **App Review Information → Notes**: the Notes for App Review block. It
       says how Health and the watch are used; leaving the old "No HealthKit
