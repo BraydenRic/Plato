@@ -28,12 +28,14 @@ Or, to carry more search words: `Lifting & cardio. No pop-ups.`
 
 ## Keywords
 
-100 characters at most, commas and no spaces. Words already in the name or
-subtitle count without being repeated here, and pricing words like "free" are
-out (2.3.7). Changes only with a new version.
+100 characters at most, commas and no spaces. Words already in the name
+("Plato: Workout Tracker") or subtitle count without being repeated here, so
+"workout" and "tracker" stay out, and pricing words like "free" are out too
+(2.3.7). Apple combines keywords, so "weight" and "lifting" cover "weight
+lifting". Changes only with a new version.
 
 ```
-workout,tracker,gym,lifting,weightlifting,strength,cardio,running,watch,1rm,sets,reps,split,fitness
+gym,lifting,weight,strength,cardio,running,watch,1rm,sets,reps,split,fitness,log,routine,progress
 ```
 
 ## Promotional Text
