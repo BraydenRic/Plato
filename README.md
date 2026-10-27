@@ -5,12 +5,12 @@ iOS workout tracker built with Expo (React Native), live on the App Store, with 
 ## Features
 
 - **Workout logging.** Start workout opens a picker laid out like Start cardio's: a blank workout or any template, with today's weekly-split template already picked. Reorder exercises mid-session. Enter weight × reps on a gym-friendly keypad with Back / Done / Next, copy the previous set in one tap, and time holds and cardio with a per-set stopwatch. Sets complete themselves once filled in.
-- **Rest timer.** Off by default, and set in Profile. It and a running set stopwatch survive leaving the workout screen and the app being closed: each is one saved wall-clock time, so it reopens still counting.
+- **Rest timer.** Off by default, and set in Profile, from 0:30 to 5:00. It and a running set stopwatch survive leaving the workout screen and the app being closed: each is one saved wall-clock time, so it reopens still counting.
 - **Apple Watch.** A watch app for the workout in progress: the next set's weight × reps ready to adjust with the Digital Crown or type on a number pad, one tap (or double tap) to log it, the rest countdown, and Finish. With nothing running it lists your templates to start one. A watch face complication opens it. See [Apple Watch](#apple-watch).
 - **Cardio sessions.** Start cardio (beside Start workout) picks a run, walk, hike, ride, swim, row, elliptical or stair session and opens its own screen: a moving-time clock, Pause and End. With an Apple Watch the watch tracks it — live distance, pace, heart rate and splits on the wrist — and the finished session shows its splits, heart rate and calories; it's saved to Apple Health for the rings. With just a phone, a run, walk or hike gets its distance, pace and splits from the iPhone's step counter. Stats gets a section once there's cardio with a distance. Cardio added inside a workout stays a plain timer. See [Cardio sessions](#cardio-sessions).
 - **Resume bar and Live Activity.** The bar above the tabs leads back to the workout in progress (and lists the others if more than one is running). The newest also sits on the Lock Screen and in the Dynamic Island, with a running clock and the rest countdown.
 - **Templates, weekly split and planning.** Reusable templates (up to 20), a weekday → template split, and workouts planned or backfilled on any calendar day.
-- **Exercise library.** 600 built-ins across 11 categories, including Neck, each with a form guide. Custom exercises, edits to built-ins and hidden built-ins are stored as per-user deltas.
+- **Exercise library.** 600 built-ins across 11 categories, including Neck, each with a form guide and a Watch a demo link (a YouTube search for it). Custom exercises, edits to built-ins and hidden built-ins are stored as per-user deltas: an edited built-in has Restore original, and Restore defaults on Exercises brings back hidden built-ins and undoes edits while keeping your own exercises. Names are capped at 60 characters, descriptions at 1,000.
 - **Progress.** Full history, per-exercise progress charts (weight, reps, estimated 1RM), weekly sets per muscle group, and a muscle map.
 - **Body weight.** Dated weigh-ins, a trend chart, and bodyweight exercises valued at what you weighed *on the day you trained*. A finished workout's volume is frozen, so a later weigh-in never rewrites it.
 - **Works offline.** With or without an account: history, templates and the library open with no signal, and changes sync when it's back. See [Offline](#offline).
@@ -30,7 +30,7 @@ npx expo start --tunnel    # tunnel, because LAN mode can't cross the WSL2 bound
 Copy `.env.example` to `.env.local` and fill in the Firebase config. Expo Go runs most of the app, but **Apple and Google sign-in, the Live Activity and alternate icons need a real build**, because they're native code. In Expo Go, use email/password or guest mode.
 
 ```bash
-npm test                   # jest, ~1,350 tests
+npm test                   # jest, ~1,400 tests
 npx tsc --noEmit           # type-check
 npm run lint
 ```

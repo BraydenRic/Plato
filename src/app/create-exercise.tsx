@@ -9,6 +9,7 @@ import { makeStyles, usePalette } from "@/context/AppearanceContext";
 import { useTheme } from "@/context/ThemeContext";
 import { libraryErrorMessage, useExerciseLibrary, MAX_CUSTOM_EXERCISES } from "@/hooks/use-exercise-library";
 import { EXERCISES, isBodyweightExercise, isTimedExercise } from "@/lib/exercises";
+import { MAX_DESCRIPTION_LENGTH, MAX_NAME_LENGTH } from "@/lib/workout-utils";
 import type { Exercise } from "@/types";
 
 const CATEGORIES = [...new Set(EXERCISES.map((e) => e.category))];
@@ -26,7 +27,8 @@ export default function CreateExerciseModal() {
   const palette = usePalette();
   const theme = useTheme();
   const { exerciseId } = useLocalSearchParams<{ exerciseId?: string }>();
-  const { exercises, loading, customCount, createExercise, updateExercise } = useExerciseLibrary();
+  const { exercises, loading, customCount, createExercise, updateExercise, isEdited, restoreExercise } =
+    useExerciseLibrary();
   // Editing reuses this form: prefill from the existing exercise and save
   // under the same id so workout history and last-weight lookups keep working.
   const editing = exerciseId ? exercises.find((e) => e.id === exerciseId) : undefined;
@@ -63,6 +65,8 @@ export default function CreateExerciseModal() {
           customCount={customCount}
           createExercise={createExercise}
           updateExercise={updateExercise}
+          canRestore={!!editing && !editing.isCustom && isEdited(editing.id)}
+          restoreExercise={restoreExercise}
         />
       )}
     </View>
@@ -76,11 +80,16 @@ function ExerciseForm({
   customCount,
   createExercise,
   updateExercise,
+  canRestore,
+  restoreExercise,
 }: {
   editing: Exercise | undefined;
   customCount: number;
   createExercise: Library["createExercise"];
   updateExercise: Library["updateExercise"];
+  /** A built-in you've edited: it can go back to how it ships. */
+  canRestore: boolean;
+  restoreExercise: Library["restoreExercise"];
 }) {
   const styles = useStyles();
   const [name, setName] = useState(editing?.name ?? "");
@@ -152,6 +161,30 @@ function ExerciseForm({
     }
   }
 
+  function confirmRestore() {
+    if (!editing) return;
+    const stock = EXERCISES.find((e) => e.id === editing.id);
+    Alert.alert(
+      "Restore original?",
+      `Undoes your changes and brings back "${stock?.name ?? editing.name}" as it came.`,
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Restore",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              await restoreExercise(editing);
+              router.back();
+            } catch (e) {
+              Alert.alert("Couldn't restore exercise", libraryErrorMessage(e));
+            }
+          },
+        },
+      ]
+    );
+  }
+
   return (
     <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
       <View>
@@ -159,6 +192,7 @@ function ExerciseForm({
         <Field
           placeholder="e.g. Landmine Press"
           value={name}
+          maxLength={MAX_NAME_LENGTH}
           onChangeText={setName}
           autoCorrect={false}
           autoFocus
@@ -221,6 +255,7 @@ function ExerciseForm({
         <Field
           placeholder="Setup cues, tempo, anything worth remembering"
           value={description}
+          maxLength={MAX_DESCRIPTION_LENGTH}
           onChangeText={setDescription}
           multiline
           style={styles.descriptionField}
@@ -233,6 +268,19 @@ function ExerciseForm({
         loading={saving}
         disabled={!canSave}
       />
+
+      {/* Quiet on purpose: undoing an edit is the rare path, and Save stays
+          the one thing this screen asks of you. Plain grey text, not a second
+          button, and only on a built-in that has an edit to undo. */}
+      {canRestore && (
+        <Pressable
+          onPress={confirmRestore}
+          accessibilityRole="button"
+          hitSlop={8}
+          style={({ pressed }) => [styles.restore, pressed && { opacity: 0.6 }]}>
+          <Text style={styles.restoreText}>Restore original</Text>
+        </Pressable>
+      )}
     </ScrollView>
   );
 }
@@ -314,5 +362,18 @@ const useStyles = makeStyles((c) => ({
   descriptionField: {
     minHeight: 80,
     textAlignVertical: "top",
+  },
+  // Pulled up toward Save so it reads as an aside to it, not a new section.
+  restore: {
+    alignSelf: "center",
+    justifyContent: "center",
+    minHeight: 44,
+    paddingHorizontal: Spacing.three,
+    marginTop: -Spacing.three,
+  },
+  restoreText: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: c.textSecondary,
   },
 }));

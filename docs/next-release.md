@@ -1,8 +1,9 @@
-# Next release: 1.2.0, build 75
+# Next release: 1.2.0, build 76
 
 Everything since 1.1.0 goes out in this one: offline mode, 600 exercises,
 mid-workout reorder, the Apple Watch app, cardio sessions, the Start workout
-picker and Help in Profile. The App Store text is written and lives in
+picker, Help in Profile, Watch a demo, the week strip's icons, shorter rests
+and Restore original. The App Store text is written and lives in
 [store-listing.md](store-listing.md); this is the order to do things in.
 
 ## 1. Put the new site up (once)
@@ -28,14 +29,16 @@ npx firebase-tools deploy --only hosting --project workouttracker-4e0c8
       is up: merged early, the live listing's links would lead nowhere.
 
 Done on October 26, 2026: the site is up, the old pages forward to it, and
-build 75 was started from main. Keep the old pages until 1.2.0 is out (step 7).
+build 75 was started from main. Build 76 followed the same day with the last
+changes for this release (the step 2 list marks them **new in 76**); it's the
+one to check and submit. Keep the old pages until 1.2.0 is out (step 7).
 After changing anything in `site/`, publish it again with
 `npx firebase-tools deploy --only hosting --project workouttracker-4e0c8`.
 
 If `plato-workouts` turns out to be taken, pick another name and say so: it's
 in `firebase.json`, `src/constants/links.ts` and these docs.
 
-## 2. Check build 75 on your phone and watch
+## 2. Check build 76 on your phone and watch
 
 Install it from TestFlight; the watch app comes with it (iPhone Watch app →
 Available Apps, if it doesn't appear on its own). If anything here is wrong,
@@ -54,13 +57,26 @@ it gets fixed and built again before going on.
       matters.
 - [ ] **Profile → Help**: Contact support opens Mail; Privacy policy opens
       plato-workouts.web.app/privacy. The version line at the bottom says
-      **1.2.0 (75)**, not (1).
+      **1.2.0 (76)**, not (1).
 - [ ] **Stats**: the cardio card's line across the weeks says "avg" and a number.
 - [ ] **Light mode** (Profile → Appearance → Light): on an exercise page, the
       muscles not worked are light grey, not charcoal.
 - [ ] **Largest text** (Settings → Accessibility → Display & Text Size → Larger
       Text, slider all the way up): the Help rows and the Start workout picker
       wrap; nothing is cut off.
+- [ ] **Week strip** (new in 76): each day shows a barbell for a workout and the
+      session's own icon for cardio (footsteps for a run, a bike for a ride),
+      green when done; a planned workout's is an outline. Four or more on one
+      day show two icons and "+2". The picked day's icons take its date's
+      colour (white, or dark on a light accent like Cyan or Amber).
+- [ ] **Profile** (new in 76): Rest timer steps Off, 0:30, 0:45, 1:00 … 5:00;
+      Sets per new exercise goes up to 10.
+- [ ] **Watch a demo** (new in 76): on an exercise page, under How to do it. Opens
+      YouTube searched for that exercise (the app if installed, else Safari).
+- [ ] **Restore original** (new in 76): edit a built-in exercise (rename it),
+      reopen its edit screen: grey Restore original under Save puts it back.
+      Exercises → ↻ (Restore default exercises) brings back hidden ones and
+      keeps a custom exercise you made.
 
 ## 3. Take Apple Watch screenshots
 
@@ -92,7 +108,7 @@ Everything to paste is in [store-listing.md](store-listing.md).
       Version**.
 - [ ] **Screenshots**: the iPhone set in `store/screenshots/`, plus the watch
       ones from step 3.
-- [ ] **Build**: 1.2.0 (75).
+- [ ] **Build**: 1.2.0 (76).
 - [ ] **App Review Information → Notes**: the Notes for App Review block. It
       says how Health and the watch are used; leaving the old "No HealthKit
       access" in would be grounds for rejection.

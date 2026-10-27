@@ -203,9 +203,11 @@ describe("nearestRestIndex", () => {
   });
 
   it("prefers the earlier option when a value sits exactly between two", () => {
-    // 45s is equidistant from Off and 1:00. Ties resolving downward is the
-    // safer default — it under-rests rather than silently adding a minute.
-    expect(REST_OPTIONS[nearestRestIndex(30)].label).toBe("Off");
+    // 15s is equidistant from Off and 0:30, 75s from 1:00 and 1:30. Ties
+    // resolving downward is the safer default — it under-rests rather than
+    // silently adding time.
+    expect(REST_OPTIONS[nearestRestIndex(15)].label).toBe("Off");
+    expect(REST_OPTIONS[nearestRestIndex(75)].label).toBe("1:00");
   });
 });
 
@@ -260,6 +262,10 @@ describe("REST_OPTIONS", () => {
   it("runs from off up to five minutes", () => {
     expect(REST_OPTIONS[0].seconds).toBe(0);
     expect(REST_OPTIONS[REST_OPTIONS.length - 1].seconds).toBe(300);
+  });
+
+  it("offers short rests for supersets", () => {
+    expect(REST_OPTIONS.map((o) => o.label)).toEqual(expect.arrayContaining(["0:30", "0:45"]));
   });
 
   it("ascends, so the picker reads left to right", () => {
@@ -322,6 +328,14 @@ describe("DefaultSetsContext", () => {
     const ctx = mountHook(useDefaultSets, DefaultSetsProvider);
     await settle();
     expect(ctx.current.defaultSets).toBe(5);
+  });
+
+  it("goes up to ten, for a 10×10", async () => {
+    await AsyncStorage.setItem("default_sets", "10");
+    const ctx = mountHook(useDefaultSets, DefaultSetsProvider);
+    await settle();
+    expect(ctx.current.defaultSets).toBe(10);
+    expect(MAX_SETS).toBe(10);
   });
 
   it.each([["0"], ["99"], ["2.5"], ["junk"]])(

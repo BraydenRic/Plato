@@ -180,6 +180,23 @@ export function sessionIcon(workout: Workout): IconName | null {
   return SESSION_KINDS.find((k) => Object.values(k.as).some((target) => target?.exerciseId === id))?.icon ?? "pulse";
 }
 
+/**
+ * What to call the session aloud, "run" or "rides", or null when it isn't
+ * one. Found the way sessionIcon finds the icon, so what VoiceOver says
+ * matches what the strip shows.
+ */
+export function sessionNoun(workout: Workout): KindInfo["noun"] | null {
+  if (!isCardioSession(workout)) return null;
+  if (workout.cardio) return kindInfo(workout.cardio.kind).noun;
+  const id = workout.exercises[0]?.exerciseId;
+  return (
+    SESSION_KINDS.find((k) => Object.values(k.as).some((target) => target?.exerciseId === id))?.noun ?? {
+      one: "cardio session",
+      many: "cardio sessions",
+    }
+  );
+}
+
 /** The session's one set: where its time and distance live. */
 export function sessionSet(workout: Workout): WorkoutSet | undefined {
   return workout.exercises[0]?.sets[0];

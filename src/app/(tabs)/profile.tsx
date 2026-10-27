@@ -8,7 +8,7 @@ import { useRouter } from "expo-router";
 import { Button, Card, SectionLabel, Stepper } from "@/components/ui";
 import { Sparkline } from "@/components/sparkline";
 import { useBodyweight } from "@/hooks/use-bodyweight";
-import { convertWeight, relativeDay, sameDay } from "@/lib/workout-utils";
+import { MAX_NAME_LENGTH, convertWeight, relativeDay, sameDay } from "@/lib/workout-utils";
 import { PRIVACY_POLICY_URL, SUPPORT_EMAIL } from "@/constants/links";
 import { APPEARANCE_LABELS, APPEARANCE_PREFS, FontScaleCap, Radius, Spacing, THEME_LIST } from "@/constants/theme";
 import { makeStyles, useAppearance, usePalette } from "@/context/AppearanceContext";
@@ -146,7 +146,10 @@ export default function ProfileScreen() {
         {
           text: "Save",
           onPress: async (name?: string) => {
-            const trimmed = (name ?? "").trim();
+            // The system prompt takes no length limit, so the cap the name
+            // fields have is applied here, by character rather than by
+            // UTF-16 unit, so an emoji at the cut isn't split in half.
+            const trimmed = Array.from((name ?? "").trim()).slice(0, MAX_NAME_LENGTH).join("").trim();
             if (!trimmed || trimmed === user?.displayName) return;
             try {
               await updateDisplayName(trimmed);
@@ -572,7 +575,7 @@ export default function ProfileScreen() {
               ))}
             </View>
           </Card>
-          {/* A stepper rather than a segmented control: seven options no longer
+          {/* A stepper rather than a segmented control: nine options no longer
               fit on one row, and letting them wrap left an orphan on a second
               line. This stays one compact row whatever REST_OPTIONS grows to. */}
           <Card style={[styles.prefCard, stackPrefs && styles.prefCardStacked, styles.cardGap]}>

@@ -5,7 +5,8 @@ const STORAGE_KEY = "default_sets";
 // How many sets a newly added exercise starts with. Matches the old hardcoded 3.
 const DEFAULT_SETS = 3;
 export const MIN_SETS = 1;
-export const MAX_SETS = 5;
+// Up to ten, so a 10×10 or an 8-set program can be the default too.
+export const MAX_SETS = 10;
 
 const DefaultSetsContext = createContext<{
   defaultSets: number;

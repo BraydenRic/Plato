@@ -40,6 +40,9 @@ const DEFAULT_SECONDS = 0;
  */
 export const REST_OPTIONS = [
   { label: "Off", seconds: 0 },
+  // Short rests for supersets, circuits and accessory work.
+  { label: "0:30", seconds: 30 },
+  { label: "0:45", seconds: 45 },
   { label: "1:00", seconds: 60 },
   { label: "1:30", seconds: 90 },
   { label: "2:00", seconds: 120 },

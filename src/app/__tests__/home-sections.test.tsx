@@ -62,9 +62,10 @@ jest.mock("@expo/vector-icons/Ionicons", () => "Ionicons");
 // RN's own test default is 2, which every test here ran at before; the
 // large-text tests set their own.
 let mockFontScale = 2;
+let mockWidth = 375;
 jest.mock("react-native/Libraries/Utilities/useWindowDimensions", () => ({
   __esModule: true,
-  default: () => ({ width: 375, height: 667, scale: 3, fontScale: mockFontScale }),
+  default: () => ({ width: mockWidth, height: 667, scale: 3, fontScale: mockFontScale }),
 }));
 
 function workout(id: string, name: string, extra: Partial<Workout> = {}): Workout {
@@ -78,6 +79,7 @@ beforeEach(() => {
   mockCompleted = [];
   mockTemplates = [];
   mockPlanned = [];
+  mockWidth = 375;
   mockActive = [];
   mockPlan = [null, null, null, null, null, null, null];
   mockFontScale = 2;
@@ -213,10 +215,98 @@ describe("a cardio session among workouts", () => {
     expect(icons[0].props.name).toBe("footsteps");
   });
 
-  it("is a dash on the week strip where a workout is a dot", async () => {
+  it("wears its kind's icon on the week strip where a workout wears a barbell", async () => {
     await renderHome();
-    expect(screen.getAllByTestId("week-dash")).toHaveLength(1);
-    expect(screen.getAllByTestId("week-dot")).toHaveLength(1);
+    const cardio = screen.getAllByTestId("week-cardio");
+    const workouts = screen.getAllByTestId("week-workout");
+    expect(cardio).toHaveLength(1);
+    expect(cardio[0].props.name).toBe("footsteps");
+    expect(workouts).toHaveLength(1);
+    expect(workouts[0].props.name).toBe("barbell");
+  });
+});
+
+// Three icons fit a day's cell. A fourth session would crowd it, and leaving
+// it off would hide it, so the third slot counts what's left instead.
+describe("a busy day on the week strip", () => {
+  const session = (id: string, hour: number, extra: Partial<Workout> = {}) =>
+    workout(id, id, { startedAt: new Date(2026, 7, 4, hour), completedAt: new Date(2026, 7, 4, hour, 30), ...extra });
+
+  it("shows all three when there are three", async () => {
+    mockCompleted = [session("a", 6, { cardio: { kind: "run" } }), session("b", 9), session("c", 18, { cardio: { kind: "swim" } })];
+    await renderHome();
+    expect(screen.getAllByTestId("week-cardio")).toHaveLength(2);
+    expect(screen.getAllByTestId("week-workout")).toHaveLength(1);
+    expect(screen.queryByText(/^\+\d$/)).toBeNull();
+  });
+
+  // Green, amber and purple each fell under 3:1 against some accent fill, so
+  // the picked day draws its icons in its own text colour; the list under the
+  // strip says which are done.
+  it("draws the picked day's icons in its text colour, and other days' in their state's", async () => {
+    mockCompleted = [
+      session("today-run", 6, { cardio: { kind: "run" } }),
+      workout("monday", "Monday", { startedAt: new Date(2026, 7, 3, 9), completedAt: new Date(2026, 7, 3, 10) }),
+    ];
+    await renderHome();
+    const [todays] = screen.getAllByTestId("week-cardio");
+    const [mondays] = screen.getAllByTestId("week-workout");
+    expect(todays.props.color).toBe("#fff");
+    // Done, in either mode's green.
+    expect(["#34d399", "#046a4d"]).toContain(mondays.props.color);
+  });
+
+  it("draws the picked day's count and split ring in its text colour too", async () => {
+    mockCompleted = [
+      session("a", 6, { cardio: { kind: "run" } }),
+      session("b", 9),
+      session("c", 12, { cardio: { kind: "walk" } }),
+      session("d", 18, { cardio: { kind: "swim" } }),
+    ];
+    await renderHome();
+    expect(StyleSheet.flatten(screen.getByText("+2").props.style).color).toBe("#fff");
+  });
+
+  it("rings the picked day in its text colour when the split suggests a workout", async () => {
+    mockTemplates = [workout("t1", "Pull", { isTemplate: true })];
+    // Today, August 4 2026, is a Tuesday.
+    mockPlan = [null, null, "t1", null, null, null, null];
+    await renderHome();
+    expect(StyleSheet.flatten(screen.getByTestId("week-suggestion").props.style).borderColor).toBe("#fff");
+  });
+
+  it("outlines a planned workout, so planned and going differ in shape, not just colour", async () => {
+    mockPlanned = [workout("legs", "Legs", { scheduledFor: new Date(2026, 7, 6) })];
+    await renderHome();
+    expect(screen.getByTestId("week-workout").props.name).toBe("barbell-outline");
+  });
+
+  it("fits two marks to a day on a 320pt screen, counting the rest", async () => {
+    mockWidth = 320;
+    mockCompleted = [session("a", 6, { cardio: { kind: "run" } }), session("b", 9), session("c", 18, { cardio: { kind: "swim" } })];
+    await renderHome();
+    expect([...screen.queryAllByTestId("week-cardio"), ...screen.queryAllByTestId("week-workout")]).toHaveLength(1);
+    expect(screen.getByText("+2")).toBeTruthy();
+  });
+
+  it("says each kind aloud, the way the icons show it", async () => {
+    mockCompleted = [session("a", 6, { cardio: { kind: "run" } }), session("b", 9), session("c", 18, { cardio: { kind: "run" } })];
+    await renderHome();
+    expect(screen.getByLabelText(/^Tuesday, August 4/).props.accessibilityLabel).toBe(
+      "Tuesday, August 4, today, 1 workout and 2 runs done"
+    );
+  });
+
+  it("shows two and a count past three", async () => {
+    mockCompleted = [
+      session("a", 6, { cardio: { kind: "run" } }),
+      session("b", 9),
+      session("c", 12, { cardio: { kind: "walk" } }),
+      session("d", 18, { cardio: { kind: "swim" } }),
+    ];
+    await renderHome();
+    expect([...screen.queryAllByTestId("week-cardio"), ...screen.queryAllByTestId("week-workout")]).toHaveLength(2);
+    expect(screen.getByText("+2")).toBeTruthy();
   });
 });
 

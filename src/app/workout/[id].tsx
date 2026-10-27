@@ -37,7 +37,7 @@ import { useSetTimer } from "@/context/SetTimerContext";
 import { markCurrentWorkout } from "@/lib/current-workout";
 import { useWeightUnit } from "@/context/UnitContext";
 import { useTheme } from "@/context/ThemeContext";
-import { bodyweightOn, formatBodyweightLoad, convertWeight, displayVolume, formatClock, liveSetSeconds, newId, previousSetsByExercise, relativeDay, sameDay, startOfDay, workoutDay, workoutVolumeLbs, completedSetCount, totalSetCount, MAX_TEMPLATES, MAX_ACTIVE_WORKOUTS } from "@/lib/workout-utils";
+import { bodyweightOn, formatBodyweightLoad, convertWeight, displayVolume, formatClock, liveSetSeconds, newId, previousSetsByExercise, relativeDay, sameDay, startOfDay, workoutDay, workoutVolumeLbs, completedSetCount, totalSetCount, MAX_TEMPLATES, MAX_ACTIVE_WORKOUTS, MAX_NAME_LENGTH } from "@/lib/workout-utils";
 import type { Workout, WorkoutExercise, WorkoutSet } from "@/types";
 
 
@@ -749,6 +749,7 @@ export default function WorkoutScreen() {
                   style={styles.title}
                   maxFontSizeMultiplier={FontScaleCap.title}
                   value={workout.name}
+                  maxLength={MAX_NAME_LENGTH}
                   onChangeText={(name) => setWorkout({ ...workout, name })}
                   onEndEditing={(e) => {
                     renameWorkout(e.nativeEvent.text.trim() || "Workout");
@@ -854,6 +855,7 @@ export default function WorkoutScreen() {
               style={styles.title}
               maxFontSizeMultiplier={FontScaleCap.title}
               value={workout.name}
+              maxLength={MAX_NAME_LENGTH}
               // The title uses the text keyboard — hopping here from a set input
               // swaps keyboards without a hide event, so drop the bar manually.
               onFocus={() => setKeypadOpen(false)}

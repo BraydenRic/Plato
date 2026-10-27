@@ -1,16 +1,25 @@
 import { useState } from "react";
-import { Alert, Pressable, ScrollView, Text, View } from "react-native";
+import { Alert, Linking, Pressable, ScrollView, Text, View } from "react-native";
 import { router, useLocalSearchParams } from "expo-router";
 import Ionicons from "@expo/vector-icons/Ionicons";
 
 import { ExerciseProgress } from "@/components/exercise-progress";
 import { MuscleMap } from "@/components/muscle-map";
 import { SectionLabel } from "@/components/ui";
+import { exerciseDemoUrl } from "@/constants/links";
 import { FontScaleCap, Radius, Spacing } from "@/constants/theme";
 import { makeStyles, usePalette } from "@/context/AppearanceContext";
+import { EXERCISES } from "@/lib/exercises";
 import { formGuideFor, type FormFault } from "@/lib/exercise-form";
 import { libraryErrorMessage, useExerciseLibrary } from "@/hooks/use-exercise-library";
 import { useTheme } from "@/context/ThemeContext";
+
+/** Leaves Plato for YouTube; says where to look if nothing can open it. */
+function watchDemo(exerciseName: string) {
+  Linking.openURL(exerciseDemoUrl(exerciseName)).catch(() =>
+    Alert.alert("Couldn't open YouTube", `Search YouTube for "${exerciseName} tutorial".`)
+  );
+}
 
 export default function ExerciseDetailScreen() {
   const styles = useStyles();
@@ -28,7 +37,7 @@ export default function ExerciseDetailScreen() {
       "Delete exercise?",
       exercise.isCustom
         ? `"${exercise.name}" will be removed from your library. Logged workouts keep it.`
-        : `"${exercise.name}" will be hidden from your library. Reset brings it back.`,
+        : `"${exercise.name}" will be hidden from your library. Restore defaults (↻ on Exercises) brings it back.`,
       [
         { text: "Cancel", style: "cancel" },
         {
@@ -103,34 +112,58 @@ export default function ExerciseDetailScreen() {
           Only the bundled exercises have a guide; a custom one shows its own
           description and no toggle at all, rather than one that opens onto
           nothing.
-        */}
-        {guide && (
-          <View style={styles.guide}>
-            <Pressable
-              onPress={() => setGuideOpen((open) => !open)}
-              accessibilityRole="button"
-              accessibilityState={{ expanded: guideOpen }}
-              accessibilityLabel={`How to do it. ${guideOpen ? "Collapse" : "Expand"}.`}
-              style={({ pressed }) => [styles.guideToggle, pressed && { opacity: 0.7 }]}>
-              <Text style={[styles.guideToggleText, { color: theme.accentText }]}>
-                How to do it
-              </Text>
-              <Ionicons
-                name={guideOpen ? "chevron-up" : "chevron-down"}
-                size={16}
-                color={theme.accentText}
-              />
-            </Pressable>
 
-            {guideOpen && (
-              <View style={styles.guideBody}>
-                <FormSection label="Set up" lines={guide.setup} />
-                <FormSection label="The lift" lines={guide.execution} />
-                <FaultSection label="Watch for" faults={guide.watchFor} accent={theme.accentText} />
-              </View>
-            )}
-          </View>
-        )}
+          "Watch a demo" sits under it as a matching row, so the two read as
+          one place to learn the movement. Every exercise has one, custom ones
+          too: it's a YouTube search, not a video someone had to pick. It ends
+          on the open-outside glyph, as Profile's links that leave Plato do.
+        */}
+        <View style={styles.learn}>
+          {guide && (
+            <>
+              <Pressable
+                onPress={() => setGuideOpen((open) => !open)}
+                accessibilityRole="button"
+                accessibilityState={{ expanded: guideOpen }}
+                accessibilityLabel={`How to do it. ${guideOpen ? "Collapse" : "Expand"}.`}
+                style={({ pressed }) => [styles.learnRow, pressed && { opacity: 0.7 }]}>
+                <Text style={[styles.learnRowText, { color: theme.accentText }]}>
+                  How to do it
+                </Text>
+                <Ionicons
+                  name={guideOpen ? "chevron-up" : "chevron-down"}
+                  size={16}
+                  color={theme.accentText}
+                />
+              </Pressable>
+
+              {guideOpen && (
+                <View style={styles.guideBody}>
+                  <FormSection label="Set up" lines={guide.setup} />
+                  <FormSection label="The lift" lines={guide.execution} />
+                  <FaultSection label="Watch for" faults={guide.watchFor} accent={theme.accentText} />
+                </View>
+              )}
+            </>
+          )}
+
+          <Pressable
+            // A renamed built-in searches by its real name ("Bench Press", not
+            // "Bench – Gym A"), which is what the videos are called.
+            onPress={() =>
+              watchDemo((!exercise.isCustom && EXERCISES.find((e) => e.id === exercise.id)?.name) || exercise.name)
+            }
+            accessibilityRole="link"
+            accessibilityLabel="Watch a demo"
+            accessibilityHint="Opens YouTube"
+            style={({ pressed }) => [styles.learnRow, pressed && { opacity: 0.7 }]}>
+            <Text style={[styles.learnRowText, { color: theme.accentText }]}>Watch a demo</Text>
+            <View style={styles.learnRowEnd}>
+              <Text style={styles.learnRowHint}>YouTube</Text>
+              <Ionicons name="open-outline" size={14} color={palette.textTertiary} />
+            </View>
+          </Pressable>
+        </View>
 
         <View>
           <SectionLabel>Your progress</SectionLabel>
@@ -274,24 +307,40 @@ const useStyles = makeStyles((c) => ({
     lineHeight: 21,
     color: c.textSecondary,
   },
-  guide: {
-    gap: Spacing.three,
+  // A rule above the first row, and one under each row and the open guide,
+  // so the rows share their dividers and read as one list.
+  learn: {
+    borderTopWidth: 1,
+    borderColor: c.border,
   },
-  guideToggle: {
+  learnRow: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
+    gap: Spacing.two,
+    minHeight: 44,
     paddingVertical: Spacing.two,
-    borderTopWidth: 1,
     borderBottomWidth: 1,
     borderColor: c.border,
   },
-  guideToggleText: {
+  learnRowText: {
     fontSize: 14,
     fontWeight: "700",
   },
+  learnRowEnd: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+  },
+  learnRowHint: {
+    fontSize: 13,
+    color: c.textTertiary,
+  },
   guideBody: {
     gap: Spacing.four,
+    paddingVertical: Spacing.three,
+    borderBottomWidth: 1,
+    borderColor: c.border,
   },
   formSection: {
     gap: Spacing.two,

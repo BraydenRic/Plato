@@ -84,6 +84,12 @@ describe("the guest exit on a first run", () => {
     expect(screen.getByText(/Workouts save on this phone/)).toBeTruthy();
   });
 
+  it("caps the sign-up name at 60 characters", () => {
+    render(<SignInScreen />);
+    fireEvent.press(screen.getByText(/New to Plato\?/));
+    expect(screen.getByPlaceholderText("Name").props.maxLength).toBe(60);
+  });
+
   it("enters guest mode when tapped", () => {
     render(<SignInScreen />);
     fireEvent.press(screen.getByText("Continue as guest"));

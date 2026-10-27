@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ComponentProps } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -26,7 +26,7 @@ import {
 import { recordCardioDiscard } from "@/lib/cardio-discards";
 import { useWeightUnit } from "@/context/UnitContext";
 import { isCardioWorkout, workoutDistanceLabel } from "@/lib/cardio";
-import { isCardioSession, sessionIcon } from "@/lib/cardio-session";
+import { isCardioSession, sessionIcon, sessionNoun } from "@/lib/cardio-session";
 import { useTheme } from "@/context/ThemeContext";
 import {
   addDays,
@@ -56,6 +56,18 @@ type PickerOption = {
   onPress: () => void;
 };
 type PickerConfig = { title: string; options: PickerOption[] };
+
+/**
+ * How many marks fit a day's cell in the week strip; past that the last slot
+ * counts the rest ("+2"). A cell is a seventh of the strip, after the screen's
+ * and the card's padding and the six gaps. Three 11pt icons need 37pt and two
+ * with a count about 38, which a 375pt phone gives. At 320 (a first-generation
+ * SE, or Display Zoom on a mini) a cell is 31pt, and two fit.
+ */
+function dayMarksFor(screenWidth: number): number {
+  const cell = (screenWidth - 2 * Spacing.three - 2 * (Spacing.three + 1) - 6 * 4) / 7 - 2;
+  return cell >= 38 ? 3 : 2;
+}
 
 export default function WorkoutsScreen() {
   const styles = useStyles();
@@ -93,7 +105,8 @@ export default function WorkoutsScreen() {
   // text stops growing too. A fixed 88 fit "Wednesday" only near the default
   // size; from XXL it broke as "Wednesda/y", and at accessibility sizes every
   // day split into fragments. Same scaling the set grid's number column uses.
-  const { fontScale } = useWindowDimensions();
+  const { fontScale, width: screenWidth } = useWindowDimensions();
+  const dayMarks = dayMarksFor(screenWidth);
   const splitDayWidth = 88 * Math.min(Math.max(fontScale, 1), FontScaleCap.grid);
   // What the folded split says: the days that have a template, in week order.
   const splitSummary =
@@ -441,26 +454,45 @@ export default function WorkoutsScreen() {
                     {day.getDate()}
                   </Text>
                   <View style={styles.dotRow}>
-                    {/* Colour says done, going or planned; shape says what:
-                        a dot for a workout, a dash for a run or a ride. */}
-                    {dayItems.slice(0, 3).map((w) => (
-                      <View
+                    {/* Colour says done, going or planned; the icon says what:
+                        a barbell for a workout, a session's own (a run's
+                        footsteps, a ride's bike) as its row below wears, and
+                        drawn in outline while it's only planned, so planned
+                        and going differ in shape as well as colour. Past
+                        dayMarks the last slot counts the rest instead, so a
+                        busy day neither crowds the cell nor hides any. On the
+                        picked day they take its text colour: green, amber and
+                        purple all fell under 3:1 on some accent fill, and the
+                        list right below says which are done. */}
+                    {(dayItems.length > dayMarks ? dayItems.slice(0, dayMarks - 1) : dayItems).map((w) => (
+                      <Ionicons
                         key={w.id}
-                        testID={isCardioSession(w) ? "week-dash" : "week-dot"}
-                        style={[
-                          styles.dot,
-                          isCardioSession(w) && styles.dash,
-                          w.completedAt
-                            ? styles.dotDone
-                            : w.startedAt
-                              ? styles.dotLive
-                              : [styles.dotPlanned, { borderColor: theme.accentText }],
-                        ]}
+                        name={markIcon(w)}
+                        size={11}
+                        testID={isCardioSession(w) ? "week-cardio" : "week-workout"}
+                        color={
+                          isSelected
+                            ? theme.onAccent
+                            : w.completedAt
+                              ? palette.success
+                              : w.startedAt
+                                ? palette.amber
+                                : theme.accentText
+                        }
                       />
                     ))}
+                    {dayItems.length > dayMarks && (
+                      // Held at its size, like the icons beside it: the row is
+                      // 12pt tall, and the count is in the cell's label too.
+                      <Text style={[styles.dayMore, isSelected && { color: theme.onAccent }]} maxFontSizeMultiplier={1}>
+                        +{dayItems.length - (dayMarks - 1)}
+                      </Text>
+                    )}
                     {/* Hollow dot marks a day the weekly split suggests but that
                         has no real workout yet. */}
-                    {dayItems.length === 0 && templateForDay(day) && <View style={styles.dotGhost} />}
+                    {dayItems.length === 0 && templateForDay(day) && (
+                      <View testID="week-suggestion" style={[styles.dotGhost, isSelected && { borderColor: theme.onAccent }]} />
+                    )}
                   </View>
                 </Pressable>
               );
@@ -816,22 +848,45 @@ function WorkoutRow({
  * — and says what happened there only in colour and dots. This spells out
  * both: "Tuesday, October 23, today, 1 workout done".
  */
+/** A day's mark in the week strip: what it is, outlined while only planned. */
+function markIcon(workout: Workout): ComponentProps<typeof Ionicons>["name"] {
+  const icon = sessionIcon(workout) ?? "barbell";
+  const planned = !workout.startedAt && !workout.completedAt;
+  // Every session icon has an -outline twin in Ionicons.
+  return planned ? (`${icon}-outline` as ComponentProps<typeof Ionicons>["name"]) : icon;
+}
+
 function dayCellLabel(
   day: Date,
   items: Workout[],
   isToday: boolean,
   suggestion: Workout | undefined
 ): string {
-  const done = items.filter((w) => w.completedAt).length;
-  const live = items.filter((w) => !w.completedAt && w.startedAt).length;
-  const planned = items.length - done - live;
-  const count = (n: number, state: string) => (n > 0 ? `${n} workout${n === 1 ? "" : "s"} ${state}` : null);
+  // Each state says what's in it, "1 workout and 1 run done", so a screen
+  // reader tells a lift from a run the way the strip's icons do.
+  const stateOf = (w: Workout) => (w.completedAt ? "done" : w.startedAt ? "in progress" : "planned");
+  const describe = (state: string) => {
+    const counts = new Map<string, { one: string; many: string; n: number }>();
+    for (const w of items.filter((item) => stateOf(item) === state)) {
+      const noun = sessionNoun(w) ?? { one: "workout", many: "workouts" };
+      const entry = counts.get(noun.one) ?? { ...noun, n: 0 };
+      entry.n += 1;
+      counts.set(noun.one, entry);
+    }
+    if (counts.size === 0) return null;
+    // Workouts first, then sessions as the day has them.
+    const parts = [...counts.values()]
+      .sort((a, b) => Number(b.one === "workout") - Number(a.one === "workout"))
+      .map((c) => `${c.n} ${c.n === 1 ? c.one : c.many}`);
+    const listed = parts.length === 1 ? parts[0] : `${parts.slice(0, -1).join(", ")} and ${parts[parts.length - 1]}`;
+    return `${listed} ${state}`;
+  };
   return [
     day.toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric" }),
     isToday ? "today" : null,
-    count(done, "done"),
-    count(live, "in progress"),
-    count(planned, "planned"),
+    describe("done"),
+    describe("in progress"),
+    describe("planned"),
     suggestion ? `${suggestion.name} from your weekly split` : null,
   ]
     .filter(Boolean)
@@ -942,25 +997,16 @@ const useStyles = makeStyles((c) => ({
   },
   dotRow: {
     flexDirection: "row",
-    gap: 3,
-    height: 5,
+    alignItems: "center",
+    gap: 2,
+    height: 12,
   },
-  dot: {
-    width: 5,
-    height: 5,
-    borderRadius: 3,
-  },
-  dash: {
-    width: 10,
-  },
-  dotDone: {
-    backgroundColor: c.success,
-  },
-  dotLive: {
-    backgroundColor: c.amber,
-  },
-  dotPlanned: {
-    borderWidth: 1,
+  dayMore: {
+    fontSize: 10,
+    lineHeight: 12,
+    fontWeight: "700",
+    color: c.textTertiary,
+    fontVariant: ["tabular-nums"],
   },
   dotGhost: {
     width: 5,

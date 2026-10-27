@@ -10,13 +10,14 @@ import { PRIVACY_POLICY_URL, SUPPORT_EMAIL } from "@/constants/links";
  * Help card has both, and each opens outside Plato.
  */
 
+const mockUpdateDisplayName = jest.fn(async (_name: string) => {});
 jest.mock("@/context/AuthContext", () => ({
   useAuth: () => ({
     user: { email: "lifter@example.com", displayName: "Lifter", emailVerified: true, providerData: [{ providerId: "apple.com" }] },
     isGuest: false,
     discardGuestData: jest.fn(),
     signOut: jest.fn(),
-    updateDisplayName: jest.fn(),
+    updateDisplayName: mockUpdateDisplayName,
     deleteAccount: jest.fn(),
     refreshUser: jest.fn(async () => {}),
     resendVerificationEmail: jest.fn(),
@@ -121,4 +122,18 @@ it("says which build this is by the installed app's number, not the config's", (
 
   fireEvent.press(screen.getByRole("link", { name: "Contact support" }));
   expect(decodeURIComponent(openURL.mock.calls[0][0].split("&body=")[1])).toContain("Plato 1.2.0 (73)");
+});
+
+// The system prompt has no length limit, so Profile cuts the name to the cap
+// the name fields have, and by character, so an emoji at the cut stays whole.
+it("cuts a long name at 60 characters without splitting an emoji", async () => {
+  const prompt = jest.spyOn(Alert, "prompt").mockImplementation(() => {});
+  render(<ProfileScreen />);
+  fireEvent.press(screen.getByRole("button", { name: "Edit name" }));
+
+  const buttons = prompt.mock.calls[0][2] as { text: string; onPress?: (value?: string) => Promise<void> }[];
+  await act(async () => {
+    await buttons.find((b) => b.text === "Save")!.onPress!("a".repeat(59) + "💪💪");
+  });
+  expect(mockUpdateDisplayName).toHaveBeenCalledWith("a".repeat(59) + "💪");
 });

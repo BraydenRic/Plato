@@ -53,11 +53,11 @@ WHAT YOU WON'T FIND
 • A sign-up wall. The whole app works without an account
 
 LOG WORKOUTS FAST
-• 600 built-in exercises — barbell staples, machines, cables, bands, calisthenics, sports and neck work — each with a guide to doing it right
+• 600 built-in exercises — barbell staples, machines, cables, bands, calisthenics, sports and neck work — each with a guide to doing it right, and one tap to find a video demo
 • A keypad built for the gym: enter weight and reps, then jump to the next field in one tap
 • Copy your previous set in one tap
 • Built-in timers for planks, dead hangs and other timed sets
-• An optional rest timer between sets
+• An optional rest timer between sets, from 30 seconds to 5 minutes
 • Works with no signal: log a whole session in a dead zone and it syncs when you're back online
 
 CARDIO
@@ -152,6 +152,18 @@ lists both. Home is tidier too: History is one row near the top, and the
 weekly split folds away until you need it.
 
 Profile has a Help section, with support and the privacy policy a tap away.
+
+Every exercise page has Watch a demo, under the form guide: one tap searches
+YouTube for that exercise.
+
+The week on Home shows what you did each day: a barbell for a workout, and a
+run, ride or swim's own icon for cardio.
+
+The rest timer now goes as short as 30 seconds, and new exercises can start
+with up to 10 sets.
+
+Edited a built-in exercise? Restore original puts it back. And restoring the
+default exercises no longer deletes the ones you made.
 ```
 
 ## Notes for App Review
@@ -185,9 +197,10 @@ The privacy policy and support contact are in the app under Profile → Help.
 
 ## Checklist for the version page
 
-- Build: **1.2.0 (75)**, once it's been checked on a phone and watch (next-release.md, step 2).
+- Build: **1.2.0 (76)**, once it's been checked on a phone and watch (next-release.md, step 2).
   Everything since 1.1.0: offline mode, 600 exercises, mid-workout reorder, the Apple Watch app,
-  cardio sessions, the Start workout picker, and Help in Profile.
+  cardio sessions, the Start workout picker, Help in Profile, Watch a demo, the week strip's
+  icons, shorter rests and Restore original.
 - Privacy Policy URL: **https://plato-workouts.web.app/privacy**, changed from 1.1.0's
   https://braydenric.github.io/plato-support/privacy.html. Apple applies a URL change with the
   next version, so it goes live when this version is released; the old page forwards here until

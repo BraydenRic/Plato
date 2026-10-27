@@ -112,20 +112,40 @@ export function useExerciseLibrary() {
     }
   }
 
-  async function resetLibrary(): Promise<void> {
-    await updateExerciseLibrary(requireUserId(), EMPTY);
+  /**
+   * Puts one edited built-in back as it ships: the override goes, so the stock
+   * entry shows through again, and with it any correction made to it since.
+   */
+  async function restoreExercise(exercise: Exercise): Promise<void> {
+    if (exercise.isCustom || !library.overrides.some((e) => e.id === exercise.id)) return;
+    await updateExerciseLibrary(requireUserId(), {
+      ...library,
+      overrides: library.overrides.filter((e) => e.id !== exercise.id),
+    });
+  }
+
+  /**
+   * Every built-in back as it ships: hidden ones shown, edits undone. The
+   * exercises you made stay. Wiping those too used to be the only way to get
+   * one hidden exercise back, which cost everything you'd built to fix a
+   * single mis-tap; you can still delete them one at a time.
+   */
+  async function restoreDefaults(): Promise<void> {
+    await updateExerciseLibrary(requireUserId(), { ...library, removedIds: [], overrides: [] });
   }
 
   return {
     exercises,
     loading,
     customCount: library.custom.length,
-    // True when the library differs from the stock defaults — gates the reset action.
-    isModified:
-      library.custom.length > 0 || library.removedIds.length > 0 || library.overrides.length > 0,
+    /** Whether a built-in has been hidden or edited: gates Restore defaults. */
+    defaultsChanged: library.removedIds.length > 0 || library.overrides.length > 0,
+    /** Whether this built-in has been edited, so it can be restored. */
+    isEdited: (exerciseId: string) => library.overrides.some((e) => e.id === exerciseId),
     createExercise,
     updateExercise,
     deleteExercise,
-    resetLibrary,
+    restoreExercise,
+    restoreDefaults,
   };
 }

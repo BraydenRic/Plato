@@ -15,7 +15,7 @@ export default function ExercisesScreen() {
   const styles = useStyles();
   const palette = usePalette();
   const theme = useTheme();
-  const { exercises, isModified, deleteExercise, resetLibrary } = useExerciseLibrary();
+  const { exercises, defaultsChanged, deleteExercise, restoreDefaults } = useExerciseLibrary();
   const [search, setSearch] = useState("");
   const [category, setCategory] = useState("All");
 
@@ -34,7 +34,7 @@ export default function ExercisesScreen() {
       "Delete exercise?",
       exercise.isCustom
         ? `"${exercise.name}" will be removed from your library. Logged workouts keep it.`
-        : `"${exercise.name}" will be hidden from your library. Reset brings it back.`,
+        : `"${exercise.name}" will be hidden from your library. Restore defaults (↻ on Exercises) brings it back.`,
       [
         { text: "Cancel", style: "cancel" },
         {
@@ -49,17 +49,17 @@ export default function ExercisesScreen() {
     );
   }
 
-  function confirmReset() {
+  function confirmRestore() {
     Alert.alert(
-      "Reset library?",
-      "Restores all default exercises and deletes your custom ones.",
+      "Restore default exercises?",
+      "Brings back the exercises you've hidden and undoes your edits to built-in ones. Exercises you made stay.",
       [
         { text: "Cancel", style: "cancel" },
         {
-          text: "Reset",
+          text: "Restore",
           style: "destructive",
           onPress: () =>
-            resetLibrary().catch((e) => Alert.alert("Couldn't reset library", libraryErrorMessage(e))),
+            restoreDefaults().catch((e) => Alert.alert("Couldn't restore exercises", libraryErrorMessage(e))),
         },
       ]
     );
@@ -76,8 +76,13 @@ export default function ExercisesScreen() {
             {exercises.length} exercises
           </Text>
         </View>
-        {isModified && (
-          <Pressable onPress={confirmReset} hitSlop={8} style={styles.headerButton}>
+        {defaultsChanged && (
+          <Pressable
+            onPress={confirmRestore}
+            hitSlop={8}
+            accessibilityRole="button"
+            accessibilityLabel="Restore default exercises"
+            style={styles.headerButton}>
             <Ionicons name="refresh" size={18} color={palette.textSecondary} />
           </Pressable>
         )}

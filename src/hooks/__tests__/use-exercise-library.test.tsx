@@ -99,12 +99,24 @@ describe("the effective exercise list", () => {
     expect(hook.current.exercises.find((e) => e.id === victim.id)).toBeUndefined();
   });
 
-  it("reports whether the library has been touched, which gates the reset action", () => {
+  it("reports whether a built-in has been hidden or edited, which gates Restore defaults", () => {
     const { hook } = mountHook();
     emit({});
-    expect(hook.current.isModified).toBe(false);
+    expect(hook.current.defaultsChanged).toBe(false);
+    // Only exercises you made: there's nothing for Restore defaults to do.
+    emit({ custom: [makeExercise({ id: "custom-1", isCustom: true })] });
+    expect(hook.current.defaultsChanged).toBe(false);
     emit({ removedIds: ["bench-press"] });
-    expect(hook.current.isModified).toBe(true);
+    expect(hook.current.defaultsChanged).toBe(true);
+    emit({ overrides: [{ ...EXERCISES[0], name: "Renamed" }] });
+    expect(hook.current.defaultsChanged).toBe(true);
+  });
+
+  it("says which built-ins have been edited", () => {
+    const { hook } = mountHook();
+    emit({ overrides: [{ ...EXERCISES[0], name: "Renamed" }] });
+    expect(hook.current.isEdited(EXERCISES[0].id)).toBe(true);
+    expect(hook.current.isEdited(EXERCISES[1].id)).toBe(false);
   });
 
   it("counts customs for the cap the create screen shows", () => {
@@ -261,21 +273,57 @@ describe("deleteExercise", () => {
   });
 });
 
-describe("resetLibrary", () => {
-  it("clears every customisation at once", async () => {
+describe("restoreDefaults", () => {
+  it("shows every hidden built-in and undoes every edit, keeping the exercises you made", async () => {
     const { hook } = mountHook();
+    const mine = makeExercise({ id: "custom-1", isCustom: true });
     emit({
-      custom: [makeExercise({ id: "custom-1", isCustom: true })],
+      custom: [mine],
       removedIds: ["bench-press"],
       overrides: [{ ...EXERCISES[0], name: "Renamed" }],
     });
     await act(async () => {
-      await hook.current.resetLibrary();
+      await hook.current.restoreDefaults();
     });
     expect(mockUpdate).toHaveBeenCalledWith("user-1", {
-      custom: [],
+      custom: [mine],
       removedIds: [],
       overrides: [],
     });
+  });
+});
+
+describe("restoreExercise", () => {
+  it("puts one edited built-in back as it ships, leaving every other change alone", async () => {
+    const { hook } = mountHook();
+    const mine = makeExercise({ id: "custom-1", isCustom: true });
+    const [target, other] = EXERCISES.filter((e) => e.id !== "bench-press");
+    const otherEdit = { ...other, name: "Also renamed" };
+    emit({
+      custom: [mine],
+      removedIds: ["bench-press"],
+      overrides: [{ ...target, name: "Renamed" }, otherEdit],
+    });
+    const edited = hook.current.exercises.find((e) => e.id === target.id)!;
+    expect(edited.name).toBe("Renamed");
+    await act(async () => {
+      await hook.current.restoreExercise(edited);
+    });
+    expect(mockUpdate).toHaveBeenCalledWith("user-1", {
+      custom: [mine],
+      removedIds: ["bench-press"],
+      overrides: [otherEdit],
+    });
+  });
+
+  it("writes nothing for a built-in that was never edited, or one you made", async () => {
+    const { hook } = mountHook();
+    const mine = makeExercise({ id: "custom-1", isCustom: true });
+    emit({ custom: [mine] });
+    await act(async () => {
+      await hook.current.restoreExercise(EXERCISES[0]);
+      await hook.current.restoreExercise(mine);
+    });
+    expect(mockUpdate).not.toHaveBeenCalled();
   });
 });

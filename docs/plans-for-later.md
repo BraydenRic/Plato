@@ -67,6 +67,14 @@ already written are still deleted with an account. Code comments across `src/`
 still mention plato-web; tidy them in the same change. Saves one write per
 finished workout.
 
+## Show hidden exercises one at a time
+
+Hiding a built-in exercise is undone only by Restore defaults (↻ on
+Exercises), which shows every hidden one and undoes every edit at once; it
+keeps the exercises you made (since 1.2.0, build 76). A "Hidden exercises"
+list at the end of the Exercises tab, each with Show, would bring back one
+without the rest. Left out of 1.2.0 as new screen rather than fix.
+
 ## Known, minor, left open
 
 Found by the audit's rechecks, judged not worth the risk of fixing now:

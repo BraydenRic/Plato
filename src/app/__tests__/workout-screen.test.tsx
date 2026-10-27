@@ -333,6 +333,11 @@ describe("renaming a workout", () => {
     expect(mockUpdateWorkout).toHaveBeenCalledWith("w1", { name: "Chest day" });
   });
 
+  it("stops a name at 60 characters", async () => {
+    await loadWith(["Bench Press"]);
+    expect(titleField().props.maxLength).toBe(60);
+  });
+
   it("falls back to a name rather than saving a blank one", async () => {
     await loadWith(["Bench Press"]);
 

@@ -122,8 +122,22 @@ export function liveWorkout(active: Workout[]): Workout | undefined {
 
 // All of a user's custom exercises live in a single document, so cap them to
 // keep it well under Firestore's 1 MB limit. 200 is far more than anyone builds
-// by hand (the app ships ~177 defaults) while staying tiny on disk.
+// by hand (the app ships 600) while staying tiny on disk.
 export const MAX_CUSTOM_EXERCISES = 200;
+
+/**
+ * Longest name you can type: workouts, templates, custom exercises and your
+ * own. The longest built-in exercise is 36 characters, so this is room to
+ * spare, while keeping names whole on the watch and the Live Activity.
+ */
+export const MAX_NAME_LENGTH = 60;
+
+/**
+ * Longest custom exercise description. Every custom exercise shares one
+ * document with a 1 MB ceiling, so one pasted essay mustn't be able to stop
+ * the whole library saving; 1,000 characters is a long page of cues.
+ */
+export const MAX_DESCRIPTION_LENGTH = 1000;
 
 /**
  * Weigh-ins kept per user. One document holds the lot, same as the exercise

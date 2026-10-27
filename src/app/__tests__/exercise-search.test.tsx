@@ -27,9 +27,9 @@ const library: Exercise[] = [
 jest.mock("@/hooks/use-exercise-library", () => ({
   useExerciseLibrary: () => ({
     exercises: library,
-    isModified: false,
+    defaultsChanged: false,
     deleteExercise: jest.fn(),
-    resetLibrary: jest.fn(),
+    restoreDefaults: jest.fn(),
   }),
 }));
 

@@ -21,6 +21,7 @@ import { FontScaleCap, Radius, Spacing } from "@/constants/theme";
 import { makeStyles } from "@/context/AppearanceContext";
 import { useAuth } from "@/context/AuthContext";
 import { useTheme } from "@/context/ThemeContext";
+import { MAX_NAME_LENGTH } from "@/lib/workout-utils";
 
 function friendlyAuthError(e: unknown): string {
   if (e instanceof FirebaseError) {
@@ -259,6 +260,7 @@ export default function SignInScreen() {
                 autoCapitalize="words"
                 autoComplete="name"
                 value={name}
+                maxLength={MAX_NAME_LENGTH}
                 onChangeText={setName}
               />
             )}

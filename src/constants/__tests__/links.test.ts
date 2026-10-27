@@ -1,7 +1,7 @@
 import { readFileSync } from "fs";
 import { join } from "path";
 
-import { PRIVACY_POLICY_URL, SUPPORT_EMAIL, SUPPORT_URL } from "../links";
+import { PRIVACY_POLICY_URL, SUPPORT_EMAIL, SUPPORT_URL, exerciseDemoUrl } from "../links";
 
 /**
  * The addresses the app opens are the ones App Store Connect gets, and both
@@ -39,4 +39,12 @@ it("has the pages those addresses lead to, with the same contact address", () =>
   expect(privacy).toContain('href="/"');
   // Who runs Plato, as the App Store names the seller.
   expect(privacy).toContain("Full Stach LLC");
+});
+
+it("keeps an exercise's name whole in its demo search, whatever it holds", () => {
+  const url = new URL(exerciseDemoUrl("Farmer's Carry & Hold / 50% #2"));
+  expect(url.origin).toBe("https://www.youtube.com");
+  expect(url.pathname).toBe("/results");
+  // An & or # left raw would cut the search short.
+  expect(url.searchParams.get("search_query")).toBe("Farmer's Carry & Hold / 50% #2 tutorial");
 });

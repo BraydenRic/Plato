@@ -138,3 +138,68 @@ it("opens a new exercise straight away, with nothing to wait for", async () => {
   expect(nameField().props.value).toBe("");
   await act(async () => {});
 });
+
+// An edited built-in can go back to how it ships, one at a time, without
+// Restore defaults on Exercises undoing everything else too. Quiet: only on a
+// built-in with an edit to undo, and it asks first, since the edit is lost.
+it("caps a name at 60 characters and a description at 1,000", async () => {
+  render(<CreateExerciseModal />);
+  await act(async () => {});
+  expect(nameField().props.maxLength).toBe(60);
+  expect(descriptionField().props.maxLength).toBe(1000);
+});
+
+describe("Restore original", () => {
+  const stock = EXERCISES[0];
+  const restore = () => screen.queryByRole("button", { name: "Restore original" });
+
+  it("is offered on an edited built-in, and puts it back once confirmed", async () => {
+    const { Alert } = jest.requireActual<typeof import("react-native")>("react-native");
+    const alert = jest.spyOn(Alert, "alert");
+    mockExerciseId = stock.id;
+    mockStored = { custom: [], removedIds: [], overrides: [{ ...stock, name: "My Name For It" }] };
+    render(<CreateExerciseModal />);
+    await act(async () => {});
+
+    fireEvent.press(restore()!);
+    expect(alert).toHaveBeenCalledWith(
+      "Restore original?",
+      `Undoes your changes and brings back "${stock.name}" as it came.`,
+      expect.any(Array)
+    );
+    // Nothing is written until the confirm.
+    expect(mockWrite).not.toHaveBeenCalled();
+
+    const buttons = alert.mock.calls[0][2] as { text: string; onPress?: () => Promise<void> }[];
+    await act(async () => {
+      await buttons.find((b) => b.text === "Restore")!.onPress!();
+    });
+    expect(mockWrite).toHaveBeenCalledWith("u1", { custom: [], removedIds: [], overrides: [] });
+    alert.mockRestore();
+  });
+
+  it("isn't offered on a built-in that hasn't been edited", async () => {
+    mockExerciseId = stock.id;
+    render(<CreateExerciseModal />);
+    await act(async () => {});
+
+    expect(nameField().props.value).toBe(stock.name);
+    expect(restore()).toBeNull();
+  });
+
+  it("isn't offered on an exercise you made, which has no original", async () => {
+    mockExerciseId = sledPush.id;
+    mockStored = { custom: [sledPush], removedIds: [], overrides: [] };
+    render(<CreateExerciseModal />);
+    await act(async () => {});
+
+    expect(restore()).toBeNull();
+  });
+
+  it("isn't offered when making a new exercise", async () => {
+    render(<CreateExerciseModal />);
+    await act(async () => {});
+
+    expect(restore()).toBeNull();
+  });
+});
