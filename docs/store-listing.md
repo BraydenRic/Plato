@@ -50,7 +50,7 @@ Free. No ads, no pop-ups, no paywalls. Plato logs your lifts and your cardio on 
 ```
 Free. No ads. No pop-ups. No paywalls. No BS.
 
-Plato is a workout tracker for lifting and cardio, and that's all it is. Open it, log your sets, see what's working, get back to training.
+Plato is a workout tracker for lifting and cardio, and that's all it is. Open it, log your sets, see your progress, get back to training.
 
 Nothing will ever pop up asking you to rate the app, upgrade, start a trial or turn on notifications. Not on your first workout, not on your five hundredth.
 
@@ -79,7 +79,7 @@ TRAIN SMARTER
 
 CARDIO
 • Runs, walks, hikes, rides, swims, rows, ellipticals and stair sessions
-• On Apple Watch: live heart rate and calories, plus distance and pace on runs, walks, hikes, rides and swims, and mile or kilometre splits on runs, walks, hikes and rides
+• On Apple Watch: live heart rate and calories, plus distance and pace on runs, walks, hikes, rides and swims, and mile or kilometer splits on runs, walks, hikes and rides
 • No watch? Runs, walks and hikes get their distance, pace and splits from your iPhone's step counter
 • Sessions your watch tracks save to Apple Health, so they count toward your rings
 
@@ -109,7 +109,7 @@ BODY WEIGHT
 
 MAKE IT YOURS
 • Light or dark, or follow your phone
-• Seven accent colours, and your home screen icon changes to match
+• Seven accent colors, and your home screen icon changes to match
 
 YOUR DATA
 • Sign in with Apple, Google or email to sync across devices
