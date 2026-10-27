@@ -219,9 +219,11 @@ The privacy policy and support contact are in the app under Profile → Help.
   (App Functionality · linked to identity · not used for tracking). Sessions are saved to the
   account like typed workouts. Motion & Fitness needs nothing more: the distance it gives is
   saved with the session, which is Fitness data already.
-- Screenshots: the iPhone set in `store/screenshots/1.2.0/` (captioned at 1290 × 2796, the
-  6.9-inch size Apple scales down for smaller iPhones; made from `raw-1.2.0/` by `render.py`,
-  with the words in `captions.json`), and the Apple Watch set in
+- Screenshots: the iPhone set twice, made from `raw-1.2.0/` by `render.py` with the words in
+  `captions.json`: `store/screenshots/1.2.0-medium/` (1179 × 2556) for iPhone Medium Display,
+  the size Apple requires, and `store/screenshots/1.2.0/` (1290 × 2796) for iPhone Large
+  Display. Apple scales screenshots down for smaller iPhones, but each slot only takes its own
+  sizes. Then the Apple Watch set in
   `store/screenshots/watch/` (416 × 496: Apple requires at least one for an app with a watch
   app). A 42 mm Series 10/11 screenshot is 374 × 446, which Apple refuses, so `render.py` draws
   the originals in `watch/originals-42mm/` into captioned 416 × 496 ones (next-release.md,

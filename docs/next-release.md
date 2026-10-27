@@ -13,7 +13,8 @@ and Restore original. The App Store text is written and lives in
 - The site is live at https://plato-workouts.web.app/, and the old
   braydenric.github.io/plato-support pages forward to it (step 1).
 - The Apple Watch screenshots are taken and sized (step 3).
-- The screenshots are done: ten iPhone ones in `store/screenshots/1.2.0/` and
+- The screenshots are done: ten iPhone ones in `store/screenshots/1.2.0/`
+  (Large Display) and the same ten in `1.2.0-medium/` (Medium Display), and
   three watch ones in `store/screenshots/watch/`, in App Store order, with a
   clean status bar (9:41, full battery, no carrier). Restyled October 27: each
   on one of the app's accents, the key words in amber, and gym gear that
@@ -177,9 +178,12 @@ Everything to paste is in [store-listing.md](store-listing.md).
 
 - [ ] **Subtitle**, **Promotional Text**, **Description**, **What's New in This
       Version**.
-- [ ] **Screenshots**: on the iPhone tab the ten in `store/screenshots/1.2.0/`,
-      in their numbered order (they replace 1.1.0's, now in
-      `store/screenshots/1.1.0/`), and on the
+- [ ] **Screenshots**: under **iPhone Medium Display** (the one Apple
+      requires) the ten in `store/screenshots/1.2.0-medium/`, and under
+      **iPhone Large Display** the ten in `store/screenshots/1.2.0/`, both in
+      their numbered order (they replace 1.1.0's, now in
+      `store/screenshots/1.1.0/`). Skip iPhone Duo: Apple only requires it from
+      April 2027. On the
       **Apple Watch** tab the three in `store/screenshots/watch/` (not the
       `originals-42mm` ones, which Apple refuses).
 - [ ] **Header and search results** (Product Page Information → Header and

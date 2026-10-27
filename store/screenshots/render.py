@@ -4,9 +4,11 @@ Builds the App Store screenshots from the raw ones, with the words in
 captions.json:
 
 - iPhone: each raw screenshot in raw-1.2.0/, framed under its caption, at
-  1290 x 2796, into 1.2.0/. That is a size Apple takes for the 6.9-inch
-  display, which it scales down for every smaller iPhone, so it's the only set
-  to upload, whatever phone took the raws.
+  1290 x 2796 into 1.2.0/ for App Store Connect's iPhone Large Display, and
+  at 1179 x 2556 into 1.2.0-medium/ for iPhone Medium Display. Medium is the
+  one Apple requires; it scales screenshots down for smaller iPhones but never
+  across, and each slot takes only its own sizes. The two are the same shape,
+  so the medium set is the large one resized, nothing cropped.
 - Apple Watch: each screenshot in watch/originals-42mm/, drawn in a watch
   under its caption, at 416 x 496, into watch/. A 42 mm Series 10 or 11 takes
   374 x 446, which App Store Connect refuses; 416 x 496 is the same shape.
@@ -58,6 +60,7 @@ from PIL import Image, ImageDraw, ImageFilter
 HERE = os.path.dirname(os.path.abspath(__file__))
 RAW = os.path.join(HERE, "raw-1.2.0")
 OUT = os.path.join(HERE, "1.2.0")
+MEDIUM_OUT = os.path.join(HERE, "1.2.0-medium")
 WATCH_RAW = os.path.join(HERE, "watch", "originals-42mm")
 WATCH_OUT = os.path.join(HERE, "watch")
 HEADER_OUT = os.path.join(HERE, "header")
@@ -65,6 +68,7 @@ HEADER_OUT = os.path.join(HERE, "header")
 # that can be served to Chrome here, set heavy and tight as the app's titles.
 FONT = os.path.join(HERE, "..", "..", "site", "fonts", "inter.woff2")
 WIDTH, HEIGHT = 1290, 2796
+MEDIUM_SIZE = (1179, 2556)
 WATCH_SIZE = (416, 496)
 HEADER_SIZE = (5244, 2950)
 # The "Art Safe Area" layer of Apple's universal template
@@ -476,7 +480,10 @@ def render(shot: dict, index: int, plain: bool, browser: str, work: str) -> str:
     page = os.path.join(work, shot["out"] + ".html")
     with open(page, "w") as f:
         f.write(page_html)
-    return screenshot(page, os.path.join(OUT, shot["out"]), (WIDTH, HEIGHT), browser)
+    out = screenshot(page, os.path.join(OUT, shot["out"]), (WIDTH, HEIGHT), browser)
+    os.makedirs(MEDIUM_OUT, exist_ok=True)
+    Image.open(out).resize(MEDIUM_SIZE, Image.LANCZOS).save(os.path.join(MEDIUM_OUT, shot["out"]), optimize=True)
+    return out
 
 
 def render_watch(shot: dict, index: int, plain: bool, browser: str, work: str) -> str:
