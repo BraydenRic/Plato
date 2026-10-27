@@ -67,9 +67,8 @@ export default function ExerciseDetailScreen() {
   return (
     <View style={styles.safe}>
       <View style={styles.header}>
-        <View style={{ flex: 1, gap: 2 }}>
+        <View style={{ flex: 1 }}>
           <Text style={styles.title} maxFontSizeMultiplier={FontScaleCap.title}>{exercise.name}</Text>
-          <Text style={[styles.meta, { color: theme.accentText }]}>{exercise.category}</Text>
         </View>
         <Pressable
           onPress={() => router.push({ pathname: "/create-exercise", params: { exerciseId: exercise.id } })}
@@ -86,10 +85,24 @@ export default function ExerciseDetailScreen() {
       </View>
 
       <ScrollView contentContainerStyle={styles.scroll}>
+        {/* The muscles, the main one first and filled, as the map below
+            draws it in the stronger colour. The category used to sit under
+            the name too, and was nearly always the main muscle again
+            ("Chest", then "Chest · Triceps · Shoulders"). */}
         <View style={styles.muscleChips}>
-          {exercise.musclesWorked.map((m) => (
-            <View key={m} style={[styles.muscleChip, { backgroundColor: theme.accentSoft }]}>
-              <Text style={[styles.muscleChipText, { color: theme.accentText }]}>{m}</Text>
+          {exercise.musclesWorked.map((m, i) => (
+            <View
+              key={m}
+              accessible
+              accessibilityLabel={i === 0 ? `${m}, main muscle` : m}
+              style={[styles.muscleChip, { backgroundColor: i === 0 ? theme.accent : theme.accentSoft }]}>
+              <Text
+                style={[
+                  styles.muscleChipText,
+                  i === 0 ? { color: theme.onAccent, fontWeight: "700" } : { color: theme.accentText },
+                ]}>
+                {m}
+              </Text>
             </View>
           ))}
         </View>
@@ -270,10 +283,6 @@ const useStyles = makeStyles((c) => ({
     fontWeight: "800",
     color: c.text,
     letterSpacing: -0.3,
-  },
-  meta: {
-    fontSize: 13,
-    fontWeight: "600",
   },
   closeButton: {
     width: 32,

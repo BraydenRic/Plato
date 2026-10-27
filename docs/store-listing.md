@@ -197,7 +197,7 @@ The privacy policy and support contact are in the app under Profile → Help.
 
 ## Checklist for the version page
 
-- Build: **1.2.0 (76)**, once it's been checked on a phone and watch (next-release.md, step 2).
+- Build: **1.2.0 (77)**, once it's been checked on a phone and watch (next-release.md, step 2).
   Everything since 1.1.0: offline mode, 600 exercises, mid-workout reorder, the Apple Watch app,
   cardio sessions, the Start workout picker, Help in Profile, Watch a demo, the week strip's
   icons, shorter rests and Restore original.

@@ -18,6 +18,7 @@ jest.mock("@/context/AuthContext", () => ({
     discardGuestData: jest.fn(),
     signOut: jest.fn(),
     updateDisplayName: mockUpdateDisplayName,
+    offlineDiagnostics: jest.fn(async () => "Offline: all synced"),
     deleteAccount: jest.fn(),
     refreshUser: jest.fn(async () => {}),
     resendVerificationEmail: jest.fn(),
@@ -115,13 +116,39 @@ it("never cuts the rows' text off, at any text size or width", () => {
 });
 
 // EAS hands the build number out at build time, so the config's copy stays at
-// app.json's "1". The installed app's own number is the one support needs.
-it("says which build this is by the installed app's number, not the config's", () => {
+// app.json's "1". The installed app's own number is the one support needs; it
+// goes in the email, and Profile no longer shows a version line.
+it("tells support which build this is by the installed app's number, not the config's", () => {
   render(<ProfileScreen />);
-  expect(screen.getByText("Version 1.2.0 (73)")).toBeTruthy();
+  expect(screen.queryByText(/^Version /)).toBeNull();
 
   fireEvent.press(screen.getByRole("link", { name: "Contact support" }));
   expect(decodeURIComponent(openURL.mock.calls[0][0].split("&body=")[1])).toContain("Plato 1.2.0 (73)");
+});
+
+// Hidden every time Profile opens, so it isn't in a screenshot or on show to
+// someone looking over a shoulder; one tap shows it.
+describe("your email", () => {
+  it("is hidden until asked for, then shown, then hidden again", () => {
+    render(<ProfileScreen />);
+    expect(screen.queryByText("lifter@example.com")).toBeNull();
+    expect(screen.getByLabelText("Email hidden")).toBeTruthy();
+
+    fireEvent.press(screen.getByRole("button", { name: "Show email" }));
+    expect(screen.getByText("lifter@example.com")).toBeTruthy();
+
+    fireEvent.press(screen.getByRole("button", { name: "Hide email" }));
+    expect(screen.queryByText("lifter@example.com")).toBeNull();
+  });
+});
+
+// The diagnostics moved from the version line to a long press on the logo.
+it("still opens the diagnostics, from a long press on the logo", async () => {
+  render(<ProfileScreen />);
+  await act(async () => {
+    fireEvent(screen.getByTestId("profile-logo"), "longPress");
+  });
+  expect(alert).toHaveBeenCalledWith("Diagnostics", expect.stringContaining("Watch & cardio:"));
 });
 
 // The system prompt has no length limit, so Profile cuts the name to the cap

@@ -1,5 +1,5 @@
 import { act, fireEvent, render, screen } from "@testing-library/react-native";
-import { Alert, Linking } from "react-native";
+import { Alert, Linking, StyleSheet } from "react-native";
 
 import ExerciseDetailScreen from "../exercise/[id]";
 import type { Exercise } from "@/types";
@@ -44,7 +44,7 @@ jest.mock("@/hooks/use-exercise-library", () => ({
 }));
 
 jest.mock("@/context/ThemeContext", () => ({
-  useTheme: () => ({ accent: "#8b5cf6", accentSoft: "rgba(0,0,0,0.1)", accentText: "#c4b5fd" }),
+  useTheme: () => ({ accent: "#8b5cf6", accentSoft: "rgba(0,0,0,0.1)", accentText: "#c4b5fd", onAccent: "#fff" }),
 }));
 
 jest.mock("@expo/vector-icons/Ionicons", () => "Ionicons");
@@ -115,6 +115,18 @@ it("shows no toggle at all on an exercise the user invented", () => {
   // worse than no control.
   expect(screen.queryByLabelText(/How to do it/)).toBeNull();
   expect(screen.getByText("The one in the corner nobody uses.")).toBeTruthy();
+});
+
+// The category used to sit under the name, and was nearly always the main
+// muscle again. Now the main muscle is the filled chip, as on the map.
+it("fills the main muscle's chip and drops the category line", () => {
+  render(<ExerciseDetailScreen />);
+
+  expect(screen.queryByText("Chest")).toBeNull();
+  const main = screen.getByLabelText("chest, main muscle");
+  expect(StyleSheet.flatten(main.props.style).backgroundColor).toBe("#8b5cf6");
+  const other = screen.getByLabelText("triceps");
+  expect(StyleSheet.flatten(other.props.style).backgroundColor).toBe("rgba(0,0,0,0.1)");
 });
 
 // A demo is one tap away on every exercise: a YouTube search, which opens the

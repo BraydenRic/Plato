@@ -22,6 +22,11 @@ jest.mock("@/context/ThemeContext", () => ({
 }));
 jest.mock("@expo/vector-icons/Ionicons", () => "Ionicons");
 jest.mock("@/components/muscle-map", () => ({ MuscleMap: () => null }));
+// Stands in for the cardio section, so its place on the screen can be checked.
+jest.mock("@/components/cardio-stats", () => {
+  const { Text } = jest.requireActual("react-native");
+  return { CardioStats: () => <Text>Cardio section</Text> };
+});
 jest.mock("@/lib/data", () => ({
   computeStats: () => ({
     totalCompletedWorkouts: 1,
@@ -100,4 +105,15 @@ it("leaves out last week", () => {
   // Only the lifetime tile: no weekly column without a set this week.
   expect(screen.getAllByText("Sets")).toHaveLength(1);
   expect(screen.queryByText("Legs")).toBeNull();
+});
+
+// Plato is a lifting log first: cardio comes after the muscles and the volume.
+it("puts cardio last, under the muscle map and the volume chart", () => {
+  render(<StatsScreen />);
+  // Where each section's text falls in the rendered screen, top to bottom.
+  const rendered = JSON.stringify(screen.toJSON());
+  const at = (text: string) => rendered.indexOf(text);
+  expect(at("Muscles this week")).toBeGreaterThan(-1);
+  expect(at("Cardio section")).toBeGreaterThan(at("Muscles this week"));
+  expect(at("Cardio section")).toBeGreaterThan(at("Volume"));
 });

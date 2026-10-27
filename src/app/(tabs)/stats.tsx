@@ -127,9 +127,6 @@ export default function StatsScreen() {
           <StatCard label="Time" value={formatDuration(stats.totalWorkoutTimeMinutes)} />
         </View>
 
-        {/* Renders nothing until there's cardio with a distance to show. */}
-        <CardioStats completed={completed} />
-
         <View>
           <SectionLabel>Muscles this week</SectionLabel>
           <Card style={styles.muscleCard}>
@@ -205,6 +202,10 @@ export default function StatsScreen() {
             )}
           </Card>
         </View>
+
+        {/* Last, under the lifting sections: Plato is a lifting log first.
+            Renders nothing until there's cardio with a distance to show. */}
+        <CardioStats completed={completed} />
       </ScrollView>
     </View>
   );

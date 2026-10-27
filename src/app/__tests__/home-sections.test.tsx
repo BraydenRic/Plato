@@ -115,20 +115,37 @@ describe("History", () => {
 });
 
 describe("the weekly split", () => {
-  it("folds to one line naming the days that have a template", async () => {
+  // Short enough to fit beside "Weekly split" whole: naming every day and
+  // its template ran out of room and trailed off in "…".
+  it("folds to one line counting the days that have a template", async () => {
     mockTemplates = [workout("t1", "Push", { isTemplate: true }), workout("t2", "Legs", { isTemplate: true })];
     // getDay order: Sunday first. Monday → Push, Friday → Legs.
     mockPlan = [null, "t1", null, null, null, "t2", null];
     await renderHome();
 
-    expect(screen.getByText(/Mon Push · Fri Legs/)).toBeTruthy();
+    const summary = screen.getByText("2 days a week");
+    expect(summary.props.numberOfLines).toBeUndefined();
     expect(screen.queryByText("Wednesday")).toBeNull();
+  });
+
+  it("says one day in the singular", async () => {
+    mockTemplates = [workout("t1", "Push", { isTemplate: true })];
+    mockPlan = [null, "t1", null, null, null, null, null];
+    await renderHome();
+    expect(screen.getByText("1 day a week")).toBeTruthy();
+  });
+
+  it("says every day when all seven have one", async () => {
+    mockTemplates = [workout("t1", "Push", { isTemplate: true })];
+    mockPlan = ["t1", "t1", "t1", "t1", "t1", "t1", "t1"];
+    await renderHome();
+    expect(screen.getByText("Every day")).toBeTruthy();
   });
 
   it("opens to the seven days in place, and folds again", async () => {
     await renderHome();
 
-    expect(screen.getByText("Set a template for each weekday")).toBeTruthy();
+    expect(screen.getByText("Not set")).toBeTruthy();
     fireEvent.press(screen.getByTestId("split-toggle"));
     expect(screen.getByText("Wednesday")).toBeTruthy();
     expect(screen.getAllByText("Rest")).toHaveLength(7);

@@ -108,12 +108,13 @@ export default function WorkoutsScreen() {
   const { fontScale, width: screenWidth } = useWindowDimensions();
   const dayMarks = dayMarksFor(screenWidth);
   const splitDayWidth = 88 * Math.min(Math.max(fontScale, 1), FontScaleCap.grid);
-  // What the folded split says: the days that have a template, in week order.
+  // What the folded split says: how many days have a template. Short enough
+  // to fit beside "Weekly split" whole; listing the days and their templates
+  // ran out of room and trailed off in "…". Which days is on the calendar
+  // above, and one tap opens all seven.
+  const splitDays = weekDays.filter((day) => templateForDay(day)).length;
   const splitSummary =
-    weekDays
-      .filter((day) => templateForDay(day))
-      .map((day) => `${day.toLocaleDateString(undefined, { weekday: "short" })} ${templateForDay(day)!.name}`)
-      .join(" · ") || "Set a template for each weekday";
+    splitDays === 0 ? "Not set" : splitDays === 7 ? "Every day" : `${splitDays} day${splitDays === 1 ? "" : "s"} a week`;
 
   /**
    * The workout we are in the middle of opening, hidden from this screen for
@@ -688,9 +689,7 @@ export default function WorkoutsScreen() {
               testID="split-toggle"
               style={styles.splitHeader}>
               <Text style={styles.rowTitle}>Weekly split</Text>
-              <Text style={styles.splitSummary} numberOfLines={1}>
-                {splitSummary}
-              </Text>
+              <Text style={styles.splitSummary}>{splitSummary}</Text>
               <Ionicons name={splitOpen ? "chevron-up" : "chevron-down"} size={16} color={palette.textTertiary} />
             </Pressable>
             {splitOpen &&

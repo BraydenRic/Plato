@@ -23,7 +23,7 @@ import { readWatchTrace } from "@/lib/watch-trace";
 // produce it by tapping through.
 const DELETE_WORD = "DELETE";
 
-// Which build this is: on the version line, and in a support email. The build
+// Which build this is, for a support email. The build
 // number is read from the installed app's Info.plist: EAS hands it out at build
 // time, so the config's copy stays at app.json's "1". Expo Go has no number of
 // its own, hence the fallback.
@@ -85,6 +85,16 @@ export default function ProfileScreen() {
   const { defaultSets, setDefaultSets } = useDefaultSets();
   const { log: bodyweightLog, latest: latestWeight, record: recordWeight } = useBodyweight();
   const [sparkWidth, setSparkWidth] = useState(0);
+  const [emailShown, setEmailShown] = useState(false);
+
+  function showDiagnostics() {
+    Promise.all([offlineDiagnostics(), readWatchTrace()]).then(([report, trace]) =>
+      Alert.alert(
+        "Diagnostics",
+        `${report}\n\nWatch & cardio:\n${trace.length ? trace.slice(-15).join("\n") : "Nothing yet"}`
+      )
+    );
+  }
 
   // Stored in lbs like every other weight; the card speaks the chosen unit.
   const shownWeight =
@@ -317,7 +327,14 @@ export default function ProfileScreen() {
         </View>
 
         <Card style={styles.accountCard}>
-          <View
+          {/* A long press here opens the diagnostics (offline sync and the
+              watch's trace) for chasing a bug with support. It used to be on a
+              version line at the bottom of the screen, which is gone. */}
+          <Pressable
+            onLongPress={showDiagnostics}
+            delayLongPress={600}
+            accessible={false}
+            testID="profile-logo"
             style={[styles.avatar, { backgroundColor: theme.accentSoft, borderColor: theme.accent }]}>
             <Image
               source={require("../../../assets/images/plato-logo.png")}
@@ -325,14 +342,31 @@ export default function ProfileScreen() {
               contentFit="contain"
               tintColor={theme.accentText}
             />
-          </View>
+          </Pressable>
           <View style={{ flex: 1, gap: 2 }}>
             <Text style={styles.name} maxFontSizeMultiplier={FontScaleCap.heading}>{isGuest ? "Guest" : user?.displayName ?? "Athlete"}</Text>
-            {/* An email has no spaces to wrap at, so it truncates; the guest
-                line is a sentence and wraps like one. */}
-            <Text style={styles.email} numberOfLines={isGuest ? undefined : 1}>
-              {isGuest ? "Saved on this phone" : user?.email}
-            </Text>
+            {isGuest ? (
+              <Text style={styles.email}>Saved on this phone</Text>
+            ) : (
+              // Hidden until asked for, every time Profile opens, so it isn't
+              // on show in a screenshot or to someone looking over a shoulder.
+              // The same dots whatever the length, which says nothing either.
+              <View style={styles.emailRow}>
+                <Text
+                  style={[styles.email, styles.emailText]}
+                  numberOfLines={1}
+                  accessibilityLabel={emailShown ? user?.email ?? undefined : "Email hidden"}>
+                  {emailShown ? user?.email : "••••••••••••"}
+                </Text>
+                <Pressable
+                  onPress={() => setEmailShown((shown) => !shown)}
+                  hitSlop={12}
+                  accessibilityRole="button"
+                  accessibilityLabel={emailShown ? "Hide email" : "Show email"}>
+                  <Ionicons name={emailShown ? "eye-off-outline" : "eye-outline"} size={15} color={palette.textTertiary} />
+                </Pressable>
+              </View>
+            )}
           </View>
           {/* Guests have no Firebase profile to rename. */}
           {!isGuest && (
@@ -647,18 +681,6 @@ export default function ProfileScreen() {
         {/* Which build this is, for bug reports. Long-pressing it shows the
             state of the offline copy: the one part of the app whose failures
             happen out of sight, on the phone, between launches. */}
-        <Pressable
-          onLongPress={() => {
-            Promise.all([offlineDiagnostics(), readWatchTrace()]).then(([report, trace]) =>
-              Alert.alert(
-                "Diagnostics",
-                `${report}\n\nWatch & cardio:\n${trace.length ? trace.slice(-15).join("\n") : "Nothing yet"}`
-              )
-            );
-          }}
-          delayLongPress={600}>
-          <Text style={styles.version}>Version {APP_VERSION}</Text>
-        </Pressable>
       </ScrollView>
     </View>
   );
@@ -700,11 +722,6 @@ function HelpRow({
 }
 
 const useStyles = makeStyles((c) => ({
-  version: {
-    textAlign: "center",
-    fontSize: 12,
-    color: c.textTertiary,
-  },
   safe: {
     flex: 1,
     backgroundColor: c.bg,
@@ -801,6 +818,16 @@ const useStyles = makeStyles((c) => ({
   email: {
     fontSize: 13,
     color: c.textTertiary,
+  },
+  emailRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  // An email has no spaces to wrap at, so it truncates rather than pushing
+  // the eye off the card.
+  emailText: {
+    flexShrink: 1,
   },
   prefCard: {
     flexDirection: "row",

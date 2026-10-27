@@ -1,4 +1,4 @@
-# Next release: 1.2.0, build 76
+# Next release: 1.2.0, build 77
 
 Everything since 1.1.0 goes out in this one: offline mode, 600 exercises,
 mid-workout reorder, the Apple Watch app, cardio sessions, the Start workout
@@ -29,16 +29,16 @@ npx firebase-tools deploy --only hosting --project workouttracker-4e0c8
       is up: merged early, the live listing's links would lead nowhere.
 
 Done on October 26, 2026: the site is up, the old pages forward to it, and
-build 75 was started from main. Build 76 followed the same day with the last
-changes for this release (the step 2 list marks them **new in 76**); it's the
-one to check and submit. Keep the old pages until 1.2.0 is out (step 7).
+build 75 was started from main. Builds 76 and 77 followed the same day with
+the last changes for this release (the step 2 list marks them **new in 76** and
+**new in 77**); 77 is the one to check and submit. Keep the old pages until 1.2.0 is out (step 7).
 After changing anything in `site/`, publish it again with
 `npx firebase-tools deploy --only hosting --project workouttracker-4e0c8`.
 
 If `plato-workouts` turns out to be taken, pick another name and say so: it's
 in `firebase.json`, `src/constants/links.ts` and these docs.
 
-## 2. Check build 76 on your phone and watch
+## 2. Check build 77 on your phone and watch
 
 Install it from TestFlight; the watch app comes with it (iPhone Watch app →
 Available Apps, if it doesn't appear on its own). If anything here is wrong,
@@ -55,9 +55,9 @@ it gets fixed and built again before going on.
 - [ ] **Live Activity**: during a workout it's on the lock screen, with the rest
       countdown after a set. Build 74 changed how it's packaged, so this one
       matters.
-- [ ] **Profile → Help**: Contact support opens Mail; Privacy policy opens
-      plato-workouts.web.app/privacy. The version line at the bottom says
-      **1.2.0 (76)**, not (1).
+- [ ] **Profile → Help**: Contact support opens Mail, and the draft ends with
+      **Plato 1.2.0 (77)**, not (1); Privacy policy opens
+      plato-workouts.web.app/privacy.
 - [ ] **Stats**: the cardio card's line across the weeks says "avg" and a number.
 - [ ] **Light mode** (Profile → Appearance → Light): on an exercise page, the
       muscles not worked are light grey, not charcoal.
@@ -77,6 +77,15 @@ it gets fixed and built again before going on.
       reopen its edit screen: grey Restore original under Save puts it back.
       Exercises → ↻ (Restore default exercises) brings back hidden ones and
       keeps a custom exercise you made.
+- [ ] **Weekly split** (new in 77): folded, Home's row says "Not set", "3 days a
+      week" or "Every day", whole, with no "…".
+- [ ] **Profile** (new in 77): your email shows as dots until you tap the eye
+      beside it. No version line at the bottom; long-pressing the Plato logo
+      on the account card still opens Diagnostics.
+- [ ] **Exercise page** (new in 77): no category line under the name; the main
+      muscle is the filled chip, the rest soft.
+- [ ] **Stats** (new in 77): the cardio section is last, under Muscles this
+      week and Volume.
 
 ## 3. Take Apple Watch screenshots
 
@@ -119,7 +128,7 @@ Everything to paste is in [store-listing.md](store-listing.md).
 - [ ] **Screenshots**: the iPhone set in `store/screenshots/`, and on the
       **Apple Watch** tab the three in `store/screenshots/watch/` (not the
       `originals-42mm` ones, which Apple refuses).
-- [ ] **Build**: 1.2.0 (76).
+- [ ] **Build**: 1.2.0 (77).
 - [ ] **App Review Information → Notes**: the Notes for App Review block. It
       says how Health and the watch are used; leaving the old "No HealthKit
       access" in would be grounds for rejection.
