@@ -42,7 +42,7 @@ workout,tracker,gym,lifting,weightlifting,strength,cardio,running,watch,1rm,sets
 any time, with no new version.
 
 ```
-Free. No ads, no pop-ups, no paywalls. Plato logs your lifts and your cardio on iPhone and Apple Watch, shows you what's working, then gets out of your way.
+Free. No ads, no pop-ups, no paywalls. Plato logs your lifts and your cardio on iPhone and Apple Watch, charts your progress, then gets out of your way.
 ```
 
 ## Description
