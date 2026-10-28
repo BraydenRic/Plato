@@ -16,11 +16,14 @@ captions.json:
   and later, into header-and-search/. The header, 3840 x 1646, is just the
   words, filling the safe area of Apple's header template (a band through the
   middle, which is about what an iPhone shows) with gym gear round them. The
-  search results image is 3840 x 2560, the search card's own 3:2 shape, so it
-  shows whole: the words between two phones. (It was 5244 x 2950, Apple's
-  16:9 "universal" size, which the card crops; on an iPhone the crop kept
-  little more than the safe area, so the card showed the words alone,
-  zoomed in, though App Store Connect's preview looked fine.)
+  search results image is 3840 x 2560, the search card's own 3:2 shape, laid
+  out for the band of Apple's template that every crop keeps: the words in
+  it on the left, one big phone on the right that starts in it and runs off
+  the bottom, so a tight crop shows the words and the top of the app, and a
+  loose one more of the phone. (It was 5244 x 2950, Apple's 16:9 "universal"
+  size, with a phone either side of the words; on an iPhone the live card
+  kept little more than the words, zoomed in, though App Store Connect's
+  preview looked fine.)
 
     python3 store/screenshots/render.py           # everything
     python3 store/screenshots/render.py 01 07     # just these iPhone ones
@@ -80,9 +83,13 @@ WATCH_SIZE = (416, 496)
 # static.psd and creative_assets-universal_asset_template-static.psd.
 HEADER_SIZE = (3840, 1646)
 HEADER_SAFE = (1097, 493, 2743, 1154)
-# The search card is 3:2, and Apple takes 1920 x 1280 to 3840 x 2560 for it;
-# at that shape nothing is cropped, so the layout below is the card.
+# The search card is 3:2, and Apple takes 1920 x 1280 to 3840 x 2560 for it.
+# Even so it's cropped to fit each device and orientation, keeping at least
+# the "Art Safe Area" of Apple's search template: a band 56% wide and 40%
+# tall (as measured from the template; Apple publishes no numbers). An
+# iPhone's card is about 365 pt wide.
 SEARCH_SIZE = (3840, 2560)
+SEARCH_SAFE = (836, 765, 3004, 1795)
 
 # Tailwind's 800 of each of the app's accents (theme.ts uses the 500s): deep
 # enough that white text clears 7:1 on every one. Graphite is zinc.
@@ -374,20 +381,20 @@ SEARCH_PAGE = """<!doctype html>
 html, body {{ margin: 0; width: {width}px; height: {height}px; overflow: hidden; background: {bg}; }}
 body {{ position: relative; font-family: "Inter", sans-serif; color: #fff; -webkit-font-smoothing: antialiased; }}
 .gear {{ position: absolute; inset: 0; width: 100%; height: 100%; }}
-.words {{ position: absolute; left: {safe_x}px; top: {safe_y}px; width: {safe_w}px; height: {safe_h}px;
-          display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; }}
-h1 {{ margin: 0; font-size: 214px; font-weight: 800; line-height: 1.0; letter-spacing: -0.045em; }}
+/* The words fill the left of the safe band, left-aligned, centred top to
+   bottom in it. */
+.words {{ position: absolute; left: {words_x}px; top: {words_y}px; width: {words_w}px; height: {words_h}px;
+          display: flex; flex-direction: column; justify-content: center; }}
+h1 {{ margin: 0; font-size: {headline_px}px; font-weight: 800; line-height: 1.0; letter-spacing: -0.045em; }}
 .highlight {{ color: {highlight}; }}
-p {{ margin: 52px 0 0; font-size: 68px; font-weight: 500; line-height: 1.3; color: rgba(255,255,255,.9); text-wrap: balance; }}
-.phone {{ position: absolute; padding: 20px; background: #1c1c21; border-radius: 156px;
+p {{ margin: 44px 0 0; font-size: {subline_px}px; font-weight: 500; line-height: 1.3; color: rgba(255,255,255,.9); text-wrap: balance; }}
+.phone {{ position: absolute; padding: 22px; background: #1c1c21; border-radius: 170px;
           box-shadow: inset 0 0 0 4px rgba(255,255,255,.08), 0 120px 220px -60px rgba(0,0,0,.6); }}
-.phone img {{ display: block; height: {phone_h}px; width: auto; border-radius: 136px; }}
-.phone .status {{ position: absolute; top: 20px; left: 20px; width: calc(100% - 40px); height: calc(100% - 40px); }}
-{watch_css}
+.phone img {{ display: block; height: {phone_h}px; width: auto; border-radius: 148px; }}
+.phone .status {{ position: absolute; top: 22px; left: 22px; width: calc(100% - 44px); height: calc(100% - 44px); }}
 </style></head><body>
 {gear}
-{phones}
-{watch}
+{phone}
 <div class="words"><h1>{headline}</h1><p>{subline}</p></div>
 </body></html>
 """
@@ -402,12 +409,18 @@ SEARCH_GEAR = [
     (2300, 2150, 1.15, 0, lambda: plate("45")),
 ]
 CREATIVE_GEAR_OPACITY = 0.67
-# Two whole phones in from the edges, the words between them. On an iPhone the
-# card is about 1080 px wide, so the 214 px headline shows at about 21 pt.
-SEARCH_PHONE_H = 1880
-SEARCH_EDGE = 170
-SEARCH_PHONE_GAP = 110
-SEARCH_WATCH_SCALE = 1.3
+# The words take the left of the safe band, in from its edge; the phone's top
+# sits just above the band, so its status bar and title show in the tightest
+# crop, its right edge at the band's, and it runs off the bottom. If an iPhone
+# shows only the band (2168 px across, at about 365 pt), the 160 px headline
+# is about 27 pt and the 66 px line about 11 pt.
+SEARCH_WORDS_INSET = 90
+SEARCH_WORDS_W = 960
+SEARCH_HEADLINE_PX = 160
+SEARCH_SUBLINE_PX = 66
+SEARCH_PHONE_H = 2400
+SEARCH_PHONE_X = 1890
+SEARCH_PHONE_TOP = 690
 
 
 # On the cardio screenshot, the phone moves left to make room for the watch.
@@ -544,35 +557,20 @@ def render_watch(shot: dict, index: int, plain: bool, browser: str, work: str) -
 
 
 def render_search(search: dict, phones: dict, browser: str, work: str) -> str:
-    """A phone at each side, centred top to bottom, the words between them,
-    the watch in front of the right phone."""
+    """The words in the left of the safe band, one big phone at the right
+    running off the bottom."""
     width, height = SEARCH_SIZE
-    phone_w = SEARCH_PHONE_H * RAW_SIZE[0] / RAW_SIZE[1]
-    frame_w = phone_w + 40
-    top = (height - SEARCH_PHONE_H - 40) / 2
-    left_x = SEARCH_EDGE
-    right_x = width - SEARCH_EDGE - frame_w
-    # The words take the space between the phones, as tall as the phones.
-    safe_x, safe_x2 = left_x + frame_w + SEARCH_PHONE_GAP, right_x - SEARCH_PHONE_GAP
-    safe_y, safe_y2 = top, top + SEARCH_PHONE_H + 40
-
-    def phone(out: str, left: float) -> str:
-        shot = phones[out]
-        raw = "file://" + clean_status_bar(shot, work)
-        lock = shot.get("statusBar") == "lock"
-        return (f'<div class="phone" style="left:{left:.0f}px;top:{top:.0f}px"><img src="{raw}" alt="">'
-                f'{STATUS_BAR.format(time="" if lock else STATUS_TIME)}</div>')
-
-    left_phone, right_phone = search["phones"]
+    safe_x, safe_y, safe_x2, safe_y2 = SEARCH_SAFE
+    shot = phones[search["phones"][0]]
+    raw = "file://" + clean_status_bar(shot, work)
+    lock = shot.get("statusBar") == "lock"
+    phone_html = (f'<div class="phone" style="left:{SEARCH_PHONE_X}px;top:{SEARCH_PHONE_TOP}px"><img src="{raw}" alt="">'
+                  f'{STATUS_BAR.format(time="" if lock else STATUS_TIME)}</div>')
     page_html = SEARCH_PAGE.format(
         font="file://" + os.path.abspath(FONT), width=width, height=height, bg=ACCENT[search["accent"]],
-        highlight=HIGHLIGHT, safe_x=f"{safe_x:.0f}", safe_y=f"{safe_y:.0f}",
-        safe_w=f"{safe_x2 - safe_x:.0f}", safe_h=f"{safe_y2 - safe_y:.0f}",
-        phone_h=SEARCH_PHONE_H, watch_css=watch_css(SEARCH_WATCH_SCALE),
-        gear=creative_gear(SEARCH_GEAR, SEARCH_SIZE),
-        phones=phone(left_phone, left_x) + phone(right_phone, right_x),
-        watch=watch_html("file://" + clean_watch_clock(search["watch"], work),
-                         f"left:{right_x - 200:.0f}px;top:{top + SEARCH_PHONE_H + 40 - 700:.0f}px"),
+        highlight=HIGHLIGHT, words_x=safe_x + SEARCH_WORDS_INSET, words_y=safe_y, words_w=SEARCH_WORDS_W, words_h=safe_y2 - safe_y,
+        headline_px=SEARCH_HEADLINE_PX, subline_px=SEARCH_SUBLINE_PX, phone_h=SEARCH_PHONE_H,
+        gear=creative_gear(SEARCH_GEAR, SEARCH_SIZE), phone=phone_html,
         headline=headline_html(search, True), subline=html.escape(search["subline"]),
     )
     page = os.path.join(work, "search.html")

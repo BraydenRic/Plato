@@ -218,11 +218,16 @@ The privacy policy and support contact are in the app under Profile → Help.
   step 3).
 - Header and search results (iOS 27 and later), in `store/screenshots/header-and-search/`:
   `header.png` (3840 × 1646) under Header, just the words, and `search-results.png`
-  (3840 × 2560) under Search Results, the words between two phones. The search card is 3:2,
-  and Apple takes 1920 × 1280 to 3840 × 2560 for it; at that shape it shows whole. The first
-  upload was 5244 × 2950, the 16:9 "universal" size, which the card crops: App Store
-  Connect's preview looked fine, but on an iPhone the live card kept little more than the
-  middle, so it showed the words alone, zoomed in. "Use header asset in search results"
+  (3840 × 2560) under Search Results: the words on the left, one big phone on the right
+  running off the bottom. The search card is 3:2 (Apple takes 1920 × 1280 to 3840 × 2560),
+  but it's still cropped per device and orientation, keeping at least the "Art Safe Area" of
+  Apple's search template, a band through the middle (x 836–3004, y 765–1795, as measured
+  from the template). The words sit inside that band and the phone starts just above it, so
+  the tightest crop shows the words and the top of the app, and a loose one more of the
+  phone. The first upload was 5244 × 2950, the 16:9 "universal" size, with a phone either
+  side of the words: App Store Connect's preview looked fine, but on an iPhone the live card
+  kept little more than the words, zoomed in. Check the new one in Device Preview on an
+  iPhone before submitting. "Use header asset in search results"
   stays unticked: one image cropped for both left the header too zoomed in.
   Their words are in `captions.json` under "header" and "search", and they keep to Apple's
   rules for these: no prices, web addresses, © or other platforms' logos.

@@ -38,8 +38,11 @@ App Store, step 7.
    Header and Search Results → Search Results, upload the new
    `store/screenshots/header-and-search/search-results.png` (3840 × 2560).
    The first one was 16:9 and the live iPhone card cropped it to the words
-   alone; this one is the card's own 3:2 and shows whole. It needs no new
-   version. Check it on a phone once it's live.
+   alone. This one is the card's own 3:2, laid out so even the tightest
+   crop Apple's template allows shows the words and the top of the app.
+   The page for the live version won't take it (the upload is greyed out),
+   so it goes on the next version, 1.2.1. Check it in Device Preview on an
+   iPhone, and on a phone once it's live.
 2. Step 7: 1.2.0 was approved and is on the App Store (October 27), so:
    check the listing's support and privacy links, delete the plato-support
    repo, make this repo private, and bump the version before the next build.
