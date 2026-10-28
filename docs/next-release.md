@@ -9,7 +9,15 @@ changed (`app.json` and `package.json` say 1.2.1). Its steps:
    comes out as 1.2.1 (78) on TestFlight.
 2. In App Store Connect, add version **1.2.1** (+ next to iOS App).
 3. **What's New:** the 1.2.1 block in [store-listing.md](store-listing.md).
-   Everything else on the page carries over from 1.2.0.
+   **Promotional Text** came up empty on the new version: paste it from
+   store-listing.md (it can be changed any time, the live version too).
+   The rest should carry over from 1.2.0; check the subtitle, description,
+   keywords, support URL, the screenshots (iPhone Medium and Large, Apple
+   Watch), the header image, the review notes and automatic release
+   against store-listing.md. Optionally add to the review notes: "1.2.1
+   only changes the App Store search results image; the app is the same
+   as 1.2.0." App Privacy, age rating and price are the app's, not the
+   version's, and need nothing.
 4. **Header and Search Results → Search Results:** upload
    `store/screenshots/header-and-search/search-results.png` (3840 × 2560),
    "Use header asset in search results" unticked. Check it in Device
