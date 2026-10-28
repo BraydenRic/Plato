@@ -120,6 +120,15 @@ YOUR DATA
 Plato is for training. Everything else got cut.
 ```
 
+## What's New in 1.2.1
+
+1.2.1 only changes Plato's image in App Store search results (the app is
+the same build as 1.2.0), so its note says just that:
+
+```
+A fresh look for Plato in App Store search. The app itself is unchanged.
+```
+
 ## What's New in This Version
 
 ```

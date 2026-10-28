@@ -1,4 +1,25 @@
-# Next release: 1.2.0, build 77
+# Next release: 1.2.1, for the search results image
+
+1.2.0 (77) is on the App Store (approved October 27, 2026). 1.2.1 exists
+only to carry the new search results image, which the live version's page
+won't take: the app inside it is the same as 77, with the version number
+changed (`app.json` and `package.json` say 1.2.1). Its steps:
+
+1. Build it: `gh workflow run ios-build.yml --ref main -f submit=true`. It
+   comes out as 1.2.1 (78) on TestFlight.
+2. In App Store Connect, add version **1.2.1** (+ next to iOS App).
+3. **What's New:** the 1.2.1 block in [store-listing.md](store-listing.md).
+   Everything else on the page carries over from 1.2.0.
+4. **Header and Search Results → Search Results:** upload
+   `store/screenshots/header-and-search/search-results.png` (3840 × 2560),
+   "Use header asset in search results" unticked. Check it in Device
+   Preview on an iPhone.
+5. **Build:** 1.2.1 (78). Then Add for Review and Submit.
+6. Once it's out, look at Plato in App Store search on a phone.
+
+The rest of this file is how 1.2.0 went out, kept for the next full release.
+
+# 1.2.0, build 77
 
 Everything since 1.1.0 goes out in this one: offline mode, 600 exercises,
 mid-workout reorder, the Apple Watch app, cardio sessions, the Start workout
@@ -45,7 +66,8 @@ App Store, step 7.
    iPhone, and on a phone once it's live.
 2. Step 7: 1.2.0 was approved and is on the App Store (October 27), so:
    check the listing's support and privacy links, delete the plato-support
-   repo, make this repo private, and bump the version before the next build.
+   repo and make this repo private. The version is bumped to 1.2.1 already
+   (see the top of this file).
 
 **For 1.2.1, if wanted** (none of these block 1.2.0): the header and search
 images and promotional text can change without a new version; screenshots
