@@ -34,9 +34,15 @@ App Store, step 7.
   Privacy) and submitted (step 5).
 
 **Next:**
-1. Step 6: wait for review. A rejection gets answered in App Store Connect,
-   or fixed in a new build chosen on the same 1.2.0 page.
-2. Step 7, once it's out.
+1. Replace the search results image (October 27): App Store Connect →
+   Header and Search Results → Search Results, upload the new
+   `store/screenshots/header-and-search/search-results.png` (3840 × 2560).
+   The first one was 16:9 and the live iPhone card cropped it to the words
+   alone; this one is the card's own 3:2 and shows whole. It needs no new
+   version. Check it on a phone once it's live.
+2. Step 7: 1.2.0 was approved and is on the App Store (October 27), so:
+   check the listing's support and privacy links, delete the plato-support
+   repo, make this repo private, and bump the version before the next build.
 
 **For 1.2.1, if wanted** (none of these block 1.2.0): the header and search
 images and promotional text can change without a new version; screenshots
@@ -203,8 +209,9 @@ Everything to paste is in [store-listing.md](store-listing.md).
       `originals-42mm` ones, which Apple refuses).
 - [ ] **Header and search results** (Product Page Information → Header and
       Search Results), from `store/screenshots/header-and-search/`:
-      `header.png` under **Header** and `search-results.png` under **Search
-      Results**, with "Use header asset in search results" unticked. Check
+      `header.png` under **Header** and `search-results.png` (3840 × 2560, the
+      card's own 3:2) under **Search Results**, with "Use header asset in
+      search results" unticked. Check
       both with Preview. Optional, shown on iOS 27 and later; without them
       the search card shows the first three screenshots. They can also be
       added after release, from Asset Library, without a new version.

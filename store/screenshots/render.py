@@ -16,8 +16,11 @@ captions.json:
   and later, into header-and-search/. The header, 3840 x 1646, is just the
   words, filling the safe area of Apple's header template (a band through the
   middle, which is about what an iPhone shows) with gym gear round them. The
-  search results image is 5244 x 2950, Apple's "universal" size: the words in
-  the safe area of its template, a phone either side where there's room.
+  search results image is 3840 x 2560, the search card's own 3:2 shape, so it
+  shows whole: the words between two phones. (It was 5244 x 2950, Apple's
+  16:9 "universal" size, which the card crops; on an iPhone the crop kept
+  little more than the safe area, so the card showed the words alone,
+  zoomed in, though App Store Connect's preview looked fine.)
 
     python3 store/screenshots/render.py           # everything
     python3 store/screenshots/render.py 01 07     # just these iPhone ones
@@ -77,8 +80,9 @@ WATCH_SIZE = (416, 496)
 # static.psd and creative_assets-universal_asset_template-static.psd.
 HEADER_SIZE = (3840, 1646)
 HEADER_SAFE = (1097, 493, 2743, 1154)
-SEARCH_SIZE = (5244, 2950)
-SEARCH_SAFE = (1921, 660, 3323, 1622)
+# The search card is 3:2, and Apple takes 1920 x 1280 to 3840 x 2560 for it;
+# at that shape nothing is cropped, so the layout below is the card.
+SEARCH_SIZE = (3840, 2560)
 
 # Tailwind's 800 of each of the app's accents (theme.ts uses the 500s): deep
 # enough that white text clears 7:1 on every one. Graphite is zinc.
@@ -392,16 +396,18 @@ p {{ margin: 52px 0 0; font-size: 68px; font-weight: 500; line-height: 1.3; colo
 # strong as on the screenshots, here and in the header: the gear fills a far
 # bigger canvas.
 SEARCH_GEAR = [
-    (330, 2480, 2.2, 0, lambda: plate("45")), (900, 330, 1.7, -18, dumbbell),
-    (4880, 520, 1.9, 0, lambda: plate("25")), (4950, 2420, 1.8, 0, kettlebell),
-    (2622, 2560, 2.6, 0, track_lanes), (2350, 300, 1.2, 0, kettlebell),
-    (3150, 2350, 1.5, 0, lambda: plate("45")),
+    (240, 2250, 1.7, 0, lambda: plate("45")), (650, 250, 1.3, -18, dumbbell),
+    (3580, 430, 1.45, 0, lambda: plate("25")), (3630, 2180, 1.4, 0, kettlebell),
+    (1920, 2330, 2.0, 0, track_lanes), (1720, 230, 0.95, 0, kettlebell),
+    (2300, 2150, 1.15, 0, lambda: plate("45")),
 ]
 CREATIVE_GEAR_OPACITY = 0.67
-# Whole phones, inside the 21:9 crop, 300 px either side of the words.
-SEARCH_PHONE_H = 2000
-SEARCH_PHONE_GAP = 300
-SEARCH_WATCH_SCALE = 1.45
+# Two whole phones in from the edges, the words between them. On an iPhone the
+# card is about 1080 px wide, so the 214 px headline shows at about 21 pt.
+SEARCH_PHONE_H = 1880
+SEARCH_EDGE = 170
+SEARCH_PHONE_GAP = 110
+SEARCH_WATCH_SCALE = 1.3
 
 
 # On the cardio screenshot, the phone moves left to make room for the watch.
@@ -538,12 +544,17 @@ def render_watch(shot: dict, index: int, plain: bool, browser: str, work: str) -
 
 
 def render_search(search: dict, phones: dict, browser: str, work: str) -> str:
-    """The words in the safe area, a phone either side mirrored about the
-    middle and centred top to bottom, the watch in front of the right one."""
+    """A phone at each side, centred top to bottom, the words between them,
+    the watch in front of the right phone."""
     width, height = SEARCH_SIZE
-    safe_x, safe_y, safe_x2, safe_y2 = SEARCH_SAFE
     phone_w = SEARCH_PHONE_H * RAW_SIZE[0] / RAW_SIZE[1]
+    frame_w = phone_w + 40
     top = (height - SEARCH_PHONE_H - 40) / 2
+    left_x = SEARCH_EDGE
+    right_x = width - SEARCH_EDGE - frame_w
+    # The words take the space between the phones, as tall as the phones.
+    safe_x, safe_x2 = left_x + frame_w + SEARCH_PHONE_GAP, right_x - SEARCH_PHONE_GAP
+    safe_y, safe_y2 = top, top + SEARCH_PHONE_H + 40
 
     def phone(out: str, left: float) -> str:
         shot = phones[out]
@@ -555,12 +566,13 @@ def render_search(search: dict, phones: dict, browser: str, work: str) -> str:
     left_phone, right_phone = search["phones"]
     page_html = SEARCH_PAGE.format(
         font="file://" + os.path.abspath(FONT), width=width, height=height, bg=ACCENT[search["accent"]],
-        highlight=HIGHLIGHT, safe_x=safe_x, safe_y=safe_y, safe_w=safe_x2 - safe_x, safe_h=safe_y2 - safe_y,
+        highlight=HIGHLIGHT, safe_x=f"{safe_x:.0f}", safe_y=f"{safe_y:.0f}",
+        safe_w=f"{safe_x2 - safe_x:.0f}", safe_h=f"{safe_y2 - safe_y:.0f}",
         phone_h=SEARCH_PHONE_H, watch_css=watch_css(SEARCH_WATCH_SCALE),
         gear=creative_gear(SEARCH_GEAR, SEARCH_SIZE),
-        phones=phone(left_phone, safe_x - SEARCH_PHONE_GAP - phone_w - 40) + phone(right_phone, safe_x2 + SEARCH_PHONE_GAP),
+        phones=phone(left_phone, left_x) + phone(right_phone, right_x),
         watch=watch_html("file://" + clean_watch_clock(search["watch"], work),
-                         f"left:{safe_x2 + 60:.0f}px;top:{top + SEARCH_PHONE_H + 40 - 760:.0f}px"),
+                         f"left:{right_x - 200:.0f}px;top:{top + SEARCH_PHONE_H + 40 - 700:.0f}px"),
         headline=headline_html(search, True), subline=html.escape(search["subline"]),
     )
     page = os.path.join(work, "search.html")
