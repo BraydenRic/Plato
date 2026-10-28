@@ -15,6 +15,18 @@ access the first time you start cardio, and a delete still asks "Delete
 workout?". Those are Apple's sheets or your own taps, so the copy promises
 no pop-ups *asking you to* rate, upgrade, subscribe or turn on notifications.
 
+**For the next release: don't say it three times.** On the product page the
+subtitle, the promotional text and the start of the description sit one
+under another, and in 1.2.0 all three open with the same claim ("No ads. No
+pop-ups. Ever." / "Free. No ads, no pop-ups, no paywalls…" / "Free. No ads.
+No pop-ups. No paywalls. No BS."). Let the subtitle carry the pitch, give
+the promotional text its own job (what's new, or what Plato does), and
+start the description where the promo leaves off, at "Plato is a workout
+tracker for lifting and cardio…", dropping its "Free. No ads…" opener.
+"WHAT YOU WON'T FIND" lower down still spells the promise out in full. The
+promotional text can change any time without a version; the description
+changes with the next one.
+
 ## Subtitle
 
 30 characters at most. It only changes with a new version. "No BS" stays out

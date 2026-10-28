@@ -13,6 +13,10 @@ waiting to ship.
   "Search results image" in [plans-for-later.md](plans-for-later.md),
   including why App Store Connect's preview can't be trusted for it.
 - **Header image:** still live, `store/screenshots/header-and-search/header.png`.
+- **Listing text:** the subtitle, promotional text and description's first
+  line all repeat "no ads, no pop-ups". Rework the description's opening
+  (and the promo, which can change any time) so they don't: see "For the
+  next release" near the top of [store-listing.md](store-listing.md).
 - **When there's a new build to ship,** the 1.2.0 steps below still apply.
   On a new version, **Promotional Text** comes up empty: paste it from
   [store-listing.md](store-listing.md). The rest should carry over; check
