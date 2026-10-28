@@ -225,6 +225,10 @@ The privacy policy and support contact are in the app under Profile → Help.
   app). A 42 mm Series 10/11 screenshot is 374 × 446, which Apple refuses, so `render.py` draws
   the originals in `watch/originals-42mm/` into captioned 416 × 496 ones (next-release.md,
   step 3).
+- **Search results image: not used for now.** 1.2.0's looked right in App Store Connect's
+  preview but zoomed in on the live store, so it was removed; the search card shows the first
+  three iPhone screenshots instead. See "Search results image" in plans-for-later.md. The
+  header image is still live. The notes below describe both as they were made:
 - Header and search results (iOS 27 and later), in `store/screenshots/header-and-search/`:
   `header.png` (3840 × 1646) under Header, just the words, and `search-results.png`
   (3840 × 2560) under Search Results: the words on the left, one big phone on the right

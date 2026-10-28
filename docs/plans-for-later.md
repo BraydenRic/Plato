@@ -75,6 +75,37 @@ keeps the exercises you made (since 1.2.0, build 76). A "Hidden exercises"
 list at the end of the Exercises tab, each with Show, would bring back one
 without the rest. Left out of 1.2.0 as new screen rather than fix.
 
+## Search results image (iOS 27), for the next major release
+
+**Where it stands.** 1.2.0 went out with a search results image (the words
+between two phones, at 5244 × 2950, Apple's 16:9 "universal" size). App
+Store Connect's Device Preview showed it whole and looking right
+(`store/screenshots/header-and-search/notes/asc-preview-iphone.png`), but
+the live App Store on an iPhone 15 showed it zoomed in: both phones there,
+cut down. It was removed on October 27, 2026, and the search card fell back
+to the first three iPhone screenshots, which look fine. Nothing ships
+until this is solved properly.
+
+**What we know.** The search card is 3:2, and Apple takes 1920 × 1280 to
+3840 × 2560 for it. A plain 3:2 fit of the 16:9 image keeps both phones
+whole, so the live card cropped further than that. How much, nobody
+outside Apple can say: Apple publishes no crop, only an "Art Safe Area" in
+its templates. These assets only arrived in App Store Connect on October 5,
+2026, so the preview tool may simply not match the live store yet; worth
+reporting to Apple with both screenshots.
+
+**What's ready.** `render.py header` makes a 3:2 version of the same
+two-phone look (3840 × 2560, phones 8% in from the sides, the watch in
+front of the right one), so the card has nothing to fit. It hasn't been
+seen live.
+
+**Before using it again:**
+1. Upload it on a new version, then look at the **live** search card on a
+   phone, not the preview. If it's cut, screenshot it.
+2. Measure how much the live card cut from that screenshot, and widen
+   `SEARCH_EDGE` in `render.py` until the phones survive it with room to
+   spare. Or drop the image again; the screenshots are a fine fallback.
+
 ## Known, minor, left open
 
 Found by the audit's rechecks, judged not worth the risk of fixing now:

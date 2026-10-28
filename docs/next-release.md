@@ -1,29 +1,23 @@
-# Next release: 1.2.1, for the search results image
+# Next release
 
-1.2.0 (77) is on the App Store (approved October 27, 2026). 1.2.1 exists
-only to carry the new search results image, which the live version's page
-won't take: the app inside it is the same as 77, with the version number
-changed (`app.json` and `package.json` say 1.2.1). Its steps:
+1.2.0 (77) is on the App Store (approved October 27, 2026). Nothing is
+waiting to ship.
 
-1. Build it: `gh workflow run ios-build.yml --ref main -f submit=true`. It
-   comes out as 1.2.1 (78) on TestFlight.
-2. In App Store Connect, add version **1.2.1** (+ next to iOS App).
-3. **What's New:** the 1.2.1 block in [store-listing.md](store-listing.md).
-   **Promotional Text** came up empty on the new version: paste it from
-   store-listing.md (it can be changed any time, the live version too).
-   The rest should carry over from 1.2.0; check the subtitle, description,
-   keywords, support URL, the screenshots (iPhone Medium and Large, Apple
-   Watch), the header image, the review notes and automatic release
-   against store-listing.md. Optionally add to the review notes: "1.2.1
-   only changes the App Store search results image; the app is the same
-   as 1.2.0." App Privacy, age rating and price are the app's, not the
-   version's, and need nothing.
-4. **Header and Search Results → Search Results:** upload
-   `store/screenshots/header-and-search/search-results.png` (3840 × 2560),
-   "Use header asset in search results" unticked. Check it in Device
-   Preview on an iPhone.
-5. **Build:** 1.2.1 (78). Then Add for Review and Submit.
-6. Once it's out, look at Plato in App Store search on a phone.
+- **Version:** `app.json` and `package.json` already say **1.2.1** (bumped
+  for a search-image-only release that turned out not to be needed). Make
+  it 1.3.0 instead if the next release adds features. App Store Connect
+  takes no more builds for 1.2.0.
+- **Search results image: removed from the live listing** (October 27).
+  The search card falls back to the first three iPhone screenshots, which
+  look right. The image itself is parked for the next major release: see
+  "Search results image" in [plans-for-later.md](plans-for-later.md),
+  including why App Store Connect's preview can't be trusted for it.
+- **Header image:** still live, `store/screenshots/header-and-search/header.png`.
+- **When there's a new build to ship,** the 1.2.0 steps below still apply.
+  On a new version, **Promotional Text** comes up empty: paste it from
+  [store-listing.md](store-listing.md). The rest should carry over; check
+  it against store-listing.md. What's New needs writing for whatever
+  changed.
 
 The rest of this file is how 1.2.0 went out, kept for the next full release.
 
